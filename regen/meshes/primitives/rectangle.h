@@ -50,7 +50,7 @@ namespace regen {
 			/** flag indicating if the quad center should be translated to origin. */
 			GLboolean centerAtOrigin;
 			/** VBO usage hint. */
-			VBO::Usage usage;
+			BufferUsage usage;
 
 			Config();
 		};

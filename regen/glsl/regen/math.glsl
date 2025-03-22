@@ -29,6 +29,66 @@ vec3 rotateYZ(vec3 v, float angle) {
 }
 #endif
 
+-- quaternion
+#include regen.math.createQuaternion
+#include regen.math.inverseQuaternion
+#include regen.math.multQuaternionAndVector
+#include regen.math.multQuaternionAndQuaternion
+
+-- createQuaternion
+#ifndef REGEN_createQuaternion_included_
+#define REGEN_createQuaternion_included_
+vec4 createQuaternion(float angle, vec3 axis) {
+    vec4 quaternion = vec4(0.0, 0.0, 0.0, 0.0);
+	float halfAngle = angle * 0.5f;
+	quaternion.w = cos(halfAngle);
+	quaternion.xyz = axis * sin(halfAngle);
+	return quaternion;
+}
+#endif
+
+-- inverseQuaternion
+#ifndef REGEN_inverseQuaternion_included_
+#define REGEN_inverseQuaternion_included_
+vec4 inverseQuaternion(vec4 quaternion) {
+    float lengthSqr = quaternion.x * quaternion.x + quaternion.y * quaternion.y + quaternion.z * quaternion.z + quaternion.w * quaternion.w;
+	if(lengthSqr < 0.001) {
+	    return vec4(0, 0, 0, 1.0f);
+	}
+	quaternion.x = -quaternion.x / lengthSqr;
+	quaternion.y = -quaternion.y / lengthSqr;
+	quaternion.z = -quaternion.z / lengthSqr;
+	quaternion.w = quaternion.w / lengthSqr;
+	return quaternion;
+}
+#endif
+
+-- multQuaternionAndVector
+#ifndef REGEN_multQuaternionAndVector_included_
+#define REGEN_multQuaternionAndVector_included_
+vec3 multQuaternionAndVector(vec4 q, vec3 v) {
+    vec3 qvec = q.xyz;
+    vec3 uv = cross(qvec, v);
+    vec3 uuv = cross(qvec, uv);
+    uv *= (2.0f * q.w);
+    uuv *= 2.0f;
+    return v + uv + uuv;
+}
+#endif
+
+-- multQuaternionAndQuaternion
+#ifndef REGEN_multQuaternionAndQuaternion_included_
+#define REGEN_multQuaternionAndQuaternion_included_
+vec4 multQuaternionAndQuaternion(vec4 qA, vec4 qB) {
+    vec4 q;
+    q.w = qA.w * qB.w - qA.x * qB.x - qA.y * qB.y - qA.z * qB.z;
+    q.x = qA.w * qB.x + qA.x * qB.w + qA.y * qB.z - qA.z * qB.y;
+    q.y = qA.w * qB.y + qA.y * qB.w + qA.z * qB.x - qA.x * qB.z;
+    q.z = qA.w * qB.z + qA.z * qB.w + qA.x * qB.y - qA.y * qB.x;
+    return q;
+}
+#endif
+
 -- matrixInverse
 #ifndef REGEN_matrixInverse_included_
 #define REGEN_matrixInverse_included_

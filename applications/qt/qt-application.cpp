@@ -82,7 +82,7 @@ int QtApplication::mainLoop() {
 	glWidget_->stopRendering();
 #endif
 	AnimationManager::get().close();
-	VBO::destroyMemoryPools();
+	BufferObject::destroyMemoryPools();
 	Font::closeLibrary();
 
 	REGEN_INFO("Exiting with status " << exitCode_ << ".");

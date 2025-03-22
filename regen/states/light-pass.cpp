@@ -114,10 +114,10 @@ void LightPass::createShader(const StateConfig &cfg) {
 		// add first light to shader to set up shader defines and also instance count
 		auto &firstLight = lights_.front();
 		for (auto &in: firstLight.light->inputContainer()->inputs()) {
-			if (in.in_->isUniformBlock()) {
-				auto *block = dynamic_cast<UniformBlock *>(in.in_.get());
+			if (in.in_->isBufferBlock()) {
+				auto *block = dynamic_cast<BufferBlock *>(in.in_.get());
 				_cfg.addInput(in.in_->name(), in.in_);
-				for (auto &blockUniform: block->uniforms()) {
+				for (auto &blockUniform: block->blockInputs()) {
 					if (blockUniform.in_->numInstances() > 0) { hasInstancedInputs = true; }
 				}
 			} else {

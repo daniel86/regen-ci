@@ -13,15 +13,15 @@
 #include <regen/utility/event-object.h>
 #include <regen/utility/ref-ptr.h>
 #include <regen/gl-types/shader-input.h>
-#include <regen/gl-types/shader-input-container.h>
+#include <regen/gl-types/input-container.h>
 #include <regen/gl-types/render-state.h>
-#include "regen/gl-types/uniform-block.h"
+#include "regen/gl-types/ubo.h"
 
 namespace regen {
 	struct StateInput {
 		ref_ptr<ShaderInput> in;
-		ref_ptr<UniformBlock> block;
-		ref_ptr<ShaderInputContainer> container;
+		ref_ptr<BufferBlock> block;
+		ref_ptr<InputContainer> container;
 	};
 
 	/**
@@ -179,7 +179,9 @@ namespace regen {
 		/**
 		 * @param usage the buffer object usage.
 		 */
-		explicit HasInputState(VBO::Usage usage = VBO::USAGE_DYNAMIC) : State(), HasInput(usage) {}
+		explicit HasInputState(
+			BufferTarget target = ARRAY_BUFFER,
+			BufferUsage usage = USAGE_DYNAMIC) : State(), HasInput(target, usage) {}
 	};
 } // namespace
 

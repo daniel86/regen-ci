@@ -122,7 +122,7 @@ namespace regen {
 		 * @return vector of successfully created meshes.
 		 */
 		std::vector<ref_ptr<Mesh> > loadAllMeshes(
-				const Mat4f &transform, VBO::Usage usage);
+				const Mat4f &transform, BufferUsage usage);
 
 		/**
 		 * Create Mesh instances from Asset file.
@@ -132,7 +132,7 @@ namespace regen {
 		 * @return vector of successfully created meshes.
 		 */
 		std::vector<ref_ptr<Mesh> > loadMeshes(
-				const Mat4f &transform, VBO::Usage usage,
+				const Mat4f &transform, BufferUsage usage,
 				const std::vector<GLuint> &meshIndices);
 
 		/**
@@ -190,7 +190,7 @@ namespace regen {
 		void loadMeshes(
 				const struct aiNode &node,
 				const Mat4f &transform,
-				VBO::Usage usage,
+				BufferUsage usage,
 				const std::vector<GLuint> &meshIndices,
 				GLuint &currentIndex,
 				std::vector<ref_ptr<Mesh> > &out);
@@ -198,7 +198,7 @@ namespace regen {
 		ref_ptr<Mesh> loadMesh(
 				const struct aiMesh &mesh,
 				const Mat4f &transform,
-				VBO::Usage usage);
+				BufferUsage usage);
 
 		void loadNodeAnimation(const AssimpAnimationConfig &animConfig);
 

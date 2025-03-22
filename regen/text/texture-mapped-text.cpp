@@ -15,7 +15,7 @@
 using namespace regen;
 
 TextureMappedText::TextureMappedText(const ref_ptr<Font> &font, const GLfloat &height)
-		: Mesh(GL_TRIANGLES, VBO::USAGE_DYNAMIC),
+		: Mesh(GL_TRIANGLES, USAGE_DYNAMIC),
 		  font_(font),
 		  value_(),
 		  height_(height),
@@ -172,7 +172,7 @@ void TextureMappedText::updateAttributes(Alignment alignment, GLfloat maxLineWid
 	v_nor.unmap();
 	v_texco.unmap();
 
-	begin(ShaderInputContainer::INTERLEAVED);
+	begin(InputContainer::INTERLEAVED);
 	setInput(posAttribute_);
 	setInput(norAttribute_);
 	setInput(texcoAttribute_);

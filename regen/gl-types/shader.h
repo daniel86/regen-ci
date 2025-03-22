@@ -1,94 +1,16 @@
-/*
- * shader.h
- *
- *  Created on: 02.02.2011
- *      Author: daniel
- */
-
-#ifndef _SHADER_H_
-#define _SHADER_H_
+#ifndef REGEN_SHADER_H_
+#define REGEN_SHADER_H_
 
 #include <map>
 #include <set>
 
 #include <regen/gl-types/render-state.h>
-#include <regen/textures/texture.h>
-#include <regen/gl-types/shader-input.h>
+#include <regen/gl-types/input-location.h>
+#include <regen/textures/texture-location.h>
 #include <regen/gl-types/glsl/preprocessor.h>
+#include <regen/gl-types/glsl/preprocessor-config.h>
 
 namespace regen {
-	/**
-	 * \brief Maps input to shader location.
-	 */
-	struct ShaderInputLocation {
-		ref_ptr<ShaderInput> input; /**< the shader input. */
-		GLint location; /**< the input location. */
-		GLuint uploadStamp; /**< time stamp of last upload. */
-		/**
-		 * @param _input input data.
-		 * @param _location input location in shader.
-		 */
-		ShaderInputLocation(const ref_ptr<ShaderInput> &_input, GLint _location)
-				: input(_input), location(_location), uploadStamp(0) {}
-
-		ShaderInputLocation()
-				: location(-1), uploadStamp(0) {}
-	};
-
-	/**
-	 * \brief Maps texture to shader location.
-	 */
-	struct ShaderTextureLocation {
-		std::string name;    /**< name in shader. **/
-		GLint location; /**< the texture location. */
-		ref_ptr<Texture> tex; /**< the texture. */
-		GLint uploadChannel; /**< last uploaded channel. */
-		/**
-		 * @param _name texture name.
-		 * @param _tex the texture.
-		 * @param _location texture location in shader.
-		 */
-		ShaderTextureLocation(const std::string &_name, const ref_ptr<Texture> &_tex, GLint _location)
-				: name(_name), location(_location), tex(_tex), uploadChannel(-1) {}
-
-		ShaderTextureLocation()
-				: name(""), location(-1), uploadChannel(-1) {}
-	};
-
-	/**
-	 * \brief Configuration for GLSL pre-processing.
-	 */
-	struct PreProcessorConfig {
-		/**
-		 * Default constructor.
-		 */
-		PreProcessorConfig(
-				GLuint _version,
-				const std::map<GLenum, std::string> &_unprocessed,
-				const std::map<std::string, std::string> &_defines =
-				std::map<std::string, std::string>(),
-				const std::map<std::string, std::string> &_externalFunctions =
-				std::map<std::string, std::string>(),
-				const std::list<NamedShaderInput> &_specifiedInput =
-				std::list<NamedShaderInput>())
-				: version(_version),
-				  unprocessed(_unprocessed),
-				  defines(_defines),
-				  externalFunctions(_externalFunctions),
-				  specifiedInput(_specifiedInput) {}
-
-		/** GLSL version. */
-		GLuint version;
-		/** Input GLSL code. */
-		const std::map<GLenum, std::string> &unprocessed;
-		/** Shader configuration using macros. */
-		const std::map<std::string, std::string> &defines;
-		/** External GLSL functions. */
-		const std::map<std::string, std::string> &externalFunctions;
-		/** Input data specification. */
-		const std::list<NamedShaderInput> &specifiedInput;
-	};
-
 	/**
 	 * \brief a piece of code that is executed on the GPU.
 	 *
@@ -162,62 +84,62 @@ namespace regen {
 		/**
 		 * Compiles and attaches shader stages.
 		 */
-		GLboolean compile();
+		bool compile();
 
 		/**
 		 * Link together previous compiled stages.
 		 * Note: For MRT you must call setOutputs before and for
 		 * transform feedback you must call setTransformFeedback before.
 		 */
-		GLboolean link();
+		bool link();
 
 		/**
 		 * @return GL_TRUE if the validation was successful.
 		 */
-		GLboolean validate();
+		bool validate();
 
 		/**
 		 * The program object.
 		 */
-		GLint id() const;
+		unsigned int id() const;
 
 		/**
 		 * Returns true if the given name is a valid vertex attribute name.
 		 */
-		GLboolean isAttribute(const std::string &name) const;
+		bool isAttribute(const std::string &name) const;
 
 		/**
 		 * Returns the locations for a given vertex attribute name or -1 if the name is not known.
 		 */
-		GLint attributeLocation(const std::string &name);
+		int attributeLocation(const std::string &name);
 
 		/**
 		 * Returns true if the given name is a valid uniform name
 		 * and the uniform was added to the shader using setInput().
 		 */
-		GLboolean hasUniform(const std::string &name) const;
+		bool hasUniform(const std::string &name) const;
 
 		/**
 		 * Returns the location for a given uniform name or -1 if the name is not known.
 		 */
-		GLint uniformLocation(const std::string &name);
+		int uniformLocation(const std::string &name);
 
 		/**
 		 * Returns true if the given name is a valid uniform name and
 		 * the uniform has some data set (no null pointer data).
 		 */
-		GLboolean hasUniformData(const std::string &name) const;
+		bool hasUniformData(const std::string &name) const;
 
 		/**
 		 * Returns true if the given name is a valid sampler name.
 		 * and the texture was added to the shader using setTexture().
 		 */
-		GLboolean hasSampler(const std::string &name) const;
+		bool hasSampler(const std::string &name) const;
 
 		/**
 		 * Returns the location for a given sampler name or -1 if the name is not known.
 		 */
-		GLint samplerLocation(const std::string &name);
+		int samplerLocation(const std::string &name);
 
 		/**
 		 * Returns inputs for this shader.
@@ -226,17 +148,17 @@ namespace regen {
 		 * You can overwrite these with setInput or you can allocate data
 		 * for the inputs as returned by this function.
 		 */
-		const ShaderInputList &inputs() const;
+		auto &inputs() const { return inputs_; }
 
 		/**
 		 * @return list of textures attached to this shader.
 		 */
-		const std::map<GLint, ShaderTextureLocation> &textures() const;
+		auto &textures() const { return textures_; }
 
 		/**
 		 * @return list of attributes attached to this shader.
 		 */
-		const std::list<ShaderInputLocation> &attributes() const;
+		auto &attributes() const { return attributes_; }
 
 		/**
 		 * @return list of uniforms attached to this shader.
@@ -263,7 +185,7 @@ namespace regen {
 		 * Set a single texture for this program.
 		 * channel must point to the channel the texture is bound to.
 		 */
-		GLboolean setTexture(const ref_ptr<Texture> &tex, const std::string &name);
+		bool setTexture(const ref_ptr<Texture> &tex, const std::string &name);
 
 		/**
 		 * Returns shader stage GL handle from enumeration.
@@ -286,7 +208,7 @@ namespace regen {
 		 * Enumeration may be GL_VERTEX_SHADER, GL_FRAGMENT_SHADER,
 		 * GL_GEOMETRY_SHADER, ...
 		 */
-		GLboolean hasStage(GLenum stage) const;
+		bool hasStage(GLenum stage) const;
 
 		/**
 		 * Must be done before linking for transform feedback.
@@ -310,21 +232,21 @@ namespace regen {
 
 	protected:
 		// the GL shader handle that can be shared by multiple Shader's
-		ref_ptr<GLuint> id_;
+		ref_ptr<unsigned int> id_;
 
 		// shader codes without replaced input prefix
 		std::map<GLenum, std::string> shaderCodes_;
 		// compiled shader objects
-		std::map<GLenum, ref_ptr<GLuint> > shaders_;
+		std::map<GLenum, ref_ptr<unsigned int> > shaders_;
 
 		// location maps
-		std::map<std::string, GLint> samplerLocations_;
-		std::map<std::string, GLint> uniformLocations_;
-		std::map<std::string, GLint> attributeLocations_;
+		std::map<std::string, int> samplerLocations_;
+		std::map<std::string, int> uniformLocations_;
+		std::map<std::string, int> attributeLocations_;
 
-		std::list<ShaderInputLocation> attributes_;
-		std::list<ShaderInputLocation> uniforms_;
-		std::map<GLint, ShaderTextureLocation> textures_;
+		std::list<InputLocation> attributes_;
+		std::list<InputLocation> uniforms_;
+		std::map<GLint, TextureLocation> textures_;
 		// available inputs
 		ShaderInputList inputs_;
 		std::map<std::string, ShaderInputList::iterator> inputNames_;
@@ -337,4 +259,4 @@ namespace regen {
 	};
 } // namespace
 
-#endif /* _SHADER_H_ */
+#endif /* REGEN_SHADER_H_ */

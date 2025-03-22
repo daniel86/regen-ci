@@ -12,7 +12,7 @@
 #include <map>
 #include <atomic>
 
-#include <regen/gl-types/vbo.h>
+#include <regen/gl-types/buffer-reference.h>
 #include <regen/gl-types/gl-enum.h>
 #include <regen/gl-types/shader-data.h>
 #include <regen/utility/ref-ptr.h>
@@ -29,13 +29,6 @@ namespace regen {
 #define ATTRIBUTE_NAME_TAN "tan"
 #define ATTRIBUTE_NAME_COL0 "col0"
 #define ATTRIBUTE_NAME_COL1 "col1"
-
-	/**
-	 * Offset in the VBO
-	 */
-#ifndef BUFFER_OFFSET
-#define BUFFER_OFFSET(i) ((char *)NULL + (i))
-#endif
 
 	/**
 	 * \brief Provides input to shader programs.
@@ -152,7 +145,7 @@ namespace regen {
 		 * VBO that contains this vertex data.
 		 * Iterator should be exclusively owned by this instance.
 		 */
-		void set_buffer(GLuint buffer, const VBOReference &ref);
+		void set_buffer(GLuint buffer, const ref_ptr<BufferReference> &ref);
 
 		/**
 		 * VBO that contains this vertex data.
@@ -167,7 +160,7 @@ namespace regen {
 		/**
 		 * Iterator to allocated VBO block.
 		 */
-		auto bufferIterator() const { return bufferIterator_; }
+		auto &bufferIterator() const { return bufferIterator_; }
 
 		/**
 		 * Specifies the byte offset between consecutive generic vertex attributes.
@@ -279,7 +272,7 @@ namespace regen {
 		/**
 		 * @return true if this input is a uniform block.
 		 */
-		auto isUniformBlock() const { return isUniformBlock_; }
+		auto isBufferBlock() const { return isBufferBlock_; }
 
 		/**
 		 * Uniforms with a single array element will appear
@@ -332,7 +325,8 @@ namespace regen {
 		 * @param mapMode the map mode.
 		 * @return the mapped data.
 		 */
-		template<typename T> ShaderData_rw<T> mapClientData(int mapMode) { return {this, mapMode}; }
+		template<typename T>
+		ShaderData_rw<T> mapClientData(int mapMode) { return {this, mapMode}; }
 
 		/**
 		 * Map client data for reading/writing.
@@ -340,7 +334,8 @@ namespace regen {
 		 * @param mapMode the map mode.
 		 * @return the mapped data.
 		 */
-		template<typename T> ShaderData_ro<T> mapClientData(int mapMode) const { return {this, mapMode}; }
+		template<typename T>
+		ShaderData_ro<T> mapClientData(int mapMode) const { return {this, mapMode}; }
 
 		/**
 		 * Map a single vertex for reading/writing.
@@ -349,8 +344,10 @@ namespace regen {
 		 * @param vertexIndex the vertex index.
 		 * @return the mapped vertex.
 		 */
-		template<typename T> ShaderVertex_rw<T> mapClientVertex(int mapMode, unsigned int vertexIndex)
-		{ return {this, mapMode, vertexIndex}; }
+		template<typename T>
+		ShaderVertex_rw<T> mapClientVertex(int mapMode, unsigned int vertexIndex) {
+			return {this, mapMode, vertexIndex};
+		}
 
 		/**
 		 * Map a single vertex for reading/writing.
@@ -359,8 +356,10 @@ namespace regen {
 		 * @param vertexIndex the vertex index.
 		 * @return the mapped vertex.
 		 */
-		template<typename T> ShaderVertex_ro<T> mapClientVertex(int mapMode, unsigned int vertexIndex) const
-		{ return {this, mapMode, vertexIndex}; }
+		template<typename T>
+		ShaderVertex_ro<T> mapClientVertex(int mapMode, unsigned int vertexIndex) const {
+			return {this, mapMode, vertexIndex};
+		}
 
 		/**
 		 * Writes client data at index.
@@ -469,7 +468,7 @@ namespace regen {
 		GLuint divisor_;
 		GLuint buffer_;
 		mutable GLuint bufferStamp_;
-		ref_ptr<VBO::Reference> bufferIterator_;
+		ref_ptr<BufferReference> bufferIterator_;
 		bool normalize_;
 		bool isVertexAttribute_;
 		bool transpose_;
@@ -484,13 +483,13 @@ namespace regen {
 		};
 		// Note: marked as mutable because client data mapping must be allowed in const functions
 		//       for reading data, but mapping interacts with locks. Hence, locks must be mutable.
-		mutable std::array<byte*,2> dataSlots_;
-		mutable std::array<SlotLock,2> slotLocks_;
+		mutable std::array<byte *, 2> dataSlots_;
+		mutable std::array<SlotLock, 2> slotLocks_;
 		mutable std::atomic<int> lastDataSlot_ = 0;
 		mutable std::atomic<unsigned int> dataStamp_ = 0;
 
 		bool isConstant_;
-		bool isUniformBlock_;
+		bool isBufferBlock_;
 		bool forceArray_;
 		bool active_;
 		mutable bool requiresReUpload_ = false;
@@ -501,15 +500,15 @@ namespace regen {
 
 		void unmapClientData(int mapMode, int slotIndex) const;
 
-		const byte* readLock(int slotIndex) const;
+		const byte *readLock(int slotIndex) const;
 
-		const byte* readLockTry(int dataSlot) const;
+		const byte *readLockTry(int dataSlot) const;
 
 		void readUnlock(int slotIndex) const;
 
-		byte* writeLock(int slotIndex) const;
+		byte *writeLock(int slotIndex) const;
 
-		byte* writeLockTry(int slotIndex) const;
+		byte *writeLockTry(int slotIndex) const;
 
 		void writeUnlock(int slotIndex, bool hasDataChanged) const;
 
@@ -547,7 +546,8 @@ namespace regen {
 		 * @param name the name overwrite.
 		 * @param type the type overwrite.
 		 */
-		explicit NamedShaderInput(const ref_ptr<ShaderInput> &in, const std::string &name = "", const std::string &type = "");
+		explicit NamedShaderInput(const ref_ptr<ShaderInput> &in, const std::string &name = "",
+								  const std::string &type = "");
 
 		/** the shader input data. */
 		ref_ptr<ShaderInput> in_;

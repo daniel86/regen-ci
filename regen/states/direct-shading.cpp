@@ -117,12 +117,12 @@ void DirectShading::addLight(
 	{
 		const ShaderInputList &in = light->inputContainer()->inputs();
 		for (auto it = in.begin(); it != in.end(); ++it) {
-			if (it->in_->isUniformBlock()) {
+			if (it->in_->isBufferBlock()) {
 				// if the input is a uniform block, we add all uniforms to the shader
 				// to avoid name clash.
 				// TODO: find a way to use UBO without the name clash
-				auto *block = dynamic_cast<UniformBlock *>(it->in_.get());
-				for (auto &blockUniform: block->uniforms()) {
+				auto *block = dynamic_cast<BufferBlock *>(it->in_.get());
+				for (auto &blockUniform: block->blockInputs()) {
 					joinShaderInput(
 							blockUniform.in_,
 							REGEN_LIGHT_NAME(blockUniform.name_, lightID));

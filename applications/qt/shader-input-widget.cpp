@@ -137,7 +137,7 @@ bool ShaderInputWidget::handleState(
 
 	auto *hasInput = dynamic_cast<HasInput *>(state.get());
 	if (hasInput != nullptr) {
-		ref_ptr<ShaderInputContainer> container = hasInput->inputContainer();
+		ref_ptr<InputContainer> container = hasInput->inputContainer();
 		const ShaderInputList &inputs = container->inputs();
 		for (const auto & namedInput : inputs) {
 			if (namedInput.in_->numVertices() > 1) continue;
@@ -178,13 +178,13 @@ bool ShaderInputWidget::handleInput(
 	const ref_ptr<ShaderInput> in = namedInput.in_;
 	if (in->valsPerElement() > 4) return false;
 
-	if (in->isUniformBlock()) {
-		auto *block = dynamic_cast<UniformBlock *>(in.get());
-		if (block->name() == "GlobalUniforms") {
+	if (in->isBufferBlock()) {
+		auto *block = dynamic_cast<UBO *>(in.get());
+		if (block && block->name() == "GlobalUniforms") {
 			return false;
 		}
 		bool hasInputs = false;
-		for (auto &uniform : block->uniforms()) {
+		for (auto &uniform : block->blockInputs()) {
 			hasInputs = handleInput(uniform, parent) || hasInputs;
 		}
 		return hasInputs;

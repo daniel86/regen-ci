@@ -106,7 +106,7 @@ using namespace regen;
 // Create a new VBO.
 // The usage flag determines which pool is used for memory allocation
 // and it is a hint for the driver to find a good space in VRAM for the data.
-ref_ptr<VBO> vbo = ref_ptr<VBO>::alloc(VBO::USAGE_DYNAMIC);
+ref_ptr<VBO> vbo = ref_ptr<VBO>::alloc(USAGE_DYNAMIC);
 // Allocate virtual memory from the pool using the VBO interface.
 VBOReference ref = vbo->alloc(NUM_BYTES);
 // Upload data to actual VRAM using the VBOReference.

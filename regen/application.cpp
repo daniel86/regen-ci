@@ -252,7 +252,7 @@ void Application::initGL() {
 
 	setupShaderLoading();
 
-	VBO::createMemoryPools();
+	BufferObject::createMemoryPools();
 	renderTree_->init();
 	renderState_ = RenderState::get();
 	isGLInitialized_ = GL_TRUE;
@@ -277,15 +277,15 @@ void Application::clear() {
 		// TODO: for some reason UBO cannot be created in initGL above.
 		//       well it gets ID 1, but the first UBO in the loaded scene
 		//       gets ID 1 too, then there is flickering. Not sure why.
-		globalUniforms_ = ref_ptr<UniformBlock>::alloc("GlobalUniforms");
-		globalUniforms_->addUniform(windowViewport_);
-		globalUniforms_->addUniform(mousePosition_);
-		globalUniforms_->addUniform(mouseTexco_);
-		globalUniforms_->addUniform(mouseDepth_);
-		globalUniforms_->addUniform(timeSeconds_);
-		globalUniforms_->addUniform(timeDelta_);
-		globalUniforms_->addUniform(worldTime_.in);
-		globalUniforms_->addUniform(isMouseEntered_);
+		globalUniforms_ = ref_ptr<UBO>::alloc("GlobalUniforms");
+		globalUniforms_->addBlockInput(windowViewport_);
+		globalUniforms_->addBlockInput(mousePosition_);
+		globalUniforms_->addBlockInput(mouseTexco_);
+		globalUniforms_->addBlockInput(mouseDepth_);
+		globalUniforms_->addBlockInput(timeSeconds_);
+		globalUniforms_->addBlockInput(timeDelta_);
+		globalUniforms_->addBlockInput(worldTime_.in);
+		globalUniforms_->addBlockInput(isMouseEntered_);
 		renderTree_->state()->joinShaderInput(globalUniforms_);
 	}
 }

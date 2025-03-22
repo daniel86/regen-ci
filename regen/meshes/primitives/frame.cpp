@@ -40,7 +40,7 @@ ref_ptr<FrameMesh> FrameMesh::getUnitFrame() {
 		cfg.isNormalRequired = GL_FALSE;
 		cfg.isTangentRequired = GL_FALSE;
 		cfg.borderSize = 0.1f;
-		cfg.usage = VBO::USAGE_STATIC;
+		cfg.usage = USAGE_STATIC;
 		mesh = ref_ptr<FrameMesh>::alloc(cfg);
 		return mesh;
 	} else {
@@ -77,7 +77,7 @@ FrameMesh::Config::Config()
 		  texcoMode(TEXCO_MODE_UV),
 		  isNormalRequired(GL_TRUE),
 		  isTangentRequired(GL_FALSE),
-		  usage(VBO::USAGE_DYNAMIC),
+		  usage(USAGE_DYNAMIC),
 		  borderSize(0.1f) {
 }
 
@@ -280,7 +280,7 @@ void FrameMesh::updateAttributes(const Config &cfg) {
 		v_texco.unmap();
 	}
 
-	begin(ShaderInputContainer::INTERLEAVED);
+	begin(InputContainer::INTERLEAVED);
 	setInput(pos_);
 	if (cfg.isNormalRequired)
 		setInput(nor_);

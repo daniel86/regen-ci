@@ -5,7 +5,7 @@
  *      Author: daniel
  */
 
-#include <regen/gl-types/shader-input-container.h>
+#include <regen/gl-types/input-container.h>
 #include <regen/states/light-state.h>
 #include <regen/meshes/mesh-state.h>
 #include <regen/utility/string-util.h>
@@ -74,7 +74,7 @@ void StateConfigurer::addState(const State *s) {
 	const auto *x3 = dynamic_cast<const StateSequence *>(s);
 
 	if (x0 != nullptr) {
-		const ref_ptr<ShaderInputContainer> &container = x0->inputContainer();
+		const ref_ptr<InputContainer> &container = x0->inputContainer();
 
 		// remember inputs, they will be enabled automatically
 		// when the shader is enabled.
@@ -97,9 +97,9 @@ void StateConfigurer::addState(const State *s) {
 					define("HAS_INSTANCES", "TRUE");
 				}
 
-				if (in->isUniformBlock()) {
-					auto block = (UniformBlock *)(in);
-					for (auto& blockUniform : block->uniforms()) {
+				if (in->isBufferBlock()) {
+					auto block = dynamic_cast<BufferBlock*>(in);
+					for (auto& blockUniform : block->blockInputs()) {
 						queue.emplace(blockUniform.name_, blockUniform.in_.get());
 					}
 				}

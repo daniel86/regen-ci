@@ -38,8 +38,8 @@ GeomPicking::GeomPicking(const ref_ptr<Camera> &camera, const ref_ptr<ShaderInpu
 
 	// setup transform feedback buffer
 	bufferSize_ = sizeof(PickData) * maxPickedObjects_;
-	feedbackBuffer_ = ref_ptr<VBO>::alloc(VBO::USAGE_FEEDBACK);
-	vboRef_ = feedbackBuffer_->alloc(bufferSize_);
+	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, USAGE_STREAM);
+	vboRef_ = feedbackBuffer_->allocBytes(bufferSize_);
 	bufferRange_ = ref_ptr<BufferRange>::alloc();
 	bufferRange_->buffer_ = vboRef_->bufferID();
 

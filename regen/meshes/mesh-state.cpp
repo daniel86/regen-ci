@@ -1,16 +1,7 @@
-/*
- * attribute-state.cpp
- *
- *  Created on: 05.08.2012
- *      Author: daniel
- */
-
 #include <regen/utility/string-util.h>
 #include <regen/states/feedback-state.h>
-#include <regen/gl-types/gl-util.h>
 
 #include "mesh-state.h"
-#include "regen/gl-types/uniform-block.h"
 
 using namespace regen;
 
@@ -34,9 +25,9 @@ Mesh::Mesh(const ref_ptr<Mesh> &sourceMesh)
 	sourceMesh_->meshViews_.insert(this);
 }
 
-Mesh::Mesh(GLenum primitive, VBO::Usage usage)
+Mesh::Mesh(GLenum primitive, BufferUsage usage)
 		: State(),
-		  HasInput(usage),
+		  HasInput(ARRAY_BUFFER, usage),
 		  primitive_(primitive),
 		  feedbackCount_(0),
 		  isMeshView_(GL_FALSE),
@@ -44,7 +35,7 @@ Mesh::Mesh(GLenum primitive, VBO::Usage usage)
 		  maxPosition_(1.0f) {
 	vao_ = ref_ptr<VAO>::alloc();
 	hasInstances_ = GL_FALSE;
-	draw_ = &ShaderInputContainer::drawArrays;
+	draw_ = &InputContainer::drawArrays;
 	set_primitive(primitive);
 }
 
@@ -56,15 +47,15 @@ Mesh::~Mesh() {
 
 void Mesh::getMeshViews(std::set<Mesh *> &out) {
 	out.insert(this);
-	for (auto it = meshViews_.begin(); it != meshViews_.end(); ++it) { (*it)->getMeshViews(out); }
+	for (auto meshView : meshViews_) { meshView->getMeshViews(out); }
 }
 
 void Mesh::addShaderInput(const std::string &name, const ref_ptr<ShaderInput> &in) {
 	if (!meshShader_.get()) return;
 
-	if (in->isUniformBlock()) {
-		auto block = (UniformBlock *) (in.get());
-		for (auto &blockUniform: block->uniforms()) {
+	if (in->isBufferBlock()) {
+		auto block = (BufferBlock *) (in.get());
+		for (auto &blockUniform: block->blockInputs()) {
 			if (blockUniform.in_->numInstances() > 1) {
 				inputContainer_->set_numInstances(blockUniform.in_->numInstances());
 				hasInstances_ = GL_TRUE;
@@ -94,7 +85,7 @@ void Mesh::addShaderInput(const std::string &name, const ref_ptr<ShaderInput> &i
 			--it;
 			vaoLocations_[loc] = it;
 		} else {
-			*needle->second = ShaderInputLocation(in, loc);
+			*needle->second = InputLocation(in, loc);
 		}
 	} else if (!in->isConstant()) {
 		if (meshShader_->hasUniform(name) &&
@@ -107,7 +98,7 @@ void Mesh::addShaderInput(const std::string &name, const ref_ptr<ShaderInput> &i
 			// not used in shader
 			return;
 		}
-		meshUniforms_[loc] = ShaderInputLocation(in, loc);
+		meshUniforms_[loc] = InputLocation(in, loc);
 	}
 }
 
@@ -124,15 +115,15 @@ void Mesh::updateVAO(
 	vaoLocations_.clear();
 	meshUniforms_.clear();
 	// and load from Config
-	for (auto it = cfg.inputs_.begin(); it != cfg.inputs_.end(); ++it) { addShaderInput(it->name_, it->in_); }
+	for (const auto & input : cfg.inputs_) { addShaderInput(input.name_, input.in_); }
 	// Get input from mesh and joined states (might be handled by StateConfig allready)
 	ShaderInputList localInputs;
 	collectShaderInput(localInputs);
-	for (auto it = localInputs.begin(); it != localInputs.end(); ++it) {
-		addShaderInput(it->name_, it->in_);
+	for (auto & localInput : localInputs) {
+		addShaderInput(localInput.name_, localInput.in_);
 	}
 	// Add Textures
-	for (auto it = cfg.textures_.begin(); it != cfg.textures_.end(); ++it) { addShaderInput(it->first, it->second); }
+	for (const auto & texture : cfg.textures_) { addShaderInput(texture.first, texture.second); }
 
 	updateVAO(rs);
 	updateDrawFunction();
@@ -141,15 +132,15 @@ void Mesh::updateVAO(
 void Mesh::updateDrawFunction() {
 	if (inputContainer_->indexBuffer() > 0) {
 		if (hasInstances_) {
-			draw_ = &ShaderInputContainer::drawElementsInstanced;
+			draw_ = &InputContainer::drawElementsInstanced;
 		} else {
-			draw_ = &ShaderInputContainer::drawElements;
+			draw_ = &InputContainer::drawElements;
 		}
 	} else {
 		if (hasInstances_) {
-			draw_ = &ShaderInputContainer::drawArraysInstanced;
+			draw_ = &InputContainer::drawArraysInstanced;
 		} else {
-			draw_ = &ShaderInputContainer::drawArrays;
+			draw_ = &InputContainer::drawArrays;
 		}
 	}
 }
@@ -159,13 +150,13 @@ void Mesh::updateVAO(RenderState *rs) {
 	vao_->resetGL();
 	rs->vao().push(vao_->id());
 	// Setup attributes
-	for (auto it = vaoAttributes_.begin(); it != vaoAttributes_.end(); ++it) {
-		const ref_ptr<ShaderInput> &in = it->input;
+	for (auto & vaoAttribute : vaoAttributes_) {
+		const ref_ptr<ShaderInput> &in = vaoAttribute.input;
 		if (lastArrayBuffer != in->buffer()) {
 			lastArrayBuffer = in->buffer();
 			glBindBuffer(GL_ARRAY_BUFFER, lastArrayBuffer);
 		}
-		in->enableAttribute(it->location);
+		in->enableAttribute(vaoAttribute.location);
 		if (in->numInstances() > 1) hasInstances_ = GL_TRUE;
 	}
 	// bind the index buffer
@@ -209,8 +200,8 @@ void Mesh::setFeedbackRange(const ref_ptr<BufferRange> &range) {
 void Mesh::enable(RenderState *rs) {
 	State::enable(rs);
 
-	for (auto it = meshUniforms_.begin(); it != meshUniforms_.end(); ++it) {
-		ShaderInputLocation &x = it->second;
+	for (auto & meshUniform : meshUniforms_) {
+		InputLocation &x = meshUniform.second;
 		// For uniforms below the shader it is expected that
 		// they will be set multiple times during shader lifetime.
 		// So we upload uniform data each time.
@@ -265,12 +256,4 @@ void Mesh::set_bounds(const Vec3f &min, const Vec3f &max) {
 	minPosition_ = min;
 	maxPosition_ = max;
 	geometryStamp_++;
-}
-
-////////////
-////////////
-
-AttributeLessMesh::AttributeLessMesh(GLuint numVertices)
-		: Mesh(GL_POINTS, VBO::USAGE_STATIC) {
-	inputContainer_->set_numVertices(numVertices);
 }

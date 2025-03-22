@@ -18,12 +18,12 @@ using namespace regen;
 ///////////
 
 Particles::Particles(GLuint numParticles, const std::string &updateShaderKey)
-		: Mesh(GL_POINTS, VBO::USAGE_STREAM),
+		: Mesh(GL_POINTS, USAGE_STREAM),
 		  Animation(true, false),
 		  updateShaderKey_(updateShaderKey),
 		  maxEmits_(100u) {
 	setAnimationName("particles");
-	feedbackBuffer_ = ref_ptr<VBO>::alloc(VBO::USAGE_FEEDBACK);
+	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, USAGE_STREAM);
 	inputContainer_->set_numVertices(numParticles);
 	updateState_ = ref_ptr<ShaderState>::alloc();
 	numParticles_ = numParticles;
@@ -32,10 +32,10 @@ Particles::Particles(GLuint numParticles, const std::string &updateShaderKey)
 }
 
 void Particles::begin() {
-	begin(ShaderInputContainer::INTERLEAVED);
+	begin(InputContainer::INTERLEAVED);
 }
 
-void Particles::begin(ShaderInputContainer::DataLayout layout) {
+void Particles::begin(InputContainer::DataLayout layout) {
 	HasInput::begin(layout);
 
 	GLuint numParticles = inputContainer()->numVertices();
@@ -63,11 +63,11 @@ void Particles::begin(ShaderInputContainer::DataLayout layout) {
 	setInput(lifetimeInput_);
 }
 
-VBOReference Particles::end() {
+ref_ptr<BufferReference> Particles::end() {
 	ShaderInputList particleInputs = inputContainer()->uploadInputs();
 
 	particleRef_ = HasInput::end();
-	feedbackRef_ = feedbackBuffer_->alloc(particleRef_->allocatedSize());
+	feedbackRef_ = feedbackBuffer_->allocBytes(particleRef_->allocatedSize());
 	bufferRange_.size_ = particleRef_->allocatedSize();
 
 	// Create shader defines.
@@ -309,7 +309,7 @@ void Particles::glAnimate(RenderState *rs, GLdouble dt) {
 	for (auto particleMesh: particleMeshes) { particleMesh->updateVAO(rs); }
 
 	// Ping-Pong VBO references so that next feedback goes to other buffer.
-	VBOReference buf = particleRef_;
+	ref_ptr<BufferReference> buf = particleRef_;
 	particleRef_ = feedbackRef_;
 	feedbackRef_ = buf;
 

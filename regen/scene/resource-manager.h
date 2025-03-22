@@ -46,9 +46,9 @@ namespace regen {
 			/**
 			 * @param parser The scene parser that contains resources.
 			 * @param id the resource id.
-			 * @return A UBO resource or null reference.
+			 * @return A BufferBlock resource or null reference.
 			 */
-			ref_ptr<UBO> getUBO(SceneLoader *parser, const std::string &id);
+			ref_ptr<BufferBlock> getBufferBlock(SceneLoader *parser, const std::string &id);
 
 			/**
 			 * @param parser The scene parser that contains resources.
@@ -134,7 +134,7 @@ namespace regen {
 			 * @param id the resource id.
 			 * @param ubo A UBO instance.
 			 */
-			void putUBO(const std::string &id, const ref_ptr<UBO> &ubo);
+			void putBufferBlock(const std::string &id, const ref_ptr<BufferBlock> &ubo);
 
 			/**
 			 * @param id the resource id.
@@ -168,7 +168,7 @@ namespace regen {
 		protected:
 			LoadableResource<SpatialIndex> indices_ = LoadableResource<SpatialIndex>("index");
 			LoadableResource<AssetImporter> assets_ = LoadableResource<AssetImporter>("asset");
-			LoadableResource<UBO> ubos_ = LoadableResource<UBO>("ubo");
+			LoadableResource<BufferBlock> bufferBlocks_ = LoadableResource<BufferBlock>("block");
 			LoadableResource<Font> fonts_ = LoadableResource<Font>("font");
 			LoadableResource<FBO> fbos_ = LoadableResource<FBO>("fbo");
 			LoadableResource<Texture> textures_ = LoadableResource<Texture>("texture");

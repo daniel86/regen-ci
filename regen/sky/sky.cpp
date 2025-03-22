@@ -47,7 +47,7 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 	astro_->setLatitude(52.5491);
 	astro_->setLongitude(13.3611);
 
-	auto uniformBlock = ref_ptr<UniformBlock>::alloc("Sky");
+	auto uniformBlock = ref_ptr<UBO>::alloc("Sky");
 
 	// 0: altitude in km
 	// 1: apparent angular radius (not diameter!)
@@ -59,11 +59,11 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 			osgHimmel::Earth::meanRadius(),
 			osgHimmel::Earth::meanRadius() + osgHimmel::Earth::atmosphereThicknessNonUniform(),
 			rand()));
-	uniformBlock->addUniform(cmnUniform_);
+	uniformBlock->addBlockInput(cmnUniform_);
 
 	R_ = ref_ptr<ShaderInputMat4>::alloc("equToHorMatrix");
 	R_->setUniformData(Mat4f::identity());
-	uniformBlock->addUniform(R_);
+	uniformBlock->addBlockInput(R_);
 
 	// directional light that approximates the sun
 	sun_ = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
@@ -71,11 +71,11 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 	sun_->specular()->setVertex(0, Vec3f(0.0f));
 	sun_->diffuse()->setVertex(0, Vec3f(0.0f));
 	sun_->direction()->setVertex(0, Vec3f(1.0f));
-	uniformBlock->addUniform(sun_->direction(), "sunPosition");
+	uniformBlock->addBlockInput(sun_->direction(), "sunPosition");
 
 	q_ = ref_ptr<ShaderInput1f>::alloc("q");
 	q_->setUniformData(0.0f);
-	uniformBlock->addUniform(q_);
+	uniformBlock->addBlockInput(q_);
 
 	// directional light that approximates the moon
 	moon_ = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
@@ -83,7 +83,7 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 	moon_->specular()->setVertex(0, Vec3f(0.0f));
 	moon_->diffuse()->setVertex(0, Vec3f(0.0f));
 	moon_->direction()->setVertex(0, Vec3f(1.0f));
-	uniformBlock->addUniform(moon_->direction(), "moonPosition");
+	uniformBlock->addBlockInput(moon_->direction(), "moonPosition");
 
 	Rectangle::Config cfg;
 	cfg.centerAtOrigin = GL_FALSE;
@@ -95,7 +95,7 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 	cfg.rotation = Vec3f(0.5 * M_PI, 0.0f, 0.0f);
 	cfg.texcoScale = Vec2f(1.0);
 	cfg.translation = Vec3f(-1.0f, -1.0f, 0.0f);
-	cfg.usage = VBO::USAGE_STATIC;
+	cfg.usage = USAGE_STATIC;
 	skyQuad_ = ref_ptr<Rectangle>::alloc(cfg);
 
 	state()->joinShaderInput(uniformBlock);

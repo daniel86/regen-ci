@@ -16,30 +16,30 @@ MoonLayer::MoonLayer(const ref_ptr<Sky> &sky, const std::string &moonMapFile)
 		: SkyLayer(sky) {
 	setupMoonTextureCube(moonMapFile);
 
-	moonUniforms_ = ref_ptr<UniformBlock>::alloc("Moon");
+	moonUniforms_ = ref_ptr<UBO>::alloc("Moon");
 	state()->joinShaderInput(moonUniforms_);
 
 	moonOrientation_ = ref_ptr<ShaderInputMat4>::alloc("moonOrientationMatrix");
 	moonOrientation_->setUniformData(Mat4f::identity());
-	moonUniforms_->addUniform(moonOrientation_);
+	moonUniforms_->addBlockInput(moonOrientation_);
 
 	sunShine_ = ref_ptr<ShaderInput4f>::alloc("sunShine");
 	sunShine_->setUniformData(Vec4f(defaultSunShineColor(), defaultSunShineIntensity()));
-	moonUniforms_->addUniform(sunShine_);
+	moonUniforms_->addBlockInput(sunShine_);
 
 	earthShine_ = ref_ptr<ShaderInput3f>::alloc("earthShine");
 	earthShine_->setUniformData(Vec3f(0.0));
-	moonUniforms_->addUniform(earthShine_);
+	moonUniforms_->addBlockInput(earthShine_);
 	earthShineColor_ = defaultEarthShineColor();
 	earthShineIntensity_ = defaultEarthShineIntensity();
 
 	scale_ = ref_ptr<ShaderInput1f>::alloc("scale");
 	scale_->setUniformData(defaultScale());
-	moonUniforms_->addUniform(scale_);
+	moonUniforms_->addBlockInput(scale_);
 
 	scattering_ = ref_ptr<ShaderInput1f>::alloc("scattering");
 	scattering_->setUniformData(defaultScattering());
-	moonUniforms_->addUniform(scattering_);
+	moonUniforms_->addBlockInput(scattering_);
 
 	shaderState_ = ref_ptr<HasShader>::alloc("regen.weather.moon");
 	meshState_ = ref_ptr<Rectangle>::alloc(sky->skyQuad());

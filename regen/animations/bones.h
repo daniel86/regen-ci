@@ -51,7 +51,7 @@ namespace regen {
 
 		ref_ptr<TextureBuffer> boneMatrixTex_;
 		ref_ptr<TextureState> texState_;
-		VBOReference vboRef_;
+		ref_ptr<BufferReference> vboRef_;
 		ref_ptr<ShaderInputMat4> boneMatrices_;
 	};
 } // namespace

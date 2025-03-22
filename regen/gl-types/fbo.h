@@ -16,7 +16,7 @@
 #include <regen/textures/texture.h>
 #include <regen/gl-types/shader-input.h>
 #include <regen/utility/ref-ptr.h>
-#include "uniform-block.h"
+#include "ubo.h"
 #include "regen/scene/loading-context.h"
 #include "render-buffer.h"
 
@@ -353,7 +353,7 @@ namespace regen {
 
 		ref_ptr<ShaderInput2f> viewport_;
 		ref_ptr<ShaderInput2f> inverseViewport_;
-		ref_ptr<UniformBlock> uniforms_;
+		ref_ptr<UBO> uniforms_;
 		Vec4ui glViewport_;
 
 		void createDepthTexture(GLenum target, GLenum format, GLenum type, bool isStencil);

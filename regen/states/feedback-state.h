@@ -129,7 +129,7 @@ namespace regen {
 		GLuint allocatedBufferSize_;
 		ref_ptr<VBO> feedbackBuffer_;
 		BufferRange bufferRange_;
-		VBOReference vboRef_;
+		ref_ptr<BufferReference> vboRef_;
 
 		void enableInterleaved(RenderState *rs);
 

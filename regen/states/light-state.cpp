@@ -27,7 +27,7 @@ namespace regen {
 
 Light::Light(Light::Type lightType)
 		: State(),
-		  HasInput(VBO::USAGE_DYNAMIC),
+		  HasInput(ARRAY_BUFFER, USAGE_DYNAMIC),
 		  lightType_(lightType),
 		  isAttenuated_(GL_TRUE),
 		  coneMatrixStamp_(0) {
@@ -40,32 +40,32 @@ Light::Light(Light::Type lightType)
 			break;
 	}
 
-	lightUniforms_ = ref_ptr<UniformBlock>::alloc("Light");
+	lightUniforms_ = ref_ptr<UBO>::alloc("Light");
 	setInput(lightUniforms_);
 
 	lightRadius_ = ref_ptr<ShaderInput2f>::alloc("lightRadius");
 	lightRadius_->setUniformData(Vec2f(999999.9, 999999.9));
-	lightUniforms_->addUniform(lightRadius_);
+	lightUniforms_->addBlockInput(lightRadius_);
 
 	lightConeAngles_ = ref_ptr<ShaderInput2f>::alloc("lightConeAngles");
 	lightConeAngles_->setUniformData(Vec2f(0.0f));
-	lightUniforms_->addUniform(lightConeAngles_);
+	lightUniforms_->addBlockInput(lightConeAngles_);
 
 	lightPosition_ = ref_ptr<ShaderInput3f>::alloc("lightPosition");
 	lightPosition_->setUniformData(Vec3f(1.0, 1.0, 1.0));
-	lightUniforms_->addUniform(lightPosition_);
+	lightUniforms_->addBlockInput(lightPosition_);
 
 	lightDirection_ = ref_ptr<ShaderInput3f>::alloc("lightDirection");
 	lightDirection_->setUniformData(Vec3f(1.0, 1.0, -1.0));
-	lightUniforms_->addUniform(lightDirection_);
+	lightUniforms_->addBlockInput(lightDirection_);
 
 	lightDiffuse_ = ref_ptr<ShaderInput3f>::alloc("lightDiffuse");
 	lightDiffuse_->setUniformData(Vec3f(0.7f));
-	lightUniforms_->addUniform(lightDiffuse_);
+	lightUniforms_->addBlockInput(lightDiffuse_);
 
 	lightSpecular_ = ref_ptr<ShaderInput3f>::alloc("lightSpecular");
 	lightSpecular_->setUniformData(Vec3f(1.0f));
-	lightUniforms_->addUniform(lightSpecular_);
+	lightUniforms_->addBlockInput(lightSpecular_);
 
 	set_innerConeAngle(50.0f);
 	set_outerConeAngle(55.0f);

@@ -40,7 +40,7 @@ ref_ptr<Torus> Torus::getUnitTorus() {
 		cfg.texcoMode = TEXCO_MODE_NONE;
 		cfg.isNormalRequired = GL_FALSE;
 		cfg.isTangentRequired = GL_FALSE;
-		cfg.usage = VBO::USAGE_STATIC;
+		cfg.usage = USAGE_STATIC;
 		mesh = ref_ptr<Torus>::alloc(cfg);
 		return mesh;
 	} else {
@@ -77,7 +77,7 @@ Torus::Config::Config()
 		  texcoMode(TEXCO_MODE_UV),
 		  isNormalRequired(GL_TRUE),
 		  isTangentRequired(GL_FALSE),
-		  usage(VBO::USAGE_DYNAMIC),
+		  usage(USAGE_DYNAMIC),
 		  ringRadius(1.0f),
 		  tubeRadius(0.5f) {
 }
@@ -210,7 +210,7 @@ void Torus::updateAttributes(const Config &cfg) {
 	}
 
 	// Set up the vertex attributes
-	begin(ShaderInputContainer::INTERLEAVED);
+	begin(InputContainer::INTERLEAVED);
 	auto indexRef = setIndices(indices_, numVertices);
 	setInput(pos_);
 	if (cfg.isNormalRequired) {

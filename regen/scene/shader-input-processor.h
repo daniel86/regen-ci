@@ -48,6 +48,7 @@ namespace regen {
 
 #include <regen/gl-types/shader-input.h>
 #include <stack>
+#include "regen/gl-types/ssbo.h"
 
 namespace regen {
 	namespace scene {
@@ -69,16 +70,16 @@ namespace regen {
 						auto blendMode = child->getValue<BlendMode>("blend-mode", BLEND_MODE_SRC);
 						ValueGenerator<T> generator(child.get(), indices.size(),
 													child->getValue<T>("value", T(1)));
-						for (auto it = indices.begin(); it != indices.end(); ++it) {
+						for (unsigned int & indice : indices) {
 							switch (blendMode) {
 								case BLEND_MODE_ADD:
-									v_values.w[*it] = v_values.r[*it] + v_values.w[*it] + generator.next();
+									v_values.w[indice] = v_values.r[indice] + v_values.w[indice] + generator.next();
 									break;
 								case BLEND_MODE_MULTIPLY:
-									v_values.w[*it] = v_values.r[*it] * v_values.w[*it] * generator.next();
+									v_values.w[indice] = v_values.r[indice] * v_values.w[indice] * generator.next();
 									break;
 								default:
-									v_values.w[*it] = generator.next();
+									v_values.w[indice] = generator.next();
 									break;
 							}
 						}
@@ -219,14 +220,24 @@ namespace regen {
 					auto numInstances = getNumInstances(mesh);
 					in->setInstanceData(numInstances, 1, nullptr);
 					setInput(input, in.get(), numInstances);
-				} else if (input.hasAttribute("ubo")) {
-					auto ubo = scene->getResource<UBO>(input.getValue("ubo"));
-					if (ubo.get() == nullptr) {
+				}
+				else if (input.hasAttribute("ubo")) {
+					auto block = scene->getResource<BufferBlock>(input.getValue("ubo"));
+					if (block.get() == nullptr || !block->isUniformBlock()) {
 						REGEN_WARN("No UBO found for '" << input.getDescription() << "'.");
 						return {};
 					}
-					in = ref_ptr<UniformBlock>::alloc(input.getValue("name"), ubo);
-				} else {
+					in = ref_ptr<UBO>::dynamicCast(block);
+				}
+				else if (input.hasAttribute("ssbo")) {
+					auto block = scene->getResource<BufferBlock>(input.getValue("ubo"));
+					if (block.get() == nullptr || !block->isShaderStorageBlock()) {
+						REGEN_WARN("No SSBO found for '" << input.getDescription() << "'.");
+						return {};
+					}
+					in = ref_ptr<SSBO>::dynamicCast(block);
+				}
+				else {
 					auto type = input.getValue<std::string>("type", "");
 					if (type == "time") {
 						auto scale = input.getValue<GLfloat>("scale", 1.0f);

@@ -17,7 +17,7 @@
 using namespace regen;
 
 Material::Material()
-		: HasInputState(VBO::USAGE_DYNAMIC),
+		: HasInputState(ARRAY_BUFFER, USAGE_DYNAMIC),
 		  fillMode_(GL_FILL),
 		  mipmapFlag_(GL_DONT_CARE),
 		  forcedInternalFormat_(GL_NONE),
@@ -47,13 +47,13 @@ Material::Material()
 
 	shaderDefine("HAS_MATERIAL", "TRUE");
 
-	materialUniforms_ = ref_ptr<UniformBlock>::alloc("Material");
-	materialUniforms_->addUniform(materialSpecular_);
-	materialUniforms_->addUniform(materialShininess_);
-	materialUniforms_->addUniform(materialDiffuse_);
-	materialUniforms_->addUniform(materialAlpha_);
-	materialUniforms_->addUniform(materialAmbient_);
-	materialUniforms_->addUniform(materialRefractionIndex_);
+	materialUniforms_ = ref_ptr<UBO>::alloc("Material");
+	materialUniforms_->addBlockInput(materialSpecular_);
+	materialUniforms_->addBlockInput(materialShininess_);
+	materialUniforms_->addBlockInput(materialDiffuse_);
+	materialUniforms_->addBlockInput(materialAlpha_);
+	materialUniforms_->addBlockInput(materialAmbient_);
+	materialUniforms_->addBlockInput(materialRefractionIndex_);
 	setInput(materialUniforms_);
 }
 
@@ -62,7 +62,7 @@ void Material::set_emission(const Vec3f &emission) {
 		materialEmission_ = ref_ptr<ShaderInput3f>::alloc("matEmission");
 		materialEmission_->setUniformData(emission);
 		// TODO: better always include emission term in material UBO?
-		materialUniforms_->addUniform(materialEmission_);
+		materialUniforms_->addBlockInput(materialEmission_);
 	} else {
 		materialEmission_->setUniformData(emission);
 	}

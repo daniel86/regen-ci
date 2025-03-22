@@ -3,12 +3,12 @@
 using namespace regen;
 
 float uintBitsToFloat(uint32_t uintValue) {
-    union {
-        uint32_t uintValue;
-        float floatValue;
-    } converter;
-    converter.uintValue = uintValue;
-    return converter.floatValue;
+	union {
+		uint32_t uintValue;
+		float floatValue;
+	} converter;
+	converter.uintValue = uintValue;
+	return converter.floatValue;
 }
 
 unsigned int floatBitsToUint(float floatValue) {
@@ -21,12 +21,12 @@ unsigned int floatBitsToUint(float floatValue) {
 }
 
 AtomicCounter::AtomicCounter() :
-	GLBuffer(GL_ATOMIC_COUNTER_BUFFER) {
+		BufferObjectT(BufferUsage::USAGE_DYNAMIC) {
 }
 
 BoundingBoxCounter::BoundingBoxCounter() :
-	AtomicCounter(),
-	bounds_(Vec3f(0.0f), Vec3f(0.0f)) {
+		AtomicCounter(),
+		bounds_(Vec3f(0.0f), Vec3f(0.0f)) {
 	auto max_float = floatBitsToUint(std::numeric_limits<float>::max());
 	auto min_float = floatBitsToUint(std::numeric_limits<float>::lowest());
 	initialData_[0] = max_float;
@@ -36,20 +36,17 @@ BoundingBoxCounter::BoundingBoxCounter() :
 	initialData_[4] = min_float;
 	initialData_[5] = min_float;
 
-	RenderState::get()->atomicCounterBuffer().push(id());
-	glBufferData(GL_ATOMIC_COUNTER_BUFFER,
-			sizeof(initialData_), initialData_,
-			GL_DYNAMIC_DRAW);
-	RenderState::get()->atomicCounterBuffer().pop();
+	ref_ = allocBytes(sizeof(initialData_));
+	setBufferData(ref_, initialData_);
 }
 
-Bounds<Vec3f>& BoundingBoxCounter::updateBounds() {
-	RenderState::get()->atomicCounterBuffer().push(id());
+Bounds<Vec3f> &BoundingBoxCounter::updateBounds() {
+	RenderState::get()->atomicCounterBuffer().push(ref_->bufferID());
 	auto *ptr = (GLuint *) glMapBufferRange(
 			GL_ATOMIC_COUNTER_BUFFER,
-			0,
+			ref_->address(),
 			sizeof(GLuint) * 6,
-			GL_MAP_READ_BIT  | GL_MAP_WRITE_BIT);
+			GL_MAP_READ_BIT | GL_MAP_WRITE_BIT);
 
 	auto localData = &bounds_.min.x;
 	for (int i = 0; i < 6; ++i) {

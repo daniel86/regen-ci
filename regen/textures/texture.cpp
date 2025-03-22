@@ -347,7 +347,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 			}
 		}
 		catch (textures::Error &ie) {
-			REGEN_ERROR("Failed to load Texture at " << filePath << ".");
+			REGEN_ERROR("Failed to load Texture at " << filePath << ". " << ie.what());
 		}
 	} else if (input.hasAttribute("video")) {
 		const std::string filePath = resourcePath(input.getValue("video"));
@@ -363,7 +363,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 			video->startAnimation();
 		}
 		catch (VideoTexture::Error &ve) {
-			REGEN_ERROR("Failed to load Video at " << filePath << ".");
+			REGEN_ERROR("Failed to load Video at " << filePath << ". " << ve.what());
 		}
 	} else if (input.hasAttribute("noise")) {
 		const std::string noiseMode = input.getValue("noise");

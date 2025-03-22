@@ -15,8 +15,10 @@ GLRectangle::GLRectangle(
 }
 
 void GLRectangle::set_rectangleSize(GLuint width, GLuint height) {
-	size_->setVertex(0, Vec2f(width, height));
-	sizeInverse_->setVertex(0, Vec2f(1.0 / width, 1.0 / height));
+	auto w_f = static_cast<float>(width);
+	auto h_f = static_cast<float>(height);
+	size_->setVertex(0, Vec2f(w_f, h_f));
+	sizeInverse_->setVertex(0, Vec2f(1.0f / w_f, 1.0f / h_f));
 }
 
 const ref_ptr<ShaderInput2f> &GLRectangle::sizeInverse() const { return sizeInverse_; }

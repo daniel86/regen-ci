@@ -51,7 +51,7 @@ namespace regen {
 		ref_ptr<FeedbackSpecification> feedbackState_;
 		ref_ptr<VBO> feedbackBuffer_;
 		ref_ptr<BufferRange> bufferRange_;
-		VBOReference vboRef_;
+		ref_ptr<BufferReference> vboRef_;
 		GLuint bufferSize_;
 
 		GLdouble dt_;

@@ -45,7 +45,7 @@ namespace regen {
 			/** generate tangent attribute ?. */
 			GLboolean isTangentRequired;
 			/** VBO usage hint. */
-			VBO::Usage usage;
+			BufferUsage usage;
 			/** radius of the disc. */
 			GLfloat discRadius;
 

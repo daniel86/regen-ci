@@ -133,7 +133,7 @@ FilterSequence::FilterSequence(const ref_ptr<Texture> &input, GLboolean bindInpu
 			1.0f / (GLfloat) input->width(), 1.0f / (GLfloat) input->height()));
 
 #ifdef USE_FBO_UBO
-	uniforms_ = ref_ptr<UniformBlock>::alloc("FBO");
+	uniforms_ = ref_ptr<UBO>::alloc("FBO");
 	uniforms_->addUniform(viewport_);
 	uniforms_->addUniform(inverseViewport_);
 	joinShaderInput(uniforms_);

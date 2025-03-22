@@ -5,7 +5,7 @@
  *      Author: daniel
  */
 
-#include <regen/gl-types/shader-input-container.h>
+#include <regen/gl-types/input-container.h>
 #include <regen/scene/loading-context.h>
 
 #include "state.h"
@@ -121,7 +121,7 @@ void State::disjoinShaderInput(const ref_ptr<ShaderInput> &in) {
 void State::collectShaderInput(ShaderInputList &out) {
 	auto *inState = dynamic_cast<HasInput *>(this);
 	if (inState != nullptr) {
-		const ref_ptr<ShaderInputContainer> &container = inState->inputContainer();
+		const ref_ptr<InputContainer> &container = inState->inputContainer();
 		out.insert(out.end(), container->inputs().begin(), container->inputs().end());
 	}
 
@@ -141,9 +141,9 @@ std::optional<StateInput> State::findShaderInput(const std::string &name) {
 				ret.block = {};
 				return ret;
 			}
-			if (inNamed.in_->isUniformBlock()) {
-				auto block = ref_ptr<UniformBlock>::dynamicCast(inNamed.in_);
-				for (auto &blockUniform: block->uniforms()) {
+			if (inNamed.in_->isBufferBlock()) {
+				auto block = ref_ptr<BufferBlock>::dynamicCast(inNamed.in_);
+				for (auto &blockUniform: block->blockInputs()) {
 					if (name == blockUniform.name_ || name == blockUniform.in_->name()) {
 						ret.block = block;
 						ret.in = blockUniform.in_;

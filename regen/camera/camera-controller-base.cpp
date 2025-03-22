@@ -26,7 +26,7 @@ void CameraControllerBase::updateCamera(const Vec3f &pos, const Vec3f &dir, GLdo
 	// That a single uniform is not crumbled is already ensured by ShaderInput.
 	// Probably, this UBO lock is not necessary when changes in the camera are not super huge,
 	// and frame rate high. But needs more experiments to be certain....
-	auto ubo = cam_->cameraBlock()->ubo();
+	auto ubo = cam_->cameraBlock();
 	ubo->lock();
 #endif
 	cam_->position()->setVertex(0, pos);

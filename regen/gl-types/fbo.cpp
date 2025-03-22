@@ -76,9 +76,9 @@ FBO::FBO(GLuint width, GLuint height, GLuint depth)
 	rs->readFrameBuffer().pop();
 	GL_ERROR_LOG();
 
-	uniforms_ = ref_ptr<UniformBlock>::alloc("FBO");
-	uniforms_->addUniform(viewport_);
-	uniforms_->addUniform(inverseViewport_);
+	uniforms_ = ref_ptr<UBO>::alloc("FBO");
+	uniforms_->addBlockInput(viewport_);
+	uniforms_->addBlockInput(inverseViewport_);
 	GL_ERROR_LOG();
 }
 

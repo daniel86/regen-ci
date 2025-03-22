@@ -6,7 +6,7 @@
 --------------------------------------
 -- vs
 #include regen.filter.sampling.vs
--- vs
+-- gs
 #include regen.filter.sampling.gs
 -- fs
 #include regen.states.camera.defines

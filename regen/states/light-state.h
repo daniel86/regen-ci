@@ -8,7 +8,7 @@
 #ifndef REGEN_LIGHT_STATE_H
 #define REGEN_LIGHT_STATE_H
 
-#include <regen/gl-types/shader-input-container.h>
+#include <regen/gl-types/input-container.h>
 #include <regen/states/model-transformation.h>
 #include <regen/camera/camera.h>
 #include <regen/math/vector.h>
@@ -116,7 +116,7 @@ namespace regen {
 		const Type lightType_;
 		GLboolean isAttenuated_;
 
-		ref_ptr<UniformBlock> lightUniforms_;
+		ref_ptr<UBO> lightUniforms_;
 		ref_ptr<ShaderInput3f> lightPosition_;
 		ref_ptr<ShaderInput3f> lightDirection_;
 		ref_ptr<ShaderInput3f> lightDiffuse_;

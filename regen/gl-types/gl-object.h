@@ -1,12 +1,5 @@
-/*
- * gl-object.h
- *
- *  Created on: 09.12.2011
- *      Author: daniel
- */
-
-#ifndef GL_OBJECT_H_
-#define GL_OBJECT_H_
+#ifndef REGEN_GL_OBJECT_H_
+#define REGEN_GL_OBJECT_H_
 
 #include <regen/config.h>
 #include <regen/gl-types/render-state.h>
@@ -100,4 +93,4 @@ namespace regen {
 	};
 } // namespace
 
-#endif /* BUFFER_OBJECT_H_ */
+#endif

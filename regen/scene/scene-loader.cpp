@@ -179,8 +179,8 @@ int SceneLoader::putNamedObject(const ref_ptr<StateNode> &obj) {
 ref_ptr<Resource> SceneLoader::getResource(const std::string &category, const std::string &name) {
 	if (category == "FBO") {
 		return resources_->getFBO(this, name);
-	} else if (category == "UBO") {
-		return resources_->getUBO(this, name);
+	} else if (category == "UBO" || category == "SSBO" || category == "BufferBlock") {
+		return resources_->getBufferBlock(this, name);
 	} else if (category == "Texture") {
 		return resources_->getTexture(this, name);
 	} else if (category == "Texture2D") {
@@ -212,8 +212,8 @@ ref_ptr<Resource> SceneLoader::getResource(const std::string &category, const st
 void SceneLoader::putResource(const std::string &category, const std::string &name, const ref_ptr<Resource> &v) {
 	if (category == "FBO") {
 		resources_->putFBO(name, ref_ptr<FBO>::dynamicCast(v));
-	} else if (category == "UBO") {
-		resources_->putUBO(name, ref_ptr<UBO>::dynamicCast(v));
+	} else if (category == "UBO" || category == "SSBO" || category == "BufferBlock") {
+		resources_->putBufferBlock(name, ref_ptr<UBO>::dynamicCast(v));
 	} else if (category == "Texture") {
 		resources_->putTexture(name, ref_ptr<Texture>::dynamicCast(v));
 	} else if (category == "ModelTransformation") {
@@ -282,15 +282,14 @@ std::vector<AnimRange> SceneLoader::getAnimationRanges(const std::string &assetI
 		const std::list<ref_ptr<SceneInputNode> > &childs = importer->getChildren();
 
 		GLuint animRangeCount = 0u;
-		for (auto it = childs.begin(); it != childs.end(); ++it) {
-			if ((*it)->getCategory() == "anim-range") animRangeCount += 1;
+		for (const auto & child : childs) {
+			if (child->getCategory() == "anim-range") animRangeCount += 1;
 		}
 
 		std::vector<AnimRange> out(animRangeCount);
 		animRangeCount = 0u;
 
-		for (auto it = childs.begin(); it != childs.end(); ++it) {
-			ref_ptr<SceneInputNode> n = *it;
+		for (const auto& n : childs) {
 			if (n->getCategory() != "anim-range") continue;
 			out[animRangeCount].name = n->getValue("name");
 			out[animRangeCount].range = n->getValue<Vec2d>("range", Vec2d(0.0));

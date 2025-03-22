@@ -5,7 +5,7 @@ using namespace regen;
 ///////////
 
 Point::Point(GLuint numVertices)
-		: Mesh(GL_POINTS, VBO::USAGE_STREAM) {
+		: Mesh(GL_POINTS, USAGE_STREAM) {
 	inputContainer_->set_numVertices(numVertices);
 
 	pos_ = ref_ptr<ShaderInput3f>::alloc("pos");
@@ -13,7 +13,7 @@ Point::Point(GLuint numVertices)
 
 	if (numVertices == 1) {
 		pos_->setVertex(0, Vec3f(0.0, 0.0, 0.0));
-		begin(ShaderInputContainer::INTERLEAVED);
+		begin(InputContainer::INTERLEAVED);
 		setInput(pos_);
 		end();
 	}

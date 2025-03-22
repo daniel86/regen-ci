@@ -1,26 +1,16 @@
-/*
- * assimp-wrapper.cpp
- *
- *  Created on: 24.10.2011
- *      Author: daniel
- */
-
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 
 #include <regen/utility/logging.h>
-#include <regen/utility/string-util.h>
 #include <regen/textures/texture-loader.h>
 #include <regen/av/video-texture.h>
 #include <regen/animations/animation-manager.h>
-#include <regen/config.h>
 
 #include <assimp/cimport.h>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
 #include <IL/il.h>
-#include <IL/ilu.h>
 
 #include "assimp-importer.h"
 #include "regen/utility/filesystem.h"
@@ -143,13 +133,13 @@ static void setLightRadius(aiLight *aiLight, ref_ptr<Light> &light) {
 	GLfloat ax = aiLight->mAttenuationLinear;
 	GLfloat ay = aiLight->mAttenuationConstant;
 	GLfloat az = aiLight->mAttenuationQuadratic;
-	GLfloat z = ay / (2.0 * az);
+	GLfloat z = ay / (2.0f * az);
 
 	GLfloat start = 0.01;
 	GLfloat stop = 0.99;
 
-	GLfloat inner = -z + sqrt(z * z - (ax / start - 1.0 / (start * az)));
-	GLfloat outer = -z + sqrt(z * z - (ax / stop - 1.0 / (stop * az)));
+	GLfloat inner = -z + sqrt(z * z - (ax / start - 1.0f / (start * az)));
+	GLfloat outer = -z + sqrt(z * z - (ax / stop - 1.0f / (stop * az)));
 
 	light->radius()->setVertex(0, Vec2f(inner, outer));
 }
@@ -181,9 +171,9 @@ vector<ref_ptr<Light> > AssetImporter::loadLights() {
 				light->position()->setVertex(0, *((Vec3f *) &lightPos.x));
 				light->direction()->setVertex(0, *((Vec3f *) &assimpLight->mDirection.x));
 				light->set_outerConeAngle(
-						acos(assimpLight->mAngleOuterCone) * 360.0 / (2.0 * M_PI));
+						acos(assimpLight->mAngleOuterCone) * 360.0f / (2.0f * M_PI));
 				light->set_innerConeAngle(
-						acos(assimpLight->mAngleInnerCone) * 360.0 / (2.0 * M_PI));
+						acos(assimpLight->mAngleInnerCone) * 360.0f / (2.0f * M_PI));
 				setLightRadius(assimpLight, light);
 				break;
 			}
@@ -231,7 +221,7 @@ static void loadTexture(
 		GLuint l, GLuint k,
 		const string &texturePath) {
 	ref_ptr<Texture> tex;
-	string filePath = "";
+	string filePath;
 	GLuint maxElements;
 	GLint intVal;
 	GLfloat floatVal;
@@ -377,6 +367,9 @@ static void loadTexture(
 			case aiTextureOp_SmoothAdd:
 				texState->set_blendMode(BLEND_MODE_SMOOTH_ADD);
 				break;
+			default:
+				REGEN_WARN("Unknown texture operation '" << intVal << "'.");
+				break;
 		}
 	}
 
@@ -412,6 +405,9 @@ static void loadTexture(
 				break;
 			case aiTextureMapping_OTHER:
 				break;
+			default:
+				REGEN_WARN("Unknown texture mapping '" << intVal << "'.");
+				break;
 		}
 	}
 
@@ -446,6 +442,9 @@ static void loadTexture(
 			case aiTextureMapMode_Mirror:
 				wrapping_.x = GL_MIRRORED_REPEAT;
 				break;
+			default:
+				REGEN_WARN("Unknown texture map mode '" << intVal << "'.");
+				break;
 		}
 	}
 	// Wrap mode on the v axis. See MAPPINGMODE_U.
@@ -465,6 +464,9 @@ static void loadTexture(
 				break;
 			case aiTextureMapMode_Mirror:
 				wrapping_.y = GL_MIRRORED_REPEAT;
+				break;
+			default:
+				REGEN_WARN("Unknown texture map mode '" << intVal << "'.");
 				break;
 		}
 	}
@@ -747,7 +749,7 @@ static GLuint getMeshCount(const struct aiNode *node) {
 }
 
 vector<ref_ptr<Mesh> > AssetImporter::loadAllMeshes(
-		const Mat4f &transform, VBO::Usage usage) {
+		const Mat4f &transform, BufferUsage usage) {
 	GLuint meshCount = getMeshCount(scene_->mRootNode);
 
 	vector<GLuint> meshIndices(meshCount);
@@ -757,7 +759,7 @@ vector<ref_ptr<Mesh> > AssetImporter::loadAllMeshes(
 }
 
 vector<ref_ptr<Mesh> > AssetImporter::loadMeshes(
-		const Mat4f &transform, VBO::Usage usage, const vector<GLuint> &meshIndices) {
+		const Mat4f &transform, BufferUsage usage, const vector<GLuint> &meshIndices) {
 	vector<ref_ptr<Mesh> > out(meshIndices.size());
 	GLuint currentIndex = 0;
 
@@ -769,7 +771,7 @@ vector<ref_ptr<Mesh> > AssetImporter::loadMeshes(
 void AssetImporter::loadMeshes(
 		const struct aiNode &node,
 		const Mat4f &transform,
-		VBO::Usage usage,
+		BufferUsage usage,
 		const vector<GLuint> &meshIndices,
 		GLuint &currentIndex,
 		vector<ref_ptr<Mesh> > &out) {
@@ -804,7 +806,7 @@ void AssetImporter::loadMeshes(
 	}
 }
 
-ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &transform, VBO::Usage usage) {
+ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &transform, BufferUsage usage) {
 	ref_ptr<Mesh> meshState = ref_ptr<Mesh>::alloc(GL_TRIANGLES, usage);
 	stringstream s;
 
@@ -836,7 +838,7 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 			break;
 	}
 
-	meshState->begin(ShaderInputContainer::INTERLEAVED);
+	meshState->begin(InputContainer::INTERLEAVED);
 
 	{
 		ref_ptr<ShaderInput1ui> indices = ref_ptr<ShaderInput1ui>::alloc("i");
@@ -994,9 +996,9 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 				WeightList &vWeights = vertexToWeights[j];
 
 				GLuint k = 0;
-				for (auto it = vWeights.begin(); it != vWeights.end(); ++it) {
-					v_weights.w[k] = it->first;
-					v_indices.w[k] = it->second;
+				for (auto & vWeight : vWeights) {
+					v_weights.w[k] = vWeight.first;
+					v_indices.w[k] = vWeight.second;
 					++k;
 				}
 				for (; k < maxNumWeights; ++k) {
@@ -1047,7 +1049,7 @@ list<ref_ptr<AnimationNode> > AssetImporter::loadMeshBones(
 GLuint AssetImporter::numBoneWeights(Mesh *meshState) {
 	const struct aiMesh *mesh = meshToAiMesh_[meshState];
 	if (mesh->mNumBones == 0) { return 0; }
-	const ref_ptr<ShaderInputContainer> container = meshState->inputContainer();
+	const ref_ptr<InputContainer> container = meshState->inputContainer();
 
 	auto *counter = new GLuint[container->numVertices()];
 	GLuint numWeights = 1;

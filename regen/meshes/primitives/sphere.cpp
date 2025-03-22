@@ -54,7 +54,7 @@ Sphere::Config::Config()
 		  isNormalRequired(GL_TRUE),
 		  isTangentRequired(GL_FALSE),
 		  isHalfSphere(GL_FALSE),
-		  usage(VBO::USAGE_DYNAMIC) {
+		  usage(USAGE_DYNAMIC) {
 }
 
 static Vec3f computeSphereTangent(const Vec3f &v) {
@@ -200,7 +200,7 @@ void Sphere::updateAttributes(const Config &cfg) {
 						 meshLODs_[i].indexOffset);
 	}
 
-	begin(ShaderInputContainer::INTERLEAVED);
+	begin(InputContainer::INTERLEAVED);
 	auto indexRef = setIndices(indices_, numVertices);
 	setInput(pos_);
 	if (cfg.isNormalRequired) {
@@ -230,7 +230,7 @@ SphereSprite::Config::Config()
 		: radius(nullptr),
 		  position(nullptr),
 		  sphereCount(0),
-		  usage(VBO::USAGE_DYNAMIC) {
+		  usage(USAGE_DYNAMIC) {
 }
 
 SphereSprite::SphereSprite(const Config &cfg)
@@ -264,7 +264,7 @@ void SphereSprite::updateAttributes(const Config &cfg) {
 	mappedRadius.unmap();
 	mappedPosition.unmap();
 
-	begin(ShaderInputContainer::INTERLEAVED);
+	begin(InputContainer::INTERLEAVED);
 	setInput(radiusIn);
 	setInput(positionIn);
 	end();

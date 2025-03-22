@@ -14,8 +14,8 @@
 #include <regen/shapes/frustum.h>
 #include <regen/meshes/mesh-state.h>
 #include <regen/states/model-transformation.h>
-#include <regen/gl-types/shader-input-container.h>
-#include "regen/gl-types/uniform-block.h"
+#include <regen/gl-types/input-container.h>
+#include "regen/gl-types/ubo.h"
 
 namespace regen {
 	/**
@@ -276,7 +276,7 @@ namespace regen {
 
 		std::vector<Frustum> frustum_;
 
-		ref_ptr<UniformBlock> cameraBlock_;
+		ref_ptr<UBO> cameraBlock_;
 		ref_ptr<ShaderInput1f> fov_;
 		ref_ptr<ShaderInput1f> aspect_;
 		ref_ptr<ShaderInput1f> far_;

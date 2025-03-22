@@ -1,12 +1,5 @@
-/*
- * shader-input-container.h
- *
- *  Created on: 05.08.2012
- *      Author: daniel
- */
-
-#ifndef SHADER_INPUT_CONTAINER_H_
-#define SHADER_INPUT_CONTAINER_H_
+#ifndef REGEN_INPUT_CONTAINER_H_
+#define REGEN_INPUT_CONTAINER_H_
 
 #include <regen/gl-types/shader-input.h>
 #include <regen/gl-types/vbo.h>
@@ -17,7 +10,7 @@ namespace regen {
 	/**
 	 * \brief Container for shader input data.
 	 */
-	class ShaderInputContainer {
+	class InputContainer {
 	public:
 		/**
 		 * \brief Vertex array data layout.
@@ -29,18 +22,19 @@ namespace regen {
 		/**
 		 * @param usage VBO usage.
 		 */
-		explicit ShaderInputContainer(
-				VBO::Usage usage = VBO::USAGE_DYNAMIC);
+		explicit InputContainer(
+				BufferTarget target = ARRAY_BUFFER,
+				BufferUsage usage = USAGE_DYNAMIC);
 
 		/**
 		 * @param in shader input data.
 		 * @param name shader input name overwrite.
 		 * @param usage VBO usage.
 		 */
-		explicit ShaderInputContainer(const ref_ptr<ShaderInput> &in, const std::string &name = "",
-									  VBO::Usage usage = VBO::USAGE_DYNAMIC);
+		explicit InputContainer(const ref_ptr<ShaderInput> &in, const std::string &name = "",
+								BufferUsage usage = BufferUsage::USAGE_DYNAMIC);
 
-		~ShaderInputContainer();
+		~InputContainer();
 
 		/**
 		 * @return VBO that manages the vertex array data.
@@ -106,7 +100,7 @@ namespace regen {
 		 * Finish previous call to begin(). All recorded inputs are
 		 * uploaded to VBO memory.
 		 */
-		VBOReference end();
+		ref_ptr<BufferReference> end();
 
 		/**
 		 * @return Previously added shader inputs.
@@ -147,7 +141,7 @@ namespace regen {
 		 * @param indices the index attribute.
 		 * @param maxIndex maximal index in the index array.
 		 */
-		ref_ptr<VBO::Reference> setIndices(const ref_ptr<ShaderInput> &indices, GLuint maxIndex);
+		ref_ptr<BufferReference> setIndices(const ref_ptr<ShaderInput> &indices, GLuint maxIndex);
 
 		/**
 		 * @return number of indices to vertex data.
@@ -221,12 +215,14 @@ namespace regen {
 		/**
 		 * @param usage VBO usage hint.
 		 */
-		explicit HasInput(VBO::Usage usage) { inputContainer_ = ref_ptr<ShaderInputContainer>::alloc(usage); }
+		explicit HasInput(BufferTarget target, BufferUsage usage) {
+			inputContainer_ = ref_ptr<InputContainer>::alloc(target, usage);
+		}
 
 		/**
 		 * @param inputs custom input container.
 		 */
-		explicit HasInput(const ref_ptr<ShaderInputContainer> &inputs) { inputContainer_ = inputs; }
+		explicit HasInput(const ref_ptr<InputContainer> &inputs) { inputContainer_ = inputs; }
 
 		virtual ~HasInput() = default;
 
@@ -234,24 +230,24 @@ namespace regen {
 		 * Begin recording ShaderInput's.
 		 * @param layout Start recording added inputs.
 		 */
-		void begin(ShaderInputContainer::DataLayout layout) { inputContainer_->begin(layout); }
+		void begin(InputContainer::DataLayout layout) { inputContainer_->begin(layout); }
 
 		/**
 		 * Finish previous call to begin(). All recorded inputs are
 		 * uploaded to VBO memory.
 		 */
-		VBOReference end() { return inputContainer_->end(); }
+		ref_ptr<BufferReference> end() { return inputContainer_->end(); }
 
 		/**
 		 * @return the input container.
 		 */
-		const ref_ptr<ShaderInputContainer> &inputContainer() const { return inputContainer_; }
+		const ref_ptr<InputContainer> &inputContainer() const { return inputContainer_; }
 
 		/**
 		 * @param inputContainer the input container.
 		 */
 		void
-		set_inputContainer(const ref_ptr<ShaderInputContainer> &inputContainer) { inputContainer_ = inputContainer; }
+		set_inputContainer(const ref_ptr<InputContainer> &inputContainer) { inputContainer_ = inputContainer; }
 
 		/**
 		 * Adds shader input to the input container.
@@ -269,13 +265,13 @@ namespace regen {
 		 * @param in index data input.
 		 * @param maxIndex max index in index array.
 		 */
-		ref_ptr<VBO::Reference> setIndices(const ref_ptr<ShaderInput> &in, GLuint maxIndex) {
+		ref_ptr<BufferReference> setIndices(const ref_ptr<ShaderInput> &in, GLuint maxIndex) {
 			return inputContainer_->setIndices(in, maxIndex);
 		}
 
 	protected:
-		ref_ptr<ShaderInputContainer> inputContainer_;
+		ref_ptr<InputContainer> inputContainer_;
 	};
 } // namespace
 
-#endif /* SHADER_INPUT_CONTAINER_H_ */
+#endif /* REGEN_INPUT_CONTAINER_H_ */

@@ -1,10 +1,3 @@
-/*
- * mesh-state.h
- *
- *  Created on: 05.08.2012
- *      Author: daniel
- */
-
 #ifndef REGEN_MESH_STATE_H_
 #define REGEN_MESH_STATE_H_
 
@@ -13,7 +6,7 @@
 #include <regen/states/state.h>
 #include <regen/states/state-config.h>
 #include <regen/states/feedback-state.h>
-#include <regen/gl-types/shader-input-container.h>
+#include <regen/gl-types/input-container.h>
 #include <regen/gl-types/vbo.h>
 #include <regen/gl-types/vao.h>
 #include <regen/gl-types/shader.h>
@@ -49,7 +42,7 @@ namespace regen {
 		 * @param primitive Specifies what kind of primitives to render.
 		 * @param usage VBO usage.
 		 */
-		Mesh(GLenum primitive, VBO::Usage usage);
+		Mesh(GLenum primitive, BufferUsage usage);
 
 		~Mesh() override;
 
@@ -237,11 +230,11 @@ namespace regen {
 		float lodFar_ = 160.0f;
 		unsigned int lodLevel_ = 0;
 
-		std::list<ShaderInputLocation> vaoAttributes_;
-		std::map<GLint, std::list<ShaderInputLocation>::iterator> vaoLocations_;
+		std::list<InputLocation> vaoAttributes_;
+		std::map<GLint, std::list<InputLocation>::iterator> vaoLocations_;
 
 		ref_ptr<Shader> meshShader_;
-		std::map<GLint, ShaderInputLocation> meshUniforms_;
+		std::map<GLint, InputLocation> meshUniforms_;
 
 		ref_ptr<BufferRange> feedbackRange_;
 		GLuint feedbackCount_;
@@ -260,28 +253,11 @@ namespace regen {
 
 		std::vector<ref_ptr<Animation> > animations_;
 
-		void (ShaderInputContainer::*draw_)(GLenum);
+		void (InputContainer::*draw_)(GLenum);
 
 		void updateDrawFunction();
 
 		void addShaderInput(const std::string &name, const ref_ptr<ShaderInput> &in);
-	};
-} // namespace
-
-namespace regen {
-	/**
-	 * \brief Mesh that can be used when no vertex shader input
-	 * is required.
-	 *
-	 * This effectively means that you have to generate
-	 * geometry that will be rasterized.
-	 */
-	class AttributeLessMesh : public Mesh {
-	public:
-		/**
-		 * @param numVertices number of vertices used.
-		 */
-		explicit AttributeLessMesh(GLuint numVertices);
 	};
 } // namespace
 

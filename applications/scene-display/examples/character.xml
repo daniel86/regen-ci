@@ -545,7 +545,7 @@
     </node>
     -->
 
-    <ubo id="Particles-UBO">
+    <block type="ubo" id="ParticlesUBO">
         <uniform type="vec3" name="gravity" value="0.0,9.81,0.0"/>
         <uniform type="float" name="dampingFactor" value="1.0"/>
         <uniform type="vec3" name="emitterPosition" value="0.0, -0.5, 0.0"/>
@@ -555,21 +555,21 @@
         <uniform type="float" name="surfaceHeight" value="-1.0"/>
         <uniform type="float" name="lifetimeDefault" value="0.8"/>
         <uniform type="float" name="lifetimeVariance" value="0.5"/>
-    </ubo>
+    </block>
 
-    <ubo id="Wind-UBO">
+    <block type="ubo" id="WindUBO">
         <uniform name="wind" type="vec2" value="0.6, 0.6"/>
         <uniform name="windFlowScale" type="float" value="150.0"/>
         <uniform name="windFlowTime" type="float" value="0.2"/>
         <uniform name="windStrength" type="float" value="1.0"/>
-    </ubo>
+    </block>
 
     <node id="Particle-Config">
         <define key="PARTICLE_EMITTER_MODE" value="IN"/>
         <define key="PARTICLE_EMITTER_SHAPE" value="DISC"/>
         <define key="OPACITY_WEIGHTED_COLOR" value="TRUE"/>
-        <input name="Particles" ubo="Particles-UBO"/>
-        <input name="Wind" ubo="Wind-UBO"/>
+        <input name="Particles" ubo="ParticlesUBO"/>
+        <input name="Wind" ubo="WindUBO"/>
         <texture name="windFlow" id="wind-flowmap"/>
     </node>
 
@@ -915,7 +915,7 @@
     </node>
 
     <node id="root">
-        <input name="Wind" ubo="Wind-UBO"/>
+        <input name="Wind" ubo="WindUBO"/>
 
         <node id="Pre-Render">
             <!-- Render shadow maps such that they can be used in the shading pass -->

@@ -93,12 +93,12 @@
         </atmosphere>
     </sky>
 
-    <ubo id="Wind-UBO">
+    <block type="ubo" id="WindUBO">
         <uniform name="wind" type="vec2" value="0.1, 0.1"/>
         <uniform name="windFlowScale" type="float" value="150.0"/>
         <uniform name="windFlowTime" type="float" value="0.2"/>
         <uniform name="windStrength" type="float" value="1.0"/>
-    </ubo>
+    </block>
 
     <!--**************************-->
     <!--**************************-->
@@ -162,7 +162,7 @@
         <input type="float" name="surfaceHeight" value="{{map-y-min}}"/>
         <input name="cameraPosition" state="main-camera" component="cameraPosition"/>
         <input type="float" name="windFactor" value="10.0"/>
-        <input name="Wind" ubo="Wind-UBO"/>
+        <input name="Wind" ubo="WindUBO"/>
         <texture name="windFlow" id="wind-flowmap"/>
     </node>
 

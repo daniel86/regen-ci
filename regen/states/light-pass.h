@@ -83,7 +83,7 @@ namespace regen {
 			ref_ptr<Texture> shadow;
 			ref_ptr<Texture> shadowColor;
 			std::list<ref_ptr<ShaderInput> > inputs;
-			std::list<ShaderInputLocation> inputLocations;
+			std::list<InputLocation> inputLocations;
 		};
 
 		Light::Type lightType_;

@@ -10,7 +10,7 @@
 
 #include <regen/states/state.h>
 #include <regen/textures/texture-state.h>
-#include <regen/gl-types/shader-input-container.h>
+#include <regen/gl-types/input-container.h>
 #include <regen/gl-types/shader-input.h>
 #include <regen/utility/ref-ptr.h>
 
@@ -225,7 +225,7 @@ namespace regen {
 		ref_ptr<ShaderInput3f> materialEmission_;
 		ref_ptr<ShaderInput1f> materialRefractionIndex_;
 		ref_ptr<ShaderInput1f> materialAlpha_;
-		ref_ptr<UniformBlock> materialUniforms_;
+		ref_ptr<UBO> materialUniforms_;
 
 		GLenum mipmapFlag_;
 		GLenum forcedInternalFormat_;

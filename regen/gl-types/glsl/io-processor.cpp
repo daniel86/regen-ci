@@ -12,7 +12,7 @@
 #include <regen/gl-types/gl-enum.h>
 #include <regen/textures/texture.h>
 #include "io-processor.h"
-#include "regen/gl-types/uniform-block.h"
+#include "regen/gl-types/ubo.h"
 
 using namespace regen;
 using namespace std;
@@ -199,7 +199,7 @@ IOProcessor::InputOutput IOProcessor::getUniformIO(const NamedShaderInput &unifo
 		io.name = "in_" + nameWithoutPrefix;
 	}
 
-	Texture *tex = dynamic_cast<Texture *>(uniform.in_.get());
+	auto *tex = dynamic_cast<Texture *>(uniform.in_.get());
 	if (tex == nullptr) {
 		io.dataType = glenum::glslDataType(uniform.in_->dataType(), uniform.in_->valsPerElement());
 	} else {
@@ -219,7 +219,7 @@ void IOProcessor::declareSpecifiedInput(PreProcessorState &state) {
 	std::vector<NamedShaderInput> uniformBlocks;
 	auto it = specifiedInput.begin();
 	while (it != specifiedInput.end()) {
-		if (it->in_->isUniformBlock()) {
+		if (it->in_->isBufferBlock()) {
 			uniformBlocks.push_back(*it);
 			specifiedInput.erase(it++);
 		} else {
@@ -229,22 +229,22 @@ void IOProcessor::declareSpecifiedInput(PreProcessorState &state) {
 	specifiedInput.insert(specifiedInput.begin(), uniformBlocks.begin(), uniformBlocks.end());
 
 
-	for (auto it = specifiedInput.begin(); it != specifiedInput.end(); ++it) {
-		ref_ptr<ShaderInput> in = it->in_;
-		string nameWithoutPrefix = getNameWithoutPrefix(it->name_);
+	for (auto & it : specifiedInput) {
+		ref_ptr<ShaderInput> in = it.in_;
+		string nameWithoutPrefix = getNameWithoutPrefix(it.name_);
 		if (inputNames_.count(nameWithoutPrefix)) continue;
 		io.block.clear();
 		io.layout.clear();
 
-		if (it->type_.empty()) {
-			Texture *tex = dynamic_cast<Texture *>(in.get());
+		if (it.type_.empty()) {
+			auto *tex = dynamic_cast<Texture *>(in.get());
 			if (tex == nullptr) {
 				io.dataType = glenum::glslDataType(in->dataType(), in->valsPerElement());
 			} else {
 				io.dataType = tex->samplerType();
 			}
 		} else {
-			io.dataType = it->type_;
+			io.dataType = it.type_;
 		}
 		GLuint numElements = in->numArrayElements() * in->numInstances();
 		io.numElements = (numElements > 1 || in->forceArray()) ?
@@ -274,13 +274,17 @@ void IOProcessor::declareSpecifiedInput(PreProcessorState &state) {
 			(*in.get()).write(val);
 			val << ")";
 			io.value = val.str();
-		} else if (in->isUniformBlock()) {
-			auto *uniformBlock = dynamic_cast<UniformBlock *>(in.get());
-			io.layout = "layout(std140)";
-			io.ioType = "uniform";
+		} else if (in->isBufferBlock()) {
+			auto *block = dynamic_cast<BufferBlock *>(in.get());
+			std::stringstream layoutStr;
+			layoutStr << "layout(";
+			layoutStr << REGEN_STRING(block->memoryLayout());
+			layoutStr << ") ";
+			io.layout = layoutStr.str();
+			io.ioType = REGEN_STRING(block->storageQualifier());
 			io.value = "";
 			io.dataType = "";
-			for (auto &blockUniform: uniformBlock->uniforms()) {
+			for (auto &blockUniform: block->blockInputs()) {
 				auto memberIO = getUniformIO(blockUniform);
 				auto blockNameWithoutPrefix = getNameWithoutPrefix(blockUniform.name_.empty() ?
 						blockUniform.in_->name() : blockUniform.name_);

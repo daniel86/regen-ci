@@ -164,16 +164,16 @@ namespace regen {
 		 */
 		void begin();
 
-		VBOReference end();
+		ref_ptr<BufferReference> end();
 
 	protected:
 		const std::string updateShaderKey_;
 		ref_ptr<VBO> feedbackBuffer_;
-		VBOReference feedbackRef_;
-		VBOReference particleRef_;
+		ref_ptr<BufferReference> feedbackRef_;
+		ref_ptr<BufferReference> particleRef_;
 		BufferRange bufferRange_;
 		//ref_ptr<BoundingBoxCounter> boundingBoxCounter_;
-		std::list<ShaderInputLocation> particleAttributes_;
+		std::list<InputLocation> particleAttributes_;
 		ref_ptr<ShaderState> updateState_;
 		VAO particleVAO_;
 
@@ -191,7 +191,7 @@ namespace regen {
 		std::map<std::string, std::string> rampFunctions_;
 
 		// override
-		void begin(ShaderInputContainer::DataLayout layout);
+		void begin(InputContainer::DataLayout layout);
 
 		void createUpdateShader(const ShaderInputList &inputs);
 

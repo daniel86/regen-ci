@@ -11,8 +11,13 @@
 #include <stack>
 
 #include "shader-input.h"
-#include "uniform-block.h"
+#include "ubo.h"
 #include "regen/scene/mesh-processor.h"
+#include "ssbo.h"
+
+#ifndef BUFFER_OFFSET
+#define BUFFER_OFFSET(i) ((char *)NULL + (i))
+#endif
 
 using namespace regen;
 
@@ -54,7 +59,7 @@ ShaderInput::ShaderInput(
 		  transpose_(false),
 		  dataSlots_({nullptr, nullptr}),
 		  isConstant_(false),
-		  isUniformBlock_(false),
+		  isBufferBlock_(false),
 		  forceArray_(false),
 		  active_(true) {
 	elementSize_ = dataTypeBytes_ * valsPerElement_ * numArrayElements_;
@@ -82,7 +87,7 @@ ShaderInput::ShaderInput(const ShaderInput &o)
 		  transpose_(o.transpose_),
 		  dataSlots_({nullptr, nullptr}),
 		  isConstant_(o.isConstant_),
-		  isUniformBlock_(o.isUniformBlock_),
+		  isBufferBlock_(o.isBufferBlock_),
 		  forceArray_(o.forceArray_),
 		  active_(o.active_) {
 	enableAttribute_ = &ShaderInput::enableAttributef;
@@ -97,7 +102,7 @@ ShaderInput::ShaderInput(const ShaderInput &o)
 
 ShaderInput::~ShaderInput() {
 	if (bufferIterator_.get()) {
-		VBO::free(bufferIterator_.get());
+		BufferObject::free(bufferIterator_.get());
 	}
 	deallocateClientData();
 }
@@ -120,7 +125,7 @@ int ShaderInput::lastDataSlot() const {
 	return lastDataSlot_.load(std::memory_order_relaxed);
 }
 
-void ShaderInput::set_buffer(GLuint buffer, const VBOReference &it) {
+void ShaderInput::set_buffer(GLuint buffer, const ref_ptr<BufferReference> &it) {
 	buffer_ = buffer;
 	bufferIterator_ = it;
 	bufferStamp_ = stamp();
@@ -544,13 +549,22 @@ GLboolean ShaderInput::hasData() const {
 ////////////
 
 ref_ptr<ShaderInput> ShaderInput::create(const ref_ptr<ShaderInput> &in) {
-	if (in->isUniformBlock()) {
-		auto newBlock = ref_ptr<UniformBlock>::alloc(in->name());
-		auto oldBlock = (UniformBlock *) (in.get());
-		for (auto &namedUniform: oldBlock->uniforms()) {
-			newBlock->addUniform(create(namedUniform.in_), namedUniform.name_);
+	if (in->isBufferBlock()) {
+		auto oldBlock = dynamic_cast<BufferBlock *>(in.get());
+		if (oldBlock->isUniformBlock()) {
+			auto newBlock = ref_ptr<UBO>::alloc(in->name(), oldBlock->usage());
+			for (auto &namedInput: oldBlock->blockInputs()) {
+				newBlock->addBlockInput(create(namedInput.in_), namedInput.name_);
+			}
+			return newBlock;
 		}
-		return newBlock;
+		if (oldBlock->isShaderStorageBlock()) {
+			auto newBlock = ref_ptr<SSBO>::alloc(in->name(), oldBlock->usage());
+			for (auto &namedInput: oldBlock->blockInputs()) {
+				newBlock->addBlockInput(create(namedInput.in_), namedInput.name_);
+			}
+			return newBlock;
+		}
 	}
 
 	const std::string &name = in->name();
@@ -626,7 +640,7 @@ ref_ptr<ShaderInput> ShaderInput::copy(const ref_ptr<ShaderInput> &in, GLboolean
 	cp->bufferStamp_ = 0;
 	cp->normalize_ = in->normalize_;
 	cp->isVertexAttribute_ = in->isVertexAttribute_;
-	cp->isUniformBlock_ = in->isUniformBlock_;
+	cp->isBufferBlock_ = in->isBufferBlock_;
 	cp->isConstant_ = in->isConstant_;
 	cp->transpose_ = in->transpose_;
 	cp->forceArray_ = in->forceArray_;

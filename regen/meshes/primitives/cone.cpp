@@ -9,7 +9,7 @@
 
 using namespace regen;
 
-Cone::Cone(GLenum primitive, VBO::Usage usage)
+Cone::Cone(GLenum primitive, BufferUsage usage)
 		: Mesh(primitive, usage) {
 	pos_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	nor_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_NOR);
@@ -23,7 +23,7 @@ ConeOpened::Config::Config()
 		  height(1.0f),
 		  isNormalRequired(GL_TRUE),
 		  levelOfDetails({1}),
-		  usage(VBO::USAGE_DYNAMIC) {
+		  usage(USAGE_DYNAMIC) {
 }
 
 ConeOpened::ConeOpened(const Config &cfg)
@@ -95,7 +95,7 @@ void ConeOpened::updateAttributes(const Config &cfg) {
 						 meshLODs_[i].indexOffset);
 	}
 
-	begin(ShaderInputContainer::INTERLEAVED);
+	begin(InputContainer::INTERLEAVED);
 	setInput(pos_);
 	if (cfg.isNormalRequired)
 		setInput(nor_);
@@ -113,7 +113,7 @@ ConeClosed::Config::Config()
 		  isNormalRequired(GL_TRUE),
 		  isBaseRequired(GL_TRUE),
 		  levelOfDetails({1}),
-		  usage(VBO::USAGE_DYNAMIC) {
+		  usage(USAGE_DYNAMIC) {
 }
 
 ref_ptr<Mesh> ConeClosed::getBaseCone() {
@@ -125,7 +125,7 @@ ref_ptr<Mesh> ConeClosed::getBaseCone() {
 		cfg.levelOfDetails = {3, 2, 1};
 		cfg.isNormalRequired = GL_FALSE;
 		cfg.isBaseRequired = GL_TRUE;
-		cfg.usage = VBO::USAGE_STATIC;
+		cfg.usage = USAGE_STATIC;
 		mesh = ref_ptr<ConeClosed>::alloc(cfg);
 		return mesh;
 	} else {
@@ -257,7 +257,7 @@ void ConeClosed::updateAttributes(const Config &cfg) {
 						 meshLODs_[i].indexOffset);
 	}
 
-	begin(ShaderInputContainer::INTERLEAVED);
+	begin(InputContainer::INTERLEAVED);
 	auto indexRef = setIndices(indices_, numVertices);
 	setInput(pos_);
 	if (cfg.isNormalRequired)

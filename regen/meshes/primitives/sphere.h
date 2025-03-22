@@ -51,7 +51,7 @@ namespace regen {
 			/** If true only bottom half sphere is used. */
 			GLboolean isHalfSphere;
 			/** VBO usage hint. */
-			VBO::Usage usage;
+			BufferUsage usage;
 
 			Config();
 		};
@@ -113,7 +113,7 @@ namespace regen {
 			/** number of spheres. */
 			GLuint sphereCount;
 			/** VBO usage hint. */
-			VBO::Usage usage;
+			BufferUsage usage;
 
 			Config();
 		};

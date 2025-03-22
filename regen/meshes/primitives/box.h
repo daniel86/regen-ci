@@ -56,7 +56,7 @@ namespace regen {
 			/** generate tangent attribute ?. */
 			GLboolean isTangentRequired;
 			/** VBO usage hint. */
-			VBO::Usage usage;
+			BufferUsage usage;
 
 			Config();
 		};

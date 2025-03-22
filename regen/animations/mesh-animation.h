@@ -129,11 +129,11 @@ namespace regen {
 
 	protected:
 		struct KeyFrame {
-			std::list<ShaderInputLocation> attributes;
+			std::list<InputLocation> attributes;
 			GLdouble timeInTicks;
 			GLdouble startTick;
 			GLdouble endTick;
-			VBOReference ref;
+			ref_ptr<BufferReference> ref;
 		};
 
 		struct ContiguousBlock {
@@ -159,13 +159,13 @@ namespace regen {
 		GLuint bufferSize_;
 
 		ref_ptr<VBO> feedbackBuffer_;
-		VBOReference feedbackRef_;
+		ref_ptr<BufferReference> feedbackRef_;
 		BufferRange bufferRange_;
 
 		ref_ptr<VBO> animationBuffer_;
 		GLint pingFrame_, pongFrame_;
-		VBOReference pingIt_;
-		VBOReference pongIt_;
+		ref_ptr<BufferReference> pingIt_;
+		ref_ptr<BufferReference> pongIt_;
 		std::vector<KeyFrame> frames_;
 
 		// milliseconds from start of animation

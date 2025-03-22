@@ -1,19 +1,16 @@
-/*
- * shader-input-state.cpp
- *
- *  Created on: 05.08.2012
- *      Author: daniel
- */
-
 #include <regen/utility/string-util.h>
 #include <regen/gl-types/gl-util.h>
 
-#include "shader-input-container.h"
-#include "uniform-block.h"
+#include "input-container.h"
+#include "ubo.h"
+
+#ifndef BUFFER_OFFSET
+#define BUFFER_OFFSET(i) ((char *)NULL + (i))
+#endif
 
 using namespace regen;
 
-ShaderInputContainer::ShaderInputContainer(VBO::Usage usage)
+InputContainer::InputContainer(BufferTarget target, BufferUsage usage)
 		: numVertices_(0),
 		  vertexOffset_(0),
 		  numInstances_(1),
@@ -21,47 +18,47 @@ ShaderInputContainer::ShaderInputContainer(VBO::Usage usage)
 		  numIndices_(0),
 		  maxIndex_(0) {
 	uploadLayout_ = LAYOUT_LAST;
-	inputBuffer_ = ref_ptr<VBO>::alloc(usage);
+	inputBuffer_ = ref_ptr<VBO>::alloc(target, usage);
 }
 
-ShaderInputContainer::ShaderInputContainer(
-		const ref_ptr<ShaderInput> &in, const std::string &name, VBO::Usage usage)
+InputContainer::InputContainer(
+		const ref_ptr<ShaderInput> &in, const std::string &name, BufferUsage usage)
 		: numVertices_(0),
 		  vertexOffset_(0),
 		  numInstances_(1),
 		  numVisibleInstances_(1),
 		  numIndices_(0) {
 	uploadLayout_ = LAYOUT_LAST;
-	inputBuffer_ = ref_ptr<VBO>::alloc(usage);
+	inputBuffer_ = ref_ptr<VBO>::alloc(ARRAY_BUFFER, usage);
 	setInput(in, name);
 }
 
-ShaderInputContainer::~ShaderInputContainer() {
+InputContainer::~InputContainer() {
 	while (!inputs_.empty()) { removeInput(inputs_.begin()->name_); }
 }
 
-ref_ptr<ShaderInput> ShaderInputContainer::getInput(const std::string &name) const {
-	for (auto it = inputs_.begin(); it != inputs_.end(); ++it) {
-		if (name.compare(it->name_) == 0) return it->in_;
+ref_ptr<ShaderInput> InputContainer::getInput(const std::string &name) const {
+	for (const auto &input: inputs_) {
+		if (name == input.name_) return input.in_;
 	}
 	return {};
 }
 
-GLboolean ShaderInputContainer::hasInput(const std::string &name) const {
+GLboolean InputContainer::hasInput(const std::string &name) const {
 	return inputMap_.count(name) > 0;
 }
 
-void ShaderInputContainer::set_numInstances(GLuint v) {
+void InputContainer::set_numInstances(GLuint v) {
 	numInstances_ = v;
 	numVisibleInstances_ = v;
 }
 
-void ShaderInputContainer::begin(DataLayout layout) {
+void InputContainer::begin(DataLayout layout) {
 	uploadLayout_ = layout;
 }
 
-VBOReference ShaderInputContainer::end() {
-	VBOReference ref;
+ref_ptr<BufferReference> InputContainer::end() {
+	ref_ptr<BufferReference> ref;
 	if (!uploadAttributes_.empty()) {
 		if (uploadLayout_ == SEQUENTIAL) {
 			ref = inputBuffer_->allocSequential(uploadAttributes_);
@@ -75,7 +72,7 @@ VBOReference ShaderInputContainer::end() {
 	return ref;
 }
 
-ShaderInputList::const_iterator ShaderInputContainer::setInput(
+ShaderInputList::const_iterator InputContainer::setInput(
 		const ref_ptr<ShaderInput> &in, const std::string &name) {
 	const std::string &inputName = (name.empty() ? in->name() : name);
 
@@ -85,9 +82,9 @@ ShaderInputList::const_iterator ShaderInputContainer::setInput(
 		numVisibleInstances_ = numInstances_;
 	}
 	// check for instances of attributes within UBO
-	if (in->isUniformBlock()) {
-		auto *block = dynamic_cast<UniformBlock *>(in.get());
-		for (auto &namedInput : block->uniforms()) {
+	if (in->isBufferBlock()) {
+		auto *block = dynamic_cast<BufferBlock *>(in.get());
+		for (auto &namedInput: block->blockInputs()) {
 			if (namedInput.in_->isVertexAttribute() && namedInput.in_->numVertices() > numVertices_) {
 				numVertices_ = namedInput.in_->numVertices();
 			}
@@ -115,25 +112,25 @@ ShaderInputList::const_iterator ShaderInputContainer::setInput(
 	return inputs_.begin();
 }
 
-ref_ptr<VBO::Reference> ShaderInputContainer::setIndices(const ref_ptr<ShaderInput> &indices, GLuint maxIndex) {
+ref_ptr<BufferReference> InputContainer::setIndices(const ref_ptr<ShaderInput> &indices, GLuint maxIndex) {
 	indices_ = indices;
 	numIndices_ = indices_->numVertices();
 	maxIndex_ = maxIndex;
 	return inputBuffer_->alloc(indices_);
 }
 
-void ShaderInputContainer::set_indexOffset(GLuint v) {
+void InputContainer::set_indexOffset(GLuint v) {
 	if (indices_.get()) { indices_->set_offset(v); }
 }
 
-GLuint ShaderInputContainer::indexBuffer() const { return indices_.get() ? indices_->buffer() : 0; }
+GLuint InputContainer::indexBuffer() const { return indices_.get() ? indices_->buffer() : 0; }
 
-void ShaderInputContainer::removeInput(const ref_ptr<ShaderInput> &in) {
+void InputContainer::removeInput(const ref_ptr<ShaderInput> &in) {
 	inputMap_.erase(in->name());
 	removeInput(in->name());
 }
 
-void ShaderInputContainer::removeInput(const std::string &name) {
+void InputContainer::removeInput(const std::string &name) {
 	ShaderInputList::iterator it;
 	for (it = inputs_.begin(); it != inputs_.end(); ++it) {
 		if (it->name_ == name) { break; }
@@ -141,21 +138,21 @@ void ShaderInputContainer::removeInput(const std::string &name) {
 	if (it == inputs_.end()) { return; }
 
 	if (uploadLayout_ != LAYOUT_LAST) {
-		VBOReference ref = it->in_->bufferIterator();
+		auto &ref = it->in_->bufferIterator();
 		if (ref.get()) {
-			inputBuffer_->free(ref.get());
-			it->in_->set_buffer(0u, VBOReference());
+			BufferObject::free(ref.get());
+			it->in_->set_buffer(0u, {});
 		}
 	}
 
 	inputs_.erase(it);
 }
 
-void ShaderInputContainer::drawArrays(GLenum primitive) {
+void InputContainer::drawArrays(GLenum primitive) {
 	glDrawArrays(primitive, vertexOffset_, numVertices_);
 }
 
-void ShaderInputContainer::drawArraysInstanced(GLenum primitive) {
+void InputContainer::drawArraysInstanced(GLenum primitive) {
 	glDrawArraysInstancedEXT(
 			primitive,
 			vertexOffset_,
@@ -163,7 +160,7 @@ void ShaderInputContainer::drawArraysInstanced(GLenum primitive) {
 			numVisibleInstances_);
 }
 
-void ShaderInputContainer::drawElements(GLenum primitive) {
+void InputContainer::drawElements(GLenum primitive) {
 	glDrawElements(
 			primitive,
 			numIndices_,
@@ -171,7 +168,7 @@ void ShaderInputContainer::drawElements(GLenum primitive) {
 			BUFFER_OFFSET(indices_->offset()));
 }
 
-void ShaderInputContainer::drawElementsInstanced(GLenum primitive) {
+void InputContainer::drawElementsInstanced(GLenum primitive) {
 	glDrawElementsInstancedEXT(
 			primitive,
 			numIndices_,

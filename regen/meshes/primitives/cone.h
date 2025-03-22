@@ -14,7 +14,7 @@
 namespace regen {
 	class Cone : public Mesh {
 	public:
-		Cone(GLenum primitive, VBO::Usage usage);
+		Cone(GLenum primitive, BufferUsage usage);
 
 	protected:
 		ref_ptr<ShaderInput3f> nor_;
@@ -42,7 +42,7 @@ namespace regen {
 			/** subdivisions = 4*levelOfDetail^2 */
 			std::vector<GLuint> levelOfDetails;
 			/** VBO usage hint. */
-			VBO::Usage usage;
+			BufferUsage usage;
 
 			Config();
 		};
@@ -97,7 +97,7 @@ namespace regen {
 			/** level of detail for base circle */
 			std::vector<GLuint> levelOfDetails;
 			/** VBO usage hint. */
-			VBO::Usage usage;
+			BufferUsage usage;
 
 			Config();
 		};

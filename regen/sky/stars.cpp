@@ -18,47 +18,47 @@ Stars::Stars(const ref_ptr<Sky> &sky)
 		: SkyLayer(sky) {
 	state()->joinStates(ref_ptr<BlendState>::alloc(GL_SRC_ALPHA, GL_ONE));
 
-	auto starsUniforms = ref_ptr<UniformBlock>::alloc("Stars");
+	auto starsUniforms = ref_ptr<UBO>::alloc("Stars");
 	state()->joinShaderInput(starsUniforms);
 
 	color_ = ref_ptr<ShaderInput3f>::alloc("starColor");
 	color_->setUniformData(defaultColor());
-	starsUniforms->addUniform(color_);
+	starsUniforms->addBlockInput(color_);
 
 	apparentMagnitude_ = ref_ptr<ShaderInput1f>::alloc("apparentMagnitude");
 	apparentMagnitude_->setUniformData(defaultApparentMagnitude());
-	starsUniforms->addUniform(apparentMagnitude_);
+	starsUniforms->addBlockInput(apparentMagnitude_);
 
 	colorRatio_ = ref_ptr<ShaderInput1f>::alloc("colorRatio");
 	colorRatio_->setUniformData(defaultColorRatio());
-	starsUniforms->addUniform(colorRatio_);
+	starsUniforms->addBlockInput(colorRatio_);
 
 	glareIntensity_ = ref_ptr<ShaderInput1f>::alloc("glareIntensity");
 	glareIntensity_->setUniformData(0.1);
-	starsUniforms->addUniform(glareIntensity_);
+	starsUniforms->addBlockInput(glareIntensity_);
 
 	glareScale_ = ref_ptr<ShaderInput1f>::alloc("glareScale");
 	glareScale_->setUniformData(defaultGlareScale());
-	starsUniforms->addUniform(glareScale_);
+	starsUniforms->addBlockInput(glareScale_);
 
 	scintillation_ = ref_ptr<ShaderInput1f>::alloc("scintillation");
 	scintillation_->setUniformData(defaultScintillation());
-	starsUniforms->addUniform(scintillation_);
+	starsUniforms->addBlockInput(scintillation_);
 
 	scattering_ = ref_ptr<ShaderInput1f>::alloc("scattering");
 	scattering_->setUniformData(defaultScattering());
-	starsUniforms->addUniform(scattering_);
+	starsUniforms->addBlockInput(scattering_);
 
 	scale_ = ref_ptr<ShaderInput1f>::alloc("scale");
 	scale_->setUniformData(2.0f);
-	starsUniforms->addUniform(scale_);
+	starsUniforms->addBlockInput(scale_);
 
 	noiseTexState_ = ref_ptr<TextureState>::alloc();
 	updateNoiseTexture();
 	state()->joinStates(noiseTexState_);
 
 	shaderState_ = ref_ptr<HasShader>::alloc("regen.weather.bright-stars");
-	meshState_ = ref_ptr<Mesh>::alloc(GL_POINTS, VBO::USAGE_STATIC);
+	meshState_ = ref_ptr<Mesh>::alloc(GL_POINTS, USAGE_STATIC);
 	pos_ = ref_ptr<ShaderInput4f>::alloc(ATTRIBUTE_NAME_POS);
 	col_ = ref_ptr<ShaderInput4f>::alloc(ATTRIBUTE_NAME_COL0);
 }
@@ -95,7 +95,7 @@ void Stars::set_brightStarsFile(const std::string &brightStars) {
 		));
 	}
 
-	meshState_->begin(ShaderInputContainer::INTERLEAVED);
+	meshState_->begin(InputContainer::INTERLEAVED);
 	meshState_->setInput(pos_);
 	meshState_->setInput(col_);
 	meshState_->end();

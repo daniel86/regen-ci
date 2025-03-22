@@ -7,7 +7,6 @@
 
 #include <stack>
 #include "model-transformation.h"
-#include "regen/gl-types/uniform-block.h"
 #include "regen/meshes/mesh-vector.h"
 #include "regen/textures/texture-2d.h"
 #include "regen/animations/boids.h"
@@ -18,7 +17,7 @@ using namespace regen;
 
 ModelTransformation::ModelTransformation()
 		: State(),
-		  HasInput(VBO::USAGE_DYNAMIC),
+		  HasInput(ARRAY_BUFFER, USAGE_DYNAMIC),
 		  lastPosition_(0.0, 0.0, 0.0) {
 	modelMat_ = ref_ptr<ShaderInputMat4>::alloc("modelMatrix");
 	modelMat_->setUniformData(Mat4f::identity());
@@ -26,9 +25,9 @@ ModelTransformation::ModelTransformation()
 	velocity_ = ref_ptr<ShaderInput3f>::alloc("meshVelocity");
 	velocity_->setUniformData(Vec3f(0.0f));
 
-	auto uniforms = ref_ptr<UniformBlock>::alloc("ModelTransformation");
-	uniforms->addUniform(modelMat_);
-	uniforms->addUniform(velocity_);
+	auto uniforms = ref_ptr<UBO>::alloc("ModelTransformation");
+	uniforms->addBlockInput(modelMat_);
+	uniforms->addBlockInput(velocity_);
 	setInput(uniforms);
 }
 

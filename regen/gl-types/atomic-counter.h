@@ -1,7 +1,7 @@
 #ifndef REGEN_ATOMIC_COUNTER_H_
 #define REGEN_ATOMIC_COUNTER_H_
 
-#include <regen/gl-types/gl-buffer.h>
+#include <regen/gl-types/buffer-object.h>
 #include "regen/shapes/bounds.h"
 
 namespace regen {
@@ -9,7 +9,7 @@ namespace regen {
 	 * @brief An atomic counter buffer object.
 	 * @details An atomic counter buffer object is used to store unsigned integer values that can be read and written atomically.
 	 */
-	class AtomicCounter : public GLBuffer {
+	class AtomicCounter : public BufferObjectT<ATOMIC_COUNTER_BUFFER> {
 	public:
 		AtomicCounter();
 
@@ -29,14 +29,15 @@ namespace regen {
 
 		BoundingBoxCounter(const BoundingBoxCounter &) = delete;
 
-		Bounds<Vec3f>& updateBounds();
+		Bounds<Vec3f> &updateBounds();
 
-		Bounds<Vec3f>& bounds() { return bounds_; }
+		Bounds<Vec3f> &bounds() { return bounds_; }
 
 	protected:
 		GLuint initialData_[6];
 		Bounds<Vec3f> bounds_;
+		ref_ptr<BufferReference> ref_;
 	};
 } // namespace
 
-#endif /* REGEN_UBO_H_ */
+#endif /* REGEN_ATOMIC_COUNTER_H_ */

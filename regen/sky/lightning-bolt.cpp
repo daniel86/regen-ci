@@ -8,7 +8,7 @@ using namespace regen;
 LightningBolt::Config::Config() = default;
 
 LightningBolt::LightningBolt(const Config &cfg)
-		: Mesh(GL_LINES, VBO::Usage::USAGE_DYNAMIC),
+		: Mesh(GL_LINES, USAGE_DYNAMIC),
 		  Animation(true, false),
 		  maxSubDivisions_(cfg.maxSubDivisions_),
 		  maxBranches_(cfg.maxBranches_) {
@@ -61,7 +61,7 @@ LightningBolt::LightningBolt(const Config &cfg)
 	brightness_ = ref_ptr<ShaderInput1f>::alloc(ATTRIBUTE_NAME_BRIGHTNESS);
 	brightness_->setVertexData(numVertices);
 
-	begin(ShaderInputContainer::INTERLEAVED);
+	begin(InputContainer::INTERLEAVED);
 	setInput(pos_);
 	setInput(brightness_);
 	end();

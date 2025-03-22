@@ -38,7 +38,7 @@ namespace regen {
 }
 
 Camera::Camera(unsigned int numLayer)
-		: HasInputState(VBO::USAGE_DYNAMIC),
+		: HasInputState(ARRAY_BUFFER, USAGE_DYNAMIC),
 		  numLayer_(numLayer),
 		  frustum_(numLayer) {
 	// add shader constants via defines
@@ -80,20 +80,20 @@ Camera::Camera(unsigned int numLayer)
 	viewProjInv_ = ref_ptr<ShaderInputMat4>::alloc("inverseViewProjectionMatrix");
 	viewProjInv_->setUniformData(Mat4f::identity());
 
-	cameraBlock_ = ref_ptr<UniformBlock>::alloc("Camera");
-	cameraBlock_->addUniform(view_);
-	cameraBlock_->addUniform(viewInv_);
-	cameraBlock_->addUniform(proj_);
-	cameraBlock_->addUniform(projInv_);
-	cameraBlock_->addUniform(viewProj_);
-	cameraBlock_->addUniform(viewProjInv_);
-	cameraBlock_->addUniform(position_);
-	cameraBlock_->addUniform(fov_);
-	cameraBlock_->addUniform(direction_);
-	cameraBlock_->addUniform(aspect_);
-	cameraBlock_->addUniform(vel_);
-	cameraBlock_->addUniform(near_);
-	cameraBlock_->addUniform(far_);
+	cameraBlock_ = ref_ptr<UBO>::alloc("Camera");
+	cameraBlock_->addBlockInput(view_);
+	cameraBlock_->addBlockInput(viewInv_);
+	cameraBlock_->addBlockInput(proj_);
+	cameraBlock_->addBlockInput(projInv_);
+	cameraBlock_->addBlockInput(viewProj_);
+	cameraBlock_->addBlockInput(viewProjInv_);
+	cameraBlock_->addBlockInput(position_);
+	cameraBlock_->addBlockInput(fov_);
+	cameraBlock_->addBlockInput(direction_);
+	cameraBlock_->addBlockInput(aspect_);
+	cameraBlock_->addBlockInput(vel_);
+	cameraBlock_->addBlockInput(near_);
+	cameraBlock_->addBlockInput(far_);
 	setInput(cameraBlock_);
 }
 

@@ -38,7 +38,7 @@ ref_ptr<Disc> Disc::getUnitDisc() {
 		cfg.isNormalRequired = GL_FALSE;
 		cfg.isTangentRequired = GL_FALSE;
 		cfg.discRadius = 1.0f;
-		cfg.usage = VBO::USAGE_STATIC;
+		cfg.usage = USAGE_STATIC;
 		mesh = ref_ptr<Disc>::alloc(cfg);
 		return mesh;
 	} else {
@@ -75,7 +75,7 @@ Disc::Config::Config()
 		  texcoMode(TEXCO_MODE_UV),
 		  isNormalRequired(GL_TRUE),
 		  isTangentRequired(GL_FALSE),
-		  usage(VBO::USAGE_DYNAMIC),
+		  usage(USAGE_DYNAMIC),
 		  discRadius(1.0f) {
 }
 
@@ -171,7 +171,7 @@ void Disc::updateAttributes(const Config &cfg) {
 	}
 
 	// Set up the vertex attributes
-	begin(ShaderInputContainer::INTERLEAVED);
+	begin(InputContainer::INTERLEAVED);
 	auto indexRef = setIndices(indices_, numVertices);
 	setInput(pos_);
 	if (cfg.isNormalRequired) {

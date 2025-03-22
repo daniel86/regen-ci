@@ -15,7 +15,7 @@ using namespace regen;
 #define USE_BONE_TBO
 
 Bones::Bones(GLuint numBoneWeights, GLuint numBones)
-		: HasInputState(VBO::USAGE_TEXTURE),
+		: HasInputState(TEXTURE_BUFFER, BufferUsage::USAGE_DYNAMIC),
 		  Animation(true, true) {
 	bufferSize_ = 0u;
 	setAnimationName("bones");
@@ -42,7 +42,7 @@ void Bones::setBones(const std::list<ref_ptr<AnimationNode> > &bones) {
 
 #ifdef USE_BONE_TBO
 	bufferSize_ = sizeof(GLfloat) * 16 * bones_.size();
-	vboRef_ = inputContainer_->inputBuffer()->alloc(bufferSize_);
+	vboRef_ = inputContainer_->inputBuffer()->allocBytes(bufferSize_);
 
 	// attach vbo to texture
 	rs->textureBuffer().push(vboRef_->bufferID());
@@ -76,10 +76,10 @@ void Bones::animate(GLdouble dt) {
 	auto *boneMatrixData_ = mapped.w;
 
 	unsigned int i = 0;
-	for (auto it = bones_.begin(); it != bones_.end(); ++it) {
+	for (auto & bone : bones_) {
 		// the bone matrix is actually calculated in the animation thread
 		// by NodeAnimation.
-		boneMatrixData_[i] = (*it)->boneTransformationMatrix();
+		boneMatrixData_[i] = bone->boneTransformationMatrix();
 		i += 1;
 	}
 }
