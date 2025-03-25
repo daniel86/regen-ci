@@ -19,6 +19,7 @@
 #include <regen/gl-types/vbo.h>
 #include "regen/shapes/bounds.h"
 #include "regen/scene/scene-input.h"
+#include "regen/textures/texture-file.h"
 
 namespace regen {
 	template<typename T>
@@ -360,6 +361,26 @@ namespace regen {
 		}
 
 		/**
+		 * @return true if the texture has a file name.
+		 */
+		bool hasTextureFile() const { return textureFile_.has_value(); }
+
+		/**
+		 * @return the texture file name.
+		 */
+		void set_textureFile(const std::string &fileName);
+
+		/**
+		 * @return the texture file name.
+		 */
+		void set_textureFile(const std::string &directory, const std::string &namePattern);
+
+		/**
+		 * @return the texture file name.
+		 */
+		auto &textureFile() const { return textureFile_; }
+
+		/**
 		 * Specify the texture image.
 		 */
 		virtual void texImage() const = 0;
@@ -390,6 +411,7 @@ namespace regen {
 		TextureBind texBind_;
 		GLuint numSamples_;
 		std::string samplerType_;
+		std::optional<TextureFile> textureFile_;
 
 		TextureParameterStack<TextureFilter> **filter_;
 		TextureParameterStack<TextureLoD> **lod_;

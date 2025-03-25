@@ -9,6 +9,7 @@
 #include <regen/animations/animation-manager.h>
 #include <regen/utility/filesystem.h>
 #include <regen/text/texture-mapped-text.h>
+#include <QLineEdit>
 
 //#include <regen/scene/scene-xml.h>
 #include <regen/scene/scene-loader.h>
@@ -64,6 +65,7 @@ public:
 			: Animation(false, true), widget_(widget) {}
 
 	void animate(GLdouble dt) override { widget_->updateGameTimeWidget(); }
+
 protected:
 	SceneDisplayWidget *widget_;
 };
@@ -358,14 +360,14 @@ void SceneDisplayWidget::makeVideo(bool isClicked) {
 					QMetaObject::invokeMethod(this, [this, sourceFile]() {
 						// show a dialog asking the user where to save the video
 						QString fileName = QFileDialog::getSaveFileName(this,
-								tr("Save Video"),
-								"regen.mp4",
-								tr("Video Files (*.mp4 *.avi)"));
+																		tr("Save Video"),
+																		"regen.mp4",
+																		tr("Video Files (*.mp4 *.avi)"));
 						if (!fileName.isEmpty()) {
 							// Save the video to the selected file
 							boost::filesystem::copy_file(sourceFile,
-								fileName.toStdString(),
-								boost::filesystem::copy_option::overwrite_if_exists);
+														 fileName.toStdString(),
+														 boost::filesystem::copy_option::overwrite_if_exists);
 							REGEN_INFO("Video saved to " << fileName.toStdString());
 						}
 					}, Qt::QueuedConnection);
@@ -384,7 +386,7 @@ void SceneDisplayWidget::toggleInputsDialog() {
 		gridLayout->setContentsMargins(0, 0, 0, 0);
 		gridLayout->setObjectName(QString::fromUtf8("gridLayout"));
 
-		inputWidget_ = new ShaderInputWidget(inputDialog_);
+		inputWidget_ = new ShaderInputWidget(app_, inputDialog_);
 		gridLayout->addWidget(inputWidget_);
 	}
 	if (inputDialog_->isVisible()) {
@@ -396,54 +398,54 @@ void SceneDisplayWidget::toggleInputsDialog() {
 }
 
 void SceneDisplayWidget::toggleCameraPopup() {
-    if (!mainCamera_.get()) {
-        REGEN_WARN("No main camera available.");
-        return;
-    }
+	if (!mainCamera_.get()) {
+		REGEN_WARN("No main camera available.");
+		return;
+	}
 
-    static QDialog *cameraPopup = nullptr;
-    static QLineEdit *positionLineEdit = nullptr;
-    static QLineEdit *directionLineEdit = nullptr;
+	static QDialog *cameraPopup = nullptr;
+	static QLineEdit *positionLineEdit = nullptr;
+	static QLineEdit *directionLineEdit = nullptr;
 
-    if (cameraPopup && cameraPopup->isVisible()) {
-        cameraPopup->hide();
-        return;
-    }
+	if (cameraPopup && cameraPopup->isVisible()) {
+		cameraPopup->hide();
+		return;
+	}
 
-    if (!cameraPopup) {
-        cameraPopup = new QDialog(this);
-        cameraPopup->setWindowTitle("Camera Properties");
-        cameraPopup->setModal(false);
-        cameraPopup->setAttribute(Qt::WA_DeleteOnClose, false);
-        cameraPopup->setMinimumSize(500, 200); // Set the minimum size of the dialog
+	if (!cameraPopup) {
+		cameraPopup = new QDialog(this);
+		cameraPopup->setWindowTitle("Camera Properties");
+		cameraPopup->setModal(false);
+		cameraPopup->setAttribute(Qt::WA_DeleteOnClose, false);
+		cameraPopup->setMinimumSize(500, 200); // Set the minimum size of the dialog
 
-        auto *layout = new QVBoxLayout(cameraPopup);
-        layout->setAlignment(Qt::AlignTop); // Align items to the top
+		auto *layout = new QVBoxLayout(cameraPopup);
+		layout->setAlignment(Qt::AlignTop); // Align items to the top
 
-        positionLineEdit = new QLineEdit(cameraPopup);
-        positionLineEdit->setTextMargins(4, 4, 4, 4);
-        positionLineEdit->setStyleSheet("font-size: 14px;");
-        positionLineEdit->setReadOnly(true);
-        layout->addWidget(new QLabel("Position:", cameraPopup));
-        layout->addWidget(positionLineEdit);
+		positionLineEdit = new QLineEdit(cameraPopup);
+		positionLineEdit->setTextMargins(4, 4, 4, 4);
+		positionLineEdit->setStyleSheet("font-size: 14px;");
+		positionLineEdit->setReadOnly(true);
+		layout->addWidget(new QLabel("Position:", cameraPopup));
+		layout->addWidget(positionLineEdit);
 
-        directionLineEdit = new QLineEdit(cameraPopup);
-        directionLineEdit->setTextMargins(4, 4, 4, 4);
-        directionLineEdit->setStyleSheet("font-size: 14px;");
-        directionLineEdit->setReadOnly(true);
-        layout->addWidget(new QLabel("Direction:", cameraPopup));
-        layout->addWidget(directionLineEdit);
+		directionLineEdit = new QLineEdit(cameraPopup);
+		directionLineEdit->setTextMargins(4, 4, 4, 4);
+		directionLineEdit->setStyleSheet("font-size: 14px;");
+		directionLineEdit->setReadOnly(true);
+		layout->addWidget(new QLabel("Direction:", cameraPopup));
+		layout->addWidget(directionLineEdit);
 
-        cameraPopup->setLayout(layout);
-    }
+		cameraPopup->setLayout(layout);
+	}
 
-    Vec3f position = mainCamera_->position()->getVertex(0).r;
-    Vec3f direction = mainCamera_->direction()->getVertex(0).r;
+	Vec3f position = mainCamera_->position()->getVertex(0).r;
+	Vec3f direction = mainCamera_->direction()->getVertex(0).r;
 
-    positionLineEdit->setText(QString("%1, %2, %3").arg(position.x).arg(position.y).arg(position.z));
-    directionLineEdit->setText(QString("%1, %2, %3").arg(direction.x).arg(direction.y).arg(direction.z));
+	positionLineEdit->setText(QString("%1, %2, %3").arg(position.x).arg(position.y).arg(position.z));
+	directionLineEdit->setText(QString("%1, %2, %3").arg(direction.x).arg(direction.y).arg(direction.z));
 
-    cameraPopup->show();
+	cameraPopup->show();
 }
 
 void SceneDisplayWidget::toggleWireframe() {
@@ -482,18 +484,18 @@ void SceneDisplayWidget::toggleInfo(bool isOn) {
 }
 
 void SceneDisplayWidget::updateGameTimeWidget() {
-    auto &t_ptime = app_->worldTime().p_time;
-    auto t_seconds = t_ptime.time_of_day().total_seconds();
-    auto t_hours = t_seconds / 3600;
-    auto t_minutes = (t_seconds % 3600) / 60;
-    auto t_seconds_ = t_seconds % 60;
-    QTime q_time(t_hours, t_minutes, t_seconds_);
+	auto &t_ptime = app_->worldTime().p_time;
+	auto t_seconds = t_ptime.time_of_day().total_seconds();
+	auto t_hours = t_seconds / 3600;
+	auto t_minutes = (t_seconds % 3600) / 60;
+	auto t_seconds_ = t_seconds % 60;
+	QTime q_time(t_hours, t_minutes, t_seconds_);
 
-    boost::posix_time::ptime now = boost::posix_time::microsec_clock::local_time();
-    if ((now - lastUpdateTime_).total_seconds() >= 1) {
-        ui_.worldTime->setTime(q_time);
-        lastUpdateTime_ = now;
-    }
+	boost::posix_time::ptime now = boost::posix_time::microsec_clock::local_time();
+	if ((now - lastUpdateTime_).total_seconds() >= 1) {
+		ui_.worldTime->setTime(q_time);
+		lastUpdateTime_ = now;
+	}
 }
 
 void SceneDisplayWidget::onWorldTimeChanged() {
@@ -581,7 +583,7 @@ void SceneDisplayWidget::handleCameraConfiguration(
 	if (cameraType == "default") {
 		cameraController_ = ref_ptr<CameraController>::alloc(cam);
 	}
-	// IMPULSE CONTROLLER
+		// IMPULSE CONTROLLER
 	else if (cameraType == "impulse") {
 		if (mesh.get() == nullptr) {
 			REGEN_WARN("Impulse controller requires a mesh.");
@@ -599,7 +601,7 @@ void SceneDisplayWidget::handleCameraConfiguration(
 		auto impulseController = ref_ptr<ImpulseController>::alloc(cam, physicalObject);
 		cameraController_ = impulseController;
 	}
-	// CHARACTER CONTROLLER
+		// CHARACTER CONTROLLER
 	else if (cameraType == "physical-character") {
 		if (mesh.get() == nullptr) {
 			REGEN_WARN("Physical character controller requires a mesh.");
@@ -624,7 +626,7 @@ void SceneDisplayWidget::handleCameraConfiguration(
 				cameraNode->getValue<GLfloat>("jump-velocity", 16.0f));
 		cameraController_ = characterController;
 	}
-	// KEY-FRAME CONTROLLER
+		// KEY-FRAME CONTROLLER
 	else if (cameraType == "key-frames") {
 		ref_ptr<KeyFrameController> keyFramesCamera = ref_ptr<KeyFrameController>::alloc(cam);
 		if (cameraNode->hasAttribute("ease-in-out-intensity")) {
@@ -640,8 +642,7 @@ void SceneDisplayWidget::handleCameraConfiguration(
 		}
 		keyFramesCamera->startAnimation();
 		animations_.emplace_back(keyFramesCamera);
-	}
-	else {
+	} else {
 		REGEN_WARN("Invalid camera type '" << cameraType << "'.");
 		return;
 	}
@@ -750,7 +751,8 @@ static void handleAssetController(
 		animalController->setFloorHeight(animationNode->getValue<float>("floor-height", 0.0f));
 		animalController->setLaziness(animationNode->getValue<float>("laziness", 0.5f));
 		animalController->setMaxHeight(animationNode->getValue<float>("max-height", std::numeric_limits<float>::max()));
-		animalController->setMinHeight(animationNode->getValue<float>("min-height", std::numeric_limits<float>::lowest()));
+		animalController->setMinHeight(
+				animationNode->getValue<float>("min-height", std::numeric_limits<float>::lowest()));
 		animalController->setTerritoryBounds(
 				animationNode->getValue<Vec2f>("territory-center", Vec2f(0.0)),
 				animationNode->getValue<Vec2f>("territory-size", Vec2f(10.0)));
@@ -946,10 +948,10 @@ void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
 		auto dateString = configurationNode->getValue("date");
 		struct tm tm;
 		if (strptime(dateString.c_str(), "%d-%m-%Y %H:%M:%S", &tm)) {
-            time_t raw_time = mktime(&tm);
-            boost::posix_time::ptime local_time = boost::posix_time::from_time_t(raw_time);
-            boost::posix_time::ptime utc_time = local_time + boost::posix_time::hours(2);
-            app_->setWorldTime(boost::posix_time::to_time_t(utc_time));
+			time_t raw_time = mktime(&tm);
+			boost::posix_time::ptime local_time = boost::posix_time::from_time_t(raw_time);
+			boost::posix_time::ptime utc_time = local_time + boost::posix_time::hours(2);
+			app_->setWorldTime(boost::posix_time::to_time_t(utc_time));
 		} else {
 			REGEN_WARN("Invalid date string: " << dateString << ".");
 		}

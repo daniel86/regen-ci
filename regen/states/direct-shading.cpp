@@ -21,6 +21,7 @@ DirectShading::DirectShading() : State(), idCounter_(0) {
 
 	ambientLight_ = ref_ptr<ShaderInput3f>::alloc("ambientLight");
 	ambientLight_->setUniformData(Vec3f(0.2f));
+	ambientLight_->setSchema(InputSchema::color());
 	joinShaderInput(ambientLight_);
 }
 

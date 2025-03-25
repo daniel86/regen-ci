@@ -46,6 +46,13 @@ namespace regen {
 				bool keepData = false);
 
 		/**
+		 * Update a Texture from file.
+		 * @param tex the Texture to update.
+		 * @param file the file to load.
+		 */
+		void reload(const ref_ptr<Texture> &tex, const std::string &file);
+
+		/**
 		 * Load a Texture from RAW data. Guess if it is a Texture2D or Texture3D.
 		 * Force specified internal format.
 		 * Scale to forced size (if forced size != 0).

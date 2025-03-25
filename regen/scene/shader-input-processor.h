@@ -245,33 +245,33 @@ namespace regen {
 						in = timer;
 						timer->startAnimation();
 					} else if (type == "int") {
-						in = createShaderInputTyped<ShaderInput1i, GLint>(input, state, GLint(0));
+						in = createShaderInputTyped<ShaderInput1i, GLint, int>(input, state, GLint(0));
 					} else if (type == "ivec2") {
-						in = createShaderInputTyped<ShaderInput2i, Vec2i>(input, state, Vec2i(0));
+						in = createShaderInputTyped<ShaderInput2i, Vec2i, int>(input, state, Vec2i(0));
 					} else if (type == "ivec3") {
-						in = createShaderInputTyped<ShaderInput3i, Vec3i>(input, state, Vec3i(0));
+						in = createShaderInputTyped<ShaderInput3i, Vec3i, int>(input, state, Vec3i(0));
 					} else if (type == "ivec4") {
-						in = createShaderInputTyped<ShaderInput4i, Vec4i>(input, state, Vec4i(0));
+						in = createShaderInputTyped<ShaderInput4i, Vec4i, int>(input, state, Vec4i(0));
 					} else if (type == "uint") {
-						in = createShaderInputTyped<ShaderInput1ui, GLuint>(input, state, GLuint(0));
+						in = createShaderInputTyped<ShaderInput1ui, GLuint, unsigned int>(input, state, GLuint(0));
 					} else if (type == "uvec2") {
-						in = createShaderInputTyped<ShaderInput2ui, Vec2ui>(input, state, Vec2ui(0));
+						in = createShaderInputTyped<ShaderInput2ui, Vec2ui, unsigned int>(input, state, Vec2ui(0));
 					} else if (type == "uvec3") {
-						in = createShaderInputTyped<ShaderInput3ui, Vec3ui>(input, state, Vec3ui(0));
+						in = createShaderInputTyped<ShaderInput3ui, Vec3ui, unsigned int>(input, state, Vec3ui(0));
 					} else if (type == "uvec4") {
-						in = createShaderInputTyped<ShaderInput4ui, Vec4ui>(input, state, Vec4ui(0));
+						in = createShaderInputTyped<ShaderInput4ui, Vec4ui, unsigned int>(input, state, Vec4ui(0));
 					} else if (type == "float") {
-						in = createShaderInputTyped<ShaderInput1f, GLfloat>(input, state, GLfloat(0));
+						in = createShaderInputTyped<ShaderInput1f, GLfloat, float>(input, state, GLfloat(0));
 					} else if (type == "vec2") {
-						in = createShaderInputTyped<ShaderInput2f, Vec2f>(input, state, Vec2f(0));
+						in = createShaderInputTyped<ShaderInput2f, Vec2f, float>(input, state, Vec2f(0));
 					} else if (type == "vec3") {
-						in = createShaderInputTyped<ShaderInput3f, Vec3f>(input, state, Vec3f(0));
+						in = createShaderInputTyped<ShaderInput3f, Vec3f, float>(input, state, Vec3f(0));
 					} else if (type == "vec4") {
-						in = createShaderInputTyped<ShaderInput4f, Vec4f>(input, state, Vec4f(0));
+						in = createShaderInputTyped<ShaderInput4f, Vec4f, float>(input, state, Vec4f(0));
 					} else if (type == "mat3") {
-						in = createShaderInputTyped<ShaderInputMat3, Mat3f>(input, state, Mat3f::identity());
+						in = createShaderInputTyped<ShaderInputMat3, Mat3f, float>(input, state, Mat3f::identity());
 					} else if (type == "mat4") {
-						in = createShaderInputTyped<ShaderInputMat4, Mat4f>(input, state, Mat4f::identity());
+						in = createShaderInputTyped<ShaderInputMat4, Mat4f, float>(input, state, Mat4f::identity());
 					} else {
 						REGEN_WARN("Unknown input type '" << type << "'.");
 					}
@@ -319,7 +319,7 @@ namespace regen {
 				}
 			}
 
-			template<class U, class T>
+			template<class U, class T, typename ValueType>
 			static ref_ptr<U> createShaderInputTyped(
 					SceneInputNode &input,
 					const ref_ptr<State> &state,
@@ -356,7 +356,25 @@ namespace regen {
 					setInput(input, v.get(), count);
 				}
 
-				// Load
+				// Set the schema.
+				bool hasMinMax = input.hasAttribute("min") || input.hasAttribute("max");
+				auto semantics = input.getValue<InputSchema::Semantics>(
+						"schema", InputSchema::Semantics::UNKNOWN);
+				if (hasMinMax) {
+					auto min = input.getValue<T>("min", T(0));
+					auto max = input.getValue<T>("max", T(1));
+					auto schema = InputSchema::alloc(semantics);
+					for (int i = 0; i < v->valsPerElement(); i += 1) {
+						schema->setLimits(i,
+							static_cast<float>(((ValueType*)&min)[i]),
+							static_cast<float>(((ValueType*)&max)[i]));
+					}
+					v->setSchema(schema);
+				} else if (input.hasAttribute("schema")) {
+					v->setSchema(InputSchema::getDefault(semantics));
+				}
+
+				// Load animations.
 				for (const auto &n: input.getChildren("animation")) {
 					ref_ptr<InputAnimation<U, T> > inputAnimation = ref_ptr<InputAnimation<U, T> >::alloc(v);
 					for (const auto &m: n->getChildren("key-frame")) {

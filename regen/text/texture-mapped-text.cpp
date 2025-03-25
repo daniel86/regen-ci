@@ -23,6 +23,7 @@ TextureMappedText::TextureMappedText(const ref_ptr<Font> &font, const GLfloat &h
 		  numCharacters_(0) {
 	textColor_ = ref_ptr<ShaderInput4f>::alloc("textColor");
 	textColor_->setUniformData(Vec4f(1.0));
+	textColor_->setSchema(InputSchema::color());
 	joinShaderInput(textColor_);
 
 	ref_ptr<Texture> tex = font_->texture();

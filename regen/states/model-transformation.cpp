@@ -21,6 +21,7 @@ ModelTransformation::ModelTransformation()
 		  lastPosition_(0.0, 0.0, 0.0) {
 	modelMat_ = ref_ptr<ShaderInputMat4>::alloc("modelMatrix");
 	modelMat_->setUniformData(Mat4f::identity());
+	modelMat_->setSchema(InputSchema::transform());
 
 	velocity_ = ref_ptr<ShaderInput3f>::alloc("meshVelocity");
 	velocity_->setUniformData(Vec3f(0.0f));
@@ -427,16 +428,16 @@ static void transformMatrix(
 													   child->getValue<Vec3f>("value", Vec3f(0.0f)));
 				const auto target = child->getValue<std::string>("target", "translate");
 
-				for (auto it = indices.begin(); it != indices.end(); ++it) {
-					transformMatrix(target, matrices.w[*it], generator.next());
+				for (unsigned int & indice : indices) {
+					transformMatrix(target, matrices.w[indice], generator.next());
 				}
 			}
 		} else if (child->getCategory() == "animation") {
 			transformAnimation(scene, child, state, parent, tf);
 		} else {
 			auto matrices = tf->get()->mapClientData<Mat4f>(ShaderData::WRITE);
-			for (auto it = indices.begin(); it != indices.end(); ++it) {
-				transformMatrix(child->getCategory(), matrices.w[*it],
+			for (unsigned int & indice : indices) {
+				transformMatrix(child->getCategory(), matrices.w[indice],
 								child->getValue<Vec3f>("value", Vec3f(0.0f)));
 			}
 		}

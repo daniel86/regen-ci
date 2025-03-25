@@ -53,18 +53,22 @@ Light::Light(Light::Type lightType)
 
 	lightPosition_ = ref_ptr<ShaderInput3f>::alloc("lightPosition");
 	lightPosition_->setUniformData(Vec3f(1.0, 1.0, 1.0));
+	lightPosition_->setSchema(InputSchema::position());
 	lightUniforms_->addBlockInput(lightPosition_);
 
 	lightDirection_ = ref_ptr<ShaderInput3f>::alloc("lightDirection");
 	lightDirection_->setUniformData(Vec3f(1.0, 1.0, -1.0));
+	lightDirection_->setSchema(InputSchema::direction());
 	lightUniforms_->addBlockInput(lightDirection_);
 
 	lightDiffuse_ = ref_ptr<ShaderInput3f>::alloc("lightDiffuse");
 	lightDiffuse_->setUniformData(Vec3f(0.7f));
+	lightDiffuse_->setSchema(InputSchema::color());
 	lightUniforms_->addBlockInput(lightDiffuse_);
 
 	lightSpecular_ = ref_ptr<ShaderInput3f>::alloc("lightSpecular");
 	lightSpecular_->setUniformData(Vec3f(1.0f));
+	lightSpecular_->setSchema(InputSchema::color());
 	lightUniforms_->addBlockInput(lightSpecular_);
 
 	set_innerConeAngle(50.0f);

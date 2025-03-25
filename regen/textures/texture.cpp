@@ -218,6 +218,22 @@ void Texture::resize(unsigned int width, unsigned int height) {
 	RenderState::get()->textures().pop(7);
 }
 
+void Texture::set_textureFile(const std::string &fileName) {
+	if (fileName.empty()) {
+		textureFile_.reset();
+	} else {
+		textureFile_ = TextureFile(fileName);
+	}
+}
+
+void Texture::set_textureFile(const std::string &directory, const std::string &namePattern) {
+	if (directory.empty() || namePattern.empty()) {
+		textureFile_.reset();
+	} else {
+		textureFile_ = TextureFile(directory, namePattern);
+	}
+}
+
 static std::vector<GLubyte> readTextureData_cfg(LoadingContext &ctx, scene::SceneInputNode &input, GLenum format) {
 	std::vector<GLubyte> data;
 	auto numPixelComponents = glenum::pixelComponents(format);

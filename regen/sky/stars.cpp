@@ -23,6 +23,7 @@ Stars::Stars(const ref_ptr<Sky> &sky)
 
 	color_ = ref_ptr<ShaderInput3f>::alloc("starColor");
 	color_->setUniformData(defaultColor());
+	color_->setSchema(InputSchema::color());
 	starsUniforms->addBlockInput(color_);
 
 	apparentMagnitude_ = ref_ptr<ShaderInput1f>::alloc("apparentMagnitude");

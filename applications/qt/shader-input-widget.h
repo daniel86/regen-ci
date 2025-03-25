@@ -8,17 +8,18 @@
 #include <regen/animations/animation.h>
 #include <regen/states/state-node.h>
 #include <QTreeWidgetItem>
+#include "qt-application.h"
 #include "qt/ui_shader-input-editor.h"
 
 namespace regen {
-/**
- * \brief Allows editing ShaderInput values.
- */
+	/**
+	 * \brief Allows editing ShaderInput values.
+	 */
 	class ShaderInputWidget : public QWidget {
 	Q_OBJECT
 
 	public:
-		explicit ShaderInputWidget(QWidget *parent = nullptr);
+		explicit ShaderInputWidget(QtApplication *app, QWidget *parent = nullptr);
 
 		~ShaderInputWidget() override;
 
@@ -26,39 +27,49 @@ namespace regen {
 
 	public slots:
 
-		void resetValue();
-
-		void valueUpdated();
-
-		void maxUpdated();
-
 		void activateValue(QTreeWidgetItem *, QTreeWidgetItem *);
 
 	protected:
+		QtApplication *app_;
 		Ui_shaderInputEditor ui_;
 		QTreeWidgetItem *selectedItem_;
-		ShaderInput *selectedInput_;
 		GLboolean ignoreValueChanges_;
 
 		std::map<ShaderInput *, byte *> initialValue_;
 		std::map<ShaderInput *, GLuint> initialValueStamp_;
 		std::map<ShaderInput *, GLuint> valueStamp_;
 
-		std::map<QTreeWidgetItem *, ref_ptr<ShaderInput> > inputs_;
+		ref_ptr<StateNode> rootNode_;
+		std::map<QTreeWidgetItem *, ref_ptr<StateNode>> nodes_;
+		std::map<QTreeWidgetItem *, const Animation*> animations_;
+
+		void updateInitialValue(ShaderInput *x);
 
 		bool handleState(
+				const ref_ptr<StateNode> &node,
 				const ref_ptr<State> &state,
 				QTreeWidgetItem *parent);
 
 		bool handleNode(
-				const StateNode *node,
+				const ref_ptr<StateNode> &node,
 				QTreeWidgetItem *parent);
 
-		bool handleInput(
+		bool addParameter(
+				const ref_ptr<StateNode> &node,
 				const NamedShaderInput &input,
 				QTreeWidgetItem *parent);
 
-		void updateInitialValue(ShaderInput *x);
+		void addParameterWidget_(QWidget *parameterWidget, const NamedShaderInput &namedInput, const QString &icon);
+
+		void handleTextureParameter_(QWidget *parameterWidget, const NamedShaderInput &namedInput, QHBoxLayout *titleBar);
+
+		void resetParameter(ShaderInput *);
+
+		bool isValidNode(const StateNode *node);
+
+		bool isValidState(const State *rootState);
+
+		bool isValidParameter(const ShaderInput *input);
 	};
 }
 

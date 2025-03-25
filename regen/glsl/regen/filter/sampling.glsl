@@ -1,4 +1,38 @@
 
+-- io
+out vec4 out_color;
+uniform vec2 in_inverseViewport;
+uniform sampler2D in_inputTexture;
+const vec3 in_borderColor = vec3(0.3,0.3,0.3);
+const float in_borderWidth = 0.02;
+#ifndef HAS_near
+const float in_near = 0.1;
+#endif
+#ifndef HAS_far
+const float in_far = 100.0;
+#endif
+
+-- writeDepth
+#ifndef writeDepth_Included
+#define2 writeDepth_Included
+#include regen.states.camera.linearizeDepth
+void writeDepth(float depth) {
+    depth = linearizeDepth(depth, REGEN_CAM_NEAR_(in_layer), REGEN_CAM_FAR_(in_layer));
+    out_color = vec4(depth, depth, depth, 1.0);
+}
+#endif
+
+-- drawEdges
+#ifndef drawEdges_Included
+#define2 drawEdges_Included
+void drawEdges(vec2 uv) {
+    if(uv.x < in_borderWidth || uv.x + in_borderWidth > 1.0 ||
+       uv.y < in_borderWidth || uv.y + in_borderWidth> 1.0) {
+        out_color.rgb = in_borderColor;
+    }
+}
+#endif
+
 -- computeTexco
 #ifndef sampling_computeTexco_Included
 #define2 sampling_computeTexco_Included
@@ -42,103 +76,256 @@ void main() {
 
 layout(triangles) in;
 layout(triangle_strip, max_vertices=${__MAX_VERTICES__}) out;
-
 flat out int out_layer;
 
 #define HANDLE_IO(i)
 
 void emitVertex(vec4 pos, int index, int layer) {
-
-  gl_Position = pos;
-  HANDLE_IO(index);
-  EmitVertex();
+    gl_Position = pos;
+    HANDLE_IO(index);
+    EmitVertex();
 }
 
 void main() {
-#for LAYER to ${RENDER_LAYER}
-#ifndef SKIP_LAYER${LAYER}
-  gl_Layer = ${LAYER};
-  out_layer = ${LAYER};
-  emitVertex(gl_in[0].gl_Position, 0, ${LAYER});
-  emitVertex(gl_in[1].gl_Position, 1, ${LAYER});
-  emitVertex(gl_in[2].gl_Position, 2, ${LAYER});
-  EndPrimitive();
-#endif
-#endfor
+    #for LAYER to ${RENDER_LAYER}
+        #ifndef SKIP_LAYER${LAYER}
+    gl_Layer = ${LAYER};
+    out_layer = ${LAYER};
+    emitVertex(gl_in[0].gl_Position, 0, ${LAYER});
+    emitVertex(gl_in[1].gl_Position, 1, ${LAYER});
+    emitVertex(gl_in[2].gl_Position, 2, ${LAYER});
+    EndPrimitive();
+        #endif
+    #endfor
 }
 #endif
 
 -- fs
 #include regen.states.camera.defines
-
-out vec4 out_color;
-
-uniform vec2 in_inverseViewport;
-uniform sampler2D in_inputTexture;
+#include regen.filter.sampling.io
 #include regen.filter.sampling.computeTexco
+#if TEXTURE_SEMANTICS == DEPTH || TEXTURE_SEMANTICS == SHADOW
+#include regen.filter.sampling.writeDepth
+#endif
+#ifdef DRAW_BORDERS
+#include regen.filter.sampling.drawEdges
+#endif
 
-void main()
-{
-    vec2 texco_2D = gl_FragCoord.xy*in_inverseViewport;
-    out_color = texture(in_inputTexture, computeTexco(texco_2D));
+void main() {
+    vec2 uv = gl_FragCoord.xy*in_inverseViewport;
+#if TEXTURE_SEMANTICS == DEPTH
+    writeDepth(texture(in_inputTexture, computeTexco(uv)).r);
+#elif TEXTURE_SEMANTICS == SHADOW
+    writeDepth(texture(in_inputTexture, vec3(computeTexco(uv),1.0)));
+#else
+    out_color = texture(in_inputTexture, computeTexco(uv));
+#endif
+#ifdef DRAW_BORDERS
+    drawEdges(uv);
+#endif
 }
+
+----------------------------
+----------------------------
+-- color.vs
+#include regen.filter.sampling.vs
+-- color.gs
+#include regen.filter.sampling.gs
+-- color.fs
+#include regen.filter.sampling.fs
 
 ----------------------------
 ----------------------------
 -- depth.vs
+#define TEXTURE_SEMANTICS DEPTH
 #include regen.filter.sampling.vs
 -- depth.gs
+#define TEXTURE_SEMANTICS DEPTH
 #include regen.filter.sampling.gs
 -- depth.fs
-#include regen.states.camera.defines
-
-out vec4 out_color;
-
-uniform vec2 in_inverseViewport;
-uniform sampler2D in_inputTexture;
-#include regen.filter.sampling.computeTexco
-#include regen.states.camera.linearizeDepth
-
-void main()
-{
-    vec2 texco_2D = gl_FragCoord.xy*in_inverseViewport;
-    float depth = texture(in_inputTexture, computeTexco(texco_2D)).r;
-    depth = linearizeDepth(depth, REGEN_CAM_NEAR_(in_layer), REGEN_CAM_FAR_(in_layer));
-    out_color = vec4(depth, depth, depth, 1.0);
-}
-
+#define TEXTURE_SEMANTICS DEPTH
+#include regen.filter.sampling.fs
 
 ----------------------------
 ----------------------------
--- depth.array-row.vs
+-- shadow.vs
+#define TEXTURE_SEMANTICS SHADOW
 #include regen.filter.sampling.vs
--- depth.array-row.fs
-#include regen.states.camera.defines
-out vec4 out_color;
-uniform sampler2DArray in_arrayTexture;
-uniform int in_arrayTextureSize;
-uniform vec2 in_inverseViewport;
-uniform vec2 in_viewport;
+-- shadow.gs
+#define TEXTURE_SEMANTICS SHADOW
+#include regen.filter.sampling.gs
+-- shadow.fs
+#define TEXTURE_SEMANTICS SHADOW
+#include regen.filter.sampling.fs
 
-#include regen.states.camera.linearizeDepth
+----------------------------
+----------------------------
+-- array.vs
+#include regen.filter.sampling.vs
+-- array.fs
+#include regen.states.camera.defines
+#include regen.filter.sampling.io
+#if TEXTURE_SEMANTICS == DEPTH || TEXTURE_SEMANTICS == SHADOW
+#include regen.filter.sampling.writeDepth
+#endif
+#ifdef DRAW_BORDERS
+#include regen.filter.sampling.drawEdges
+#endif
 
 void main() {
-  float size = in_viewport.x/in_arrayTextureSize;
-  float diffY = gl_FragCoord.y-in_viewport.y*0.5;
-
-  if(abs(diffY) > 0.5*size) {
-    out_color = vec4(0);
-  }
-  else {
-    float arrayIndex = floor(gl_FragCoord.x/size);
-    // Map in range [0,size] and divide by size to get to range [0,1]
-    float texcoX = mod(gl_FragCoord.x,size)/size;
-    float texcoY = (diffY + 0.5*size)/size;
-    float depth = texture(in_arrayTexture, vec3(texcoX,texcoY,arrayIndex)).x;
-    depth = 1.0 - linearizeDepth(depth, REGEN_CAM_NEAR_(in_layer), REGEN_CAM_FAR_(in_layer));
-    out_color = vec4(depth, depth, depth, 1.0);
-  }
+    #define2 TEX_ID ${TEX_ID_inputTexture}
+    int numElements = ${TEX_DEPTH${TEX_ID}};
+    float size = in_viewport.x/numElements;
+    float diffY = gl_FragCoord.y-in_viewport.y*0.5;
+    if(abs(diffY) > 0.5*size) {
+        out_color = vec4(0);
+    }
+    else {
+        float arrayIndex = floor(gl_FragCoord.x/size);
+        // Map in range [0,size] and divide by size to get to range [0,1]
+        vec2 uv = vec2(
+            mod(gl_FragCoord.x,size)/size,
+            (diffY + 0.5*size)/size);
+#if TEXTURE_SEMANTICS == DEPTH
+        writeDepth(texture(in_inputTexture, vec3(uv.x, uv.y, arrayIndex)).x);
+#elif TEXTURE_SEMANTICS == SHADOW
+        writeDepth(texture(in_inputTexture, vec4(uv.x, uv.y, arrayIndex, 1.0)));
+#else
+        out_color = texture(in_inputTexture, vec3(uv.x, uv.y, arrayIndex));
+#endif
+#ifdef DRAW_BORDERS
+        drawEdges(uv);
+#endif
+    }
 }
+
+----------------------------
+----------------------------
+-- array.color.vs
+#include regen.filter.sampling.array.vs
+-- array.color.fs
+#include regen.filter.sampling.array.fs
+
+----------------------------
+----------------------------
+-- array.depth.vs
+#define TEXTURE_SEMANTICS DEPTH
+#include regen.filter.sampling.array.vs
+-- array.depth.fs
+#define TEXTURE_SEMANTICS DEPTH
+#include regen.filter.sampling.array.fs
+
+----------------------------
+----------------------------
+-- array.shadow.vs
+#define TEXTURE_SEMANTICS SHADOW
+#include regen.filter.sampling.array.vs
+-- array.shadow.fs
+#define TEXTURE_SEMANTICS SHADOW
+#include regen.filter.sampling.array.fs
+
+
+----------------------------
+----------------------------
+-- cube.vs
+#include regen.filter.sampling.vs
+-- cube.fs
+#include regen.states.camera.defines
+#include regen.filter.sampling.io
+#if TEXTURE_SEMANTICS == DEPTH || TEXTURE_SEMANTICS == SHADOW
+#include regen.filter.sampling.writeDepth
+#endif
+#ifdef DRAW_BORDERS
+#include regen.filter.sampling.drawEdges
+#endif
+
+#include regen.math.computeCubeDirection
+
+void main() {
+    float size = in_viewport.y/4.0;
+    float diffX = gl_FragCoord.x-in_viewport.x*0.5;
+    float diffY = gl_FragCoord.y-in_viewport.y+1.5*size;
+
+    if(abs(diffX) <= 0.5*size) { // middle row
+        // Map in range [0,size] and divide by size to get to range [0,1]
+        float texcoX = (diffX + 0.5*size)/size;
+        float texcoY = mod(gl_FragCoord.y,size)/size;
+        int layer;
+        if(diffY>=0.5*size)       layer = 2; // +Y face
+        else if(diffY>=-0.5*size) layer = 4; // +Z face
+        else if(diffY>=-1.5*size) layer = 3; // -Y face
+        else {                               // -Z face
+            layer = 5;
+            texcoY = 1.0-texcoY;
+            texcoX = 1.0-texcoX;
+        }
+        vec3 dir = computeCubeDirection(2.0*vec2(texcoX,texcoY) - vec2(1.0),layer);
+#if TEXTURE_SEMANTICS == DEPTH
+        writeDepth(texture(in_inputTexture, dir).x);
+#elif TEXTURE_SEMANTICS == SHADOW
+        writeDepth(texture(in_inputTexture, vec4(dir, 1.0)));
+#else
+        out_color = texture(in_inputTexture, dir);
+#endif
+#ifdef DRAW_BORDERS
+        drawEdges(vec2(texcoX,texcoY));
+#endif
+    }
+    else if(abs(diffX) < 1.5*size && abs(diffY) < 0.5*size) {
+        float texcoX;
+        float texcoY = mod(gl_FragCoord.y,size)/size;
+        int layer;
+        if(diffX <= 0) {
+            // -X face
+            texcoX = (diffX + 1.5*size)/size;
+            layer = 1;
+        }
+        else {
+            // +X face
+            texcoX = (diffX - 0.5*size)/size;
+            layer = 0;
+        }
+        vec3 dir = computeCubeDirection(2.0*vec2(texcoX,texcoY) - vec2(1.0),layer);
+#if TEXTURE_SEMANTICS == DEPTH
+        writeDepth(texture(in_inputTexture, dir));
+#elif TEXTURE_SEMANTICS == SHADOW
+        writeDepth(texture(in_inputTexture, vec4(dir, 1.0)));
+#else
+        out_color = texture(in_inputTexture, dir);
+#endif
+#ifdef DRAW_BORDERS
+        drawEdges(vec2(texcoX,texcoY));
+#endif
+    }
+    else {
+        out_color = vec4(0);
+    }
+}
+
+----------------------------
+----------------------------
+-- cube.color.vs
+#include regen.filter.sampling.cube.vs
+-- cube.color.fs
+#include regen.filter.sampling.cube.fs
+
+----------------------------
+----------------------------
+-- cube.depth.vs
+#define TEXTURE_SEMANTICS DEPTH
+#include regen.filter.sampling.cube.vs
+-- cube.depth.fs
+#define TEXTURE_SEMANTICS DEPTH
+#include regen.filter.sampling.cube.fs
+
+----------------------------
+----------------------------
+-- cube.shadow.vs
+#define TEXTURE_SEMANTICS SHADOW
+#include regen.filter.sampling.cube.vs
+-- cube.shadow.fs
+#define TEXTURE_SEMANTICS SHADOW
+#include regen.filter.sampling.cube.fs
 
 ----------------------------
 ----------------------------
@@ -217,171 +404,4 @@ void main()
             out_color = texture(in_inputTexture2, texco_2D*2.0);
         }
     }
-}
-
-----------------------------
-----------------------------
-
--- cube-unfold.vs
-#include regen.filter.sampling.vs
--- cube-unfold.fs
-out vec4 out_color;
-uniform sampler2DCube in_cubeTexture;
-
-#include regen.math.computeCubeDirection
-
-void main() {
-  float size = in_viewport.y/4.0;
-  float diffX = gl_FragCoord.x-in_viewport.x*0.5;
-  float diffY = gl_FragCoord.y-in_viewport.y+1.5*size;
-  
-  if(abs(diffX) <= 0.5*size) { // middle row
-    // Map in range [0,size] and divide by size to get to range [0,1]
-    float texcoX = (diffX + 0.5*size)/size;
-    float texcoY = mod(gl_FragCoord.y,size)/size;
-    int layer;
-    if(diffY>=0.5*size)       layer = 2; // +Y face
-    else if(diffY>=-0.5*size) layer = 4; // +Z face
-    else if(diffY>=-1.5*size) layer = 3; // -Y face
-    else {                               // -Z face
-      layer = 5;
-      texcoY = 1.0-texcoY;
-      texcoX = 1.0-texcoX;
-    }
-    out_color = texture(in_cubeTexture,
-	computeCubeDirection(2.0*vec2(texcoX,texcoY) - vec2(1.0),layer));
-  }
-  else if(abs(diffX) < 1.5*size && abs(diffY) < 0.5*size) {
-    float texcoX;
-    float texcoY = mod(gl_FragCoord.y,size)/size;
-    int layer;
-    if(diffX <= 0) {
-      // -X face
-      texcoX = (diffX + 1.5*size)/size;
-      layer = 1;
-    }
-    else {
-      // +X face
-      texcoX = (diffX - 0.5*size)/size;
-      layer = 0;
-    }
-    out_color = texture(in_cubeTexture,
-	computeCubeDirection(2.0*vec2(texcoX,texcoY) - vec2(1.0),layer));
-  }
-  else {
-    out_color = vec4(0);
-  }
-}
-
-----------------------------
-----------------------------
-
--- cube-shadow-unfold.vs
-#include regen.filter.sampling.vs
--- cube-shadow-unfold.fs
-out vec4 out_color;
-uniform samplerCubeShadow in_cubeTexture;
-
-#include regen.math.computeCubeDirection
-
-void main() {
-  float size = in_viewport.y/4.0;
-  float diffX = gl_FragCoord.x-in_viewport.x*0.5;
-  float diffY = gl_FragCoord.y-in_viewport.y+1.5*size;
-
-  if(abs(diffX) <= 0.5*size) { // middle row
-    // Map in range [0,size] and divide by size to get to range [0,1]
-    float texcoX = (diffX + 0.5*size)/size;
-    float texcoY = mod(gl_FragCoord.y,size)/size;
-    int layer;
-    if(diffY>=0.5*size)       layer = 2; // +Y face
-    else if(diffY>=-0.5*size) layer = 4; // +Z face
-    else if(diffY>=-1.5*size) layer = 3; // -Y face
-    else {                               // -Z face
-      layer = 5;
-      texcoY = 1.0-texcoY;
-      texcoX = 1.0-texcoX;
-    }
-    vec3 dir = computeCubeDirection(2.0*vec2(texcoX,texcoY) - vec2(1.0),layer);
-    float depth = texture(in_cubeTexture, vec4(dir,1.0));
-    out_color = vec4(depth, depth, depth, 1.0);
-  }
-  else if(abs(diffX) < 1.5*size && abs(diffY) < 0.5*size) {
-    float texcoX;
-    float texcoY = mod(gl_FragCoord.y,size)/size;
-    int layer;
-    if(diffX <= 0) {
-      // -X face
-      texcoX = (diffX + 1.5*size)/size;
-      layer = 1;
-    }
-    else {
-      // +X face
-      texcoX = (diffX - 0.5*size)/size;
-      layer = 0;
-    }
-    vec3 dir = computeCubeDirection(2.0*vec2(texcoX,texcoY) - vec2(1.0),layer);
-    float depth = texture(in_cubeTexture, vec4(dir,1.0));
-    out_color = vec4(depth, depth, depth, 1.0);
-  }
-  else {
-    out_color = vec4(0);
-  }
-}
-
-----------------------------
-----------------------------
--- array-row.vs
-#include regen.filter.sampling.vs
--- array-row.fs
-out vec4 out_color;
-uniform sampler2DArray in_arrayTexture;
-uniform int in_arrayTextureSize;
-uniform vec2 in_inverseViewport;
-uniform vec2 in_viewport;
-
-void main() {
-  float size = in_viewport.x/in_arrayTextureSize;
-  float diffY = gl_FragCoord.y-in_viewport.y*0.5;
-
-  if(abs(diffY) > 0.5*size) {
-    out_color = vec4(0);
-  }
-  else {
-    float arrayIndex = floor(gl_FragCoord.x/size);
-    // Map in range [0,size] and divide by size to get to range [0,1]
-    float texcoX = mod(gl_FragCoord.x,size)/size;
-    float texcoY = (diffY + 0.5*size)/size;
-    out_color = texture(in_arrayTexture, vec3(texcoX,texcoY,arrayIndex));
-  }
-}
-
--- array-row-shadow.vs
-#include regen.filter.sampling.vs
--- array-row-shadow.fs
-out vec4 out_color;
-uniform sampler2DArrayShadow in_arrayTexture;
-uniform int in_arrayTextureSize;
-uniform vec2 in_inverseViewport;
-uniform vec2 in_viewport;
-
-void main() {
-  float size = in_viewport.x/in_arrayTextureSize;
-  float diffY = gl_FragCoord.y-in_viewport.y*0.5;
-
-  if(abs(diffY) > 0.5*size) {
-    out_color = vec4(0);
-  }
-  else {
-    float arrayIndex = floor(gl_FragCoord.x/size);
-    // Map in range [0,size] and divide by size to get to range [0,1]
-    float texcoX = mod(gl_FragCoord.x,size)/size;
-    float texcoY = (diffY + 0.5*size)/size;
-    float depth = texture(in_arrayTexture, vec4(texcoX,texcoY,arrayIndex,1.0));
-    // draw edges at boundaries of array textures
-    if(texcoX < 0.01 || texcoX > 0.99 || texcoY < 0.01 || texcoY > 0.99) {
-      depth = 0.0;
-    }
-    out_color = vec4(depth, depth, depth, 1.0);
-  }
 }

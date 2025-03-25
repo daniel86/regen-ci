@@ -21,6 +21,7 @@
 #include <regen/math/matrix.h>
 #include <regen/math/vector.h>
 #include <condition_variable>
+#include "regen/scene/input-schema.h"
 
 namespace regen {
 	// default attribute names
@@ -450,6 +451,16 @@ namespace regen {
 		 */
 		void enableAttributeMat2(GLint location) const;
 
+		/**
+		 * @return the input schema.
+		 */
+		const InputSchema& schema() const { return *schema_; }
+
+		/**
+		 * Set the input schema.
+		 */
+		void setSchema(const InputSchema *schema) { schema_ = schema; }
+
 	protected:
 		std::string name_;
 		GLenum dataType_;
@@ -493,6 +504,8 @@ namespace regen {
 		bool forceArray_;
 		bool active_;
 		mutable bool requiresReUpload_ = false;
+
+		const InputSchema *schema_ = InputSchema::unknown();
 
 		void (ShaderInput::*enableAttribute_)(GLint loc) const;
 

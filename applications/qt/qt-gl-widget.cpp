@@ -161,15 +161,16 @@ QTGLWidget::GLThread::GLThread(QTGLWidget *glWidget)
 }
 
 void QTGLWidget::GLThread::run() {
-	auto context = new QOpenGLContext();
-	context->setFormat(glWidget_->surfaceFormat());
-	context->create();
-	context->makeCurrent(glWidget_->windowHandle());
+	auto sharedContext = new QOpenGLContext();
+	sharedContext->setFormat(glWidget_->surfaceFormat());
+	sharedContext->setShareContext(QOpenGLContext::globalShareContext());
+	sharedContext->create();
+	sharedContext->makeCurrent(glWidget_->windowHandle());
 
 	glWidget_->run();
 
-	context->doneCurrent();
-	delete context;
+	sharedContext->doneCurrent();
+	delete sharedContext;
 }
 
 void QTGLWidget::mouseClick__(QMouseEvent *event, GLboolean isPressed, GLboolean isDoubleClick) {

@@ -134,6 +134,54 @@ void unsetData(GLuint ilID, const ref_ptr<Texture> &tex, bool keepData) {
 	ilDeleteImages(1, &ilID);
 }
 
+void textures::reload(const ref_ptr<Texture> &tex, const std::string &file) {
+	bool keepData = false;
+	unsigned int textureDepth = 1;
+	if (tex->textureBind().target_ == GL_TEXTURE_3D) {
+		auto tex3D = dynamic_cast<Texture3D *>(tex.get());
+		if (tex3D) {
+			textureDepth = tex3D->depth();
+		}
+	}
+	else if (tex->textureBind().target_ == GL_TEXTURE_2D_ARRAY) {
+		auto tex2DArray = dynamic_cast<Texture2DArray *>(tex.get());
+		if (tex2DArray) {
+			textureDepth = tex2DArray->depth();
+		}
+	}
+	else if (tex->textureBind().target_ == GL_TEXTURE_CUBE_MAP) {
+		textureDepth = 6;
+	}
+
+	auto ilID = loadImage(file);
+	scaleImage(tex->width(), tex->height(), textureDepth);
+	convertImage(tex->format(), GL_NONE);
+	auto depth = ilGetInteger(IL_IMAGE_DEPTH);
+	auto numImages = ilGetInteger(IL_NUM_IMAGES);
+
+	tex->set_textureFile(file);
+	tex->set_rectangleSize(ilGetInteger(IL_IMAGE_WIDTH), ilGetInteger(IL_IMAGE_HEIGHT));
+	tex->set_pixelType(ilGetInteger(IL_IMAGE_TYPE));
+	if (numImages < 2) {
+		tex->set_textureData((GLubyte *) ilGetData(), false);
+	}
+	tex->begin(RenderState::get());
+	tex->texImage();
+	if (numImages > 1) {
+		auto *tex3d = dynamic_cast<Texture3D *>(tex.get());
+		for (auto i = 0; i < numImages; ++i) {
+			ilBindImage(ilID);
+			ilActiveImage(i);
+			tex3d->texSubImage(i, (GLubyte *) ilGetData());
+		}
+	}
+	if (tex->filter().value().x == GL_LINEAR_MIPMAP_LINEAR) {
+		tex->setupMipmaps(GL_ONE);
+	}
+	tex->end(RenderState::get());
+	unsetData(ilID, tex, keepData);
+}
+
 ref_ptr<Texture> textures::load(
 		const std::string &file,
 		GLenum mipmapFlag,
@@ -160,6 +208,7 @@ ref_ptr<Texture> textures::load(
 	} else {
 		tex = ref_ptr<Texture2D>::alloc();
 	}
+	tex->set_textureFile(file);
 	tex->set_rectangleSize(ilGetInteger(IL_IMAGE_WIDTH), ilGetInteger(IL_IMAGE_HEIGHT));
 	tex->set_pixelType(ilGetInteger(IL_IMAGE_TYPE));
 	tex->set_format(regenImageFormat());
@@ -276,6 +325,7 @@ ref_ptr<Texture2DArray> textures::loadArray(
 
 	ref_ptr<Texture2DArray> tex = ref_ptr<Texture2DArray>::alloc();
 	tex->set_depth(numTextures);
+	tex->set_textureFile(textureDirectory, textureNamePattern);
 	tex->begin(RenderState::get());
 
 	GLint arrayIndex = 0;
@@ -356,6 +406,7 @@ ref_ptr<TextureCube> textures::loadCube(
 	const auto rowBytes = faceBytes * numCols;
 
 	auto tex = ref_ptr<TextureCube>::alloc();
+	tex->set_textureFile(file);
 	tex->begin(RenderState::get());
 	tex->set_rectangleSize(faceWidth, faceHeight);
 	tex->set_pixelType(ilGetInteger(IL_IMAGE_TYPE));

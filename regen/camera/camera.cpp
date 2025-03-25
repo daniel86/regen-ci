@@ -49,36 +49,47 @@ Camera::Camera(unsigned int numLayer)
 
 	aspect_ = ref_ptr<ShaderInput1f>::alloc("aspect");
 	aspect_->setUniformData(8.0f / 6.0f);
+	aspect_->setSchema(InputSchema::scalar(0.0, 100.0));
 
 	near_ = ref_ptr<ShaderInput1f>::alloc("near");
 	near_->setUniformData(0.1f);
+	near_->setSchema(InputSchema::scalar(0.0, 1000.0));
 
 	far_ = ref_ptr<ShaderInput1f>::alloc("far");
 	far_->setUniformData(100.0f);
+	far_->setSchema(InputSchema::scalar(0.0, 1000.0));
 
 	position_ = ref_ptr<ShaderInput3f>::alloc("cameraPosition");
 	position_->setUniformData(Vec3f(0.0, 1.0, 4.0));
+	position_->setSchema(InputSchema::position());
 
 	direction_ = ref_ptr<ShaderInput3f>::alloc("cameraDirection");
 	direction_->setUniformData(Vec3f(0, 0, -1));
+	direction_->setSchema(InputSchema::direction());
 
 	vel_ = ref_ptr<ShaderInput3f>::alloc("cameraVelocity");
 	vel_->setUniformData(Vec3f(0.0f));
 
 	view_ = ref_ptr<ShaderInputMat4>::alloc("viewMatrix");
 	view_->setUniformData(Mat4f::identity());
+	view_->setSchema(InputSchema::transform());
 	viewInv_ = ref_ptr<ShaderInputMat4>::alloc("inverseViewMatrix");
 	viewInv_->setUniformData(Mat4f::identity());
+	viewInv_->setSchema(InputSchema::transform());
 
 	proj_ = ref_ptr<ShaderInputMat4>::alloc("projectionMatrix");
 	proj_->setUniformData(Mat4f::identity());
+	proj_->setSchema(InputSchema::transform());
 	projInv_ = ref_ptr<ShaderInputMat4>::alloc("inverseProjectionMatrix");
 	projInv_->setUniformData(Mat4f::identity());
+	projInv_->setSchema(InputSchema::transform());
 
 	viewProj_ = ref_ptr<ShaderInputMat4>::alloc("viewProjectionMatrix");
 	viewProj_->setUniformData(Mat4f::identity());
+	viewProj_->setSchema(InputSchema::transform());
 	viewProjInv_ = ref_ptr<ShaderInputMat4>::alloc("inverseViewProjectionMatrix");
 	viewProjInv_->setUniformData(Mat4f::identity());
+	viewProjInv_->setSchema(InputSchema::transform());
 
 	cameraBlock_ = ref_ptr<UBO>::alloc("Camera");
 	cameraBlock_->addBlockInput(view_);

@@ -145,18 +145,23 @@
         <camera id="main-camera"/>
 
         <node import="Background"/>
-        <view id="Scene -- Background">
+        <view id="Background">
             <blit src-fbo="buffer-float" src-attachment="0" dst-fbo="SCREEN"/>
         </view>
 
         <node import="Reflection-Sphere"/>
-        <view id="Scene -- Reflection-Sphere">
+        <view id="Reflection-Sphere">
             <blit src-fbo="buffer-float" src-attachment="0" dst-fbo="SCREEN"/>
         </view>
 
         <node import="Scene-Blur"/>
+        <view id="Blurred">
+            <fbo id="SCREEN"/>
+            <texture name="inputTexture" id="blurred-scene"/>
+            <fullscreen-pass shader="regen.filter.sampling"/>
+        </view>
         <node import="Tonemapping"/>
-        <view id="Scene -- Tonemapping">
+        <view id="Tonemapping">
             <blit src-fbo="buffer-float" src-attachment="1" dst-fbo="SCREEN"/>
         </view>
 
@@ -164,7 +169,7 @@
             <fbo id="buffer-float" draw-buffers="1"/>
         </node>
 
-        <view id="Scene -- Result">
+        <view id="Result">
             <blit src-fbo="buffer-float" src-attachment="1" dst-fbo="SCREEN"/>
         </view>
     </node>

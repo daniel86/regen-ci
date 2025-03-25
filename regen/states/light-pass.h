@@ -66,7 +66,7 @@ namespace regen {
 		/**
 		 * @return the lights.
 		 */
-		auto &lights() { return lights_; }
+		auto &lights() const { return lights_; }
 
 		/**
 		 * @param mode the shadow filtering mode.

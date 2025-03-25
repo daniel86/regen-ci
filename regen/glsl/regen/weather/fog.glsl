@@ -18,6 +18,8 @@ float fogIntensity(float d)
 ---- Computes fog by distance to camera.
 --------------------------------------
 --------------------------------------
+-- distance.schema
+
 -- distance.vs
 #include regen.filter.sampling.vs
 -- distance.gs

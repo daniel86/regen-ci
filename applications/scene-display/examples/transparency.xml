@@ -147,7 +147,7 @@
         </node>
         <view id="Platform Refractions">
             <fbo id="SCREEN"/>
-            <texture name="arrayTexture" fbo="platform-refraction" attachment="1"/>
+            <texture name="inputTexture" fbo="platform-refraction" attachment="1"/>
             <input type="int" name="arrayTextureSize" value="3"/>
             <fullscreen-pass shader="regen.filter.sampling.array-row"/>
         </view>

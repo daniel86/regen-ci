@@ -841,8 +841,8 @@
             <fbo id="g-buffer" draw-buffers="1"/>
             <blend mode="alpha" />
             <input type="float" name="fogDensity" value="1.0" />
-            <input type="vec2" name="fogDistance" value="50.0,{{far-plane}}" />
-            <input type="vec3" name="fogColor" value="0.2,0.33,0.3" />
+            <input type="vec2" name="fogDistance" value="50.0,{{far-plane}}" min="0.0" max="{{far-plane}}"/>
+            <input type="vec3" name="fogColor" value="0.2,0.33,0.3" schema="color"/>
             <input type="vec3" name="sunPosition" state="sky-sun" component="lightPosition"/>
             <texture name="gDepthTexture" fbo="g-buffer" attachment="depth" />
             <texture name="skyColorTexture" id="sky" />
@@ -857,6 +857,8 @@
         <node import="Depth-of-Field">
             <fbo id="g-buffer" draw-buffers="0"/>
             <texture name="inputTexture" fbo="g-buffer" attachment="1"/>
+            <!-- TODO: shouldn't blurred scene be used? -->
+            <!-- <texture name="inputTexture" id="blurred-scene" /> -->
             <input type="vec2" name="focalWidth" value="0.7,1.0" />
         </node>
         <view id="Depth of Field">
@@ -871,7 +873,6 @@
                     Also, emission is more difficult: it is generated with blurring from multiple mips.
                     Will be difficult to get the depth buffer for that.
         -->
-        <node import="Emission-Update"/>
         <node import="Particle-Update-FBO"/>
         <!-- render transparent objects -->
         <node id="Transparent-Pass">
@@ -926,7 +927,7 @@
                 <fbo id="SCREEN"/>
                 <texture name="inputTexture" fbo="room-light-shadow0" attachment="depth"/>
                 <input type="int" name="arrayTextureSize" value="1"/>
-                <fullscreen-pass shader="regen.filter.sampling.array-row-shadow"/>
+                <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
             </view>
 
             <node import="Collision-Update" />

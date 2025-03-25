@@ -5,7 +5,10 @@
  *      Author: daniel
  */
 
+#include <GL/glew.h>
+
 #include <QDesktopWidget>
+#include <QOpenGLContext>
 #include <QtWidgets/QHBoxLayout>
 
 #include <regen/config.h>
@@ -31,6 +34,7 @@ QtApplication::QtApplication(
 		GLuint width, GLuint height,
 		QWidget *parent)
 		: Application(argc, argv), isMainloopRunning_(GL_FALSE), exitCode_(0) {
+	QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 	app_ = new QApplication(appArgCount, (char **) appArgs);
 
 	glContainer_ = new QWidget(nullptr);
@@ -94,7 +98,3 @@ QWidget *QtApplication::toplevelWidget() {
 	while (p->parentWidget() != NULL) { p = p->parentWidget(); }
 	return p;
 }
-
-QWidget *QtApplication::glWidgetContainer() { return glContainer_; }
-
-QTGLWidget *QtApplication::glWidget() { return glWidget_; }

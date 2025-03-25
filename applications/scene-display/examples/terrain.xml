@@ -726,9 +726,9 @@
             </node>
             <view id="Sun Shadow Map">
                 <fbo id="SCREEN"/>
-                <texture name="arrayTexture" fbo="sun-shadow" attachment="depth"/>
+                <texture name="inputTexture" fbo="sun-shadow" attachment="depth"/>
                 <input type="int" name="arrayTextureSize" value="{{num-cascades}}"/>
-                <fullscreen-pass shader="regen.filter.sampling.array-row-shadow"/>
+                <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
             </view>
             <node import="Reflection-Pass"/>
         </node>

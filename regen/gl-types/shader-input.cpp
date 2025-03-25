@@ -89,7 +89,8 @@ ShaderInput::ShaderInput(const ShaderInput &o)
 		  isConstant_(o.isConstant_),
 		  isBufferBlock_(o.isBufferBlock_),
 		  forceArray_(o.forceArray_),
-		  active_(o.active_) {
+		  active_(o.active_),
+		  schema_(o.schema_) {
 	enableAttribute_ = &ShaderInput::enableAttributef;
 	enableUniform_ = o.enableUniform_;
 	// copy client data, if any
@@ -644,6 +645,7 @@ ref_ptr<ShaderInput> ShaderInput::copy(const ref_ptr<ShaderInput> &in, GLboolean
 	cp->isConstant_ = in->isConstant_;
 	cp->transpose_ = in->transpose_;
 	cp->forceArray_ = in->forceArray_;
+	cp->schema_ = in->schema_;
 	if (in->hasClientData()) {
 		// allocate memory for one slot, copy most recent data
 		auto mapped = in->mapClientData(ShaderData::READ);

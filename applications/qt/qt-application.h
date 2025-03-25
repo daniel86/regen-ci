@@ -36,9 +36,9 @@ namespace regen {
 		/**
 		 * @return the rendering widget.
 		 */
-		QTGLWidget *glWidget();
+		QTGLWidget *glWidget() { return glWidget_; }
 
-		QWidget *glWidgetContainer();
+		QWidget *glWidgetContainer()  { return glContainer_; }
 
 		void toggleFullscreen();
 

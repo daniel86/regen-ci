@@ -164,7 +164,7 @@ namespace regen {
 		/**
 		 * @return the root state.
 		 */
-		auto& animationState() { return animationState_; }
+		auto& animationState() const { return animationState_; }
 
 		/**
 		 * Set the root state.

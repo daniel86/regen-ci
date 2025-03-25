@@ -97,8 +97,14 @@ void AnimationManager::addAnimation(Animation *animation) {
 			gpuAnimations_.insert(animation);
 		} else {
 			// Wait for the current loop to finish.
-			while (glInProgress_) usleepRegen(1000);
+			if (glInProgress_) {
+				addInProgress_ = false;
+				while (glInProgress_) usleepRegen(1000);
+				addInProgress_ = true;
+			}
 			// save to remove from set
+			// FIXME: there is a race condition here if add/remove are called from different
+			//        non GL threads they could insert/remove simultaneously
 			gpuAnimations_.insert(animation);
 		}
 	}
@@ -141,7 +147,11 @@ void AnimationManager::removeAnimation(Animation *animation) {
 			gpuAnimations_.erase(animation);
 		} else {
 			// Wait for the current loop to finish.
-			while (glInProgress_) usleepRegen(1000);
+			if (glInProgress_) {
+				removeInProgress_ = false;
+				while (glInProgress_) usleepRegen(1000);
+				removeInProgress_ = true;
+			}
 			// save to remove from set
 			gpuAnimations_.erase(animation);
 		}

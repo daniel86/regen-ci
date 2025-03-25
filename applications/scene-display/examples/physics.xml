@@ -258,9 +258,9 @@
         </node>
         <view id="Paraboloid Reflection -- Result">
             <fbo id="SCREEN"/>
-            <texture name="arrayTexture" fbo="paraboloid-reflection-buffer" attachment="1"/>
+            <texture name="inputTexture" fbo="paraboloid-reflection-buffer" attachment="1"/>
             <input type="int" name="arrayTextureSize" value="2"/>
-            <fullscreen-pass shader="regen.filter.sampling.array-row"/>
+            <fullscreen-pass shader="regen.filter.sampling.array"/>
         </view>
     </node>
 
@@ -302,8 +302,8 @@
         </node>
         <view id="Cube Reflection -- Result">
             <fbo id="SCREEN"/>
-            <texture name="cubeTexture" fbo="cube-reflection-buffer" attachment="1"/>
-            <fullscreen-pass shader="regen.filter.sampling.cube-unfold"/>
+            <texture name="inputTexture" fbo="cube-reflection-buffer" attachment="1"/>
+            <fullscreen-pass shader="regen.filter.sampling.cube"/>
         </view>
     </node>
 

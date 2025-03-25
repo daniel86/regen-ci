@@ -29,18 +29,23 @@ Material::Material()
 		  colorBlendFactor_(1.0f) {
 	materialSpecular_ = ref_ptr<ShaderInput3f>::alloc("matSpecular");
 	materialSpecular_->setUniformData(Vec3f(0.0f));
+	materialSpecular_->setSchema(InputSchema::color());
 
 	materialShininess_ = ref_ptr<ShaderInput1f>::alloc("matShininess");
 	materialShininess_->setUniformData(128.0f);
+	materialShininess_->setSchema(InputSchema::scalar(0.0f, 128.0f));
 
 	materialDiffuse_ = ref_ptr<ShaderInput3f>::alloc("matDiffuse");
 	materialDiffuse_->setUniformData(Vec3f(1.0f));
+	materialDiffuse_->setSchema(InputSchema::color());
 
 	materialAlpha_ = ref_ptr<ShaderInput1f>::alloc("matAlpha");
 	materialAlpha_->setUniformData(1.0f);
+	materialAlpha_->setSchema(InputSchema::alpha());
 
 	materialAmbient_ = ref_ptr<ShaderInput3f>::alloc("matAmbient");
 	materialAmbient_->setUniformData(Vec3f(0.0f));
+	materialAmbient_->setSchema(InputSchema::color());
 
 	materialRefractionIndex_ = ref_ptr<ShaderInput1f>::alloc("matRefractionIndex");
 	materialRefractionIndex_->setUniformData(0.95f);
@@ -61,6 +66,7 @@ void Material::set_emission(const Vec3f &emission) {
 	if (materialEmission_.get() == nullptr) {
 		materialEmission_ = ref_ptr<ShaderInput3f>::alloc("matEmission");
 		materialEmission_->setUniformData(emission);
+		materialEmission_->setSchema(InputSchema::color());
 		// TODO: better always include emission term in material UBO?
 		materialUniforms_->addBlockInput(materialEmission_);
 	} else {

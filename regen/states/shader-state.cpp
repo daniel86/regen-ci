@@ -99,8 +99,8 @@ GLboolean ShaderState::createShader(const StateConfig &cfg, const std::map<GLenu
 	}
 
 	shader_->setInputs(specifiedInput);
-	for (auto it = textures.begin(); it != textures.end(); ++it) {
-		shader_->setTexture(it->second, it->first);
+	for (const auto & texture : textures) {
+		shader_->setTexture(texture.second, texture.first);
 	}
 
 	return GL_TRUE;
