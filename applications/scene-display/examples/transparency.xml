@@ -57,6 +57,10 @@
         <texture id="update" pixel-size="16" pixel-components="3"/>
         <depth id="depth" pixel-size="24" wrapping="CLAMP_TO_EDGE" />
     </fbo>
+    <fbo id="lens-fbo" size-mode="abs" size="256,256"
+         pixel-type="FLOAT" pixel-size="16">
+        <texture id="color" pixel-components="3" wrapping="CLAMP_TO_EDGE"/>
+    </fbo>
     <!-- Textures -->
     <texture id="fog-splat" file="res/textures/splats/flare.jpg"/>
     <texture id="sky-texture"
@@ -66,6 +70,13 @@
              min-filter="LINEAR_MIPMAP_LINEAR"
              mag-filter="LINEAR"
              wrapping="CLAMP_TO_EDGE"/>
+    <texture id="lens-dirt" file="res/textures/lens/dirt1.png"
+             wrapping="CLAMP_TO_EDGE"/>
+    <texture id="lens-gradient" file="res/textures/lens/gradient1.psd"
+             wrapping="CLAMP_TO_EDGE"/>
+    <texture id="lens-starburst" file="res/textures/lens/starburst.png"
+             min-filter="LINEAR_MIPMAP_LINEAR"
+             mag-filter="LINEAR"/>
     <!-- Lights -->
     <light id="spot-light"
            type="SPOT"
@@ -149,7 +160,7 @@
             <fbo id="SCREEN"/>
             <texture name="inputTexture" fbo="platform-refraction" attachment="1"/>
             <input type="int" name="arrayTextureSize" value="3"/>
-            <fullscreen-pass shader="regen.filter.sampling.array-row"/>
+            <fullscreen-pass shader="regen.filter.sampling.array"/>
         </view>
     </node>
 
@@ -281,9 +292,74 @@
         </node>
     </node>
 
+    <node id="Lens">
+        <node id="Scene-Blur">
+            <input type="int" name="numBlurPixels" value="20"/>
+            <input type="float" name="blurSigma" value="5.0"/>
+            <filter-sequence id="blurred-scene0" fbo="g-buffer" attachment="1">
+                <filter shader="regen.filter.sampling" scale="0.5"/>
+                <filter shader="regen.filter.blur.horizontal"/>
+                <filter shader="regen.filter.blur.vertical"/>
+            </filter-sequence>
+        </node>
+        <view id="Flare-Input">
+            <fbo id="SCREEN"/>
+            <texture name="inputTexture" id="blurred-scene0"/>
+            <fullscreen-pass shader="regen.filter.sampling"/>
+        </view>
+        <node id="Flare">
+            <fbo id="lens-fbo" draw-buffers="0"/>
+            <blend mode="src"/>
+            <texture name="inputTexture" id="blurred-scene0" />
+            <texture name="ghostGradient" id="lens-gradient" />
+            <input type="int" name="numGhosts" value="5"/>
+            <input type="float" name="ghostSpacing" value="0.025"/>
+            <input type="float" name="ghostThreshold" value="0.7"/>
+            <input type="float" name="haloThickness" value="0.1"/>
+            <input type="float" name="haloRadius" value="0.3"/>
+            <input type="float" name="haloThreshold" value="0.5"/>
+            <input type="float" name="chromaticAberration" value="0.03"/>
+            <fullscreen-pass shader="regen.filter.lens.flare"/>
+        </node>
+        <view id="Flare">
+            <blit src-fbo="lens-fbo" src-attachment="0" dst-fbo="SCREEN"/>
+        </view>
+        <node id="Flare-Blur">
+            <input type="int" name="numBlurPixels" value="20"/>
+            <input type="float" name="blurSigma" value="5.0"/>
+
+            <filter-sequence id="blurred-flare" fbo="lens-fbo" attachment="0">
+                <filter shader="regen.filter.sampling" scale="1.0"/>
+                <filter shader="regen.filter.blur.horizontal"/>
+                <filter shader="regen.filter.blur.vertical"/>
+            </filter-sequence>
+        </node>
+        <view id="Blurred-Flare">
+            <fbo id="SCREEN"/>
+            <texture name="inputTexture" id="blurred-flare"/>
+            <fullscreen-pass shader="regen.filter.sampling"/>
+        </view>
+        <node id="Dirt">
+            <fbo id="g-buffer" draw-buffers="1"/>
+            <blend mode="add"/>
+            <texture name="inputTexture" id="blurred-flare" />
+            <texture name="dirtTexture" id="lens-dirt" />
+            <texture name="starburstTexture" id="lens-starburst" />
+            <input type="float" name="globalBrightness" value="0.2"/>
+            <fullscreen-pass shader="regen.filter.lens.dirt"/>
+        </node>
+    </node>
+
     <node id="Post-Pass">
         <depth test="0" write="0"/>
         <node import="Fog-Draw"/>
+
+        <node import="Lens">
+        </node>
+        <view id="Lens">
+            <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+        </view>
+
         <node import="FXAA">
             <fbo id="g-buffer" draw-buffers="0"/>
             <texture name="inputTexture" fbo="g-buffer" attachment="1"/>
