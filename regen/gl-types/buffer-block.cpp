@@ -4,6 +4,8 @@
 #include "regen/states/state.h"
 #include "regen/scene/shader-input-processor.h"
 
+//#define USE_PARTIAL_UBO_UPDATE
+
 using namespace regen;
 
 BufferBlock::BufferBlock(
@@ -131,10 +133,16 @@ void BufferBlock::update(bool forceUpdate) {
 	}
 
 	glBindBuffer(glTarget_, ref_->bufferID());
+#ifdef USE_PARTIAL_UBO_UPDATE
 	void *bufferData = map(ref_, GL_MAP_WRITE_BIT);
+#else
+	void *bufferData = map(ref_, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT);
+#endif
 	if (bufferData) {
 		for (auto &uboInput: blockInputs_) {
+#ifdef USE_PARTIAL_UBO_UPDATE
 			if (forceUpdate || uboInput.input->stamp() != uboInput.lastStamp) {
+#endif
 				if (!uboInput.input->hasClientData()) {
 					continue;
 				}
@@ -150,7 +158,9 @@ void BufferBlock::update(bool forceUpdate) {
 						   uboInput.input->inputSize());
 				}
 				uboInput.lastStamp = uboInput.input->stamp();
+#ifdef USE_PARTIAL_UBO_UPDATE
 			}
+#endif
 		}
 		unmap();
 	} else {
@@ -174,7 +184,7 @@ ref_ptr<BufferBlock> BufferBlock::load(LoadingContext &ctx, scene::SceneInputNod
 	} else if (blockType == "ssbo") {
 		block = ref_ptr<SSBO>::alloc(input.getName(), usageHint);
 	} else {
-		REGEN_WARN("Unknown buffer block type '" << blockType << "'. Using default UBO.");
+		REGEN_WARN("Unknown buffer block type '" << blockType << "'. Using UBO.");
 		block = ref_ptr<UBO>::alloc(input.getName(), usageHint);
 	}
 	auto dummyState = ref_ptr<State>::alloc();
@@ -243,7 +253,7 @@ std::istream &regen::operator>>(std::istream &in, BufferBlock::MemoryLayout &v) 
 	else if (val == "packed") v = BufferBlock::MemoryLayout::PACKED;
 	else if (val == "shared") v = BufferBlock::MemoryLayout::SHARED;
 	else {
-		REGEN_WARN("Unknown memory layout '" << val << "'. Using default STD140.");
+		REGEN_WARN("Unknown memory layout '" << val << "'. Using STD140.");
 		v = BufferBlock::MemoryLayout::STD140;
 	}
 	return in;
@@ -258,7 +268,7 @@ std::istream &regen::operator>>(std::istream &in, BufferBlock::StorageQualifier 
 	else if (val == "in") v = BufferBlock::StorageQualifier::IN;
 	else if (val == "out") v = BufferBlock::StorageQualifier::OUT;
 	else {
-		REGEN_WARN("Unknown storage qualifier '" << val << "'. Using default UNIFORM.");
+		REGEN_WARN("Unknown storage qualifier '" << val << "'. Using UNIFORM.");
 		v = BufferBlock::StorageQualifier::UNIFORM;
 	}
 	return in;

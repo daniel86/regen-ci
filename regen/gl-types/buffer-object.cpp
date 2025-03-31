@@ -1,5 +1,9 @@
 #include "buffer-object.h"
 
+#define USE_SHARED_TBO_BUFFER
+#define USE_SHARED_UBO_BUFFER
+#define USE_SHARED_SSBO_BUFFER
+
 using namespace regen;
 
 BufferObject::BufferObject(BufferTarget target, BufferUsage usage) :
@@ -43,14 +47,6 @@ void BufferObject::createMemoryPools() {
 	// some buffer semantics need special attention as they require
 	// alignment to be set, i.e. when using shared buffers consecutive
 	// allocations need to be aligned to the size of the buffer.
-	// FIXME: There is an issue with the shared buffer pools. It seems everything
-	//        is working as expected, but there is a frame drop when using shared buffers for UBOs!
-	//        It is not specifically caused by the alignment parameter, maye rather
-	//        in general that the buffer is shared and how it is bound to a context.
-	//        But no strong clue so far...
-	//#define USE_SHARED_TBO_BUFFER
-	//#define USE_SHARED_UBO_BUFFER
-	//#define USE_SHARED_SSBO_BUFFER
 	for (int i = 0;  i < BufferUsage::USAGE_LAST; ++i) {
 #ifdef USE_SHARED_TBO_BUFFER
 		pools[TEXTURE_BUFFER * BufferUsage::USAGE_LAST + i]->set_alignment(
