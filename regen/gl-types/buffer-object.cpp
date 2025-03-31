@@ -40,10 +40,36 @@ void BufferObject::createMemoryPools() {
 			pools[i]->set_index(i);
 		}
 	}
+	// some buffer semantics need special attention as they require
+	// alignment to be set, i.e. when using shared buffers consecutive
+	// allocations need to be aligned to the size of the buffer.
+	// FIXME: There is an issue with the shared buffer pools. It seems everything
+	//        is working as expected, but there is a frame drop when using shared buffers for UBOs!
+	//        It is not specifically caused by the alignment parameter, maye rather
+	//        in general that the buffer is shared and how it is bound to a context.
+	//        But no strong clue so far...
+	//#define USE_SHARED_TBO_BUFFER
+	//#define USE_SHARED_UBO_BUFFER
+	//#define USE_SHARED_SSBO_BUFFER
 	for (int i = 0;  i < BufferUsage::USAGE_LAST; ++i) {
-		pools[TEXTURE_BUFFER * BufferUsage::USAGE_LAST + i]->set_alignment(getGLInteger(GL_TEXTURE_BUFFER_OFFSET_ALIGNMENT));
-		pools[UNIFORM_BUFFER * BufferUsage::USAGE_LAST + i]->set_alignment(getGLInteger(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT));
-		pools[SHADER_STORAGE_BUFFER * BufferUsage::USAGE_LAST + i]->set_alignment(getGLInteger(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT));
+#ifdef USE_SHARED_TBO_BUFFER
+		pools[TEXTURE_BUFFER * BufferUsage::USAGE_LAST + i]->set_alignment(
+			getGLInteger(GL_TEXTURE_BUFFER_OFFSET_ALIGNMENT));
+#else
+		pools[TEXTURE_BUFFER * BufferUsage::USAGE_LAST + i]->set_minSize(1);
+#endif
+#ifdef USE_SHARED_UBO_BUFFER
+		pools[UNIFORM_BUFFER * BufferUsage::USAGE_LAST + i]->set_alignment(
+			getGLInteger(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT));
+#else
+		pools[UNIFORM_BUFFER * BufferUsage::USAGE_LAST + i]->set_minSize(1);
+#endif
+#ifdef USE_SHARED_SSBO_BUFFER
+		pools[SHADER_STORAGE_BUFFER * BufferUsage::USAGE_LAST + i]->set_alignment(
+			getGLInteger(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT));
+#else
+		pools[SHADER_STORAGE_BUFFER * BufferUsage::USAGE_LAST + i]->set_minSize(1);
+#endif
 	}
 }
 
