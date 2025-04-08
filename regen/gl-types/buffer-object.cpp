@@ -25,8 +25,17 @@ BufferObject::~BufferObject() {
 	}
 }
 
+BufferObject::BufferObject(const BufferObject &other) :
+		Resource(),
+		usage_(other.usage_),
+		target_(other.target_),
+		glTarget_(glBufferTarget(target_)),
+		allocations_(other.allocations_),
+		allocatedSize_(other.allocatedSize_) {
+}
+
 BufferPool **BufferObject::bufferPools() {
-	static std::array<BufferPool *, BufferTarget::TARGET_LAST * BufferUsage::USAGE_LAST> bufferPools;
+	static std::array<BufferPool *, (int) BufferTarget::TARGET_LAST * (int) BufferUsage::USAGE_LAST> bufferPools;
 	return bufferPools.data();
 }
 
@@ -38,7 +47,7 @@ BufferPool *BufferObject::bufferPool(BufferTarget target, BufferUsage usage) {
 
 void BufferObject::createMemoryPools() {
 	auto *pools = bufferPools();
-	for (int i = 0; i < BufferTarget::TARGET_LAST * BufferUsage::USAGE_LAST; ++i) {
+	for (int i = 0; i < (int) BufferTarget::TARGET_LAST * (int) BufferUsage::USAGE_LAST; ++i) {
 		if (pools[i] == nullptr) {
 			pools[i] = new BufferPool();
 			pools[i]->set_index(i);
@@ -49,19 +58,19 @@ void BufferObject::createMemoryPools() {
 	// allocations need to be aligned to the size of the buffer.
 	for (int i = 0;  i < BufferUsage::USAGE_LAST; ++i) {
 #ifdef USE_SHARED_TBO_BUFFER
-		pools[TEXTURE_BUFFER * BufferUsage::USAGE_LAST + i]->set_alignment(
+		pools[(int) TEXTURE_BUFFER * (int) BufferUsage::USAGE_LAST + i]->set_alignment(
 			getGLInteger(GL_TEXTURE_BUFFER_OFFSET_ALIGNMENT));
 #else
 		pools[TEXTURE_BUFFER * BufferUsage::USAGE_LAST + i]->set_minSize(1);
 #endif
 #ifdef USE_SHARED_UBO_BUFFER
-		pools[UNIFORM_BUFFER * BufferUsage::USAGE_LAST + i]->set_alignment(
+		pools[(int) UNIFORM_BUFFER * (int) BufferUsage::USAGE_LAST + i]->set_alignment(
 			getGLInteger(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT));
 #else
 		pools[UNIFORM_BUFFER * BufferUsage::USAGE_LAST + i]->set_minSize(1);
 #endif
 #ifdef USE_SHARED_SSBO_BUFFER
-		pools[SHADER_STORAGE_BUFFER * BufferUsage::USAGE_LAST + i]->set_alignment(
+		pools[(int) SHADER_STORAGE_BUFFER * (int) BufferUsage::USAGE_LAST + i]->set_alignment(
 			getGLInteger(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT));
 #else
 		pools[SHADER_STORAGE_BUFFER * BufferUsage::USAGE_LAST + i]->set_minSize(1);
@@ -126,12 +135,10 @@ ref_ptr<BufferReference> &BufferObject::allocBytes(GLuint numBytes) {
 
 void BufferObject::bind(GLuint index) const {
 	auto &ref = allocations_[0];
-	glBindBufferRange(
-			glTarget_,
-			index,
-			ref->bufferID(),
-			ref->address(),
-			ref->allocatedSize());
+	RenderState::get()->bufferRange(glTarget_).apply(index, BufferRange(
+		ref->bufferID(),
+		ref->address(),
+		ref->allocatedSize()));
 }
 
 void BufferObject::setBufferData(const ref_ptr<BufferReference> &ref, const GLuint *data) {
