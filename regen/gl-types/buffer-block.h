@@ -173,6 +173,7 @@ namespace regen {
 		unsigned int stamp_ = 0;
 		bool hasNewStamp_ = false;
 		bool hasClientData_ = false;
+		bool isBlockValid_ = true;
 
 		void updateBlockInputs();
 

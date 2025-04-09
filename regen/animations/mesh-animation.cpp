@@ -105,6 +105,10 @@ MeshAnimation::MeshAnimation(
 	animationBuffer_ = ref_ptr<VBO>::alloc(ARRAY_BUFFER, USAGE_STREAM);
 	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, USAGE_STREAM);
 	feedbackRef_ = feedbackBuffer_->allocBytes(bufferSize_);
+	if (!feedbackRef_.get()) {
+		REGEN_WARN("Unable to allocate VBO for animation. Animation will not work.");
+		return;
+	}
 
 	bufferRange_.buffer_ = feedbackRef_->bufferID();
 	bufferRange_.offset_ = 0;

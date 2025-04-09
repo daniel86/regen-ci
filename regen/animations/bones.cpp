@@ -43,6 +43,10 @@ void Bones::setBones(const std::list<ref_ptr<AnimationNode> > &bones) {
 #ifdef USE_BONE_TBO
 	bufferSize_ = sizeof(GLfloat) * 16 * bones_.size();
 	vboRef_ = inputContainer_->inputBuffer()->allocBytes(bufferSize_);
+	if (!vboRef_.get()) {
+		REGEN_WARN("Unable to allocate VBO for bone matrices. Animation will not work.");
+		return;
+	}
 
 	// attach vbo to texture
 	rs->textureBuffer().push(vboRef_->bufferID());

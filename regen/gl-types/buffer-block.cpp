@@ -131,6 +131,7 @@ void BufferBlock::updateAlignedData(BlockInput &uboInput) {
 }
 
 void BufferBlock::update(bool forceUpdate) {
+	if (!isBlockValid_) return;
 	updateBlockInputs();
 	bool needsResize = allocatedSize_ != requiredSize_;
 	bool needUpdate = hasNewStamp_ || needsResize || forceUpdate;
@@ -142,6 +143,14 @@ void BufferBlock::update(bool forceUpdate) {
 			free(ref_.get());
 		}
 		ref_ = allocBytes(requiredSize_);
+		if (!ref_.get()) {
+			REGEN_ERROR("BufferBlock::update: failed to allocate buffer. "
+						"Setting buffer state to \"invalid\".");
+			isBlockValid_ = false;
+			return;
+		} else {
+			isBlockValid_ = true;
+		}
 		allocatedSize_ = requiredSize_;
 		GL_ERROR_LOG();
 	}
@@ -189,6 +198,7 @@ void BufferBlock::update(bool forceUpdate) {
 }
 
 void BufferBlock::enableBufferBlock(GLint loc) {
+	if (!isBlockValid_) return;
 	update();
 	bind(loc);
 }
