@@ -13,6 +13,7 @@
 #include "particles.h"
 #include "regen/states/state-node.h"
 #include "regen/scene/loading-context.h"
+#include "lod/mesh-simplifier.h"
 
 using namespace regen;
 
@@ -272,6 +273,28 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 		(*out)[0] = ref_ptr<Mesh>::alloc(primitive, vboUsage);
 	} else {
 		REGEN_WARN("Ignoring " << input.getDescription() << ", unknown Mesh type.");
+	}
+
+	// generate LOD levels if requested
+	if (input.hasAttribute("lod-simplification")) {
+		auto thresholds = input.getValue<Vec2f>("lod-simplification", Vec2f(0.75, 0.25));
+		for (auto & mesh : *out) {
+			MeshSimplifier simplifier(mesh);
+			simplifier.setThresholds(thresholds.x, thresholds.y);
+			if (input.hasAttribute("nor-max-angle")) {
+				simplifier.setNormalMaxAngle(input.getValue<float>("nor-max-angle", 0.6f));
+			}
+			if (input.hasAttribute("nor-penalty")) {
+				simplifier.setNormalPenalty(input.getValue<float>("nor-penalty", 0.1f));
+			}
+			if (input.hasAttribute("valence-penalty")) {
+				simplifier.setValencePenalty(input.getValue<float>("valence-penalty", 0.1f));
+			}
+			if (input.hasAttribute("area-penalty")) {
+				simplifier.setAreaPenalty(input.getValue<float>("area-penalty", 0.1f));
+			}
+			simplifier.simplifyMesh();
+		}
 	}
 
 	// configure mesh LOD
