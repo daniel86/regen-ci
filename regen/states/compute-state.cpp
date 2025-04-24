@@ -11,6 +11,9 @@ void ComputeState::setNumWorkUnits(int x, int y, int z) {
 	numWorkUnits_.y = y;
 	numWorkUnits_.z = z;
 	updateNumWorkGroups();
+	shaderDefine("CS_WORK_UNITS_X", REGEN_STRING(numWorkUnits_.x));
+	shaderDefine("CS_WORK_UNITS_Y", REGEN_STRING(numWorkUnits_.y));
+	shaderDefine("CS_WORK_UNITS_Z", REGEN_STRING(numWorkUnits_.z));
 }
 
 void ComputeState::setGroupSize(int x, int y, int z) {
@@ -27,14 +30,17 @@ void ComputeState::updateNumWorkGroups() {
 	numWorkGroups_.x = (numWorkUnits_.x + localSize_.x - 1) / localSize_.x;
 	numWorkGroups_.y = (numWorkUnits_.y + localSize_.y - 1) / localSize_.y;
 	numWorkGroups_.z = (numWorkUnits_.z + localSize_.z - 1) / localSize_.z;
+	shaderDefine("CS_NUM_WORK_GROUPS_X", REGEN_STRING(numWorkGroups_.x));
+	shaderDefine("CS_NUM_WORK_GROUPS_Y", REGEN_STRING(numWorkGroups_.y));
+	shaderDefine("CS_NUM_WORK_GROUPS_Z", REGEN_STRING(numWorkGroups_.z));
 }
 
-void ComputeState::enable(RenderState *rs) {
-	State::enable(rs);
+void ComputeState::dispatch() {
     glDispatchCompute(
     		numWorkGroups_.x,
 			numWorkGroups_.y,
 			numWorkGroups_.z);
+	// TODO: make configurable?
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 

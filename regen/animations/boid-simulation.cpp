@@ -244,7 +244,7 @@ void BoidSimulation_GPU::initBuffers() {
 	}
 
 	// SSBO for velocity, one per boid
-	velBuffer_ = ref_ptr<SSBO>::alloc("VelocityBlock", USAGE_DYNAMIC);
+	velBuffer_ = ref_ptr<SSBO>::alloc("VelocityBlock", BUFFER_USAGE_DYNAMIC_DRAW);
 #ifdef BOID_GPU_USE_HALF_VELOCITY
 	auto vel = ref_ptr<ShaderInput2ui>::alloc("vel", numBoids_);
 #else
@@ -255,14 +255,14 @@ void BoidSimulation_GPU::initBuffers() {
 	velBuffer_->update();
 
 	// SSBOs for neighbour grid
-	listHeadBuffer_ = ref_ptr<SSBO>::alloc("BoidCellHeads", USAGE_DYNAMIC);
+	listHeadBuffer_ = ref_ptr<SSBO>::alloc("BoidCellHeads", BUFFER_USAGE_DYNAMIC_DRAW);
 	listHeads_ = ref_ptr<ShaderInput1i>::alloc("listHeads", numCells_);
 	listHeads_->set_forceArray(true);
 	// NOTE: listHeads must remain last in the list of buffer inputs as the number of cells might change over time.
 	listHeadBuffer_->addBlockInput(listHeads_);
 	listHeadBuffer_->update();
 
-	listBodyBuffer_ = ref_ptr<SSBO>::alloc("BoidCellList", USAGE_DYNAMIC);
+	listBodyBuffer_ = ref_ptr<SSBO>::alloc("BoidCellList", BUFFER_USAGE_DYNAMIC_DRAW);
 	listBodyBuffer_->addBlockInput(ref_ptr<ShaderInput1i>::alloc("listNext", numBoids_));
 	listBodyBuffer_->update();
 }
@@ -317,7 +317,7 @@ void BoidSimulation_GPU::initAnimationState() {
 		updateBoidsState_->shaderDefine("NUM_BOID_HOMES", "0");
 	} else {
 		updateBoidsState_->shaderDefine("NUM_BOID_HOMES", std::to_string(homePoints_.size()));
-		for (int i = 0; i < homePoints_.size(); ++i) {
+		for (uint64_t i = 0u; i < homePoints_.size(); ++i) {
 			updateBoidsState_->shaderDefine(
 				REGEN_STRING("BOID_HOME" << i),
 				REGEN_STRING("vec3(" <<

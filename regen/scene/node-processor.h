@@ -9,7 +9,7 @@
 #define REGEN_NODE_CATEGORY "node"
 
 #include <regen/states/state-node.h>
-#include <regen/states/geometric-culling.h>
+#include <regen/states/lod-state.h>
 #include "regen/states/state-node-comparator.h"
 
 namespace regen::scene {
@@ -75,7 +75,7 @@ namespace regen::scene {
 					handleChildren(scene, *imported.get(), newNode);
 				}
 			}
-			if (input.hasAttribute("cull-shape")) {
+			if (input.hasAttribute("lod-shape") || input.hasAttribute("lod-mesh")) {
 				newNode = createCullNode(scene, input, parent);
 				if (newNode.get() != nullptr) {
 					handleAttributes(scene, input, newNode);
@@ -180,30 +180,49 @@ namespace regen::scene {
 				scene::SceneLoader *parser,
 				SceneInputNode &input,
 				const ref_ptr<StateNode> &parent) {
-			ref_ptr<GeometricCulling> cullNode;
+			ref_ptr<LODState> lodState;
 			// get the parent camera. Note that this will be the light camera in case
 			// updating the shadow map.
 			auto cam = parent->getParentCamera();
 			if (cam.get() == nullptr) {
 				REGEN_WARN("No Camera can be found for '" << input.getDescription() << "'.");
-				return cullNode;
-			}
-			auto spatialIndex = getSpatialIndex(parser, input);
-			if (spatialIndex.get() == nullptr) {
-				REGEN_WARN("No SpatialIndex can be found for '" << input.getDescription() << "'.");
-				return cullNode;
+				return lodState;
 			}
 
-			auto shapeName = input.getValue<std::string>("cull-shape", "");
-			cullNode = ref_ptr<GeometricCulling>::alloc(cam, spatialIndex, shapeName);
-			cullNode->set_name(input.getName());
+			if (input.hasAttribute("lod-shape")) {
+				// compute LOD based on a shape in spatial index on CPU-side
+				auto spatialIndex = getSpatialIndex(parser, input);
+				if (spatialIndex.get() == nullptr) {
+					REGEN_WARN("No SpatialIndex can be found for '" << input.getDescription() << "'.");
+					return lodState;
+				}
+				auto shapeName = input.getValue<std::string>("lod-shape", "");
+				lodState = ref_ptr<LODState>::alloc(cam, spatialIndex, shapeName);
+			}
+			else {
+				// compute LOD GPU-side
+				auto tf = parser->getResources()->getTransform(parser, input.getValue("lod-tf"));
+				if (tf.get() == nullptr) {
+					REGEN_WARN("No Transform can be found for '" << input.getDescription() << "'.");
+					return lodState;
+				}
+				auto meshVector = parser->getResources()->getMesh(
+					parser, input.getValue("lod-mesh"));
+				lodState = ref_ptr<LODState>::alloc(cam, *meshVector.get(), tf);
+			}
+			if (!lodState.get()) {
+				return lodState;
+			}
+
+			lodState->set_name(input.getName());
 			if (input.hasAttribute("sort-mode")) {
-				cullNode->setInstanceSortMode(input.getValue<SortMode>("sort-mode", SortMode::FRONT_TO_BACK));
+				lodState->setInstanceSortMode(input.getValue<SortMode>("sort-mode", SortMode::FRONT_TO_BACK));
 			}
-			parent->addChild(cullNode);
-			parser->putNode(input.getName(), cullNode);
+			lodState->createBuffers();
+			parent->addChild(lodState);
+			parser->putNode(input.getName(), lodState);
 
-			return cullNode;
+			return lodState;
 		}
 	};
 }

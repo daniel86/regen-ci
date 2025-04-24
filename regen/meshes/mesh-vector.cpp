@@ -48,7 +48,7 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 	bool useNormal = input.getValue<bool>("use-normal", true);
 	bool useTexco = input.getValue<bool>("use-texco", true);
 	bool useTangent = input.getValue<bool>("use-tangent", false);
-	auto vboUsage = input.getValue<BufferUsage>("usage", USAGE_DYNAMIC);
+	auto vboUsage = input.getValue<BufferUsage>("usage", BUFFER_USAGE_DYNAMIC_DRAW);
 
 	ref_ptr<MeshVector> out_ = ref_ptr<MeshVector>::alloc();
 	MeshVector *out = out_.get();
@@ -298,10 +298,11 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 	}
 
 	// configure mesh LOD
-	if (input.hasAttribute("lod-far")) {
-		auto lodFar = input.getValue<GLfloat>("lod-far", 160.0f);
+	if (input.hasAttribute("lod-thresholds")) {
+		auto thresholds = input.getValue<Vec3f>(
+			"lod-thresholds", Vec3f(10.0, 50.0, 100.0));
 		for (GLuint i = 0u; i < out->size(); ++i) {
-			(*out)[i]->setLODFar(lodFar);
+			(*out)[i]->setLODThresholds(thresholds);
 		}
 	}
 
@@ -325,7 +326,7 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 }
 
 ref_ptr<MeshVector> MeshVector::createAssetMeshes(LoadingContext &ctx, scene::SceneInputNode &input, const ref_ptr<AssetImporter> &importer) {
-	const auto vboUsage = input.getValue<BufferUsage>("usage", USAGE_DYNAMIC);
+	const auto vboUsage = input.getValue<BufferUsage>("usage", BUFFER_USAGE_DYNAMIC_DRAW);
 	const auto scaling = input.getValue<Vec3f>("scaling", Vec3f(1.0f));
 	const auto rotation = input.getValue<Vec3f>("rotation", Vec3f(0.0f));
 	const auto translation = input.getValue<Vec3f>("translation", Vec3f(0.0f));
