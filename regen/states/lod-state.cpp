@@ -289,7 +289,9 @@ void LODState::createComputeShader() {
 	}
 
 	// Output: lodGroupSize
-	lodGroupSizeBuffer_ = ref_ptr<SSBO>::alloc("LODGroupBuffer", BUFFER_USAGE_STREAM_COPY);
+	lodGroupSizeBuffer_ = ref_ptr<SSBO>::alloc("LODGroupBuffer",
+			BUFFER_USAGE_STREAM_COPY,
+			SSBO::RESTRICT);
 	lodGroupSize_ = ref_ptr<ShaderInput1ui>::alloc("lodGroupSize", 4);
 	lodGroupSizeBuffer_->addBlockInput(lodGroupSize_);
 	lodGroupSizeBuffer_->update();
@@ -299,16 +301,22 @@ void LODState::createComputeShader() {
 			BufferMapping::DOUBLE_BUFFER);
 
 	// Temporary Buffers for sorting.
-	keyBuffer_ = ref_ptr<SSBO>::alloc("KeyBuffer", BUFFER_USAGE_STREAM_COPY);
+	keyBuffer_ = ref_ptr<SSBO>::alloc("KeyBuffer",
+			BUFFER_USAGE_STREAM_COPY,
+			SSBO::RESTRICT);
 	keyBuffer_->addBlockInput(ref_ptr<ShaderInput1ui>::alloc("keys", numInstances_));
 	keyBuffer_->update();
 
 	valueBuffer_[0] = instanceIDBuffer_;
-	valueBuffer_[1] = ref_ptr<SSBO>::alloc("ValueBuffer2", BUFFER_USAGE_STREAM_COPY);
+	valueBuffer_[1] = ref_ptr<SSBO>::alloc("ValueBuffer2",
+			BUFFER_USAGE_STREAM_COPY,
+			SSBO::RESTRICT);
 	valueBuffer_[1]->addBlockInput(ref_ptr<ShaderInput1ui>::alloc("values", numInstances_));
 	valueBuffer_[1]->update();
 
-	globalHistogramBuffer_ = ref_ptr<SSBO>::alloc("HistogramBuffer", BUFFER_USAGE_STREAM_COPY);
+	globalHistogramBuffer_ = ref_ptr<SSBO>::alloc("HistogramBuffer",
+			BUFFER_USAGE_STREAM_COPY,
+			SSBO::RESTRICT);
 	globalHistogramBuffer_->addBlockInput(ref_ptr<ShaderInput1ui>::alloc(
 			"globalHistogram", RADIX_NUM_BUCKETS * numWorkGroups));
 	globalHistogramBuffer_->update();
@@ -400,12 +408,16 @@ void LODState::createComputeShader() {
 		auto numBlocks2 = static_cast<int32_t>(math::nextPow2(numBlocks));
 
 		// create global memory for the offsets
-		blockSumsBuffer_ = ref_ptr<SSBO>::alloc("BlockSumBuffer", BUFFER_USAGE_STREAM_COPY);
+		blockSumsBuffer_ = ref_ptr<SSBO>::alloc("BlockSumBuffer",
+				BUFFER_USAGE_STREAM_COPY,
+				SSBO::RESTRICT);
 		blockSumsBuffer_->addBlockInput(ref_ptr<ShaderInput1ui>::alloc("blockSums", numBlocks));
 		blockSumsBuffer_->blockInputs()[0].in_->set_forceArray(true);
 		blockSumsBuffer_->update();
 
-		blockOffsetsBuffer_ = ref_ptr<SSBO>::alloc("BlockOffsetsBuffer", BUFFER_USAGE_STREAM_COPY);
+		blockOffsetsBuffer_ = ref_ptr<SSBO>::alloc("BlockOffsetsBuffer",
+				BUFFER_USAGE_STREAM_COPY,
+				SSBO::RESTRICT);
 		blockOffsetsBuffer_->addBlockInput(ref_ptr<ShaderInput1ui>::alloc("blockOffsets", numBlocks));
 		blockOffsetsBuffer_->blockInputs()[0].in_->set_forceArray(true);
 		blockOffsetsBuffer_->update();

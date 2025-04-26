@@ -244,7 +244,9 @@ void BoidSimulation_GPU::initBuffers() {
 	}
 
 	// SSBO for velocity, one per boid
-	velBuffer_ = ref_ptr<SSBO>::alloc("VelocityBlock", BUFFER_USAGE_DYNAMIC_DRAW);
+	velBuffer_ = ref_ptr<SSBO>::alloc("VelocityBlock",
+			BUFFER_USAGE_DYNAMIC_DRAW,
+			SSBO::RESTRICT);
 #ifdef BOID_GPU_USE_HALF_VELOCITY
 	auto vel = ref_ptr<ShaderInput2ui>::alloc("vel", numBoids_);
 #else
@@ -255,14 +257,18 @@ void BoidSimulation_GPU::initBuffers() {
 	velBuffer_->update();
 
 	// SSBOs for neighbour grid
-	listHeadBuffer_ = ref_ptr<SSBO>::alloc("BoidCellHeads", BUFFER_USAGE_DYNAMIC_DRAW);
+	listHeadBuffer_ = ref_ptr<SSBO>::alloc("BoidCellHeads",
+			BUFFER_USAGE_DYNAMIC_DRAW,
+			SSBO::RESTRICT);
 	listHeads_ = ref_ptr<ShaderInput1i>::alloc("listHeads", numCells_);
 	listHeads_->set_forceArray(true);
 	// NOTE: listHeads must remain last in the list of buffer inputs as the number of cells might change over time.
 	listHeadBuffer_->addBlockInput(listHeads_);
 	listHeadBuffer_->update();
 
-	listBodyBuffer_ = ref_ptr<SSBO>::alloc("BoidCellList", BUFFER_USAGE_DYNAMIC_DRAW);
+	listBodyBuffer_ = ref_ptr<SSBO>::alloc("BoidCellList",
+			BUFFER_USAGE_DYNAMIC_DRAW,
+			SSBO::RESTRICT);
 	listBodyBuffer_->addBlockInput(ref_ptr<ShaderInput1i>::alloc("listNext", numBoids_));
 	listBodyBuffer_->update();
 }

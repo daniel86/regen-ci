@@ -13,6 +13,7 @@
 #include <regen/textures/texture.h>
 #include "io-processor.h"
 #include "regen/gl-types/ubo.h"
+#include "regen/gl-types/ssbo.h"
 
 using namespace regen;
 using namespace std;
@@ -293,6 +294,26 @@ void IOProcessor::declareSpecifiedInput(PreProcessorState &state) {
 			layoutStr << "layout(";
 			layoutStr << REGEN_STRING(block->memoryLayout());
 			layoutStr << ") ";
+			if (isSSBO) {
+				auto *ssbo = dynamic_cast<SSBO *>(block);
+				if (ssbo != nullptr) {
+					if (ssbo->hasMemoryQualifier(SSBO::COHERENT)) {
+						layoutStr << "coherent ";
+					}
+					if (ssbo->hasMemoryQualifier(SSBO::VOLATILE)) {
+						layoutStr << "volatile ";
+					}
+					if (ssbo->hasMemoryQualifier(SSBO::RESTRICT)) {
+						layoutStr << "restrict ";
+					}
+					if (ssbo->hasMemoryQualifier(SSBO::READ_ONLY)) {
+						layoutStr << "readonly ";
+					}
+					else if (ssbo->hasMemoryQualifier(SSBO::WRITE_ONLY)) {
+						layoutStr << "writeonly ";
+					}
+				}
+			}
 			io.layout = layoutStr.str();
 			io.ioType = REGEN_STRING(block->storageQualifier());
 			io.value = "";
