@@ -360,11 +360,12 @@ void BoidSimulation_GPU::glAnimate(RenderState *rs, GLdouble dt) {
 	if (time_ > 0.016666) { time_ = 0.0; }
 	else { return; }
 
+	bboxBuffer_->clear();
 	updateGridState_->enable(rs);
 	updateGridState_->disable(rs);
 	simulate(rs, dt);
 	// update the grid in case the bounding box around the boids changed.
-	if(bboxBuffer_->updateBoundingBox(rs) || vrStamp_ != cellSize_->stamp()) {
+	if(bboxBuffer_->updateBoundingBox() || vrStamp_ != cellSize_->stamp()) {
 		boidBounds_ = bboxBuffer_->bbox();
 		updateGrid();
 		vrStamp_ = visualRange_->stamp();
@@ -517,6 +518,7 @@ void BoidSimulation_CPU::animate(double dt) {
 	int gridIndex = 0;
 	// resize the grid, and clear all cells
 	updateGrid();
+	if (priv_->grid_.empty()) { return; }
 	// iterate over all boids and add them to the grid, compute the index
 	// based on the boid position and the grid bounds.
 	for (int i = 0; i < numBoids_; ++i) {
@@ -661,7 +663,7 @@ void BoidSimulation_CPU::updateGrid() {
 	updateGridSize();
 	priv_->gridSize_ = gridSize_->getVertex(0).r;
 	auto numCells = priv_->gridSize_.x * priv_->gridSize_.y * priv_->gridSize_.z;
-
+	numCells = std::max(numCells, 0);
 	priv_->grid_.resize(numCells);
 	if (numCells==0) { return; }
 	// clear all cells, removing the old boids.

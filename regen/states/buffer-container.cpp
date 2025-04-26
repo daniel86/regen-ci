@@ -49,8 +49,19 @@ void BufferContainer::createUBO(const std::vector<NamedShaderInput> &namedInputs
 	ubos_.push_back(ubo);
 }
 
+void BufferContainer::createSSBO(const std::vector<NamedShaderInput> &namedInputs) {
+	// TODO: allow more fine grained usage configuration
+	auto ssbo = ref_ptr<SSBO>::alloc(getNextBufferName(), BUFFER_USAGE_STREAM_COPY);
+	for (auto &namedInput: namedInputs) {
+		ssbo->addBlockInput(namedInput.in_, namedInput.name_);
+		bufferObjectOfInput_[namedInput.in_.get()] = ssbo;
+	}
+	ssbo->update();
+	joinShaderInput(ssbo);
+	ssbos_.push_back(ssbo);
+}
+
 void BufferContainer::createTBO(const NamedShaderInput &namedInput) {
-	auto rs = RenderState::get();
 	// create a TBO for the input
 	auto tbo = ref_ptr<TBO>::alloc(BUFFER_USAGE_DYNAMIC_DRAW);
 	tbo->setBufferInput(namedInput.in_);
@@ -72,6 +83,9 @@ void BufferContainer::createTBO(const NamedShaderInput &namedInput) {
 	shaderDefine(
 	 		REGEN_STRING("in_" << namedInput.name_),
 	 		REGEN_STRING("tboRead_" << shaderType << "(tbo_" << namedInput.name_ << ", int(regen_InstanceID))"));
+	shaderDefine(
+			 REGEN_STRING("fetch_" << namedInput.name_ << "(i)"),
+			 REGEN_STRING("tboRead_" << shaderType << "(tbo_" << namedInput.name_ << ", int(i))"));
 	bufferObjectOfInput_[namedInput.in_.get()] = tbo;
 }
 
@@ -83,12 +97,13 @@ void BufferContainer::updateBuffer() {
 	static auto maxTBOSize = getGLInteger(GL_MAX_TEXTURE_BUFFER_SIZE) * 16;
 	unsigned int uboSize = 0u;
 	std::vector<NamedShaderInput> nextUBOInputs;
+	std::vector<NamedShaderInput> nextSSBOInputs;
 
 	for (auto &namedInput: namedInputs_) {
 		auto inputSize = namedInput.in_->inputSize();
-		if (inputSize > maxTBOSize) {
-			REGEN_WARN("Input '" << namedInput.in_->name() <<
-				"' is too large for TBO. Size: " << inputSize/1024.0 << " KB.");
+		if (namedInput.in_->gpuUsage() == ShaderData::WRITE || inputSize > maxTBOSize) {
+			// create SSBO for large inputs, or if usage is WRITE (i.e. the buffer is written to from a shader).
+			nextSSBOInputs.push_back(namedInput);
 		}
 		else if (inputSize > maxUBOSize) {
 			createTBO(namedInput);
@@ -109,6 +124,9 @@ void BufferContainer::updateBuffer() {
 	}
 	if (!nextUBOInputs.empty()) {
 		createUBO(nextUBOInputs);
+	}
+	if (!nextSSBOInputs.empty()) {
+		createSSBO(nextSSBOInputs);
 	}
 	GL_ERROR_LOG();
 }
