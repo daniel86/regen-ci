@@ -44,19 +44,14 @@ namespace regen {
 		bool updateBoundingBox();
 
 	protected:
-		struct BoundingBoxBlock {
-			Vec4i positiveMin;
-			Vec4i positiveMax;
-			Vec4i negativeMin;
-			Vec4i negativeMax;
-			Vec4i positiveFlags;
-			Vec4i negativeFlags;
-		};
-
 		Bounds<Vec3f> bbox_;
-		ref_ptr<BufferStructMapping<BoundingBoxBlock>> bboxMapping_;
 		Vec3f bboxMin_, bboxMax_;
 
+		struct BoundingBoxBlock {
+			Vec4i min;
+			Vec4i max;
+		};
+		ref_ptr<BufferStructMapping<BoundingBoxBlock>> bboxMapping_;
 	};
 } // namespace
 

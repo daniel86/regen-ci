@@ -170,6 +170,6 @@ void ColorWidget::rgbChanged() {
 
 void ColorWidget::scaleChanged() {
 	// Ensure the selected shader input is a color (3 or 4 components)
-	GLuint count = input_->valsPerElement();
-	auto sliderValue = ui_.scaleValue->value();
+	//GLuint count = input_->valsPerElement();
+	//auto sliderValue = ui_.scaleValue->value();
 }

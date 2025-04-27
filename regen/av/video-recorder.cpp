@@ -161,11 +161,12 @@ void VideoRecorder::updateFrameBuffer() {
 	encoderFBO_->readBuffer().push(GL_COLOR_ATTACHMENT0);
 
 	// read pixels from framebuffer to PBO glReadPixels() should return immediately.
-	pbo_->bindPackBuffer(pboIndex_);
+	RenderState::get()->pixelPackBuffer().push(pbo_->ids()[pboIndex_]);
 	glReadPixels(0, 0,
 				 codecCtx_->width, codecCtx_->height,
 				 GL_RGB, GL_UNSIGNED_BYTE,
 				 nullptr);
+	RenderState::get()->pixelPackBuffer().pop();
 
 	// map the other PBO to process its data
 	RenderState::get()->pixelPackBuffer().push(pbo_->ids()[nextIndex]);

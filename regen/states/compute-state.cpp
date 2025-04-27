@@ -6,7 +6,7 @@ ComputeState::ComputeState() : State() {
 	setGroupSize(localSize_.x, localSize_.y, localSize_.z);
 }
 
-void ComputeState::setNumWorkUnits(int x, int y, int z) {
+void ComputeState::setNumWorkUnits(uint32_t x, uint32_t y, uint32_t z) {
 	numWorkUnits_.x = x;
 	numWorkUnits_.y = y;
 	numWorkUnits_.z = z;
@@ -16,7 +16,7 @@ void ComputeState::setNumWorkUnits(int x, int y, int z) {
 	shaderDefine("CS_WORK_UNITS_Z", REGEN_STRING(numWorkUnits_.z));
 }
 
-void ComputeState::setGroupSize(int x, int y, int z) {
+void ComputeState::setGroupSize(uint32_t x, uint32_t y, uint32_t z) {
 	localSize_.x = x;
 	localSize_.y = y;
 	localSize_.z = z;
@@ -27,9 +27,12 @@ void ComputeState::setGroupSize(int x, int y, int z) {
 }
 
 void ComputeState::updateNumWorkGroups() {
-	numWorkGroups_.x = (numWorkUnits_.x + localSize_.x - 1) / localSize_.x;
-	numWorkGroups_.y = (numWorkUnits_.y + localSize_.y - 1) / localSize_.y;
-	numWorkGroups_.z = (numWorkUnits_.z + localSize_.z - 1) / localSize_.z;
+	numWorkGroups_.x = static_cast<uint32_t>(ceil(
+		static_cast<float>((numWorkUnits_.x + localSize_.x - 1)) / static_cast<float>(localSize_.x)));
+	numWorkGroups_.y = static_cast<uint32_t>(ceil(
+		static_cast<float>((numWorkUnits_.y + localSize_.y - 1)) / static_cast<float>(localSize_.y)));
+	numWorkGroups_.z = static_cast<uint32_t>(ceil(
+		static_cast<float>((numWorkUnits_.z + localSize_.z - 1)) / static_cast<float>(localSize_.z)));
 	shaderDefine("CS_NUM_WORK_GROUPS_X", REGEN_STRING(numWorkGroups_.x));
 	shaderDefine("CS_NUM_WORK_GROUPS_Y", REGEN_STRING(numWorkGroups_.y));
 	shaderDefine("CS_NUM_WORK_GROUPS_Z", REGEN_STRING(numWorkGroups_.z));
@@ -40,8 +43,9 @@ void ComputeState::dispatch() {
     		numWorkGroups_.x,
 			numWorkGroups_.y,
 			numWorkGroups_.z);
-	// TODO: make configurable?
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+	if (barrierBits_ != 0) {
+    	glMemoryBarrier(barrierBits_);
+	}
 }
 
 ref_ptr<ComputeState> ComputeState::load(LoadingContext &ctx, scene::SceneInputNode &input) {

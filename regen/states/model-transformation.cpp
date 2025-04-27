@@ -9,7 +9,8 @@
 #include "model-transformation.h"
 #include "regen/meshes/mesh-vector.h"
 #include "regen/textures/texture-2d.h"
-#include "regen/animations/boid-simulation.h"
+#include "regen/animations/boids-cpu.h"
+#include "regen/animations/boids-gpu.h"
 #include "regen/animations/transform-animation.h"
 #include "regen/scene/value-generator.h"
 
@@ -373,9 +374,9 @@ static void transformAnimation(
 		LoadingContext boidsConfig(scene, parent);
 		ref_ptr<Animation> boidsAnimation;
 		if (child->getValue<std::string>("sim-mode", "CPU") == "CPU") {
-			boidsAnimation = BoidSimulation_CPU::load(boidsConfig, *child.get(), tf);
+			boidsAnimation = BoidsCPU::load(boidsConfig, *child.get(), tf);
 		} else {
-			boidsAnimation = BoidSimulation_GPU::load(boidsConfig, *child.get(), tf);
+			boidsAnimation = BoidsGPU::load(boidsConfig, *child.get(), tf);
 		}
 		state->attach(boidsAnimation);
 		boidsAnimation->startAnimation();

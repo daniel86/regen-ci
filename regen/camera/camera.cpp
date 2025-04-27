@@ -469,39 +469,30 @@ ref_ptr<Camera> createLightCamera(LoadingContext &ctx, scene::SceneInputNode &in
 	return lightCamera;
 }
 
-namespace regen {
-	class ProjectionUpdater : public EventHandler {
-	public:
-		ProjectionUpdater(const ref_ptr<Camera> &cam,
-						  const ref_ptr<ShaderInput2i> &windowViewport)
-				: EventHandler(), cam_(cam), windowViewport_(windowViewport) {}
+ProjectionUpdater::ProjectionUpdater(const ref_ptr<Camera> &cam,
+									 const ref_ptr<ShaderInput2i> &windowViewport)
+		: EventHandler(), cam_(cam), windowViewport_(windowViewport) {}
 
-		void call(EventObject *, EventData *) {
-			auto windowViewport = windowViewport_->getVertex(0);
-			auto windowAspect =
-					(GLfloat) windowViewport.r.x / (GLfloat) windowViewport.r.y;
-			if (cam_->isOrtho()) {
-				// keep the ortho width and adjust height based on aspect ratio
-				auto width = cam_->frustum()[0].nearPlaneHalfSize.x * 2.0f;
-				auto height = width / windowAspect;
-				cam_->setOrtho(
-						-width / 2.0f, width / 2.0f,
-						-height / 2.0f, height / 2.0f,
-						cam_->near()->getVertex(0).r,
-						cam_->far()->getVertex(0).r);
-			} else {
-				cam_->setPerspective(
-						windowAspect,
-						cam_->fov()->getVertex(0).r,
-						cam_->near()->getVertex(0).r,
-						cam_->far()->getVertex(0).r);
-			}
-		}
-
-	protected:
-		ref_ptr<Camera> cam_;
-		ref_ptr<ShaderInput2i> windowViewport_;
-	};
+void ProjectionUpdater::call(EventObject *, EventData *) {
+	auto windowViewport = windowViewport_->getVertex(0);
+	auto windowAspect =
+			(GLfloat) windowViewport.r.x / (GLfloat) windowViewport.r.y;
+	if (cam_->isOrtho()) {
+		// keep the ortho width and adjust height based on aspect ratio
+		auto width = cam_->frustum()[0].nearPlaneHalfSize.x * 2.0f;
+		auto height = width / windowAspect;
+		cam_->setOrtho(
+				-width / 2.0f, width / 2.0f,
+				-height / 2.0f, height / 2.0f,
+				cam_->near()->getVertex(0).r,
+				cam_->far()->getVertex(0).r);
+	} else {
+		cam_->setPerspective(
+				windowAspect,
+				cam_->fov()->getVertex(0).r,
+				cam_->near()->getVertex(0).r,
+				cam_->far()->getVertex(0).r);
+	}
 }
 
 ref_ptr<Camera> Camera::createCamera(LoadingContext &ctx, scene::SceneInputNode &input) {

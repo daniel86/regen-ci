@@ -7,7 +7,7 @@
     <constant name="map-size" value="100.0"/>
     <constant name="water-surface-y" value="1.7"/>
     <constant name="num-cascades" value="4"/>
-    <constant name="num-fish" value="2000"/>
+    <constant name="num-fish" value="20000"/>
 
     <include xml-file="scene-display/examples/templates/default.xml"/>
     <node id="configuration"
@@ -22,31 +22,7 @@
                 ease-in-out="1.8"
                 anchor-pause-time="0.7"
                 anchor-time-scale="0.8">
-            <anchor type="look-at" transform="grass-tf" offset="-40.0, 14.0, 0.0" />
-            <anchor type="look-at" transform="grass-tf" offset="0.0, 40.0, 60.0" />
-            <anchor type="look-at" transform="grass-tf" offset="0.0, 20.0, 40.0" />
-            <anchor type="look-at" transform="grass-tf" offset="80.0, 20.0, 0.0" />
-            <anchor type="look-at" transform="hyena-tf" offset="0.0, -4.0, 1.0" follow="1" />
-            <anchor type="look-at" transform="grass-tf" offset="-40.0, 14.0, 0.0" />
         </camera>
-        <animation id="hyena-asset" type="asset" idle="idle1">
-            <controller id="hyena-controller"
-                type="animal"
-                tf="hyena-tf"
-                height-map="ground-height"
-                height-map-center="0, 0"
-                height-map-size="{{map-size}}, {{map-size}}"
-                height-map-factor="{{map-height}}"
-                floor-height="-4.0"
-                territory-size="57.275, 32.373"
-                territory-center="-4.5166,-33.8134"
-                laziness="0.5"
-                run-speed="4.0"
-                walk-speed="1">
-                <special name="bark" />
-                <special name="lick" />
-            </controller>
-        </animation>
     </node>
 
     <!-- FBO for deferred shading -->
@@ -73,23 +49,12 @@
         <texture id="normal"/>
         <depth id="depth" pixel-size="24"/>
     </fbo>
-    <fbo id="sun-shadow" size-mode="abs" size="2048,2048,{{num-cascades}}" >
-        <depth id="depth" pixel-size="24" pixel-type="FLOAT"
-            target="TEXTURE_2D_ARRAY"
-            wrapping="REPEAT"
-            min-filter="NEAREST"
-            mag-filter="NEAREST"
-            compare-mode="COMPARE_R_TO_TEXTURE"
-            compare-function="LEQUAL"
-            sampler-type="sampler2DArrayShadow" />
-    </fbo>
     <!-- Textures -->
     <texture id="emission-map-bloom" type="bloom" num-mips="4" input-fbo="g-buffer"/>
     <texture id="ground-color" file="res/textures/terrain/canyon/diffuse.png"/>
     <texture id="ground-normal" file="res/textures/terrain/canyon/normal.png"/>
     <texture id="ground-height" file="res/textures/terrain/canyon/height.png"/>
     <texture id="grass-mask" file="res/textures/terrain/canyon/mask-grass.png"/>
-    <texture id="tree-mask" file="res/textures/terrain/canyon/mask-trees.png"/>
     <texture id="grass-color" file="res/textures/materials/grass/0/color.png" wrapping="CLAMP_TO_EDGE" />
     <texture id="wind-flowmap" file="res/textures/wind/flowmap0.png" wrapping="REPEAT"/>
     <texture id="wind-noise" noise="cloud" size="128.0,128.0,1.0" swizzle-g="RED" swizzle-b="RED"/>
@@ -100,12 +65,6 @@
             culling-index="main-index"
             fov="45.0" near="0.1" far="200.0"
             position="-40.0, 14.0, 0.0"/>
-    <camera id="sun-camera"
-            culling-index="main-index"
-            light="sky-sun"
-            camera="main-camera"
-            num-layer="{{num-cascades}}"
-            split-weight="0.7" />
     <camera id="reflection-camera"
             culling-index="main-index"
             camera="main-camera"
@@ -115,44 +74,6 @@
     <asset id="fish-asset" type="asset"
            file="res/models/fish-puffer/PufferFish.fbx"
            ignore-normal-map="1">
-    </asset>
-    <asset id="hyena-asset"
-           type="asset"
-           file="res/models/hyena/hyena.fbx"
-           texture-path="res/models/hyena"
-           use-animation="1"
-           animation-force-states="1"
-           animation-post-state="LINEAR"
-           animation-pre-state="LINEAR"
-           animation-tps="60.0">
-        <!-- define named animation ranges. -->
-        <anim-range name="walk" channel="Hyenas_A15_Walk" range="1.0,80.0" />
-        <anim-range name="up" channel="Hyenas_A15_Up" range="1.0,50.0" />
-        <anim-range name="tired" channel="Hyenas_A15_Tired" range="1.0,135.0" />
-        <anim-range name="swim2" channel="Hyenas_A15_Swim2" range="1.0,60.0" />
-        <anim-range name="swim1" channel="Hyenas_A15_Swim" range="1.0,100.0" />
-        <anim-range name="stretch" channel="Hyenas_A15_Stretch" range="1.0,300.0" />
-        <anim-range name="smell2" channel="Hyenas_A15_Smell2" range="1.0,300.0" />
-        <anim-range name="smell1" channel="Hyenas_A15_Smell" range="1.0,185.0" />
-        <anim-range name="sleep2" channel="Hyenas_A15_Sleep2" range="1.0,249.0" />
-        <anim-range name="sleep1" channel="Hyenas_A15_Sleep" range="1.0,60.0" />
-        <anim-range name="sit2" channel="Hyenas_A15_Sit2" range="1.0,430.0" />
-        <anim-range name="sit1" channel="Hyenas_A15_Sit" range="1.0,220.0" />
-        <anim-range name="run" channel="Hyenas_A15_Run" range="1.0,30.0" />
-        <anim-range name="roar3" channel="Hyenas_A15_Roar3" range="1.0,110.0" />
-        <anim-range name="roar2" channel="Hyenas_A15_Roar2" range="1.0,100.0" />
-        <anim-range name="roar1" channel="Hyenas_A15_Roar" range="1.0,130.0" />
-        <anim-range name="jump" channel="Hyenas_A15_jump" range="1.0,125.0" />
-        <anim-range name="idle3" channel="Hyenas_A15_Idle3" range="1.0,140.0" />
-        <anim-range name="idle2" channel="Hyenas_A15_Idle2" range="1.0,120.0" />
-        <anim-range name="idle1" channel="Hyenas_A15_Idle" range="1.0,150.0" />
-        <anim-range name="die" channel="Hyenas_A15_Die" range="1.0,100.0" />
-        <anim-range name="breadth" channel="Hyenas_A15_BreathFast" range="1.0,60.0" />
-        <anim-range name="bark" channel="Hyenas_A15_Bark" range="1.0,160.0" />
-        <anim-range name="lick" channel="Hyenas_A15_Atk4" range="1.0,150.0" />
-        <anim-range name="attack3" channel="Hyenas_A15_Atk3" range="1.0,80.0" />
-        <anim-range name="attack2" channel="Hyenas_A15_Atk2" range="1.0,120.0" />
-        <anim-range name="attack1" channel="Hyenas_A15_Atk" range="1.0,35.0" />
     </asset>
     <!-- UBOs -->
     <block type="ubo" id="SceneUBO">
@@ -263,125 +184,6 @@
             <mesh id="ground-patches" primitive="patches" shader="regen.models.mesh"/>
         </node>
         -->
-    </node>
-
-    <!--**************************-->
-    <!--****** Grass patches *****-->
-    <!--**************************-->
-
-    <mesh id="grass-patches"
-          type="mask-patch"
-          mask="grass-mask"
-          lod="0"
-          scaling="2.0,1.0,2.0"
-          ground-size="{{map-size}},{{map-size}}"
-          usage="STATIC_DRAW">
-        <transform id="grass-tf">
-            <translate value="0.0,{{map-y-min}},0.0"/>
-        </transform>
-        <shape id="grass-shape" index="1" type="aabb"
-                box-size="2.0, {{map-height}}, 2.0"
-                box-center="0.0, {{map-height-half}}, 0.0"
-                transform-id="grass-tf">
-            <has-part mesh-id="grass-patches" />
-        </shape>
-    </mesh>
-
-    <node id="Grass">
-        <node lod-shape="grass-shape">
-            <define key="DISCARD_ALPHA" value="TRUE"/>
-            <blend mode="SRC"/>
-            <material
-                    diffuse="0.1, 0.1, 0.1"
-                    ambient="0.1, 0.1, 0.1"
-                    specular="0.0, 0.0, 0.0"
-                    shininess="256.0"
-                    emission="0.0, 0.0, 0.0"/>
-            <!-- TODO: Can we use alpha blending instead of discard alpha? it can be much faster. -->
-            <!-- <blend mode="ALPHA"/>  -->
-            <!-- TODO: There is some jittering in the grass with tessellation, maybe we can only switch
-                       between fixed level of LODs and not do this continuously. -->
-            <define key="TESS_SPACING" value="equal_spacing"/>
-            <define key="TESS_POWER_OF_TWO" value="TRUE"/>
-            <input name="minTessLevel" type="float" value="1.0"/>
-            <input name="maxTessLevel" type="float" value="50.0"/>
-            <tesselation num-patch-vertices="3" lod-factor="0.35" lod-metric="EDGE_DEVICE_DISTANCE"/>
-            <input name="lodMinDeviceDistance" type="float" value="0.02"/>
-            <input name="lodMaxDeviceDistance" type="float" value="0.6"/>
-            <!-- use more complex geometry in close range. -->
-            <define key="USE_SPRITE_LOD" value="TRUE"/>
-            <input name="lodGeomLevel0" type="float" value="60.0"/>
-            <input name="lodGeomLevel1" type="float" value="160.0"/>
-            <input name="lodGeomBrightness0" type="float" value="1.7"/>
-            <input name="lodGeomVariance" type="float" value="6.0"/>
-            <!-- size and position -->
-            <input name="quadSize" type="vec2" value="0.5, 0.15"/>
-            <input name="posVariation" type="float" value="0.4"/>
-            <input name="offset" type="vec3" value="0.0, -0.2, 0.0"/>
-            <!-- color -->
-            <texture id="grass-color" map-to="color" blend-mode="mul"/>
-            <input name="uvDarken" type="float" value="0.25"/>
-            <!-- wind -->
-            <texture name="windFlow" id="wind-flowmap" />
-            <input name="stiffness" type="float" value="1.0"/>
-            <!-- small-scale wind details -->
-            <texture name="windNoise" id="wind-noise" />
-            <input name="windNoiseScale" type="float" value="100.0"/>
-            <input name="windNoiseSpeed" type="float" value="1.0"/>
-            <input name="windNoiseStrength" type="float" value="0.1"/>
-            <!-- height -->
-            <texture name="heightTexture" id="ground-height" map-to="HEIGHT" mapping="xz_plane"
-                     blend-mode="ADD" blend-factor="{{map-height}}"/>
-            <mesh id="grass-patches" primitive="patches" shader="regen.models.grass.patch"/>
-        </node>
-    </node>
-
-    <!--**************************-->
-    <!--********* Trees **********-->
-    <!--**************************-->
-
-    <!-- NOTE: trunk uses mesh index 0, twigs use index 1 -->
-    <!-- TODO: idea use lower level LOD for trees surrounded by other trees. -->
-    <mesh id="tree-mesh" type="proctree"
-            lods="3,2,1" lod-thresholds="10.0, 20.0"
-            preset="fir">
-        <transform id="tree-tf">
-            <set mode="plane"
-                area-mask-texture="tree-mask"
-                area-height-texture="ground-height"
-                area-max-height="{{map-height}}"
-                area-size="{{map-size}},{{map-size}}"
-                cell-size="5.0,5.0"
-                cell-offset="0.0,{{map-y-min}},0.0"
-                obj-min-scale="0.4"
-                obj-max-scale="0.75"
-                obj-pos-variation="0.5"
-                obj-density="3.4"
-                obj-mesh="tree-mesh"
-              />
-        </transform>
-        <input join="0" mesh="tree-mesh" mesh-index="1" component="matDiffuse">
-            <set mode="random" min="1,1,1" max="5,4,2"/>
-        </input>
-        <shape id="tree-shape" index="1" type="aabb" mesh-id="tree-mesh" mesh-index="0" transform-id="tree-tf">
-            <has-part mesh-id="tree-mesh" mesh-index="1" />
-        </shape>
-    </mesh>
-
-    <node id="Trees">
-        <node lod-shape="tree-shape">
-            <node id="tree-trunk">
-                <mesh id="tree-mesh" mesh-index="0" shader="regen.models.mesh"/>
-            </node>
-            <node id="tree-twig">
-                <define key="DISCARD_ALPHA" value="TRUE"/>
-                <define key="DISCARD_ALPHA_THRESHOLD" value="0.25"/>
-                <define key="HAS_GS_TRANSFORM" value="TRUE"/>
-                <texture name="windFlow" id="wind-flowmap" />
-                <input name="stiffness" type="float" value="0.5"/>
-                <mesh id="tree-mesh" mesh-index="1" shader="regen.models.mesh" gs="regen.weather.wind.wavingQuad"/>
-            </node>
-        </node>
     </node>
 
     <!--**************************-->
@@ -501,13 +303,13 @@
             asset="fish-asset" asset-indices="*" asset-animation="0"
             lod-simplification="0.2, 0.1" lod-thresholds="6.0, 40.0"
             num-instances="{{num-fish}}">
-        <transform id="fish-tf" num-instances="{{num-fish}}" is-instanced="1" gpu-usage="WRITE">
+        <transform id="fish-tf" num-instances="{{num-fish}}" is-instanced="1">
             <scale value="0.001, 0.001, 0.001"/>
             <translate value="0.0, -0.5, 3.0"/>
             <set mode="circle" target="translate" radius="1.0" variance="0.8"
                 dir-x="1.0, 0.0, 0.0" dir-z="0.0, 1.0, 1.0"/>
             <animation type="boids"
-                sim-mode="CPU"
+                sim-mode="GPU"
                 base-orientation="1.570796"
                 max-speed="4.0"
                 max-neighbors="100"
@@ -519,8 +321,8 @@
                 avoidance-weight="10.0"
                 avoidance-distance="0.5"
                 separation-weight="10.0"
-                bounds-min="-50.0, {{map-y-min}}, -9.0"
-                bounds-max="50.0, {{water-surface-y}}, 10.8"
+                bounds-min="-50.0, {{map-y-min}}, -15.0"
+                bounds-max="50.0, {{water-surface-y}}, 15.0"
                 map-center="0, {{map-y-min}}, 0"
                 map-size="{{map-size}}, {{map-size}}"
                 height-map="ground-height"
@@ -536,21 +338,6 @@
         <shape id="fish-shape" gpu="1" type="sphere" mesh-id="fish-mesh" />
         <!-- <shape id="fish-shape" index="1" type="obb" mesh-id="fish-mesh" transform-id="fish-tf" /> -->
     </mesh>
-
-    <mesh id="hyena-mesh" type="asset" asset="hyena-asset" asset-indices="*" asset-animation="1">
-        <transform id="hyena-tf">
-            <rotate value="0, 1.57079, 1.57079"/>
-            <scale value="0.005, 0.005, 0.005"/>
-            <translate value="-2, 2.5, -24"/>
-        </transform>
-        <shape id="hyena-shape" index="1" type="obb" mesh-id="hyena-mesh" transform-id="hyena-tf" />
-    </mesh>
-
-    <node id="Mammals">
-        <node id="hyena0" lod-shape="hyena-shape">
-            <mesh id="hyena-mesh" mesh-index="0" shader="regen.models.mesh"/>
-        </node>
-    </node>
 
     <node id="Fish">
         <!--
@@ -584,8 +371,6 @@
     <!--**************************-->
 
     <node id="Shadow-Caster">
-        <node import="Mammals"/>
-        <node import="Trees"/>
     </node>
 
     <node id="Non-Shadow-Caster">
@@ -593,7 +378,6 @@
     </node>
 
     <node id="Scene-Geometry">
-        <node import="Grass"/>
         <node import="Ground"/>
     </node>
 
@@ -615,12 +399,8 @@
             <define key="DEBUG_SHADOW_SLICES" value="0" />
             <node>
                 <light-pass type="DIRECTIONAL"
-                    shader="regen.shading.deferred.directional"
-                    shadow-filter="PCF_GAUSSIAN">
-                    <light id="sky-sun"
-                        shadow-buffer="sun-shadow"
-                        shadow-attachment="depth"
-                        shadow-camera="sun-camera" />
+                    shader="regen.shading.deferred.directional">
+                    <light id="sky-sun" />
                 </light-pass>
             </node>
         </node>
@@ -728,20 +508,6 @@
         <input name="Scene" ubo="SceneUBO"/>
 
         <node id="Pre-Render">
-            <node id="Shadow-Pass">
-                <polygon offset-fill="1.1,4.0"/>
-                <define key="OUTPUT_TYPE" value="DEPTH" />
-                <cull mode="FRONT" />
-                <fbo id="sun-shadow" clear-depth="1" />
-                <camera id="sun-camera" />
-                <node import="Shadow-Caster" />
-            </node>
-            <view id="Sun Shadow Map">
-                <fbo id="SCREEN"/>
-                <texture name="inputTexture" fbo="sun-shadow" attachment="depth"/>
-                <input type="int" name="arrayTextureSize" value="{{num-cascades}}"/>
-                <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
-            </view>
             <node import="Reflection-Pass"/>
         </node>
 

@@ -19,6 +19,7 @@
 #include <regen/scene/loading-context.h>
 
 #include <regen/animations/animation-node.h>
+#include <assimp/postprocess.h>
 
 namespace regen {
 	/**
@@ -27,7 +28,7 @@ namespace regen {
 	struct AssimpAnimationConfig {
 		AssimpAnimationConfig()
 				: useAnimation(GL_TRUE),
-				  numInstances(0u),
+				  numInstances(1u),
 				  forceStates(GL_TRUE),
 				  ticksPerSecond(20.0),
 				  postState(NodeAnimation::BEHAVIOR_LINEAR),
@@ -74,6 +75,13 @@ namespace regen {
 		static constexpr const char *TYPE_NAME = "AssetImporter";
 
 		/**
+		 * \brief Flags for importing.
+		 */
+		enum ImportFlag {
+			IGNORE_NORMAL_MAP = 1 << 0,
+		};
+
+		/**
 		 * \brief Something went wrong processing the model file.
 		 */
 		class Error : public std::runtime_error {
@@ -85,19 +93,65 @@ namespace regen {
 		};
 
 		/**
-		 * @param assimpFile The file to import.
-		 * @param texturePath Base directory for textures defined in the imported file.
-		 * @param animConfig Configuration for node animation defined in Asset file.
-		 * @param assimpFlags Import flags passed to assimp.
+		 * @param assetFile The file to import.
 		 */
-		AssetImporter(const std::string &assimpFile,
-					  const std::string &texturePath,
-					  const AssimpAnimationConfig &animConfig = AssimpAnimationConfig(),
-					  GLint assimpFlags = -1);
+		explicit AssetImporter(const std::string &assetFile);
 
 		~AssetImporter() override;
 
-		static ref_ptr<AssetImporter> load(LoadingContext &ctx, scene::SceneInputNode &input);
+		/**
+		 * Set the path to the texture files.
+		 * @param texturePath Path to the texture files.
+		 */
+		void setTexturePath(const std::string &texturePath) { texturePath_ = texturePath; }
+
+		/**
+		 * Set a flag for importing.
+		 */
+		void setImportFlag(ImportFlag flag) { importFlags_ |= flag; }
+
+		/**
+		 * Set all import flags.
+		 */
+		void setImportFlags(int flags) { importFlags_ = flags; }
+
+		/**
+		 * Set AssImp process flags.
+		 * @param flag AssImp process flag.
+		 */
+		void setAiProcessFlag(aiPostProcessSteps flag) { aiProcessFlags_ |= flag; }
+
+		/**
+		 * Set AssImp process flags.
+		 * @param flags AssImp process flags.
+		 */
+		void setAiProcessFlags(int flags) { aiProcessFlags_ = flags; }
+
+		/**
+		 * Set preset process flags for fast import.
+		 */
+		void setAiProcessFlags_Fast();
+
+		/**
+		 * Set preset process flags for quality import.
+		 */
+		void setAiProcessFlags_Quality();
+
+		/**
+		 * Set preset process flags.
+		 */
+		void setAiProcessFlags_Regen();
+
+		/**
+		 * Set animation configuration.
+		 * @param animationCfg Animation configuration.
+		 */
+		void setAnimationConfig(const AssimpAnimationConfig &animationCfg) { animationCfg_ = animationCfg; }
+
+		/**
+		 * Load the asset file.
+		 */
+		void importAsset();
 
 		/**
 		 * @return list of lights defined in the assimp file.
@@ -155,8 +209,14 @@ namespace regen {
 		 */
 		const std::vector<ref_ptr<NodeAnimation> > &getNodeAnimations();
 
+		static ref_ptr<AssetImporter> load(LoadingContext &ctx, scene::SceneInputNode &input);
+
 	protected:
+		std::string assetFile_;
 		const struct aiScene *scene_;
+		int importFlags_ = 0;
+		int aiProcessFlags_ = 0;
+		AssimpAnimationConfig animationCfg_;
 
 		std::vector<ref_ptr<NodeAnimation> > nodeAnimations_;
 		// name to node map

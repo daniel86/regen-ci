@@ -189,6 +189,20 @@ void IOProcessor::defineHandleIO(PreProcessorState &state) {
 	lineQueue_.push_back("}");
 }
 
+static std::string getDataType(const ref_ptr<ShaderInput> &in) {
+	auto *tex = dynamic_cast<Texture *>(in.get());
+	if (tex == nullptr) {
+		if (in->isStruct()) {
+			auto *dataStruct = (ShaderStructBase*)in.get();
+			return dataStruct->structTypeName();
+		} else {
+			return glenum::glslDataType(in->baseType(), in->valsPerElement());
+		}
+	} else {
+		return tex->samplerType();
+	}
+}
+
 IOProcessor::InputOutput IOProcessor::getUniformIO(const NamedShaderInput &uniform) {
 	string nameWithoutPrefix = getNameWithoutPrefix(uniform.name_.empty() ?
 			uniform.in_->name() : uniform.name_);
@@ -206,13 +220,7 @@ IOProcessor::InputOutput IOProcessor::getUniformIO(const NamedShaderInput &unifo
 	} else {
 		io.name = "in_" + nameWithoutPrefix;
 	}
-
-	auto *tex = dynamic_cast<Texture *>(uniform.in_.get());
-	if (tex == nullptr) {
-		io.dataType = glenum::glslDataType(uniform.in_->baseType(), uniform.in_->valsPerElement());
-	} else {
-		io.dataType = tex->samplerType();
-	}
+	io.dataType = getDataType(uniform.in_);
 
 	return io;
 }
@@ -245,12 +253,7 @@ void IOProcessor::declareSpecifiedInput(PreProcessorState &state) {
 		io.layout.clear();
 
 		if (it.type_.empty()) {
-			auto *tex = dynamic_cast<Texture *>(in.get());
-			if (tex == nullptr) {
-				io.dataType = glenum::glslDataType(in->baseType(), in->valsPerElement());
-			} else {
-				io.dataType = tex->samplerType();
-			}
+			io.dataType = getDataType(in);
 		} else {
 			io.dataType = it.type_;
 		}
@@ -318,7 +321,7 @@ void IOProcessor::declareSpecifiedInput(PreProcessorState &state) {
 			io.ioType = REGEN_STRING(block->storageQualifier());
 			io.value = "";
 			io.dataType = "";
-			for (int i=0; i<block->blockInputs().size(); i++) {
+			for (uint64_t i=0; i<block->blockInputs().size(); i++) {
 				auto &blockUniform = block->blockInputs()[i];
 				auto memberIO = getUniformIO(blockUniform);
 				auto blockNameWithoutPrefix = getNameWithoutPrefix(blockUniform.name_.empty() ?

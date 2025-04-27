@@ -15,18 +15,6 @@ namespace regen {
 
 		PBO(const PBO &) = delete;
 
-		/**
-		 * Bind the PBO as a pack buffer.
-		 * @param index the buffer index.
-		 */
-		void bindPackBuffer(unsigned int index = 0) const;
-
-		/**
-		 * Bind the PBO as an unpack buffer.
-		 * @param index the buffer index.
-		 */
-		void bindUnpackBuffer(unsigned int index = 0) const;
-
 	protected:
 	};
 } // namespace

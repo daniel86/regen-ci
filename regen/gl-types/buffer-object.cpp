@@ -108,6 +108,10 @@ ref_ptr<BufferReference> &BufferObject::nullReference() {
 }
 
 ref_ptr<BufferReference> &BufferObject::createReference(GLuint numBytes) {
+	if (numBytes == 0) {
+		REGEN_WARN("Attempting to allocate buffer of 0 bytes.");
+		return nullReference();
+	}
 	BufferPool *memoryPool_ = bufferPool(target_, usage_);
 	// get an allocator
 	BufferPool::Node *allocator = memoryPool_->chooseAllocator(numBytes);

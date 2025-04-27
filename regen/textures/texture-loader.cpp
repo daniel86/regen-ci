@@ -156,7 +156,7 @@ void textures::reload(const ref_ptr<Texture> &tex, const std::string &file) {
 	auto ilID = loadImage(file);
 	scaleImage(tex->width(), tex->height(), textureDepth);
 	convertImage(tex->format(), GL_NONE);
-	auto depth = ilGetInteger(IL_IMAGE_DEPTH);
+	//auto depth = ilGetInteger(IL_IMAGE_DEPTH);
 	auto numImages = ilGetInteger(IL_NUM_IMAGES);
 
 	tex->set_textureFile(file);

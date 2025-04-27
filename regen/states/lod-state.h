@@ -15,6 +15,7 @@
 #include "compute-pass.h"
 #include "regen/gl-types/pbo.h"
 #include "regen/gl-types/buffer-mapping.h"
+#include "radix-sort.h"
 
 namespace regen {
 	/**
@@ -87,29 +88,14 @@ namespace regen {
 		bool hasShadowTarget_;
 
 		// GPU LOD update
-		ref_ptr<ComputePass> radixCull_;
-		ref_ptr<ComputePass> radixHistogramPass_;
-		ref_ptr<State> radixOffsetsPass_;
-		ref_ptr<ComputePass> radixGlobalOffsetsPass_;
-		ref_ptr<ComputePass> radixLocaleOffsetsPass_;
-		ref_ptr<ComputePass> radixDistributeOffsetsPass_;
-		ref_ptr<ComputePass> radixScatterPass_;
+		ref_ptr<ComputePass> cullPass_;
+		ref_ptr<RadixSort> radixSort_;
 		ref_ptr<UBO> cullUBO_;
 		ref_ptr<UBO> frustumUBO_;
-		ref_ptr<SSBO> keyBuffer_;
-		ref_ptr<SSBO> valueBuffer_[2];
-		ref_ptr<SSBO> globalHistogramBuffer_;
 		ref_ptr<SSBO> lodGroupSizeBuffer_;
-		ref_ptr<SSBO> blockSumsBuffer_;
-		ref_ptr<SSBO> blockOffsetsBuffer_;
 		ref_ptr<ShaderInput1ui> lodGroupSize_;
 		ref_ptr<BufferStructMapping<Vec4ui>> lodGroupSizeMapping_;
 		Vec4f frustumPlanes_[6];
-		int32_t histogramReadIndex_ = 0u;
-		int32_t histogramBitOffsetIndex_ = 0u;
-		int32_t scatterReadIndex_ = 0u;
-		int32_t scatterWriteIndex_ = 0u;
-		int32_t scatterBitOffsetIndex_ = 0u;
 
 		void initLODState();
 
@@ -127,17 +113,11 @@ namespace regen {
 
 		void traverseGPU(RenderState *rs);
 
-		void radixSortGPU(RenderState *rs);
-
 		void computeLODGroups_(
 			const uint32_t *mappedData,
 			int begin,
 			int end,
 			int increment);
-
-		void printInstanceMap(RenderState *rs);
-
-		void printHistogram(RenderState *rs);
 	};
 }
 
