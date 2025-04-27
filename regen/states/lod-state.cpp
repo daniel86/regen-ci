@@ -3,6 +3,7 @@
 #include "regen/meshes/mesh-vector.h"
 #include "regen/gl-types/gl-param.h"
 #include "regen/utility/conversion.h"
+#include "regen/camera/light-camera.h"
 
 #define RADIX_BITS_PER_PASS 4u
 // 4-bit radix sort --> 2^4 = 16 buckets
@@ -23,6 +24,7 @@ LODState::LODState(
 		: StateNode(),
 		  camera_(camera),
 		  spatialIndex_(spatialIndex) {
+	hasShadowTarget_ = dynamic_cast<LightCamera*>(camera_.get()) != nullptr;
 	shapeIndex_ = spatialIndex_->getIndexedShape(camera, shapeName);
 	if (shapeIndex_.get()) {
 		numInstances_ = shapeIndex_->shape()->numInstances();
@@ -46,6 +48,7 @@ LODState::LODState(
 		  camera_(camera),
 		  meshVector_(meshVector),
 		  tf_(tf) {
+	hasShadowTarget_ = dynamic_cast<LightCamera*>(camera_.get()) != nullptr;
 	mesh_ = meshVector.front();
 	numInstances_ = tf->get()->numInstances();
 	initLODState();
@@ -96,15 +99,25 @@ void LODState::updateMeshLOD() {
 	auto camPos = camera_->position()->getVertex(0);
 	auto distance = (shape->getCenterPosition() - camPos.r).length();
 	camPos.unmap();
-	mesh_->updateLOD(distance);
+
+	auto lodLevel = mesh_->getLODLevel(distance);
+	// increase LOD level by one if we have a shadow target
+	if (hasShadowTarget_ && lodLevel < mesh_->numLODs() - 1) {
+		lodLevel++;
+	}
+	mesh_->activateLOD(lodLevel);
 	for (auto &part: shape->parts()) {
 		if (part->numLODs() > 1) {
-			part->updateLOD(distance);
+			part->activateLOD(lodLevel);
 		}
 	}
 }
 
 void LODState::activateLOD(uint32_t lodLevel) {
+	// increase LOD level by one if we have a shadow target
+	if (hasShadowTarget_ && lodLevel < mesh_->numLODs() - 1) {
+		lodLevel++;
+	}
 	// set the LOD level
 	for (auto &part: meshVector_) {
 		if (mesh_->numLODs() == part->numLODs() && part->numLODs() > 1) {

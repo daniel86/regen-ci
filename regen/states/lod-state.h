@@ -84,6 +84,7 @@ namespace regen {
 		ref_ptr<Mesh> mesh_;
 		std::vector<ref_ptr<Mesh>> meshVector_;
 		ref_ptr<ModelTransformation> tf_;
+		bool hasShadowTarget_;
 
 		// GPU LOD update
 		ref_ptr<ComputePass> radixCull_;
