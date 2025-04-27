@@ -63,7 +63,7 @@ flat out int out_layer;
 #include regen.states.camera.transformEyeToScreen
 
 #include regen.models.sprite.applyForce
-#include regen.states.wind.windAtPosition
+#include regen.weather.wind.windAtPosition
 #include regen.layered.gs.computeVisibleLayers
 
 #define HANDLE_IO(i)

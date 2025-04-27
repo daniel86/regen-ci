@@ -45,7 +45,7 @@ out ${_TYPE} out_${_NAME};
     #endif
 #endfor
 #ifdef HAS_wind || HAS_windFlow
-    #include regen.states.wind.windAtPosition
+    #include regen.weather.wind.windAtPosition
 const float in_windStrength = 1.0;
 #endif
 

@@ -279,7 +279,7 @@
                 <texture name="windFlow" id="wind-flowmap"/>
                 <input name="stiffness" type="float" value="0.5"/>
                 <!-- draw the mesh -->
-                <mesh id="tree-mesh" mesh-index="1" shader="regen.models.mesh" gs="regen.states.wind.wavingQuad"/>
+                <mesh id="tree-mesh" mesh-index="1" shader="regen.models.mesh" gs="regen.weather.wind.wavingQuad"/>
             </node>
         </node>
         <node id="tree1-pot" lod-shape="tree-pot-shape">

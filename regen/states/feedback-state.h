@@ -51,7 +51,7 @@ namespace regen {
 		 * Add an attribute to the list of feedback attributes.
 		 * @param in the attribute.
 		 */
-		void addFeedback(const ref_ptr<ShaderInput> &in);
+		ref_ptr<ShaderInput> addFeedback(const ref_ptr<ShaderInput> &in);
 
 		/**
 		 * @param in remove previously added feedback attribute.
@@ -99,19 +99,19 @@ namespace regen {
 		FeedbackState(GLenum feedbackPrimitive, GLuint feedbackCount);
 
 		/**
-		 * @return VBO containing the last feedback data.
+		 * Initialize the transform feedback buffer.
 		 */
-		auto &feedbackBuffer() const { return feedbackBuffer_; }
+		void initializeResources();
 
 		/**
 		 * @return VBO reference.
 		 */
-		auto &vboRef() const { return vboRef_; }
+		auto &feedbackRef() const { return feedbackRef_; }
 
 		/**
 		 * @return allocated buffer size.
 		 */
-		auto bufferSize() const { return allocatedBufferSize_; }
+		auto feedbackBufferSize() const { return allocatedBufferSize_; }
 
 		/**
 		 * Render primitives from transform feedback array data.
@@ -129,15 +129,7 @@ namespace regen {
 		GLuint allocatedBufferSize_;
 		ref_ptr<VBO> feedbackBuffer_;
 		BufferRange bufferRange_;
-		ref_ptr<BufferReference> vboRef_;
-
-		void enableInterleaved(RenderState *rs);
-
-		void enableSeparate(RenderState *rs);
-
-		void disableInterleaved(RenderState *rs);
-
-		void disableSeparate(RenderState *rs);
+		ref_ptr<BufferReference> feedbackRef_;
 	};
 } // namespace
 

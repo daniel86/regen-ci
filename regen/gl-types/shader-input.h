@@ -226,6 +226,11 @@ namespace regen {
 		void set_numArrayElements(GLsizei v);
 
 		/**
+		 * Set the flag to true if this input is a vertex attribute.
+		 */
+		void set_isVertexAttribute(bool isVertexAttribute);
+
+		/**
 		 * Specifies the number of components per generic vertex attribute.
 		 * Must be 1, 2, 3, or 4.
 		 */

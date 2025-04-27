@@ -1,5 +1,6 @@
 #include "animation-processor.h"
 #include "regen/animations/mesh-animation.h"
+#include "regen/animations/attribute-feedback.h"
 
 using namespace regen::scene;
 using namespace regen;
@@ -101,6 +102,9 @@ void AnimationProcessor::processInput(
 	std::vector<ref_ptr<Animation>> animations;
 	if (animationType == "deformation") {
 		animations = createDeformation(scene, input);
+	}
+	else if (animationType == "attribute-feedback") {
+		animations.emplace_back(AttributeFeedbackAnimation::load(scene, input));
 	}
 	if (animations.empty()) {
 		REGEN_WARN("No animations created for input node '" << input.getName() << "'.");

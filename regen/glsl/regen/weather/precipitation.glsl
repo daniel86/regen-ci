@@ -55,7 +55,7 @@ const float in_mass = 1.0;
 #include regen.noise.variance
 #ifdef HAS_wind || HAS_windFlow
 const float in_windFactor = 10.0;
-    #include regen.states.wind.windAtPosition
+    #include regen.weather.wind.windAtPosition
 #endif
 
 -- update.vs

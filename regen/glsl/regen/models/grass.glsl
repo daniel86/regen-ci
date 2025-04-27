@@ -55,7 +55,7 @@ const float in_lodGeomVariance = 0.2;
     #include regen.models.sprite.emitBillboard
 #endif
 #ifdef HAS_wind || HAS_windFlow
-    #include regen.states.wind.windAtPosition
+    #include regen.weather.wind.windAtPosition
 #endif
 #ifdef USE_COLLISION
     #include regen.shapes.collision.getCollisionVector

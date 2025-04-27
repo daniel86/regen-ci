@@ -17,7 +17,7 @@ FeedbackSpecification::FeedbackSpecification(GLuint feedbackCount)
 		  requiredBufferSize_(0) {
 }
 
-void FeedbackSpecification::addFeedback(const ref_ptr<ShaderInput> &in) {
+ref_ptr<ShaderInput> FeedbackSpecification::addFeedback(const ref_ptr<ShaderInput> &in) {
 	// remove if already added
 	if (feedbackAttributeMap_.count(in->name()) > 0) { removeFeedback(in.get()); }
 
@@ -28,10 +28,13 @@ void FeedbackSpecification::addFeedback(const ref_ptr<ShaderInput> &in) {
 	ref_ptr<ShaderInput> feedback = ShaderInput::create(in);
 	feedback->set_inputSize(feedbackCount * feedback->elementSize());
 	feedback->set_numVertices(feedbackCount);
+	feedback->set_isVertexAttribute(true);
 	feedbackAttributes_.push_front(feedback);
 	feedbackAttributeMap_[in->name()] = feedbackAttributes_.begin();
 
 	requiredBufferSize_ += feedback->inputSize();
+
+	return feedback;
 }
 
 void FeedbackSpecification::removeFeedback(ShaderInput *in) {
@@ -68,74 +71,57 @@ FeedbackState::FeedbackState(GLenum feedbackPrimitive, GLuint feedbackCount)
 	bufferRange_.size_ = 0;
 }
 
-void FeedbackState::enable(RenderState *rs) {
+void FeedbackState::initializeResources() {
 	if (requiredBufferSize_ != allocatedBufferSize_) {
 		// free previously allocated data
-		if (vboRef_.get()) { BufferObject::free(vboRef_.get()); }
+		if (feedbackRef_.get()) { BufferObject::free(feedbackRef_.get()); }
 		// allocate memory and upload to GL
 		if (feedbackMode_ == GL_INTERLEAVED_ATTRIBS) {
-			vboRef_ = feedbackBuffer_->allocInterleaved(feedbackAttributes_);
+			feedbackRef_ = feedbackBuffer_->allocInterleaved(feedbackAttributes_);
 		} else {
-			vboRef_ = feedbackBuffer_->allocSequential(feedbackAttributes_);
+			feedbackRef_ = feedbackBuffer_->allocSequential(feedbackAttributes_);
 		}
-		bufferRange_.buffer_ = vboRef_->bufferID();
+		bufferRange_.buffer_ = feedbackRef_->bufferID();
+		bufferRange_.offset_ = feedbackRef_->address();
 		bufferRange_.size_ = requiredBufferSize_;
 		allocatedBufferSize_ = requiredBufferSize_;
 	}
+}
 
-	switch (feedbackMode_) {
-		case GL_INTERLEAVED_ATTRIBS:
-			enableInterleaved(rs);
-			break;
-		default:
-			enableSeparate(rs);
-			break;
+void FeedbackState::enable(RenderState *rs) {
+	initializeResources();
+	if (feedbackMode_ == GL_INTERLEAVED_ATTRIBS) {
+		if (!rs->isTransformFeedbackAcive()) {
+			rs->feedbackBufferRange().push(0, bufferRange_);
+		}
+		rs->beginTransformFeedback(feedbackPrimitive_);
+	} else {
+		if (!rs->isTransformFeedbackAcive()) {
+			GLint bufferIndex = 0;
+			for (auto & att : feedbackAttributes_) {
+				bufferRange_.offset_ = att->offset();
+				bufferRange_.size_ = att->inputSize();
+				rs->feedbackBufferRange().push(bufferIndex, bufferRange_);
+				bufferIndex += 1;
+			}
+		}
+		rs->beginTransformFeedback(feedbackPrimitive_);
 	}
 }
 
 void FeedbackState::disable(RenderState *rs) {
-	switch (feedbackMode_) {
-		case GL_INTERLEAVED_ATTRIBS:
-			disableInterleaved(rs);
-			break;
-		default:
-			disableSeparate(rs);
-			break;
-	}
-}
-
-void FeedbackState::enableInterleaved(RenderState *rs) {
-	if (!rs->isTransformFeedbackAcive()) {
-		rs->feedbackBufferRange().push(0, bufferRange_);
-	}
-	rs->beginTransformFeedback(feedbackPrimitive_);
-}
-
-void FeedbackState::disableInterleaved(RenderState *rs) {
-	rs->endTransformFeedback();
-	if (!rs->isTransformFeedbackAcive()) {
-		rs->feedbackBufferRange().pop(0);
-	}
-}
-
-void FeedbackState::enableSeparate(RenderState *rs) {
-	if (!rs->isTransformFeedbackAcive()) {
-		GLint bufferIndex = 0;
-		for (auto & att : feedbackAttributes_) {
-			bufferRange_.offset_ = att->offset();
-			bufferRange_.size_ = att->inputSize();
-			rs->feedbackBufferRange().push(bufferIndex, bufferRange_);
-			bufferIndex += 1;
+	if (feedbackMode_ == GL_INTERLEAVED_ATTRIBS) {
+		rs->endTransformFeedback();
+		if (!rs->isTransformFeedbackAcive()) {
+			rs->feedbackBufferRange().pop(0);
 		}
 	}
-	rs->beginTransformFeedback(feedbackPrimitive_);
-}
-
-void FeedbackState::disableSeparate(RenderState *rs) {
-	rs->endTransformFeedback();
-	if (!rs->isTransformFeedbackAcive()) {
-		for (GLuint bufferIndex = 0u; bufferIndex < feedbackAttributes_.size(); ++bufferIndex) {
-			rs->feedbackBufferRange().pop(bufferIndex);
+	else {
+		rs->endTransformFeedback();
+		if (!rs->isTransformFeedbackAcive()) {
+			for (GLuint bufferIndex = 0u; bufferIndex < feedbackAttributes_.size(); ++bufferIndex) {
+				rs->feedbackBufferRange().pop(bufferIndex);
+			}
 		}
 	}
 }

@@ -126,6 +126,14 @@ void ShaderInput::set_numArrayElements(GLsizei v) {
 	nextStamp();
 }
 
+void ShaderInput::set_isVertexAttribute(bool isVertexAttribute) {
+	isVertexAttribute_ = isVertexAttribute;
+	if (isVertexAttribute_) {
+		numInstances_ = 1u;
+		divisor_ = 0u;
+	}
+}
+
 unsigned int ShaderInput::stamp() const {
 	return dataStamp_.load(std::memory_order_relaxed);
 }
