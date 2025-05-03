@@ -28,24 +28,18 @@ static aiTextureType textureTypes[] = {
 		aiTextureType_REFLECTION
 };
 
-static bool assimpLog_(std::string &msg, const std::string &prefix) {
-	if (hasPrefix(msg, prefix)) {
-		msg = truncPrefix(msg, prefix);
-		msg[msg.size() - 1] = '0';
-		return true;
-	} else {
-		return false;
+static void assimpLog(const char *msg, char *) {
+	std::string_view s(msg);
+	if (s.size() > 0) {
+		// remove trailing \n
+		if (s[s.size() - 1] == '\n') {
+			s.remove_suffix(1);
+		}
+		// Note: Assimp prepends logging level in the string. But it is too verbose,
+		//       also reports some errors that don't seem to be relevant.
+		//       So for now ust print all to debug output.
+		REGEN_DEBUG(s);
 	}
-}
-
-static void assimpLog(const char *msg_, char *) {
-	string msg(msg_);
-	if (assimpLog_(msg, "Info,")) { REGEN_INFO(msg); }
-	else if (assimpLog_(msg, "Warn,")) { REGEN_WARN(msg); }
-	else if (assimpLog_(msg, "Error,")) { REGEN_ERROR(msg); }
-	else if (assimpLog_(msg, "Debug,")) { REGEN_DEBUG(msg); }
-	else
-		REGEN_DEBUG(msg);
 }
 
 static const struct aiScene *importFile(
@@ -1251,9 +1245,6 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 		return {};
 	}
 	const std::string assetPath = resourcePath(input.getValue("file"));
-	const std::string texturePath = resourcePath(input.getValue("texture-path"));
-	// TODO
-	//auto assimpFlags = input.getValue<GLint>("import-flags", -1);
 
 	AssimpAnimationConfig animConfig;
 	animConfig.numInstances =
@@ -1273,7 +1264,9 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 
 	try {
 		auto asset = ref_ptr<AssetImporter>::alloc(assetPath);
-		asset->setTexturePath(texturePath);
+		if (input.hasAttribute("texture-path")) {
+			asset->setTexturePath(resourcePath(input.getValue("texture-path")));
+		}
 		auto preset = input.getValue<std::string>("preset", "");
 		if (preset == "fast") {
 			asset->setAiProcessFlags_Fast();
@@ -1282,6 +1275,9 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 		}
 		if (input.getValue<bool>("debone", false)) {
 			asset->setAiProcessFlag(aiProcess_Debone);
+		}
+		if (input.getValue<bool>("limit-bone-weights", false)) {
+			asset->setAiProcessFlag(aiProcess_LimitBoneWeights);
 		}
 		if (input.getValue<bool>("gen-normals", false)) {
 			asset->setAiProcessFlag(aiProcess_GenNormals);
@@ -1294,9 +1290,6 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 		}
 		if (input.getValue<bool>("flip-uvs", false)) {
 			asset->setAiProcessFlag(aiProcess_FlipUVs);
-		}
-		if (input.getValue<bool>("limit-bone-weights", false)) {
-			asset->setAiProcessFlag(aiProcess_LimitBoneWeights);
 		}
 		if (input.getValue<bool>("fix-infacing-normals", false)) {
 			asset->setAiProcessFlag(aiProcess_FixInfacingNormals);

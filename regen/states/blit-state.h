@@ -108,7 +108,7 @@ namespace regen {
 		auto &attachment() { return attachment_; }
 
 		// override
-		void enable(RenderState *state) override;
+		void disable(RenderState *state) override;
 
 	protected:
 		ref_ptr<FBO> fbo_;

@@ -122,6 +122,12 @@ namespace regen {
 		void setAiProcessFlag(aiPostProcessSteps flag) { aiProcessFlags_ |= flag; }
 
 		/**
+		 * Unset AssImp process flags.
+		 * @param flag AssImp process flag.
+		 */
+		void unsetAiProcessFlag(aiPostProcessSteps flag) { aiProcessFlags_ &= ~flag; }
+
+		/**
 		 * Set AssImp process flags.
 		 * @param flags AssImp process flags.
 		 */
