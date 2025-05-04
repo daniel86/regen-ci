@@ -41,7 +41,7 @@ void AttributeFeedbackAnimation::initializeResources() {
 	feedbackState_->initializeResources();
 	// Overwrite the original attributes with the feedback attributes.
 	// note: we assume here no VAO was created yet for inputMesh_
-	for (int attributeIndex = 0; attributeIndex < originalAttributes_.size(); ++attributeIndex) {
+	for (uint64_t attributeIndex = 0; attributeIndex < originalAttributes_.size(); ++attributeIndex) {
 		auto &feedbackAttribute = feedbackAttributes_[attributeIndex];
 		inputMesh_->setInput(feedbackAttribute.in_, feedbackAttribute.name_);
 	}

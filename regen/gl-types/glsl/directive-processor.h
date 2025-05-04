@@ -75,7 +75,7 @@ namespace regen {
 
       void clear();
 
-      GLboolean isDefined(const std::string &arg);
+      GLboolean isDefined(const std::string &arg) const;
       std::string define(const std::string &arg);
 
       bool evaluateInner(const std::string &expression);

@@ -23,6 +23,13 @@ ref_ptr<PreProcessor> &Shader::defaultPreProcessor() {
 		defaultProcessor->addProcessor(ref_ptr<CommentProcessor>::alloc());
 		defaultProcessor->addProcessor(ref_ptr<WhiteSpaceProcessor>::alloc());
 		defaultProcessor->addProcessor(ref_ptr<IOProcessor>::alloc());
+		// HACK: declared input is currently written up front, but it may use struct types
+		//       which are then declared after. As a temporary workaround "#input ..." can be used to
+		//       enforce that includes are inserted in place, but no further processing is done then.
+		//       however, it does not seem nice adding the two processors here... probably time to
+		//       revise the whole preprocessor.
+		defaultProcessor->addProcessor(ref_ptr<DirectiveProcessor>::alloc());
+		defaultProcessor->addProcessor(ref_ptr<CommentProcessor>::alloc());
 	}
 	return defaultProcessor;
 }
@@ -399,19 +406,22 @@ void Shader::setupInputLocations() {
 			case GL_FLOAT_VEC2:
 			case GL_FLOAT_VEC3:
 			case GL_FLOAT_VEC4:
-			case GL_BOOL:
-			case GL_UNSIGNED_INT:
-			case GL_UNSIGNED_INT_ATOMIC_COUNTER:
-			case GL_INT:
-			case GL_BOOL_VEC2:
-			case GL_INT_VEC2:
-			case GL_BOOL_VEC3:
-			case GL_INT_VEC3:
-			case GL_BOOL_VEC4:
-			case GL_INT_VEC4:
 			case GL_FLOAT_MAT2:
 			case GL_FLOAT_MAT3:
 			case GL_FLOAT_MAT4:
+			case GL_UNSIGNED_INT:
+			case GL_UNSIGNED_INT_VEC2:
+			case GL_UNSIGNED_INT_VEC3:
+			case GL_UNSIGNED_INT_VEC4:
+			case GL_UNSIGNED_INT_ATOMIC_COUNTER:
+			case GL_INT:
+			case GL_INT_VEC2:
+			case GL_INT_VEC3:
+			case GL_INT_VEC4:
+			case GL_BOOL:
+			case GL_BOOL_VEC2:
+			case GL_BOOL_VEC3:
+			case GL_BOOL_VEC4:
 				break;
 
 			case GL_SAMPLER_BUFFER:

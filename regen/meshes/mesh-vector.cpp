@@ -316,7 +316,7 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 			if (numLODs < 2) {
 				thresholds_i.x = 0.0f;
 			}
-			mesh->setLODThresholds(thresholds);
+			mesh->setLODThresholds(thresholds_i);
 		}
 	}
 

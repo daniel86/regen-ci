@@ -1,3 +1,60 @@
+
+-- cs
+#include regen.stages.compute.defines
+// Note: global memory must be cleared each frame on the CPU!
+buffer ivec4 in_bboxMin;
+buffer ivec4 in_bboxMax;
+// Shared memory to compute min/max per workgroup.
+shared ivec3 sh_min;
+shared ivec3 sh_max;
+
+#include regen.stages.compute.readPosition
+
+int biasedBits(float f) {
+    int i = floatBitsToInt(f);
+    return i ^ ((i >> 31) & 0x7FFFFFFF);
+}
+//float debiased(int bits) {
+//    return intBitsToFloat((i >= 0) ? i ^ signBit : ~i);
+//}
+
+#define _atomicMinMax(a,b,key) \
+    atomicMin(a, key);\
+    atomicMax(b, key);
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    uint lid = gl_LocalInvocationID.x;
+    if (gid > NUM_ELEMENTS) return;
+    // read position data
+    vec3 pos = readPosition(gid);
+    // initialize shared memory
+    if (lid == 0) {
+        sh_min = ivec3(biasedBits(FLT_MAX));
+        sh_max = ivec3(biasedBits(-FLT_MAX));
+    }
+    barrier();
+    // update shared memory, i.e. each group computes its own min/max.
+    {
+        int key = biasedBits(pos.x);
+        _atomicMinMax(sh_min.x, sh_max.x, key);
+        key = biasedBits(pos.y);
+        _atomicMinMax(sh_min.y, sh_max.y, key);
+        key = biasedBits(pos.z);
+        _atomicMinMax(sh_min.z, sh_max.z, key);
+    }
+    barrier();
+    // First thread in each workgroup writes result to global memory
+    if (lid == 0) {
+        atomicMin(in_bboxMin.x, sh_min.x);
+        atomicMin(in_bboxMin.y, sh_min.y);
+        atomicMin(in_bboxMin.z, sh_min.z);
+        atomicMax(in_bboxMax.x, sh_max.x);
+        atomicMax(in_bboxMax.y, sh_max.y);
+        atomicMax(in_bboxMax.z, sh_max.z);
+    }
+}
+
 --------------
 ----- Computes a bounding box over position and/or model matrix data.
 ----- Buffers:
@@ -15,10 +72,9 @@
 ----- The solution taken here is to "cast" the vec3[] to a float[] buffer, which is tightly packed
 ----- and still complies std430 for SSBOs.
 --------------
--- computeBBox
-#ifndef computeBBox_included
-#define2 computeBBox_included
-// Bounding box SSBO.
+-- compute.bad.cs
+#include regen.stages.compute.defines
+
 // Note: global memory must be cleared each frame on the CPU!
 buffer ivec4 in_bboxPositiveMin;
 buffer ivec4 in_bboxPositiveMax;
@@ -42,6 +98,8 @@ shared ivec3 sh_negativeFlags;
     atomicMax(mem.y, val.y); \
     atomicMax(mem.z, val.z)
 
+#include regen.stages.compute.readPosition
+
 // compute bounding box from min/max values of positive and negative ranges
 float getBBoxMax(int neg, int pos, int hasPos) {
     return (hasPos == 1) ? intBitsToFloat(pos) : -intBitsToFloat(neg);
@@ -50,8 +108,12 @@ float getBBoxMin(int neg, int pos, int hasNeg) {
     return (hasNeg == 1) ? -intBitsToFloat(neg) : intBitsToFloat(pos);
 }
 
-void computeBBox(uint gid, vec3 pos, uint numElements) {
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
     uint lid = gl_LocalInvocationID.x;
+    if (gid > NUM_ELEMENTS) return;
+    // read position data
+    vec3 pos = readPosition(gid);
 
     // initialize shared memory
     if (lid == 0) {
@@ -97,27 +159,11 @@ void computeBBox(uint gid, vec3 pos, uint numElements) {
 
     // First thread in each workgroup writes result to global memory
     if (lid == 0) {
-        atomicMinVec3(in_bboxPositiveMin, l_positiveMin);
-        atomicMaxVec3(in_bboxPositiveMax, l_positiveMax);
-        atomicMinVec3(in_bboxNegativeMin, l_negativeMin);
-        atomicMaxVec3(in_bboxNegativeMax, l_negativeMax);
-        atomicMaxVec3(in_bboxPositiveFlags, l_positiveFlags);
-        atomicMaxVec3(in_bboxNegativeFlags, l_negativeFlags);
-    }
-}
-
--- compute.cs
-#include regen.stages.compute.defines
-// Position data
-buffer float in_pos[];
-#include regen.shapes.bbox
-#include regen.stages.compute.readPosition
-#include regen.stages.compute.computeBBox
-void main() {
-    uint gid = gl_GlobalInvocationID.x;
-    uint numElements = in_pos.length() / 3;
-    if (gid < numElements) {
-        vec3 pos = readPosition(gid);
-        computeBBox(gid, pos, numElements);
+        atomicMinVec3(in_bboxPositiveMin, sh_positiveMin);
+        atomicMaxVec3(in_bboxPositiveMax, sh_positiveMax);
+        atomicMinVec3(in_bboxNegativeMin, sh_negativeMin);
+        atomicMaxVec3(in_bboxNegativeMax, sh_negativeMax);
+        atomicMaxVec3(in_bboxPositiveFlags, sh_positiveFlags);
+        atomicMaxVec3(in_bboxNegativeFlags, sh_negativeFlags);
     }
 }

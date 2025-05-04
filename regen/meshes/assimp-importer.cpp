@@ -28,24 +28,18 @@ static aiTextureType textureTypes[] = {
 		aiTextureType_REFLECTION
 };
 
-static bool assimpLog_(std::string &msg, const std::string &prefix) {
-	if (hasPrefix(msg, prefix)) {
-		msg = truncPrefix(msg, prefix);
-		msg[msg.size() - 1] = '0';
-		return true;
-	} else {
-		return false;
+static void assimpLog(const char *msg, char *) {
+	std::string_view s(msg);
+	if (s.size() > 0) {
+		// remove trailing \n
+		if (s[s.size() - 1] == '\n') {
+			s.remove_suffix(1);
+		}
+		// Note: Assimp prepends logging level in the string. But it is too verbose,
+		//       also reports some errors that don't seem to be relevant.
+		//       So for now ust print all to debug output.
+		REGEN_DEBUG(s);
 	}
-}
-
-static void assimpLog(const char *msg_, char *) {
-	string msg(msg_);
-	if (assimpLog_(msg, "Info,")) { REGEN_INFO(msg); }
-	else if (assimpLog_(msg, "Warn,")) { REGEN_WARN(msg); }
-	else if (assimpLog_(msg, "Error,")) { REGEN_ERROR(msg); }
-	else if (assimpLog_(msg, "Debug,")) { REGEN_DEBUG(msg); }
-	else
-		REGEN_DEBUG(msg);
 }
 
 static const struct aiScene *importFile(
@@ -63,64 +57,60 @@ static const struct aiScene *importFile(
 		aiAttachLogStream(&stream);
 		isLoggingInitialled = true;
 	}
-
-	if (userSpecifiedFlags == -1) {
-		return aiImportFile(assimpFile.c_str(),
-							aiProcess_Triangulate
-							// Convert special texture coords to UV
-							| aiProcess_GenUVCoords
-							| aiProcess_CalcTangentSpace
-							| aiProcess_FlipUVs
-							| aiProcess_SortByPType
-							// Reorders triangles for better vertex cache locality.
-							| aiProcess_ImproveCacheLocality
-							// Searches for redundant/unreferenced materials and removes them.
-							| aiProcess_RemoveRedundantMaterials
-							// A postprocessing step to reduce the number of meshes.
-							| aiProcess_OptimizeMeshes
-							// A postprocessing step to optimize the scene hierarchy.
-							| aiProcess_OptimizeGraph
-							// If this flag is not specified,
-							// no vertices are referenced by more than one face
-							| aiProcess_JoinIdenticalVertices
-							| 0);
-	} else {
-		return aiImportFile(assimpFile.c_str(),
-							userSpecifiedFlags | 0);
-	}
+	return aiImportFile(assimpFile.c_str(), userSpecifiedFlags);
 }
 
 static Vec3f &aiToOgle(aiColor3D *v) { return *((Vec3f *) v); }
 
 static Vec3f &aiToOgle3f(aiColor4D *v) { return *((Vec3f *) v); }
 
-AssetImporter::AssetImporter(
-		const string &assimpFile,
-		const string &texturePath,
-		const AssimpAnimationConfig &animConfig,
-		GLint userSpecifiedFlags)
-		: scene_(importFile(assimpFile, userSpecifiedFlags)),
-		  texturePath_(texturePath) {
-	if (scene_ == nullptr) {
-		throw Error(REGEN_STRING("Can not import assimp file '" <<
-																assimpFile << "'. " << aiGetErrorString()));
-	}
-	if (texturePath_.empty()) {
-		boost::filesystem::path p(assimpFile);
-		texturePath_ = p.parent_path().filename().string();
-	}
-
-	rootNode_ = loadNodeTree();
-	lights_ = loadLights();
-	materials_ = loadMaterials();
-	loadNodeAnimation(animConfig);
-	GL_ERROR_LOG();
+AssetImporter::AssetImporter(const string &assetFile)
+		: assetFile_(assetFile),
+		  scene_(nullptr) {
+	boost::filesystem::path p(assetFile);
+	texturePath_ = p.parent_path().string();
+	setAiProcessFlags_Regen();
 }
 
 AssetImporter::~AssetImporter() {
 	if (scene_ != nullptr) {
 		aiReleaseImport(scene_);
 	}
+}
+
+void AssetImporter::importAsset() {
+	scene_ = importFile(assetFile_, aiProcessFlags_);
+	if (scene_ == nullptr) {
+		throw Error(REGEN_STRING("Can not import assimp file '" <<
+																assetFile_ << "'. " << aiGetErrorString()));
+	}
+	rootNode_ = loadNodeTree();
+	lights_ = loadLights();
+	materials_ = loadMaterials();
+	loadNodeAnimation(animationCfg_);
+	GL_ERROR_LOG();
+}
+
+void AssetImporter::setAiProcessFlags_Fast() {
+	aiProcessFlags_ = aiProcessPreset_TargetRealtime_Fast;
+}
+
+void AssetImporter::setAiProcessFlags_Quality() {
+	aiProcessFlags_ = aiProcessPreset_TargetRealtime_Quality;
+}
+
+void AssetImporter::setAiProcessFlags_Regen() {
+	aiProcessFlags_ = aiProcess_Triangulate
+			| aiProcess_GenUVCoords
+			| aiProcess_CalcTangentSpace
+			| aiProcess_FlipUVs
+			| aiProcess_SortByPType
+			| aiProcess_ImproveCacheLocality
+			| aiProcess_RemoveRedundantMaterials
+			| aiProcess_OptimizeMeshes
+			| aiProcess_OptimizeGraph
+			| aiProcess_JoinIdenticalVertices
+			| 0;
 }
 
 vector<ref_ptr<Light> > &AssetImporter::lights() { return lights_; }
@@ -621,6 +611,11 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 					}
 				} else {
 					aiTex = nullptr;
+				}
+
+				// skip normal map if requested
+				if (textureTypes[l] == aiTextureType_NORMALS && importFlags_ & IGNORE_NORMAL_MAP) {
+					continue;
 				}
 
 				loadTexture(mat, aiTex, aiMat, stringVal, l, k, texturePath_);
@@ -1250,8 +1245,6 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 		return {};
 	}
 	const std::string assetPath = resourcePath(input.getValue("file"));
-	const std::string texturePath = resourcePath(input.getValue("texture-path"));
-	auto assimpFlags = input.getValue<GLint>("import-flags", -1);
 
 	AssimpAnimationConfig animConfig;
 	animConfig.numInstances =
@@ -1270,8 +1263,49 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 			NodeAnimation::BEHAVIOR_LINEAR);
 
 	try {
-		return ref_ptr<AssetImporter>::alloc(
-				assetPath, texturePath, animConfig, assimpFlags);
+		auto asset = ref_ptr<AssetImporter>::alloc(assetPath);
+		if (input.hasAttribute("texture-path")) {
+			asset->setTexturePath(resourcePath(input.getValue("texture-path")));
+		}
+		auto preset = input.getValue<std::string>("preset", "");
+		if (preset == "fast") {
+			asset->setAiProcessFlags_Fast();
+		} else if (preset == "quality") {
+			asset->setAiProcessFlags_Quality();
+		}
+		if (input.getValue<bool>("debone", false)) {
+			asset->setAiProcessFlag(aiProcess_Debone);
+		}
+		if (input.getValue<bool>("limit-bone-weights", false)) {
+			asset->setAiProcessFlag(aiProcess_LimitBoneWeights);
+		}
+		if (input.getValue<bool>("gen-normals", false)) {
+			asset->setAiProcessFlag(aiProcess_GenNormals);
+		}
+		if (input.getValue<bool>("gen-smooth-normals", false)) {
+			asset->setAiProcessFlag(aiProcess_GenSmoothNormals);
+		}
+		if (input.getValue<bool>("gen-uv-coords", false)) {
+			asset->setAiProcessFlag(aiProcess_GenUVCoords);
+		}
+		if (input.getValue<bool>("flip-uvs", false)) {
+			asset->setAiProcessFlag(aiProcess_FlipUVs);
+		}
+		if (input.getValue<bool>("fix-infacing-normals", false)) {
+			asset->setAiProcessFlag(aiProcess_FixInfacingNormals);
+		}
+		if (input.getValue<bool>("flip-winding-order", false)) {
+			asset->setAiProcessFlag(aiProcess_FlipWindingOrder);
+		}
+		if (input.getValue<bool>("optimize-graph", false)) {
+			asset->setAiProcessFlag(aiProcess_OptimizeGraph);
+		}
+		asset->setAnimationConfig(animConfig);
+		if (input.getValue<bool>("ignore-normal-map", false)) {
+			asset->setImportFlags(AssetImporter::IGNORE_NORMAL_MAP);
+		}
+		asset->importAsset();
+		return asset;
 	}
 	catch (AssetImporter::Error &e) {
 		REGEN_WARN("Unable to open Asset file: " << e.what() << ".");

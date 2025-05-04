@@ -341,11 +341,11 @@ void Application::updateTime() {
 		setTime();
 	}
 	boost::posix_time::ptime t(boost::posix_time::microsec_clock::local_time());
-	auto dt = (t - lastTime_).total_milliseconds();
-	timeDelta_->setVertex(0, (double) dt);
+	auto dt = (t - lastTime_).total_microseconds();
+	timeDelta_->setVertex(0, ((float) dt)/1000.0f);
 	timeSeconds_->setVertex(0, t.time_of_day().total_microseconds() / 1e+6);
 	lastTime_ = t;
-	worldTime_.p_time += boost::posix_time::milliseconds(static_cast<long>(dt * worldTime_.scale));
+	worldTime_.p_time += boost::posix_time::milliseconds(static_cast<long>((dt/1000.0) * worldTime_.scale));
 }
 
 void Application::setWorldTime(const time_t &t) {

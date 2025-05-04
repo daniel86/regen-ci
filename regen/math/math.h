@@ -99,6 +99,15 @@ namespace regen {
 			x |= x >> 16;
 			return ++x;
 		}
+
+		/**
+		 * Check if x is a power of 2.
+		 * @param x the input value
+		 * @return true if x is a power of 2, false otherwise
+		 */
+		static inline bool isPowerOfTwo(uint32_t x) {
+			return (x != 0) && ((x & (x - 1)) == 0);
+		}
 	}
 } // namespace
 

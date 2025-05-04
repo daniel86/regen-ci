@@ -89,7 +89,7 @@ void BufferBlock::updateBlockInputs() {
 		} else if (baseSize == 64u) { // mat4
 			baseAlignment = 16;
 			alignmentCount = 4;
-		} else if (in->numElements() > 1u && memoryLayout_ == MemoryLayout::STD140) {
+		} else if (in->numElements() > 1 && memoryLayout_ == MemoryLayout::STD140) {
 			// with STD140, each array element must be padded to a multiple of 16 bytes
 			baseAlignment = 16u;
 		}
@@ -162,6 +162,8 @@ void BufferBlock::update(bool forceUpdate) {
 	std::unique_lock<std::mutex> lock(mutex_);
 
 	if (needsResize) {
+		// enforce rebinding
+		bindingIndex_ = -1;
 		if (ref_.get()) {
 			free(ref_.get());
 		}

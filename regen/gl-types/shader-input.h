@@ -297,6 +297,11 @@ namespace regen {
 		auto isBufferBlock() const { return isBufferBlock_; }
 
 		/**
+		 * @return true if this input is a struct (array).
+		 */
+		auto isStruct() const { return isStruct_; }
+
+		/**
 		 * Uniforms with a single array element will appear
 		 * with [1] in the generated shader if forceArray is true.
 		 * Note: attributes can not be arrays.
@@ -540,6 +545,7 @@ namespace regen {
 
 		bool isConstant_;
 		bool isBufferBlock_;
+		bool isStruct_ = false;
 		bool forceArray_;
 		bool active_;
 		mutable bool requiresReUpload_ = false;
@@ -615,6 +621,87 @@ namespace regen {
 	 */
 	typedef std::list<NamedShaderInput> ShaderInputList;
 	typedef std::list<ref_ptr<ShaderInput> >::const_iterator AttributeIteratorConst;
+
+	class ShaderStructBase : public ShaderInput {
+	public:
+		ShaderStructBase(
+				const std::string &structTypeName,
+				const std::string &name,
+				GLuint structSize,
+				GLuint numArrayElements,
+				GLboolean normalize)
+				: ShaderInput(name, GL_NONE, structSize, 1, numArrayElements, normalize),
+				  structTypeName_(structTypeName) {
+			isStruct_ = true;
+		}
+
+		/**
+		 * @return The type name for the struct type.
+		 */
+		auto &structTypeName() const { return structTypeName_; }
+
+	protected:
+		std::string structTypeName_;
+	};
+
+	/**
+	 * \brief Provides typed input to shader programs using a struct type.
+	 * User needs to take care of padding.
+	 */
+	template<class StructType>
+	class ShaderInputStruct : public ShaderStructBase {
+	public:
+		/**
+		 * @param name Name of this attribute used in shader programs.
+		 * @param numArrayElements Number of array elements.
+		 * @param normalize Specifies whether fixed-point data values should be normalized.
+		 */
+		ShaderInputStruct(
+				const std::string &typeName,
+				const std::string &name,
+				GLuint numArrayElements,
+				GLboolean normalize = GL_FALSE)
+				: ShaderStructBase(typeName, name, sizeof(StructType), numArrayElements, normalize) {}
+
+		~ShaderInputStruct() override = default;
+
+		/**
+		 * @param data the uniforminput data.
+		 */
+		void setUniformData(const StructType &data) { setUniformUntyped((const byte *) &data); }
+
+		/**
+		 * @return the input data.
+		 */
+		auto uniformData() { return getVertex(0); }
+
+		/**
+		 * Set a value for the active stack data.
+		 * @param vertexIndex index in data array.
+		 * @param val the new value.
+		 */
+		void setVertex(GLuint i, const StructType &val) {
+			auto mapped = mapClientData<StructType>(ShaderData::WRITE | ShaderData::INDEX);
+			mapped.w[i] = val;
+		}
+
+		/**
+		 * @param vertexIndex index in data array.
+		 * @return data value at given index.
+		 */
+		ShaderVertex_ro<StructType> getVertex(GLuint i) const {
+			return mapClientVertex<StructType>(ShaderData::READ, i);
+		}
+
+		/**
+		 * Write ShaderInput.
+		 */
+		void write(std::ostream &out) const override {
+			auto x = getVertex(0);
+			out << "struct " << structTypeName_ << " {";
+			out << "}";
+		}
+	};
 
 	/**
 	 * \brief Provides typed input to shader programs.

@@ -1,17 +1,10 @@
 #ifndef REGEN_BOID_SIMULATION_H
 #define REGEN_BOID_SIMULATION_H
 
-#include "animation.h"
-#include "regen/states/model-transformation.h"
+#include "regen/gl-types/shader-input.h"
 #include "regen/shapes/bounds.h"
-#include "regen/shapes/quad-tree.h"
-#include "regen/scene/scene-input.h"
-#include "regen/scene/scene-loader.h"
-#include "regen/gl-types/ssbo.h"
-#include "regen/gl-types/pbo.h"
-#include "regen/gl-types/bbox-buffer.h"
-#include "regen/states/compute-pass.h"
-#include <regen/textures/texture-2d.h>
+#include "regen/textures/texture-2d.h"
+#include "regen/states/model-transformation.h"
 
 namespace regen {
 	/**
@@ -143,12 +136,16 @@ namespace regen {
 
 		Vec3f getCellCenter(const Vec3i &gridIndex) const;
 
-		static int getGridIndex(const Vec3i &v, const Vec3i &gridSize);
+		Vec3f getCellCenter(const Vec3ui &gridIndex) const;
+
+		static uint32_t getGridIndex(const Vec3i &v, const Vec3ui &gridSize);
+
+		static uint32_t getGridIndex(const Vec3i &v, const Vec3i &gridSize);
 
 		virtual void initBoidSimulation() {};
 
 	protected:
-		int numBoids_;
+		uint32_t numBoids_;
 		ref_ptr<ModelTransformation> tf_;
 		ref_ptr<ShaderInput3f> position_;
 		// The bounding box of the boids.
@@ -161,7 +158,7 @@ namespace regen {
 		Vec3f mapCenter_ = Vec3f::zero();
 		Vec2f mapSize_ = Vec2f(10.0f);
 
-		ref_ptr<ShaderInput3i> gridSize_;
+		ref_ptr<ShaderInput3ui> gridSize_;
 		ref_ptr<ShaderInput1f> cellSize_;
 		Bounds<Vec3f> gridBounds_ = Bounds<Vec3f>(0.0f, 0.0f);
 		unsigned int numCells_ = 0;
@@ -196,145 +193,6 @@ namespace regen {
 		void updateGridSize();
 
 		static Vec2f computeUV(const Vec3f &boidPosition, const Vec3f &mapCenter, const Vec2f &mapSize);
-	};
-
-	/**
-	 * \brief GPU Boid simulation.
-	 * The boids simulation is a simple flocking simulation.
-	 * The simulation is done on the GPU using compute shaders.
-	 */
-	class BoidSimulation_GPU : public BoidSimulation, public Animation {
-	public:
-		/**
-		 * TF constructor.
-		 * @param tf A model transformation, each instance of the model will be a boid.
-		 */
-		explicit BoidSimulation_GPU(const ref_ptr<ModelTransformation> &tf);
-
-		/**
-		 * Position constructor.
-		 * @param position A shader input with the boid positions.
-		 */
-		explicit BoidSimulation_GPU(const ref_ptr<ShaderInput3f> &position);
-
-		~BoidSimulation_GPU() override = default;
-
-		static ref_ptr<BoidSimulation_GPU> load(LoadingContext &ctx, scene::SceneInputNode &input, const ref_ptr<ShaderInput3f> &position);
-
-		static ref_ptr<BoidSimulation_GPU> load(LoadingContext &ctx, scene::SceneInputNode &input, const ref_ptr<ModelTransformation> &tf);
-
-		// override Animation
-		void glAnimate(RenderState *rs, GLdouble dt) override;
-
-		void initBoidSimulation() override;
-
-	protected:
-		// Grid attributes
-		ref_ptr<ShaderInput1i> listHeads_;
-		ref_ptr<ShaderInput3f> gridMin_;
-
-		// Boid SSBOs & PBOs & UBOs
-		ref_ptr<SSBO> tfBuffer_;
-		ref_ptr<SSBO> velBuffer_;
-		ref_ptr<SSBO> listHeadBuffer_;
-		ref_ptr<SSBO> listBodyBuffer_;
-		ref_ptr<BBoxBuffer> bboxBuffer_;
-		ref_ptr<UBO> simulationUBO_;
-		ref_ptr<UBO> gridUBO_;
-
-		// Update states
-		ref_ptr<State> updateGridState_;
-		ref_ptr<State> updateBoidsState_;
-		ref_ptr<ComputePass> computeGridState_;
-		ref_ptr<ComputePass> computeBoidState_;
-
-		double time_ = 0.0;
-		unsigned int vrStamp_ = 0;
-
-		void initBuffers();
-
-		void initAnimationState();
-
-		void createShader(const ref_ptr<ComputePass> &pass, const ref_ptr<State> &update);
-
-		void updateGrid();
-
-		void simulate(RenderState *rs, double dt);
-
-		void computeBBox(const Vec3f *posData);
-	};
-
-	/**
-	 * \brief CPU Boid simulation.
-	 * A spatial grid is used to speed up the simulation.
-	 * For a couple of thousand boids this should be fine.
-	 * For a massive number of boids a GPU implementation is recommended.
-	 */
-	class BoidSimulation_CPU : public BoidSimulation, public Animation {
-	public:
-		/**
-		 * TF constructor.
-		 * @param tf A model transformation, each instance of the model will be a boid.
-		 */
-		explicit BoidSimulation_CPU(const ref_ptr<ModelTransformation> &tf);
-
-		/**
-		 * Position constructor.
-		 * @param position A shader input with the boid positions.
-		 */
-		explicit BoidSimulation_CPU(const ref_ptr<ShaderInput3f> &position);
-
-		~BoidSimulation_CPU() override;
-
-		BoidSimulation_CPU(const BoidSimulation_CPU &) = delete;
-
-		static ref_ptr<BoidSimulation_CPU> load(LoadingContext &ctx, scene::SceneInputNode &input, const ref_ptr<ShaderInput3f> &position);
-
-		static ref_ptr<BoidSimulation_CPU> load(LoadingContext &ctx, scene::SceneInputNode &input, const ref_ptr<ModelTransformation> &tf);
-
-		// Animation interface
-		void animate(double dt) override;
-
-		void initBoidSimulation() override;
-
-	protected:
-		struct Private;
-		Private *priv_;
-
-		struct BoidData {
-			Vec3f force;
-			Vec3f velocity;
-			Vec3i gridIndex = Vec3i::zero();
-			std::vector<int> neighbors;
-		};
-		std::vector<BoidData> boidData_;
-		std::vector<Vec3f> boidPositions_;
-
-		void updateTransforms();
-
-		void simulateBoids(float dt);
-
-		void simulateBoid(BoidData &boid, Vec3f &boidPos, float dt);
-
-		void limitVelocity(BoidData &boid, const Vec3f &lastDir);
-
-		void homesickness(BoidData &boid, const Vec3f &boidPos);
-
-		bool avoidCollisions(BoidData &boid, const Vec3f &boidPos, float dt);
-
-		bool avoidDanger(BoidData &boid, const Vec3f &boidPos);
-
-		void attract(BoidData &boid, const Vec3f &boidPos);
-
-		void updateNeighbours0(BoidData &boid, const Vec3f &boidPos, int boidIndex);
-
-		void updateNeighbours1(BoidData &boid, const Vec3f &boidPos, int boidIndex, const Vec3i &gridIndex);
-
-		void updateNeighbours2(BoidData &boid, const Vec3f &boidPos, int boidIndex, const Vec3i &gridIndex);
-
-		void updateGrid();
-
-		Vec3i getGridIndex3D(const Vec3f &boid) const;
 	};
 
 	std::ostream &operator<<(std::ostream &out, const BoidSimulation::ObjectType &v);

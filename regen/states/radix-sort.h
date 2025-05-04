@@ -1,0 +1,118 @@
+#ifndef REGEN_RADIX_SORT_H
+#define REGEN_RADIX_SORT_H
+
+#include <regen/states/state.h>
+#include "compute-pass.h"
+
+namespace regen {
+	/**
+	 * \brief Radix sort state.
+	 * This state is used to sort a key buffer using radix sort. Keys must be represented
+	 * as unsigned integers (for floats use a bit representation).
+	 * The output will be an index buffer (the value array) with the keys sorted in ascending order.
+	 */
+	class RadixSort : public State {
+	public:
+		/**
+		 * @brief Constructor for RadixSort
+		 * @param numKeys
+		 */
+		explicit RadixSort(uint32_t numKeys);
+
+		~RadixSort() override = default;
+
+		/**
+		 * Set the output buffer.
+		 * This is optional, if not done before createResources(), the output buffer will be created.
+		 * The buffer must be a uint array with numKey elements.
+		 * @param values The output buffer.
+		 */
+		void setOutputBuffer(const ref_ptr<SSBO> &values);
+
+		/**
+		 * Set the number of bits per radix pass.
+		 * 4Bit is a common value, and used by default.
+		 * @param bits The number of bits.
+		 */
+		void setRadixBits(uint32_t bits);
+
+		/**
+		 * Change work group size for sorting passes.
+		 * 256 is a good value and used by default.
+		 * Must be a power of two.
+		 * @param size The work group size.
+		 */
+		void setSortGroupSize(uint32_t size);
+
+		/**
+		 * Change work group size for scan passes.
+		 * 512 is a good value and used by default.
+		 * Must be a power of two.
+		 * @param size The work group size.
+		 */
+		void setScanGroupSize(uint32_t size);
+
+		/**
+		 * The key buffer used for sorting, has numKeys elements.
+		 * It must be filled with the keys to be sorted externally,
+		 * usually it should be done in a compute pass.
+		 * @retur The key buffer.
+		 */
+		auto& keyBuffer() { return keyBuffer_; }
+
+		/**
+		 * The sorted index buffer.
+		 * This will remain the same across different frames.
+		 * @return The sorted index buffer.
+		 */
+		ref_ptr<SSBO>& sortedIndexBuffer();
+
+		/**
+		 * The input index buffer.
+		 * This will be the same as the sorted index buffer in the first pass.
+		 * Note that currently this must be initialized externally to [0,..,numKeys_-1].
+		 * @return The input index buffer.
+		 */
+		ref_ptr<SSBO>& inputIndexBuffer();
+
+		/**
+		 * Create the resources needed for the radix sort, i.e. buffers
+		 * and shaders.
+		 */
+		void createResources();
+
+		// Override
+		void enable(RenderState *rs) override;
+
+	protected:
+		uint32_t numKeys_;
+		uint32_t inputIdx_ = 0u;
+		uint32_t outputIdx_ = 0u;
+		uint32_t radixBits_ = 4u;
+		uint32_t numBuckets_ = 1u << radixBits_;
+		uint32_t sortGroupSize_ = 256;
+		uint32_t scanGroupSize_ = 512;
+
+		ref_ptr<SSBO> globalHistogramBuffer_;
+		ref_ptr<SSBO> keyBuffer_;
+		ref_ptr<SSBO> valueBuffer_[2];
+		ref_ptr<SSBO> userValueBuffer_;
+
+		ref_ptr<ComputePass> radixHistogramPass_;
+		ref_ptr<ComputePass> radixScatterPass_;
+		ref_ptr<State> prefixScan_;
+		int32_t histogramReadIndex_ = 0u;
+		int32_t histogramBitOffsetIndex_ = 0u;
+		int32_t scatterReadIndex_ = 0u;
+		int32_t scatterWriteIndex_ = 0u;
+		int32_t scatterBitOffsetIndex_ = 0u;
+
+		void sort(RenderState *rs);
+
+		void printInstanceMap(RenderState *rs);
+
+		void printHistogram(RenderState *rs);
+	};
+} // namespace
+
+#endif /* REGEN_RADIX_SORT_H */

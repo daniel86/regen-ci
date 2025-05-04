@@ -311,6 +311,18 @@ namespace regen {
 		unsigned int dirStamp_ = 0u;
 		unsigned int poseStamp_ = 0u;
 	};
+
+	class ProjectionUpdater : public EventHandler {
+	public:
+		ProjectionUpdater(const ref_ptr<Camera> &cam,
+						  const ref_ptr<ShaderInput2i> &windowViewport);
+
+		void call(EventObject *, EventData *) override;
+
+	protected:
+		ref_ptr<Camera> cam_;
+		ref_ptr<ShaderInput2i> windowViewport_;
+	};
 } // namespace
 
 #endif /* REGEN_CAMERA_H */
