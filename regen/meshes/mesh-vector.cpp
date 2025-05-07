@@ -310,13 +310,13 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 			}
 			auto thresholds_i = thresholds;
 			if (numLODs < 4) {
-				thresholds_i.y = 0.0f;
+				thresholds_i.z = FLT_MAX;
 			}
 			if (numLODs < 3) {
-				thresholds_i.z = 0.0f;
+				thresholds_i.y = FLT_MAX;
 			}
 			if (numLODs < 2) {
-				thresholds_i.x = 0.0f;
+				thresholds_i.x = FLT_MAX;
 			}
 			mesh->setLODThresholds(thresholds_i);
 		}

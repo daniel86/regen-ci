@@ -356,7 +356,10 @@
     </node>
 
     <mesh id="stone0" type="sphere" use-normal="1" use-texco="1" use-tangent="1" usage="STATIC_DRAW"
-          lod-levels="4, 3, 2" scaling="1.5,3.0,3.0" num-instances="20">
+          lod-levels="4, 3, 2"
+          lod-thresholds="20.0, 50.0, 0.0"
+          scaling="1.5,3.0,3.0"
+          num-instances="20">
         <transform id="stone0-tf" num-instances="20" is-instanced="1">
             <rotate value="0.0, 1.57079632, 0.0"/>
             <translate value="0.0, -0.6, 0.0"/>
