@@ -171,7 +171,7 @@ void main() {
 #include regen.models.mesh.tes
 -- patch.gs
 #define HAS_PRIMITIVE_TRIANGLES
-#include regen.models.grass.sprite.gs
+#include regen.terrain.grass.sprite.gs
 -- patch.fs
 #define HAS_nor
 #define HAS_col
@@ -192,7 +192,7 @@ in vec4 in_col;
 #include regen.models.mesh.tes
 -- gs
 #define HAS_PRIMITIVE_POINTS
-#include regen.models.grass.sprite.gs
+#include regen.terrain.grass.sprite.gs
 -- fs
 #define HAS_nor
 #define HAS_col

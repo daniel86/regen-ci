@@ -1,10 +1,3 @@
-/*
- * material.h
- *
- *  Created on: 02.02.2011
- *      Author: daniel
- */
-
 #ifndef REGEN_MATERIAL_H_
 #define REGEN_MATERIAL_H_
 
@@ -15,13 +8,52 @@
 #include <regen/utility/ref-ptr.h>
 
 namespace regen {
+	typedef unsigned int MaterialVariant;
+
+	/**
+	 * \brief Describes a material.
+	 *
+	 * This class is used to describe a material. It contains the material colors,
+	 * texture files, and other properties.
+	 */
+	struct MaterialDescription {
+		/**
+		 * \brief Constructor.
+		 *
+		 * @param materialName The name of the material.
+		 * @param variant The variant of the material.
+		 */
+		MaterialDescription(std::string_view materialName, std::string_view variant);
+
+		Vec3f ambient = Vec3f(0.0f);
+		Vec3f diffuse = Vec3f(1.0f);
+		Vec3f specular = Vec3f(0.0f);
+		Vec3f emission = Vec3f(0.0f);
+		float shininess = 128.0f;
+		std::map<TextureState::MapTo, std::vector<std::string>> textureFiles;
+
+		/**
+		 * \brief Checks if the material has a texture file for the given map type.
+		 *
+		 * @param mapType The map type to check.
+		 * @return True if the material has a texture file for the given map type, false otherwise.
+		 */
+		bool hasMap(TextureState::MapTo mapMode) const { return textureFiles.find(mapMode) != textureFiles.end(); }
+
+		/**
+		 * \brief Gets the texture file for the given map type.
+		 *
+		 * @param mapType The map type to get the texture file for.
+		 * @return The texture file for the given map type.
+		 */
+		std::vector<std::string> getMaps(TextureState::MapTo mapMode) const { return textureFiles.at(mapMode); }
+	};
+
 	/**
 	 * \brief Provides material related uniforms.
 	 */
 	class Material : public HasInputState {
 	public:
-		typedef unsigned int Variant;
-
 		/**
 		 * Defines how height maps are used.
 		 */
@@ -89,6 +121,12 @@ namespace regen {
 		void set_fillMode(GLenum mode);
 
 		/**
+		 * Sets whether to use mipmaps for textures.
+		 * @param useMipmap true to use mipmaps, false otherwise.
+		 */
+		void set_useMipmaps(bool useMipmap) { useMipmap_ = useMipmap; }
+
+		/**
 		 * Defines how faces are shaded (FILL/LINE/POINT).
 		 */
 		auto fillMode() const { return fillMode_; }
@@ -133,79 +171,72 @@ namespace regen {
 		/**
 		 * Sets default material colors for jade.
 		 */
-		void set_jade(Variant variant = 0);
+		void set_jade(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for ruby.
 		 */
-		void set_ruby(Variant variant = 0);
+		void set_ruby(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for chrome.
 		 */
-		void set_chrome(Variant variant = 0);
+		void set_chrome(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for leather.
 		 */
-		void set_leather(Variant variant = 0);
+		void set_leather(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for stone.
 		 */
-		void set_stone(Variant variant = 0);
+		void set_stone(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for gold.
 		 */
-		void set_gold(Variant variant = 0);
+		void set_gold(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for copper.
 		 */
-		void set_copper(Variant variant = 0);
+		void set_copper(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for silver.
 		 */
-		void set_silver(Variant variant = 0);
+		void set_silver(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for pewter.
 		 */
-		void set_pewter(Variant variant = 0);
+		void set_pewter(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for iron.
 		 */
-		void set_iron(Variant variant = 0);
+		void set_iron(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for steel.
 		 */
-		void set_steel(Variant variant = 0);
+		void set_steel(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for metal.
 		 */
-		void set_metal(Variant variant = 0);
+		void set_metal(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for wood.
 		 */
-		void set_wood(Variant variant = 0);
+		void set_wood(std::string_view variant = "");
 
 		/**
 		 * Sets default material colors for marble.
 		 */
-		void set_marble(Variant variant = 0);
-
-		/**
-		 * Loads textures for the given material name and variant.
-		 * @param materialName a material name.
-		 * @param variant a variant.
-		 */
-		bool set_textures(std::string_view materialName, Variant variant);
+		void set_marble(std::string_view variant = "");
 
 		/**
 		 * Loads textures for the given material name and variant.
@@ -213,6 +244,13 @@ namespace regen {
 		 * @param variant a variant.
 		 */
 		bool set_textures(std::string_view materialName, std::string_view variant);
+
+		ref_ptr<TextureState> set_texture(const ref_ptr<Texture> &tex, TextureState::MapTo mapTo);
+
+		ref_ptr<TextureState> set_texture(
+				const ref_ptr<Texture> &tex,
+				TextureState::MapTo mapTo,
+				const std::string &name);
 
 	private:
 		GLenum fillMode_;
@@ -227,7 +265,7 @@ namespace regen {
 		ref_ptr<ShaderInput1f> materialAlpha_;
 		ref_ptr<UBO> materialUniforms_;
 
-		GLenum mipmapFlag_;
+		bool useMipmap_ = true;
 		GLenum forcedInternalFormat_;
 		GLenum forcedFormat_;
 		Vec3ui forcedSize_;
@@ -244,9 +282,7 @@ namespace regen {
 
 		Material &operator=(const Material &other);
 
-		void set_texture(const ref_ptr<TextureState> &tex, TextureState::MapTo mapTo);
-
-		bool getMapTo(std::string_view fileName, TextureState::MapTo &mapTo);
+		void set_textureState(const ref_ptr<TextureState> &tex, TextureState::MapTo mapTo);
 
 		friend class FillModeState;
 	};

@@ -39,7 +39,7 @@ namespace regen {
 		 */
 		ref_ptr<Texture> load(
 				const std::string &file,
-				GLenum mipmapFlag = GL_DONT_CARE,
+				bool useMipmaps = false,
 				GLenum forcedInternalFormat = GL_NONE,
 				GLenum forcedFormat = GL_NONE,
 				const Vec3ui &forcedSize = Vec3ui(0u),
@@ -62,7 +62,7 @@ namespace regen {
 				GLuint textureType,
 				GLuint numBytes,
 				const void *rawData,
-				GLenum mipmapFlag = GL_DONT_CARE,
+				bool useMipmaps = false,
 				GLenum forcedInternalFormat = GL_NONE,
 				GLenum forcedFormat = GL_NONE,
 				const Vec3ui &forcedSize = Vec3ui(0u));
@@ -76,7 +76,20 @@ namespace regen {
 		ref_ptr<Texture2DArray> loadArray(
 				const std::string &textureDirectory,
 				const std::string &textureNamePattern,
-				GLenum mipmapFlag = GL_DONT_CARE,
+				bool useMipmaps = false,
+				GLenum forcedInternalFormat = GL_NONE,
+				GLenum forcedFormat = GL_NONE,
+				const Vec3ui &forcedSize = Vec3ui(0u));
+
+		/**
+		 * Load a Texture2DArray from file.
+		 * Force specified internal format.
+		 * Scale to forced size (if forced size != 0).
+		 * Setup mipmapping after loading the file.
+		 */
+		ref_ptr<Texture2DArray> loadArray(
+				const std::vector<std::string> &textureFiles,
+				bool useMipmaps = false,
 				GLenum forcedInternalFormat = GL_NONE,
 				GLenum forcedFormat = GL_NONE,
 				const Vec3ui &forcedSize = Vec3ui(0u));
@@ -91,8 +104,8 @@ namespace regen {
 		 */
 		ref_ptr<TextureCube> loadCube(
 				const std::string &file,
-				GLboolean flipBackFace = GL_FALSE,
-				GLenum mipmapFlag = GL_DONT_CARE,
+				bool flipBackFace = GL_FALSE,
+				bool useMipmaps = false,
 				GLenum forcedInternalFormat = GL_NONE,
 				GLenum forcedFormat = GL_NONE,
 				const Vec3ui &forcedSize = Vec3ui(0u));

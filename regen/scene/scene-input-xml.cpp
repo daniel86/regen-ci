@@ -88,24 +88,44 @@ SceneInputNodeXML::SceneInputNodeXML()
 	name_ = "";
 }
 
+static inline std::string getNodeID(rapidxml::xml_node<> *node) {
+	rapidxml::xml_attribute<> *a = node->first_attribute("id");
+	if (a != nullptr) {
+		return a->value();
+	} else {
+		// convert pointer to string
+		return REGEN_STRING(reinterpret_cast<std::uintptr_t>(node));
+	}
+}
+
 SceneInputNodeXML::SceneInputNodeXML(
 		SceneInputNodeXML *parent,
 		rapidxml::xml_node<> *xmlNode)
 		: SceneInputNode(parent),
 		  xmlNode_(xmlNode) {
 	category_ = xmlNode_->name();
-
-	rapidxml::xml_attribute<> *a = xmlNode_->first_attribute("id");
-	if (a != nullptr) {
-		name_ = a->value();
-	} else {
-		name_ = REGEN_STRING(rand());
-	}
+	name_ = getNodeID(xmlNode);
 }
 
 string SceneInputNodeXML::getCategory() const { return category_; }
 
 string SceneInputNodeXML::getName() const { return name_; }
+
+void SceneInputNodeXML::removeChild(const ref_ptr<SceneInputNode> &child) {
+	// first remove from the children list
+	for (auto it = children_.begin(); it != children_.end(); ++it) {
+		if (it->get() == child.get()) {
+			children_.erase(it);
+			break;
+		}
+	}
+
+	auto xmlChild = dynamic_cast<SceneInputNodeXML *>(child.get());
+	if (xmlChild != nullptr) {
+		// next remove from the XML node
+		xmlNode_->remove_node(xmlChild->xmlNode_);
+	}
+}
 
 const list<ref_ptr<SceneInputNode> > &SceneInputNodeXML::getChildren() {
 	if (xmlNode_ != nullptr && children_.empty()) {

@@ -60,8 +60,7 @@ protected:
 	QtApplication *app_;
 	Ui_mainWindow ui_;
 	ref_ptr<NoiseTexture2D> texture_;
-	GLboolean updateTexture_;
-	ref_ptr<Animation> initAnim_;
+	GLboolean updateTexture_ = GL_TRUE;
 
 	std::map<std::string, ref_ptr<NoiseGenerator>> noiseGenerators_;
 

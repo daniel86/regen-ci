@@ -85,6 +85,19 @@ namespace regen {
 		}
 
 		/**
+		 * Produce a random number between 0 and max_int.
+		 */
+		static inline int randomInt() {
+			// Seed for the random number engine
+			static std::random_device rd;
+			// Mersenne Twister engine
+			static std::mt19937 gen(rd());
+			// Uniform distribution between 0 and max_int
+			static std::uniform_int_distribution<int> dis(0, std::numeric_limits<int>::max());
+			return dis(gen);
+		}
+
+		/**
 		 * Compute the next power of 2 greater than or equal to x.
 		 * @param x the input value
 		 * @return the next power of 2 greater than or equal to x

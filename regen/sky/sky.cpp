@@ -96,7 +96,7 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 	cfg.texcoScale = Vec2f(1.0);
 	cfg.translation = Vec3f(-1.0f, -1.0f, 0.0f);
 	cfg.usage = BUFFER_USAGE_STATIC_DRAW;
-	skyQuad_ = ref_ptr<Rectangle>::alloc(cfg);
+	skyQuad_ = Rectangle::create(cfg);
 
 	state()->joinShaderInput(uniformBlock);
 	// mae some parts of the sky configurable from the GUI.

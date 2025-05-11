@@ -177,7 +177,7 @@ ref_ptr<Mesh> createVideoWidget(
 	quadConfig.isTexcoRequired = GL_TRUE;
 	quadConfig.isNormalRequired = GL_FALSE;
 	quadConfig.centerAtOrigin = GL_TRUE;
-	ref_ptr<Mesh> mesh = ref_ptr<regen::Rectangle>::alloc(quadConfig);
+	auto mesh = regen::Rectangle::create(quadConfig);
 
 	ref_ptr<TextureState> texState = ref_ptr<TextureState>::alloc(videoTexture);
 	texState->set_mapTo(TextureState::MAP_TO_COLOR);

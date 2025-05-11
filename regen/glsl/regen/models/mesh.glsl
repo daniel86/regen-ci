@@ -466,7 +466,11 @@ void main() {
     color.a *= in_matAlpha;
 #endif
 #endif // HAS_COL
+#ifdef HAS_CUSTOM_FRAGMENT_MAPPING
+    customFragmentMapping(in_posWorld, color, norWorld);
+#else
     textureMappingFragment(in_posWorld, color, norWorld);
+#endif
 #ifdef DISCARD_ALPHA
     if (color.a < DISCARD_ALPHA_THRESHOLD) discard;
 #endif

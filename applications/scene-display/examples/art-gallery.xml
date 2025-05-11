@@ -179,9 +179,8 @@
             reflector="reflector-mesh"
             has-back-face="1"/>
 
-    <texture id="reflector-noise" noise="perlin" size="128.0,128.0,1.0"
-             baseFrequency="4.0" persistence="0.5" lacunarity="2.5" octaveCount="4"
-             swizzle-g="RED" swizzle-b="RED"/>
+    <texture id="reflector-noise" type="noise" preset="perlin"
+            size="128.0,128.0,1.0" swizzle-g="RED" swizzle-b="RED"/>
 
     <mesh id="reflector-mesh"
           type="rectangle"

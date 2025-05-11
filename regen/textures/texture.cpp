@@ -316,9 +316,9 @@ Vec3i Texture::getSize(
 ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 	ref_ptr<Texture> tex;
 	auto &viewport = ctx.scene()->getViewport();
+	const std::string typeName = input.getValue("type");
 
 	if (input.hasAttribute("file")) {
-		auto mipmapFlag = GL_DONT_CARE;
 		auto forcedInternalFormat = glenum::textureInternalFormat(
 				input.getValue<std::string>("forced-internal-format", "NONE"));
 		auto forcedFormat = glenum::textureFormat(
@@ -326,6 +326,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 		auto forcedSize =
 				input.getValue<Vec3ui>("forced-size", Vec3ui(0u));
 		auto keepData = input.getValue<bool>("keep-data", false);
+		auto useMipmap = input.getValue<bool>("mipmap", false);
 		const std::string filePath =
 				resourcePath(input.getValue("file"));
 
@@ -334,7 +335,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 				tex = textures::loadCube(
 						filePath,
 						input.getValue<bool>("cube-flip-back", false),
-						mipmapFlag,
+						useMipmap,
 						forcedInternalFormat,
 						forcedFormat,
 						forcedSize);
@@ -342,7 +343,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 				tex = textures::loadArray(
 						filePath,
 						input.getValue<std::string>("name-pattern", ".*"),
-						mipmapFlag,
+						useMipmap,
 						forcedInternalFormat,
 						forcedFormat,
 						forcedSize);
@@ -355,7 +356,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 			} else {
 				tex = textures::load(
 						filePath,
-						mipmapFlag,
+						useMipmap,
 						forcedInternalFormat,
 						forcedFormat,
 						forcedSize,
@@ -381,37 +382,19 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 		catch (VideoTexture::Error &ve) {
 			REGEN_ERROR("Failed to load Video at " << filePath << ". " << ve.what());
 		}
-	} else if (input.hasAttribute("noise")) {
-		const std::string noiseMode = input.getValue("noise");
-
+	} else if (typeName == "noise") {
 		auto sizeMode = input.getValue<std::string>("size-mode", "abs");
 		auto sizeRel = input.getValue<Vec3f>("size", Vec3f(256.0, 256.0, 1.0));
 		auto sizeAbs = getSize(viewport, sizeMode, sizeRel);
-
-		auto randomSeed = input.getValue<GLint>("random-seed", rand());
 		auto isSeamless = input.getValue<bool>("is-seamless", false);
-
-		// TODO: allow configuration of noise parameters
-		if (noiseMode == "cloud") {
+		auto generator = NoiseGenerator::load(ctx, input);
+		if(generator.get()) {
 			auto noise = ref_ptr<NoiseTexture2D>::alloc(sizeAbs.x, sizeAbs.y, isSeamless);
-			noise->setNoiseGenerator(NoiseGenerator::preset_clouds(randomSeed));
+			noise->setNoiseScale(input.getValue<float>("noise-scale", 1.0f));
+			noise->setNoiseGenerator(generator);
 			tex = noise;
-		} else if (noiseMode == "wood") {
-			auto noise = ref_ptr<NoiseTexture2D>::alloc(sizeAbs.x, sizeAbs.y, isSeamless);
-			noise->setNoiseGenerator(NoiseGenerator::preset_wood(randomSeed));
-			tex = noise;
-		} else if (noiseMode == "granite") {
-			auto noise = ref_ptr<NoiseTexture2D>::alloc(sizeAbs.x, sizeAbs.y, isSeamless);
-			noise->setNoiseGenerator(NoiseGenerator::preset_granite(randomSeed));
-			tex = noise;
-		} else if (noiseMode == "perlin-2d" || noiseMode == "perlin") {
-			auto noise = ref_ptr<NoiseTexture2D>::alloc(sizeAbs.x, sizeAbs.y, isSeamless);
-			noise->setNoiseGenerator(NoiseGenerator::preset_perlin(randomSeed));
-			tex = noise;
-		} else if (noiseMode == "perlin-3d") {
-			auto noise = ref_ptr<NoiseTexture3D>::alloc(sizeAbs.x, sizeAbs.y, sizeAbs.z, isSeamless);
-			noise->setNoiseGenerator(NoiseGenerator::preset_perlin(randomSeed));
-			tex = noise;
+		} else {
+			REGEN_WARN("No noise generator found for " << input.getDescription() << ".");
 		}
 	} else if (input.hasAttribute("ramp")) {
 		auto ramp = input.getValue("ramp");
@@ -452,22 +435,17 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 		auto spectrum = input.getValue<Vec2d>("spectrum", Vec2d(0.0, 1.0));
 		auto numTexels = input.getValue<GLint>("num-texels", 256u);
 		tex = regen::textures::loadSpectrum(spectrum.x, spectrum.y, numTexels);
-	} else if (input.hasAttribute("type")) {
-		const std::string typeName = input.getValue("type");
-		if (typeName == "bloom") {
-			auto numMips = input.getValue<GLuint>("num-mips", 5u);
-			auto bloomTexture = ref_ptr<BloomTexture>::alloc(numMips);
-			auto inputFBO = ctx.scene()->getResource<FBO>(input.getValue("input-fbo"));
-			if (inputFBO.get() == nullptr) {
-				REGEN_WARN("Unable to find FBO for '" << input.getDescription() << "'.");
-			} else {
-				auto resizer = ref_ptr<TextureResizer>::alloc(bloomTexture, viewport, 1.0, 1.0);
-				ctx.scene()->addEventHandler(Application::RESIZE_EVENT, resizer);
-				tex = bloomTexture;
-				bloomTexture->resize(inputFBO->width(), inputFBO->height());
-			}
+	} else if (typeName == "bloom") {
+		auto numMips = input.getValue<GLuint>("num-mips", 5u);
+		auto bloomTexture = ref_ptr<BloomTexture>::alloc(numMips);
+		auto inputFBO = ctx.scene()->getResource<FBO>(input.getValue("input-fbo"));
+		if (inputFBO.get() == nullptr) {
+			REGEN_WARN("Unable to find FBO for '" << input.getDescription() << "'.");
 		} else {
-			REGEN_WARN("Unknown texture type '" << typeName << "'.");
+			auto resizer = ref_ptr<TextureResizer>::alloc(bloomTexture, viewport, 1.0, 1.0);
+			ctx.scene()->addEventHandler(Application::RESIZE_EVENT, resizer);
+			tex = bloomTexture;
+			bloomTexture->resize(inputFBO->width(), inputFBO->height());
 		}
 	} else {
 		auto sizeMode = input.getValue<std::string>("size-mode", "abs");

@@ -252,7 +252,7 @@ void TextureState::set_blendFunction(const std::string &blendFunction, const std
 	blendName_ = blendName;
 
 	shaderFunction(blendName_, blendFunction_);
-	shaderDefine(REGEN_TEX_NAME("TEX_BLEND_KEY"), blendName_);
+	shaderDefine(REGEN_TEX_NAME("TEX_BLEND_KEY"), blendFunction);
 	shaderDefine(REGEN_TEX_NAME("TEX_BLEND_NAME"), blendName_);
 }
 
@@ -273,7 +273,7 @@ void TextureState::set_mappingFunction(const std::string &mappingFunction, const
 	mappingName_ = mappingName;
 
 	shaderFunction(mappingName_, mappingFunction_);
-	shaderDefine(REGEN_TEX_NAME("TEX_MAPPING_KEY"), mappingName_);
+	shaderDefine(REGEN_TEX_NAME("TEX_MAPPING_KEY"), mappingFunction);
 	shaderDefine(REGEN_TEX_NAME("TEX_MAPPING_NAME"), mappingName_);
 }
 

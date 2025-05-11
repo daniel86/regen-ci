@@ -1,10 +1,3 @@
-/*
- * noise-texture.cpp
- *
- *  Created on: 29.12.2012
- *      Author: daniel
- */
-
 #include <regen/external/libnoise/src/noise/noise.h>
 #include <regen/math/vector.h>
 #include <regen/gl-types/render-state.h>
@@ -16,38 +9,38 @@ using namespace noise;
 
 static GLfloat sampleNoise(
 		const NoiseGenerator &noiseGen,
-		GLdouble x, GLdouble y, GLdouble z,
-		GLboolean isSeamless2D,
-		GLboolean isSeamless3D) {
-	GLfloat val;
+		double x, double y, double z,
+		bool isSeamless2D,
+		bool isSeamless3D) {
+	float val;
 	if (isSeamless2D) {
-		GLdouble a = noiseGen.GetValue(x, y, z);
-		GLdouble b = noiseGen.GetValue(x + 1.0, y, z);
-		GLdouble c = noiseGen.GetValue(x, y + 1.0, z);
-		GLdouble d = noiseGen.GetValue(x + 1.0, y + 1.0, z);
-		val = math::mix(
+		double a = noiseGen.GetValue(x, y, z);
+		double b = noiseGen.GetValue(x + 1.0, y, z);
+		double c = noiseGen.GetValue(x, y + 1.0, z);
+		double d = noiseGen.GetValue(x + 1.0, y + 1.0, z);
+		val = static_cast<float>(math::mix(
 				math::mix(a, b, 1.0 - x),
-				math::mix(c, d, 1.0 - x), 1.0 - y);
+				math::mix(c, d, 1.0 - x), 1.0 - y));
 	} else if (isSeamless3D) {
-		GLdouble a0 = noiseGen.GetValue(x, y, z);
-		GLdouble b0 = noiseGen.GetValue(x + 1.0, y, z);
-		GLdouble c0 = noiseGen.GetValue(x, y + 1.0, z);
-		GLdouble d0 = noiseGen.GetValue(x + 1.0, y + 1.0, z);
-		GLdouble val0 = math::mix(
+		double a0 = noiseGen.GetValue(x, y, z);
+		double b0 = noiseGen.GetValue(x + 1.0, y, z);
+		double c0 = noiseGen.GetValue(x, y + 1.0, z);
+		double d0 = noiseGen.GetValue(x + 1.0, y + 1.0, z);
+		double val0 = math::mix(
 				math::mix(a0, b0, 1.0 - x),
 				math::mix(c0, d0, 1.0 - x), 1.0 - y);
 
-		GLdouble a1 = noiseGen.GetValue(x, y, z + 1.0);
-		GLdouble b1 = noiseGen.GetValue(x + 1.0, y, z + 1.0);
-		GLdouble c1 = noiseGen.GetValue(x, y + 1.0, z + 1.0);
-		GLdouble d1 = noiseGen.GetValue(x + 1.0, y + 1.0, z + 1.0);
-		GLdouble val1 = math::mix(
+		double a1 = noiseGen.GetValue(x, y, z + 1.0);
+		double b1 = noiseGen.GetValue(x + 1.0, y, z + 1.0);
+		double c1 = noiseGen.GetValue(x, y + 1.0, z + 1.0);
+		double d1 = noiseGen.GetValue(x + 1.0, y + 1.0, z + 1.0);
+		double val1 = math::mix(
 				math::mix(a1, b1, 1.0 - x),
 				math::mix(c1, d1, 1.0 - x), 1.0 - y);
 
-		val = (GLfloat) math::mix(val0, val1, 1.0 - z);
+		val = static_cast<float>(math::mix(val0, val1, 1.0 - z));
 	} else {
-		val = (GLfloat) noiseGen.GetValue(x, y, z);
+		val = static_cast<float>(noiseGen.GetValue(x, y, z));
 	}
 	// map roughly to [0,1] and clamp to that range
 	return math::clamp((val + 1.0f) * 0.5f, 0.0f, 1.0f);
@@ -61,14 +54,15 @@ void NoiseTexture::setNoiseGenerator(const ref_ptr<NoiseGenerator> &generator) {
 NoiseTexture2D::NoiseTexture2D(GLuint width, GLuint height, GLboolean isSeamless)
 		: Texture2D(), NoiseTexture(isSeamless) {
 	begin(RenderState::get());
-	set_rectangleSize(width, height);
-	set_rectangleSize(width, height);
-	set_pixelType(GL_UNSIGNED_BYTE);
-	set_format(GL_RED);
-	set_internalFormat(GL_RED);
-	swizzle().push(Vec4i(GL_RED, GL_RED, GL_RED, GL_ONE));
-	filter().push(GL_LINEAR);
-	wrapping().push(GL_REPEAT);
+	{
+		set_rectangleSize(width, height);
+		set_pixelType(GL_UNSIGNED_BYTE);
+		set_format(GL_RED);
+		set_internalFormat(GL_RED);
+		swizzle().push(Vec4i(GL_RED, GL_RED, GL_RED, GL_ONE));
+		filter().push(GL_LINEAR);
+		wrapping().push(GL_MIRRORED_REPEAT);
+	}
 	end(RenderState::get());
 }
 
@@ -80,8 +74,10 @@ void NoiseTexture2D::updateNoise() {
 	GLubyte *dataPtr = data;
 	for (GLuint x = 0u; x < width(); ++x) {
 		for (GLuint y = 0u; y < height(); ++y) {
-			GLfloat val = sampleNoise(gen, x, y, 0.0, isSeamless_, GL_FALSE);
-			*dataPtr = (GLubyte) (val * 255.0f);
+			float fx = noiseScale_ * float(x) / float(width());
+			float fy = noiseScale_ * float(y) / float(height());
+			GLfloat val = sampleNoise(gen, fx, fy, 0.0, isSeamless_, false);
+			*dataPtr = static_cast<GLubyte>(val * 255.0f);
 			++dataPtr;
 		}
 	}
@@ -97,15 +93,17 @@ void NoiseTexture2D::updateNoise() {
 NoiseTexture3D::NoiseTexture3D(GLuint width, GLuint height, GLuint depth, GLboolean isSeamless)
 		: Texture3D(), NoiseTexture(isSeamless) {
 	begin(RenderState::get());
-	set_rectangleSize(width, height);
-	set_depth(depth);
-	set_rectangleSize(width, height);
-	set_pixelType(GL_UNSIGNED_BYTE);
-	set_format(GL_RED);
-	set_internalFormat(GL_RED);
-	swizzle().push(Vec4i(GL_RED, GL_RED, GL_RED, GL_ONE));
-	filter().push(GL_LINEAR);
-	wrapping().push(GL_REPEAT);
+	{
+		set_rectangleSize(width, height);
+		set_depth(depth);
+		set_rectangleSize(width, height);
+		set_pixelType(GL_UNSIGNED_BYTE);
+		set_format(GL_RED);
+		set_internalFormat(GL_RED);
+		swizzle().push(Vec4i(GL_RED, GL_RED, GL_RED, GL_ONE));
+		filter().push(GL_LINEAR);
+		wrapping().push(GL_MIRRORED_REPEAT);
+	}
 	end(RenderState::get());
 }
 
@@ -118,8 +116,11 @@ void NoiseTexture3D::updateNoise() {
 	for (GLuint x = 0u; x < width(); ++x) {
 		for (GLuint y = 0u; y < height(); ++y) {
 			for (GLuint z = 0u; z < depth(); ++z) {
-				GLfloat val = sampleNoise(gen, x, y, z, GL_FALSE, isSeamless_);
-				*dataPtr = (GLubyte) (val * 255.0f);
+				float fx = noiseScale_ * float(x) / float(width());
+				float fy = noiseScale_ * float(y) / float(height());
+				float fz = noiseScale_ * float(z) / float(depth());
+				GLfloat val = sampleNoise(gen, fx, fy, fz, false, isSeamless_);
+				*dataPtr = static_cast<GLubyte>(val * 255.0f);
 				++dataPtr;
 			}
 		}
@@ -142,7 +143,7 @@ NoiseGenerator::NoiseGenerator(std::string_view name,
 {}
 
 void NoiseGenerator::addSource(const ref_ptr<NoiseGenerator> &source) {
-	handle_->SetSourceModule(sources_.size(), *source->handle_.get());
+	handle_->SetSourceModule(static_cast<int>(sources_.size()), *source->handle_.get());
 	sources_.push_back(source);
 }
 
@@ -307,4 +308,146 @@ ref_ptr<NoiseGenerator> NoiseGenerator::preset_granite(GLint randomSeed) {
 	auto finalGen = ref_ptr<NoiseGenerator>::alloc("final", finalGranite);
 	finalGen->addSource(combinedGen);
 	return finalGen;
+}
+
+ref_ptr<NoiseGenerator> loadGenerator(
+		LoadingContext &ctx,
+		scene::SceneInputNode &input,
+		const std::map<std::string, ref_ptr<NoiseGenerator>> &generators,
+		int randomSeed) {
+	const std::string generatorType = input.getValue("type");
+	ref_ptr<NoiseGenerator> generator;
+
+	if (generatorType == "perlin") {
+		auto perlin = ref_ptr<module::Perlin>::alloc();
+		perlin->SetSeed(randomSeed);
+		perlin->SetFrequency(input.getValue<double>("frequency", 4.0));
+		perlin->SetPersistence(input.getValue<double>("persistence", 0.5));
+		perlin->SetLacunarity(input.getValue<double>("lacunarity", 2.5));
+		perlin->SetOctaveCount(input.getValue<int>("octaves", 4));
+		generator = ref_ptr<NoiseGenerator>::alloc("perlin", perlin);
+	}
+	else if (generatorType == "billow") {
+		auto billow = ref_ptr<module::Billow>::alloc();
+		billow->SetSeed(randomSeed);
+		billow->SetFrequency(input.getValue<double>("frequency", 4.0));
+		billow->SetPersistence(input.getValue<double>("persistence", 0.5));
+		billow->SetLacunarity(input.getValue<double>("lacunarity", 2.5));
+		billow->SetOctaveCount(input.getValue<int>("octaves", 4));
+		//billow->SetNoiseQuality(QUALITY_STD);
+		generator = ref_ptr<NoiseGenerator>::alloc("billow", billow);
+	}
+	else if (generatorType == "turbulence") {
+		auto turbulence = ref_ptr<module::Turbulence>::alloc();
+		turbulence->SetSeed(randomSeed);
+		turbulence->SetFrequency(input.getValue<double>("frequency", 4.0));
+		turbulence->SetPower(input.getValue<double>("power", 1.0));
+		turbulence->SetRoughness(input.getValue<int>("roughness", 2));
+		generator = ref_ptr<NoiseGenerator>::alloc("turbulence", turbulence);
+	}
+	else if (generatorType == "voronoi") {
+		auto voronoi = ref_ptr<module::Voronoi>::alloc();
+		voronoi->SetSeed(randomSeed);
+		voronoi->SetFrequency(input.getValue<double>("frequency", 4.0));
+		voronoi->SetDisplacement(input.getValue<double>("displacement", 0.0));
+		voronoi->EnableDistance(input.getValue<bool>("distance", false));
+		generator = ref_ptr<NoiseGenerator>::alloc("voronoi", voronoi);
+	}
+	else if (generatorType == "cylinders") {
+		auto cylinders = ref_ptr<module::Cylinders>::alloc();
+		cylinders->SetFrequency(input.getValue<double>("frequency", 4.0));
+		generator = ref_ptr<NoiseGenerator>::alloc("cylinders", cylinders);
+	}
+	else if (generatorType == "scale-bias") {
+		auto scaleBias = ref_ptr<module::ScaleBias>::alloc();
+		scaleBias->SetScale(input.getValue<double>("scale", 1.0));
+		scaleBias->SetBias(input.getValue<double>("bias", 0.0));
+		generator = ref_ptr<NoiseGenerator>::alloc("scale-bias", scaleBias);
+	}
+	else if (generatorType == "rotate-point") {
+		auto rotatePoint = ref_ptr<module::RotatePoint>::alloc();
+		rotatePoint->SetAngles(
+				input.getValue<double>("angle-x", 0.0),
+				input.getValue<double>("angle-y", 0.0),
+				input.getValue<double>("angle-z", 0.0));
+		generator = ref_ptr<NoiseGenerator>::alloc("rotate-point", rotatePoint);
+	}
+	else if (generatorType == "translate-point") {
+		auto translatePoint = ref_ptr<module::TranslatePoint>::alloc();
+		translatePoint->SetXTranslation(input.getValue<double>("x-translation", 0.0));
+		translatePoint->SetYTranslation(input.getValue<double>("y-translation", 0.0));
+		translatePoint->SetZTranslation(input.getValue<double>("z-translation", 0.0));
+		generator = ref_ptr<NoiseGenerator>::alloc("translate-point", translatePoint);
+	}
+	else if (generatorType == "add") {
+		generator = ref_ptr<NoiseGenerator>::alloc("add", ref_ptr<module::Add>::alloc());
+	}
+	else {
+		REGEN_WARN("Unknown noise generator type '" << generatorType << "'.");
+		return {};
+	}
+	for (auto &n: input.getChildren()) {
+		if (n->getCategory() != "source") {
+			REGEN_WARN("Unknown noise generator type '" << n->getCategory() <<
+					"' in node '" << n->getDescription() << "'.");
+			continue;
+		}
+		auto sourceId = n->getName();
+		auto needle = generators.find(sourceId);
+		if (needle == generators.end()) {
+			REGEN_WARN("Unable to find noise generator '" << sourceId <<
+					"' in node '" << n->getDescription() << "'.");
+			continue;
+		}
+		generator->addSource(needle->second);
+	}
+	return generator;
+}
+
+ref_ptr<NoiseGenerator> NoiseGenerator::load(LoadingContext &ctx, scene::SceneInputNode &input) {
+	auto randomSeed = input.getValue<GLint>("random-seed", math::randomInt());
+
+	if (input.hasAttribute("preset")) {
+		auto preset = input.getValue("preset");
+		if (preset == "perlin") {
+			return preset_perlin(randomSeed);
+		} else if (preset == "wood") {
+			return preset_wood(randomSeed);
+		} else if (preset == "granite") {
+			return preset_granite(randomSeed);
+		} else if (preset == "cloud" || preset == "clouds") {
+			return preset_clouds(randomSeed);
+		} else {
+			REGEN_WARN("Unknown noise generator preset '" << preset << "'.");
+			return {};
+		}
+	}
+	auto outputGenerator = input.getValue("output-generator");
+	if (outputGenerator.empty()) {
+		REGEN_WARN("Missing 'output-generator' attribute for noise generator '" << input.getDescription() << "'.");
+		return {};
+	}
+
+	std::map<std::string, ref_ptr<NoiseGenerator>> generators;
+	for (auto &n: input.getChildren()) {
+		if (n->getCategory() == "generator") {
+			auto noiseGen = loadGenerator(ctx, *n.get(), generators, randomSeed);
+			if (noiseGen.get() != nullptr) {
+				generators[n->getName()] = noiseGen;
+			}
+		} else {
+			REGEN_WARN("Unknown noise generator type '" << n->getCategory() << "'.");
+		}
+	}
+	if (generators.empty()) {
+		REGEN_WARN("No noise generators found for '" << input.getDescription() << "'.");
+		return {};
+	}
+
+	auto needle = generators.find(outputGenerator);
+	if (needle == generators.end()) {
+		REGEN_WARN("Unable to find noise generator '" << outputGenerator << "'.");
+		needle = generators.begin();
+	}
+	return needle->second;
 }

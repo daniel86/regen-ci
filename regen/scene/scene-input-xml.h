@@ -63,6 +63,8 @@ namespace regen {
 
 			const std::list<ref_ptr<SceneInputNode> > &getChildren() override;
 
+			void removeChild(const ref_ptr<SceneInputNode> &child) override;
+
 			const std::map<std::string, std::string> &getAttributes() override;
 
 		protected:

@@ -7,7 +7,7 @@
 #include "regen/states/blit-state.h"
 #include "regen/states/state-configurer.h"
 #include "regen/states/fbo-state.h"
-#include "regen/meshes/primitives/rectangle.h"
+#include "regen/states/fullscreen-pass.h"
 #include <regen/animations/animation-manager.h>
 #include <QInputDialog>
 
@@ -18,16 +18,6 @@ using namespace std;
 
 ////////////
 ////////////
-
-class InitAnimation : public Animation {
-public:
-	explicit InitAnimation(NoiseWidget *widget)
-			: Animation(GL_TRUE, GL_FALSE), widget_(widget) {}
-
-	void glAnimate(RenderState *rs, GLdouble dt) override { widget_->gl_loadScene(); }
-
-	NoiseWidget *widget_;
-};
 
 NoiseWidget::NoiseWidget(QtApplication *app)
 		: QMainWindow(),
@@ -40,15 +30,10 @@ NoiseWidget::NoiseWidget(QtApplication *app)
 	app_->glWidget()->setFocusPolicy(Qt::NoFocus);
 	ui_.glWidgetLayout->addWidget(app_->glWidgetContainer(), 0, 0, 1, 1);
 
-	// initially table size
-	QList<int> initialSizes;
-	initialSizes.append(500);
-	initialSizes.append(300);
-	ui_.splitter->setSizes(initialSizes);
-
-	updateTexture_ = GL_TRUE;
+	resize(1600, 1200);
+	ui_.splitter->setSizes(QList<int>({1200, 400}));
 	updateSize();
-	initAnim_ = ref_ptr<InitAnimation>::alloc(this);
+	app_->withGLContext([this]() { gl_loadScene(); });
 }
 
 // Resizes Framebuffer texture when the window size changed
@@ -59,8 +44,8 @@ public:
 
 	void call(EventObject *evObject, EventData *) {
 		auto *app = (Application *) evObject;
-		auto winSize = app->windowViewport()->getVertex(0).r;
-		fboState_->resize(winSize.x * wScale_, winSize.y * hScale_);
+		auto winSize = app->windowViewport()->getVertex(0);
+		fboState_->resize(winSize.r.x, winSize.r.y);
 	}
 
 protected:
@@ -68,54 +53,11 @@ protected:
 	GLfloat wScale_, hScale_;
 };
 
-void setBlitToScreen(
-		Application *app,
-		const ref_ptr<FBO> &fbo,
-		GLenum attachment) {
-	ref_ptr<State> blitState = ref_ptr<BlitToScreen>::alloc(fbo, app->windowViewport(), attachment);
-	app->renderTree()->addChild(ref_ptr<StateNode>::alloc(blitState));
-}
-
-ref_ptr<Mesh> createTextureWidget(
-		Application *app,
-		const ref_ptr<Texture> &texture,
-		const ref_ptr<StateNode> &root) {
-	Rectangle::Config quadConfig;
-	quadConfig.levelOfDetails = {0};
-	quadConfig.isTexcoRequired = GL_TRUE;
-	quadConfig.isNormalRequired = GL_FALSE;
-	quadConfig.isTangentRequired = GL_FALSE;
-	quadConfig.centerAtOrigin = GL_TRUE;
-	quadConfig.rotation = Vec3f(0.5 * M_PI, 0.0 * M_PI, 0.0 * M_PI);
-	quadConfig.posScale = Vec3f(1.0f);
-	quadConfig.texcoScale = Vec2f(-1.0f, 1.0f);
-	quadConfig.levelOfDetails = {0};
-	quadConfig.isTexcoRequired = GL_TRUE;
-	quadConfig.isNormalRequired = GL_FALSE;
-	quadConfig.centerAtOrigin = GL_TRUE;
-	ref_ptr<Mesh> mesh = ref_ptr<regen::Rectangle>::alloc(quadConfig);
-
-	auto texState = ref_ptr<TextureState>::alloc(texture);
-	texState->set_mapTo(TextureState::MAP_TO_COLOR);
-	mesh->joinStates(texState);
-
-	ref_ptr<ShaderState> shaderState = ref_ptr<ShaderState>::alloc();
-	mesh->joinStates(shaderState);
-
-	ref_ptr<StateNode> meshNode = ref_ptr<StateNode>::alloc(mesh);
-	root->addChild(meshNode);
-
-	StateConfigurer shaderConfigurer;
-	shaderConfigurer.addNode(meshNode.get());
-	shaderConfigurer.define("USE_NORMALIZED_COORDINATES", "TRUE");
-	shaderState->createShader(shaderConfigurer.cfg(), "regen.gui.widget");
-	mesh->updateVAO(RenderState::get(), shaderConfigurer.cfg(), shaderState->shader());
-
-	return mesh;
-}
-
 void NoiseWidget::gl_loadScene() {
 	AnimationManager::get().pause(GL_TRUE);
+	AnimationManager::get().setRootState(app_->renderTree()->state());
+	// TODO: why needed? seems it is initialized once and then GL context is switched?
+	RenderState::reset();
 
 	// create render target
 	auto winSize = app_->windowViewport()->getVertex(0).r;
@@ -123,6 +65,9 @@ void NoiseWidget::gl_loadScene() {
 	ref_ptr<Texture> target = fbo->addTexture(1, GL_TEXTURE_2D, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE);
 	ref_ptr<FBOState> fboState = ref_ptr<FBOState>::alloc(fbo);
 	fboState->addDrawBuffer(GL_COLOR_ATTACHMENT0);
+	fboState->setClearColor({
+		Vec4f(0.26, 0.26, 0.36, 1.0),
+		GL_COLOR_ATTACHMENT0 });
 	// resize fbo with window
 	auto resizer = ref_ptr<FBOResizer>::alloc(fboState, 1.0, 1.0);
 	app_->connect(Application::RESIZE_EVENT, resizer);
@@ -132,13 +77,25 @@ void NoiseWidget::gl_loadScene() {
 	app_->renderTree()->addChild(sceneRoot);
 
 	// add the video widget to the root node
-	texture_ = ref_ptr<NoiseTexture2D>::alloc(256, 256);
-	createTextureWidget(app_, texture_, sceneRoot);
-	setBlitToScreen(app_, fbo, GL_COLOR_ATTACHMENT0);
+	texture_ = ref_ptr<NoiseTexture2D>::alloc(1024, 1024);
+
+	auto pass = ref_ptr<FullscreenPass>::alloc("regen.filter.sampling");
+	sceneRoot->state()->joinStates(
+		ref_ptr<TextureState>::alloc(texture_, "inputTexture"));
+	StateConfigurer shaderConfigurer;
+	shaderConfigurer.addNode(sceneRoot.get());
+	shaderConfigurer.addState(pass.get());
+	pass->createShader(shaderConfigurer.cfg());
+	sceneRoot->state()->joinStates(pass);
+
+	//createTextureWidget(app_, texture_, sceneRoot);
+	sceneRoot->state()->joinStates(ref_ptr<BlitToScreen>::alloc(
+			fbo, app_->windowViewport(),
+			GL_COLOR_ATTACHMENT0,
+			GL_TRUE));
 	GL_ERROR_LOG();
 
 	updateSize();
-	initAnim_ = ref_ptr<Animation>();
 	AnimationManager::get().resume();
 }
 
@@ -147,18 +104,8 @@ void NoiseWidget::gl_loadScene() {
 //////////////////////////////
 
 void NoiseWidget::updateSize() {
-	GLfloat widgetRatio = ui_.blackBackground->width() / (GLfloat) ui_.blackBackground->height();
-	GLfloat texRatio = 1.0;
-	GLint w, h;
-	if (widgetRatio > texRatio) {
-		w = (GLint) (ui_.blackBackground->height() * texRatio);
-		h = ui_.blackBackground->height();
-	} else {
-		w = ui_.blackBackground->width();
-		h = (GLint) (ui_.blackBackground->width() / texRatio);
-	}
-	if (w % 2 != 0) { w -= 1; }
-	if (h % 2 != 0) { h -= 1; }
+	auto w = ui_.blackBackground->width();
+	auto h = ui_.blackBackground->height();
 	ui_.glWidget->setMinimumSize(QSize(max(2, w), max(2, h)));
 }
 
@@ -175,7 +122,10 @@ void NoiseWidget::glAnimate(RenderState *rs, GLdouble dt) {
 			ui_.textureSelectionBox->currentIndex()).toStdString();
 	if (noiseModuleName.empty()) { return; }
 	auto generator = noiseGenerators_[noiseModuleName];
-	if (!generator.get()) { return; }
+	if (!generator.get()) {
+		REGEN_INFO("no generator found for " << noiseModuleName);
+		return;
+	}
 
 	lock();
 	texture_->setNoiseGenerator(generator);
@@ -267,7 +217,7 @@ void NoiseWidget::addProperty_i(
 #define NOISE_SEED_MIN 0
 #define NOISE_SEED_MAX 999999
 #define NOISE_FREQUENCY_MIN 0.0
-#define NOISE_FREQUENCY_MAX 100.0
+#define NOISE_FREQUENCY_MAX 20.0
 #define NOISE_PERSISTENCE_MIN 0.0
 #define NOISE_PERSISTENCE_MAX 1.0
 #define NOISE_LACUNARITY_MIN 1.0
