@@ -1,12 +1,5 @@
-/*
- * rectangle.h
- *
- *  Created on: 31.08.2011
- *      Author: daniel
- */
-
-#ifndef __RECTANGLE_H__
-#define __RECTANGLE_H__
+#ifndef REGEN_RECTANGLE_H_
+#define REGEN_RECTANGLE_H_
 
 #include <regen/meshes/mesh-state.h>
 #include "../lod/tessellation.h"
@@ -63,6 +56,18 @@ namespace regen {
 		static ref_ptr<Rectangle> getUnitQuad();
 
 		/**
+		 * Creates a rectangle mesh.
+		 * @param cfg the mesh configuration.
+		 * @return the rectangle mesh.
+		 */
+		[[nodiscard]]
+		static ref_ptr<Rectangle> create(const Config &cfg) {
+			auto rect = ref_ptr<Rectangle>::alloc(cfg);
+			rect->updateAttributes();
+			return rect;
+		}
+
+		/**
 		 * @param cfg the mesh configuration.
 		 */
 		explicit Rectangle(const Config &cfg = Config());
@@ -76,9 +81,10 @@ namespace regen {
 		 * Updates vertex data based on given configuration.
 		 * @param cfg vertex data configuration.
 		 */
-		void updateAttributes(Config cfg);
+		virtual void updateAttributes();
 
 	protected:
+		Config rectangleConfig_;
 		ref_ptr<ShaderInput3f> pos_;
 		ref_ptr<ShaderInput3f> nor_;
 		ref_ptr<ShaderInput4f> tan_;
@@ -90,7 +96,9 @@ namespace regen {
 				const Mat4f &rotMat,
 				GLuint vertexOffset,
 				GLuint indexOffset);
+
+		virtual void tessellateRectangle(uint32_t lod, Tessellation &t);
 	};
 } // namespace
 
-#endif /* __RECTANGLE_H__ */
+#endif /* REGEN_RECTANGLE_H_ */

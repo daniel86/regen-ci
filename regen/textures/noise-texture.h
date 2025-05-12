@@ -80,6 +80,11 @@ namespace regen {
 		 */
 		static ref_ptr<NoiseGenerator> preset_clouds(GLint randomSeed);
 
+		/**
+		 * Load noise generator from a scene input node.
+		 */
+		static ref_ptr<NoiseGenerator> load(LoadingContext &ctx, scene::SceneInputNode &input);
+
 	protected:
 		std::string name_;
 		ref_ptr<noise::module::Module> handle_;
@@ -94,9 +99,14 @@ namespace regen {
 		/**
 		 * @param isSeamless true if the texture should be seamless.
 		 */
-		explicit NoiseTexture(GLboolean isSeamless) : isSeamless_(isSeamless) {}
+		explicit NoiseTexture(bool isSeamless) : isSeamless_(isSeamless) {}
 
 		virtual ~NoiseTexture() = default;
+
+		/**
+		 * A scale factor applied when sampling the noise.
+		 */
+		void setNoiseScale(float scale) { noiseScale_ = scale; }
 
 		/**
 		 * @param generator the noise generator.
@@ -112,7 +122,8 @@ namespace regen {
 
 	protected:
 		ref_ptr<NoiseGenerator> generator_;
-		GLboolean isSeamless_;
+		bool isSeamless_;
+		float noiseScale_ = 1.0f;
 	};
 
 	/**

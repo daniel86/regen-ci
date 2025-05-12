@@ -1,10 +1,3 @@
-/*
- * rectangle.cpp
- *
- *  Created on: 31.08.2011
- *      Author: daniel
- */
-
 #include "../lod/tessellation.h"
 #include "rectangle.h"
 
@@ -25,6 +18,7 @@ ref_ptr<Rectangle> Rectangle::getUnitQuad() {
 		cfg.translation = Vec3f(-1.0f, -1.0f, 0.0f);
 		cfg.usage = BUFFER_USAGE_STATIC_DRAW;
 		mesh = ref_ptr<Rectangle>::alloc(cfg);
+		mesh->updateAttributes();
 		return mesh;
 	} else {
 		return ref_ptr<Rectangle>::alloc(mesh);
@@ -32,27 +26,23 @@ ref_ptr<Rectangle> Rectangle::getUnitQuad() {
 }
 
 Rectangle::Rectangle(const Config &cfg)
-		: Mesh(GL_TRIANGLES, cfg.usage) {
+		: Mesh(GL_TRIANGLES, cfg.usage),
+		  rectangleConfig_(cfg) {
 	pos_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	nor_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_NOR);
 	texco_ = ref_ptr<ShaderInput2f>::alloc("texco0");
 	tan_ = ref_ptr<ShaderInput4f>::alloc(ATTRIBUTE_NAME_TAN);
 	indices_ = ref_ptr<ShaderInput1ui>::alloc("i");
-	updateAttributes(cfg);
 }
 
 Rectangle::Rectangle(const ref_ptr<Rectangle> &other)
-		: Mesh(other) {
-	pos_ = ref_ptr<ShaderInput3f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_POS));
-	nor_ = ref_ptr<ShaderInput3f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_NOR));
-	texco_ = ref_ptr<ShaderInput2f>::dynamicCast(
-			inputContainer_->getInput("texco0"));
-	tan_ = ref_ptr<ShaderInput4f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_TAN));
-	indices_ = ref_ptr<ShaderInput1ui>::dynamicCast(
-			inputContainer_->getInput("i"));
+		: Mesh(other),
+		  rectangleConfig_(other->rectangleConfig_) {
+	pos_ = ref_ptr<ShaderInput3f>::dynamicCast(inputContainer_->getInput(ATTRIBUTE_NAME_POS));
+	nor_ = ref_ptr<ShaderInput3f>::dynamicCast(inputContainer_->getInput(ATTRIBUTE_NAME_NOR));
+	texco_ = ref_ptr<ShaderInput2f>::dynamicCast(inputContainer_->getInput("texco0"));
+	tan_ = ref_ptr<ShaderInput4f>::dynamicCast(inputContainer_->getInput(ATTRIBUTE_NAME_TAN));
+	indices_ = ref_ptr<ShaderInput1ui>::dynamicCast(inputContainer_->getInput("i"));
 }
 
 Rectangle::Config::Config()
@@ -140,7 +130,11 @@ void Rectangle::generateLODLevel(const Config &cfg,
 	}
 }
 
-void Rectangle::updateAttributes(Config cfg) {
+void Rectangle::tessellateRectangle(uint32_t lod, Tessellation &t) {
+	tessellate(lod, t);
+}
+
+void Rectangle::updateAttributes() {
 	std::vector<Tessellation> tessellations;
 	GLuint numVertices = 0;
 	GLuint numIndices = 0;
@@ -155,11 +149,11 @@ void Rectangle::updateAttributes(Config cfg) {
 		baseTess.inputFaces[0] = TessellationFace(0, 1, 3);
 		baseTess.inputFaces[1] = TessellationFace(1, 2, 3);
 
-		for (GLuint lodLevel: cfg.levelOfDetails) {
+		for (GLuint lodLevel: rectangleConfig_.levelOfDetails) {
 			auto &lodTess = tessellations.emplace_back();
 			lodTess.vertices = baseTess.vertices;
 			lodTess.inputFaces = baseTess.inputFaces;
-			tessellate(lodLevel, lodTess);
+			tessellateRectangle(lodLevel, lodTess);
 
 			auto &x = meshLODs_.emplace_back();
 			x.numVertices = lodTess.vertices.size();
@@ -170,20 +164,20 @@ void Rectangle::updateAttributes(Config cfg) {
 			numIndices += lodTess.outputFaces.size() * 3;
 		}
 	}
-	if (cfg.isTangentRequired) {
-		cfg.isNormalRequired = GL_TRUE;
-		cfg.isTexcoRequired = GL_TRUE;
+	if (rectangleConfig_.isTangentRequired) {
+		rectangleConfig_.isNormalRequired = GL_TRUE;
+		rectangleConfig_.isTexcoRequired = GL_TRUE;
 	}
 
 	// allocate attributes
 	pos_->setVertexData(numVertices);
-	if (cfg.isNormalRequired) {
+	if (rectangleConfig_.isNormalRequired) {
 		nor_->setVertexData(numVertices);
 	}
-	if (cfg.isTexcoRequired) {
+	if (rectangleConfig_.isTexcoRequired) {
 		texco_->setVertexData(numVertices);
 	}
-	if (cfg.isTangentRequired) {
+	if (rectangleConfig_.isTangentRequired) {
 		tan_->setVertexData(numVertices);
 	}
 	indices_->setVertexData(numIndices);
@@ -191,9 +185,12 @@ void Rectangle::updateAttributes(Config cfg) {
 	minPosition_ = Vec3f(0.0);
 	maxPosition_ = Vec3f(0.0);
 
-	Mat4f rotMat = Mat4f::rotationMatrix(cfg.rotation.x, cfg.rotation.y, cfg.rotation.z);
+	Mat4f rotMat = Mat4f::rotationMatrix(
+		rectangleConfig_.rotation.x,
+		rectangleConfig_.rotation.y,
+		rectangleConfig_.rotation.z);
 	for (auto i = 0u; i < tessellations.size(); ++i) {
-		generateLODLevel(cfg,
+		generateLODLevel(rectangleConfig_,
 						 tessellations[i],
 						 rotMat,
 						 meshLODs_[i].vertexOffset,
@@ -203,11 +200,11 @@ void Rectangle::updateAttributes(Config cfg) {
 	begin(InputContainer::INTERLEAVED);
 	auto indexRef = setIndices(indices_, numVertices);
 	setInput(pos_);
-	if (cfg.isNormalRequired)
+	if (rectangleConfig_.isNormalRequired)
 		setInput(nor_);
-	if (cfg.isTexcoRequired)
+	if (rectangleConfig_.isTexcoRequired)
 		setInput(texco_);
-	if (cfg.isTangentRequired)
+	if (rectangleConfig_.isTangentRequired)
 		setInput(tan_);
 	end();
 

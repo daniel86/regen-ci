@@ -330,8 +330,10 @@ bool ShaderInputWidget::addParameter(
 			return false;
 		}
 		bool hasInputs = false;
-		for (auto &uniform: block->blockInputs()) {
-			hasInputs = addParameter(node, uniform, parent) || hasInputs;
+		if (block) {
+			for (auto &uniform: block->blockInputs()) {
+				hasInputs = addParameter(node, uniform, parent) || hasInputs;
+			}
 		}
 		return hasInputs;
 	}

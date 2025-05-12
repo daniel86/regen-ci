@@ -14,6 +14,7 @@ MaskMesh::MaskMesh(const ref_ptr<Texture2D> &maskTexture, const Config &cfg)
 	joinStates(ts);
 
 	modelOffset_ = ref_ptr<ShaderInput3f>::alloc("modelOffset");
+	updateAttributes();
 	updateMask(cfg);
 }
 

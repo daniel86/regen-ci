@@ -9,11 +9,12 @@
 #include "regen/meshes/primitives/point.h"
 #include "assimp-importer.h"
 #include "mask-mesh.h"
-#include "proc-tree.h"
+#include "terrain/proc-tree.h"
 #include "particles.h"
 #include "regen/states/state-node.h"
 #include "regen/scene/loading-context.h"
 #include "lod/mesh-simplifier.h"
+#include "regen/meshes/terrain/ground.h"
 
 using namespace regen;
 
@@ -91,7 +92,7 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 		meshCfg.usage = vboUsage;
 
 		(*out) = MeshVector(1);
-		(*out)[0] = ref_ptr<Rectangle>::alloc(meshCfg);
+		(*out)[0] = Rectangle::create(meshCfg);
 	} else if (meshType == "box") {
 		Box::Config meshCfg;
 		meshCfg.texcoMode = input.getValue<Box::TexcoMode>("texco-mode", Box::TEXCO_MODE_UV);
@@ -257,6 +258,14 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 		} else {
 			(*out) = MeshVector(1);
 			(*out)[0] = ref_ptr<MaskMesh>::alloc(maskTexture, meshCfg);
+		}
+	} else if (meshType == "ground") {
+		auto groundMesh = Ground::load(ctx, input);
+		if (groundMesh.get() == nullptr) {
+			REGEN_WARN("Ignoring " << input.getDescription() << ", failed to load ground mesh.");
+		} else {
+			(*out) = MeshVector(1);
+			(*out)[0] = groundMesh;
 		}
 	} else if (meshType == "proctree") {
 		auto procTree = ref_ptr<ProcTree>::alloc(input);

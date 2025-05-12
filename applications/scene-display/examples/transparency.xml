@@ -67,16 +67,14 @@
              is-cube="1"
              cube-flip-back="0"
              file="res/sky/park3/cube.png"
-             min-filter="LINEAR_MIPMAP_LINEAR"
-             mag-filter="LINEAR"
+             mipmap="1"
              wrapping="CLAMP_TO_EDGE"/>
     <texture id="lens-dirt" file="res/textures/lens/dirt1.png"
              wrapping="CLAMP_TO_EDGE"/>
     <texture id="lens-gradient" file="res/textures/lens/gradient1.psd"
              wrapping="CLAMP_TO_EDGE"/>
     <texture id="lens-starburst" file="res/textures/lens/starburst.png"
-             min-filter="LINEAR_MIPMAP_LINEAR"
-             mag-filter="LINEAR"/>
+             mipmap="1"/>
     <!-- Lights -->
     <light id="spot-light"
            type="SPOT"

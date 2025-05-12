@@ -71,6 +71,11 @@ namespace regen::scene {
 		virtual const std::list<ref_ptr<SceneInputNode> > &getChildren() = 0;
 
 		/**
+		 * @param child Child node to remove.
+		 */
+		virtual void removeChild(const ref_ptr<SceneInputNode> &child) = 0;
+
+		/**
 		 * @return Map of InputNode attributes.
 		 */
 		virtual const std::map<std::string, std::string> &getAttributes() = 0;
