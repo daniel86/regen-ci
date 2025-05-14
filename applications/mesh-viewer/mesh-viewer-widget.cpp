@@ -27,7 +27,7 @@ class FBOResizer : public EventHandler {
 public:
 	explicit FBOResizer(const ref_ptr<FBOState> &fbo) : EventHandler(), fboState_(fbo) {}
 	void call(EventObject *evObject, EventData *) override {
-		auto *app = (Application *) evObject;
+		auto *app = (Scene *) evObject;
 		auto winSize = app->windowViewport()->getVertex(0);
 		fboState_->resize(winSize.r.x, winSize.r.y);
 	}
@@ -306,7 +306,7 @@ void MeshViewerWidget::selectMesh(int32_t meshIndex, uint32_t lodIndex) {
 		for (uint32_t i = 0u; i < meshNodes_.size(); ++i) {
 			selectMesh_(i, lodIndex);
 		}
-	} else if (meshIndex < meshNodes_.size()) {
+	} else if (meshIndex < static_cast<int32_t>(meshNodes_.size())) {
 			selectMesh_(meshIndex, lodIndex);
 	}
 	currentMeshIndex_ = meshIndex;
@@ -336,16 +336,14 @@ void MeshViewerWidget::createCameraController() {
 	ref_ptr<QtFirstPersonEventHandler> cameraEventHandler =
 			ref_ptr<QtFirstPersonEventHandler>::alloc(cameraController_, keyMappings);
 	cameraEventHandler->set_sensitivity(0.005f);
-	app_->connect(Application::KEY_EVENT, cameraEventHandler);
-	app_->connect(Application::BUTTON_EVENT, cameraEventHandler);
-	app_->connect(Application::MOUSE_MOTION_EVENT, cameraEventHandler);
+	app_->connect(Scene::KEY_EVENT, cameraEventHandler);
+	app_->connect(Scene::BUTTON_EVENT, cameraEventHandler);
+	app_->connect(Scene::MOUSE_MOTION_EVENT, cameraEventHandler);
 }
 
 void MeshViewerWidget::gl_loadScene() {
 	AnimationManager::get().pause(GL_TRUE);
 	AnimationManager::get().setRootState(app_->renderTree()->state());
-	// TODO: why needed? seems it is initialized once and then GL context is switched?
-	RenderState::reset();
 
 	// create render target
 	auto fbo = ref_ptr<FBO>::alloc(ui_.glWidget->width(), ui_.glWidget->height());
@@ -398,10 +396,10 @@ void MeshViewerWidget::gl_loadScene() {
 	GL_ERROR_LOG();
 
 	// resize fbo with window
-	app_->connect(Application::RESIZE_EVENT, ref_ptr<FBOResizer>::alloc(fboState));
+	app_->connect(Scene::RESIZE_EVENT, ref_ptr<FBOResizer>::alloc(fboState));
 	// Update frustum when window size changes
-	app_->connect(Application::RESIZE_EVENT,
-			ref_ptr<ProjectionUpdater>::alloc(userCamera_, app_->windowViewport()));
+	app_->connect(Scene::RESIZE_EVENT,
+				  ref_ptr<ProjectionUpdater>::alloc(userCamera_, app_->windowViewport()));
 
 	AnimationManager::get().resume();
 	REGEN_INFO("Scene Loaded.");
@@ -498,11 +496,11 @@ void MeshViewerWidget::openAssetFile() {
 
 void MeshViewerWidget::activateLoD(int lodLevel, const ref_ptr<Mesh> &mesh) {
 	auto numLODs = mesh->numLODs();
-	if (lodLevel > numLODs) {
+	if (static_cast<uint32_t>(lodLevel) > numLODs) {
 		REGEN_WARN("Invalid LOD level " << lodLevel);
 		lodLevel = 0;
 	}
-	mesh->activateLOD(lodLevel);
+	mesh->activateLOD(static_cast<uint32_t>(lodLevel));
 }
 
 void MeshViewerWidget::activateLoD(int lodLevel) {

@@ -1,0 +1,314 @@
+#include <GL/glew.h>
+// NOTE: QT does not like using glew :/ it will print warnings that can be ignored.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcpp"
+#include <QtGui/QOpenGLContext>
+#pragma GCC diagnostic pop
+
+#include <QtGui/QMouseEvent>
+#include <QtGui/QWindow>
+#include <QVBoxLayout>
+
+#include <regen/utility/threading.h>
+#include "scene-widget.h"
+#include "qt-application.h"
+#include "regen/animations/animation-manager.h"
+
+using namespace regen;
+
+#define WAIT_ON_VSYNC
+
+namespace regen {
+	class SceneWindow : public QOpenGLWindow {
+	public:
+		explicit SceneWindow(SceneWidget *sceneWidget, QWindow *parent = nullptr)
+				: QOpenGLWindow(NoPartialUpdate, parent),
+				  sceneWidget_(sceneWidget) {}
+
+		void initializeGL() override {}
+		void resizeGL(int w, int h) override {}
+		void paintGL() override {}
+
+		// forward events to the scene widget
+		void mousePressEvent(QMouseEvent *event) override
+			{ sceneWidget_->mousePressEvent(event); }
+		void mouseDoubleClickEvent(QMouseEvent *event) override
+			{ sceneWidget_->mouseDoubleClickEvent(event); }
+		void mouseReleaseEvent(QMouseEvent *event) override
+			{ sceneWidget_->mouseReleaseEvent(event); }
+		void wheelEvent(QWheelEvent *event) override
+			{ sceneWidget_->wheelEvent(event); }
+		void mouseMoveEvent(QMouseEvent *event) override
+			{ sceneWidget_->mouseMoveEvent(event); }
+		void keyPressEvent(QKeyEvent *event) override
+			{ sceneWidget_->keyPressEvent(event); }
+		void keyReleaseEvent(QKeyEvent *event) override
+			{ sceneWidget_->keyReleaseEvent(event); }
+	protected:
+		SceneWidget *sceneWidget_;
+	};
+}
+
+static GLint qtToOgleButton(Qt::MouseButton button) {
+	switch (button) {
+		case Qt::LeftButton:
+			return Scene::MOUSE_BUTTON_LEFT;
+		case Qt::RightButton:
+			return Scene::MOUSE_BUTTON_RIGHT;
+		case Qt::MiddleButton:
+			return Scene::MOUSE_BUTTON_MIDDLE;
+		case Qt::XButton1:
+		case Qt::XButton2:
+		case Qt::NoButton:
+		case Qt::MouseButtonMask:
+		default:
+			return -1;
+	}
+}
+
+SceneWidget::SceneWidget(
+		QtApplication *app,
+		const QSurfaceFormat &surfaceFormat,
+		QWidget *parent)
+		: QWidget(parent),
+		  app_(app),
+		  updateInterval_(16000),
+		  isRunning_(GL_FALSE),
+		  surfaceFormat_(surfaceFormat) {
+	setMouseTracking(true);
+	setFocusPolicy(Qt::StrongFocus);
+
+	sceneWindow_ = ref_ptr<SceneWindow>::alloc(this, parent->windowHandle());
+	sceneWindow_->setFormat(surfaceFormat_);
+    sceneWindow_->installEventFilter(this);
+    // Create container widget
+    winContainer_ = QWidget::createWindowContainer(sceneWindow_.get(), this);
+    winContainer_->setFocusPolicy(Qt::StrongFocus);
+    winContainer_->installEventFilter(this);
+
+    // Use a layout to embed into the widget
+    auto layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(winContainer_);
+
+	renderThread_ = ref_ptr<GLThread>::alloc(this);
+}
+
+QSurfaceFormat SceneWidget::defaultFormat() {
+	QSurfaceFormat format;
+	format.setRenderableType(QSurfaceFormat::OpenGL);
+	format.setProfile(QSurfaceFormat::CoreProfile);
+	format.setVersion(4, 5);
+	// Buffer sizes
+	format.setRedBufferSize(8);
+	format.setGreenBufferSize(8);
+	format.setBlueBufferSize(8);
+	format.setAlphaBufferSize(0);
+	format.setDepthBufferSize(0);
+	format.setStencilBufferSize(0);
+	// Anti-aliasing
+	format.setSamples(0);  // Or 4/8 if you use MSAA
+	// Performance
+	format.setSwapInterval(0);  // vsync OFF for uncapped FPS
+	format.setSwapBehavior(QSurfaceFormat::SingleBuffer);
+	format.setStereo(false);
+	// Optional
+	//format.setOption(QSurfaceFormat::DebugContext);
+	return format;
+}
+
+void SceneWidget::setUpdateInterval(GLint interval) {
+	updateInterval_ = interval;
+}
+
+void SceneWidget::resizeEvent(QResizeEvent *ev) {
+	QWidget::resizeEvent(ev);
+	app_->resizeGL(Vec2i(ev->size().width(), ev->size().height()));
+}
+
+void SceneWidget::startRendering() {
+	setFocus();
+	renderThread_->start(QThread::HighPriority);
+}
+
+void SceneWidget::stopRendering() {
+	isRunning_ = GL_FALSE;
+	renderThread_->wait();
+}
+
+void SceneWidget::run(QOpenGLContext *glContext) {
+	if (isRunning_) {
+		REGEN_WARN("Render thread already running.");
+		return;
+	}
+	isRunning_ = GL_TRUE;
+#ifdef WAIT_ON_VSYNC
+	GLint dt;
+#endif
+
+	AnimationManager::get().resetTime();
+#ifndef SINGLE_THREAD_GUI_AND_GRAPHICS
+	while (isRunning_)
+#else
+		while(app_->isMainloopRunning_)
+#endif
+	{
+		app_->updateTime();
+		app_->updateGL();
+		app_->drawGL();
+
+		// flush GL draw calls
+		// Note: Seems screen does not update when other FBO then the
+		//  screen FBO is bound to the current draw framebuffer.
+		//  Not sure why....
+		RenderState::get()->drawFrameBuffer().push(0);
+		glContext->swapBuffers(sceneWindow_.get());
+		RenderState::get()->drawFrameBuffer().pop();
+
+#ifdef SINGLE_THREAD_GUI_AND_GRAPHICS
+		app_->app_->processEvents();
+#endif
+		if (app_->isVSyncEnabled()) {
+			// adjust interval to hit the desired frame rate if we can
+			boost::posix_time::ptime t(
+					boost::posix_time::microsec_clock::local_time());
+			dt = std::max(0, updateInterval_ - (GLint)
+					(t - app_->lastTime()).total_microseconds());
+			// sleep desired interval
+			usleepRegen(dt);
+		}
+	}
+}
+
+SceneWidget::GLThread::GLThread(SceneWidget *glWidget)
+		: QThread(), glWidget_(glWidget) {
+}
+
+void SceneWidget::GLThread::run() {
+	auto sharedContext = new QOpenGLContext();
+	sharedContext->setFormat(glWidget_->sceneWindow_->requestedFormat());
+	sharedContext->setShareContext(QOpenGLContext::globalShareContext());
+	sharedContext->create();
+	sharedContext->makeCurrent(glWidget_->sceneWindow_.get());
+
+	glWidget_->app_->initGL();
+	glWidget_->run(sharedContext);
+
+	sharedContext->doneCurrent();
+	delete sharedContext;
+}
+
+void SceneWidget::do_mouseClick(QMouseEvent *event, GLboolean isPressed, GLboolean isDoubleClick) {
+	GLint x = event->x(), y = event->y();
+	GLint button = qtToOgleButton(event->button());
+	if (button == -1) { return; }
+	Scene::ButtonEvent ev{};
+	ev.button = button;
+	ev.isDoubleClick = isDoubleClick;
+	ev.pressed = isPressed;
+	ev.x = x;
+	ev.y = y;
+	app_->mouseButton(ev);
+	event->accept();
+}
+
+void SceneWidget::mousePressEvent(QMouseEvent *event) {
+	do_mouseClick(event, GL_TRUE, GL_FALSE);
+	setFocus();
+	event->accept();
+}
+
+void SceneWidget::mouseDoubleClickEvent(QMouseEvent *event) {
+	do_mouseClick(event, GL_TRUE, GL_TRUE);
+	setFocus();
+	event->accept();
+}
+
+void SceneWidget::mouseReleaseEvent(QMouseEvent *event) {
+	do_mouseClick(event, GL_FALSE, GL_FALSE);
+	event->accept();
+}
+
+void SceneWidget::enterEvent(QEvent *event) {
+	app_->mouseEnter();
+	event->accept();
+}
+
+void SceneWidget::leaveEvent(QEvent *event) {
+	app_->mouseLeave();
+	event->accept();
+}
+
+void SceneWidget::wheelEvent(QWheelEvent *event) {
+	QPointF pos = event->position();
+	auto x = pos.x(), y = pos.y();
+	GLint button = event->angleDelta().y() > 0 ? Scene::MOUSE_WHEEL_UP : Scene::MOUSE_WHEEL_DOWN;
+	Scene::ButtonEvent ev{};
+	ev.button = button;
+	ev.isDoubleClick = GL_FALSE;
+	ev.pressed = GL_FALSE;
+	ev.x = static_cast<int>(x);
+	ev.y = static_cast<int>(y);
+	app_->mouseButton(ev);
+	event->accept();
+}
+
+void SceneWidget::mouseMoveEvent(QMouseEvent *event) {
+	app_->mouseMove(Vec2i(event->x(), event->y()));
+	event->accept();
+}
+
+void SceneWidget::keyPressEvent(QKeyEvent *event) {
+	if (event->isAutoRepeat()) {
+		event->ignore();
+		return;
+	}
+	auto mousePos = app_->mousePosition()->getVertex(0);
+	Scene::KeyEvent ev{};
+	ev.key = event->key();
+	ev.x = (GLint) mousePos.r.x;
+	ev.y = (GLint) mousePos.r.y;
+	app_->keyDown(ev);
+	event->accept();
+}
+
+void SceneWidget::keyReleaseEvent(QKeyEvent *event) {
+	if (event->isAutoRepeat()) {
+		event->ignore();
+		return;
+	}
+	switch (event->key()) {
+		case Qt::Key_Escape:
+			app_->exitMainLoop(0);
+			break;
+		case Qt::Key_F:
+			app_->toggleFullscreen();
+			break;
+		default: {
+			auto mousePos = app_->mousePosition()->getVertex(0);
+			Scene::KeyEvent ev{};
+			ev.key = event->key();
+			ev.x = (GLint) mousePos.r.x;
+			ev.y = (GLint) mousePos.r.y;
+			app_->keyUp(ev);
+			break;
+		}
+	}
+	event->accept();
+}
+
+bool SceneWidget::eventFilter(QObject *obj, QEvent *event) {
+	if (event->type() == QEvent::Close) {
+		app_->exitMainLoop(0);
+		return true;
+	}
+	else if (event->type() == QEvent::Enter) {
+		enterEvent(event);
+		return true;
+	}
+	else if (event->type() == QEvent::Leave) {
+		leaveEvent(event);
+		return true;
+	}
+	return QObject::eventFilter(obj, event);
+}

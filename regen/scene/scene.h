@@ -1,12 +1,5 @@
-/*
- * application.h
- *
- *  Created on: 15.10.2012
- *      Author: daniel
- */
-
-#ifndef REGEN_APPLICATION_H
-#define REGEN_APPLICATION_H
+#ifndef REGEN_SCENE_H
+#define REGEN_SCENE_H
 
 #include <boost/filesystem.hpp>
 
@@ -34,7 +27,7 @@ namespace regen {
 	/**
 	 * \brief Provides a render tree and keyboard/mouse events.
 	 */
-	class Application : public EventObject {
+	class Scene : public EventObject {
 	public:
 		/**
 		 * Identifies mouse buttons.
@@ -48,7 +41,7 @@ namespace regen {
 		};
 
 		/** keyboard event id. */
-		static GLuint KEY_EVENT;
+		static uint32_t KEY_EVENT;
 
 		/** keyboard event data. */
 		class KeyEvent : public EventData {
@@ -64,7 +57,7 @@ namespace regen {
 		};
 
 		/** mouse button event id. */
-		static GLuint BUTTON_EVENT;
+		static uint32_t BUTTON_EVENT;
 
 		/** mouse button event data. */
 		class ButtonEvent : public EventData {
@@ -82,7 +75,7 @@ namespace regen {
 		};
 
 		/** mouse motion event id. */
-		static GLuint MOUSE_MOTION_EVENT;
+		static uint32_t MOUSE_MOTION_EVENT;
 
 		/** mouse motion event data. */
 		class MouseMotionEvent : public EventData {
@@ -96,7 +89,7 @@ namespace regen {
 		};
 
 		/** Resize event. */
-		static GLuint RESIZE_EVENT;
+		static uint32_t RESIZE_EVENT;
 
 		/** mouse left/entered the window. */
 		class MouseLeaveEvent : public EventData {
@@ -106,13 +99,13 @@ namespace regen {
 		};
 
 		/** mouse left/entered the window. */
-		static GLuint MOUSE_LEAVE_EVENT;
+		static uint32_t MOUSE_LEAVE_EVENT;
 
 		/**
 		 * @param argc argument count.
 		 * @param argv array of arguments.
 		 */
-		Application(const int &argc, const char **argv);
+		Scene(const int &argc, const char **argv);
 
 		/**
 		 * @return true if GL context is ready to be used.
@@ -132,7 +125,7 @@ namespace regen {
 		/**
 		 * Initialize default loggers.
 		 */
-		void setupLogging();
+		static void setupLogging();
 
 		/**
 		 * Adds a path to the list of paths to be searched when the include directive
@@ -298,6 +291,11 @@ namespace regen {
 		auto &worldTime() const { return worldTime_; }
 
 		/**
+		 * @return the time of last frame.
+		 */
+		auto &lastTime() const { return lastTime_; }
+
+		/**
 		 * Sets the world time scale.
 		 * @param scale the scale.
 		 */
@@ -314,10 +312,29 @@ namespace regen {
 		void setWorldTime(float t);
 
 		/**
-		 * Run some function with GL context.
+		 * Run some function within a thread with GL context.
+		 * NOTE: Returns without waiting for the function to finish.
 		 * @param f the function to run.
 		 */
 		void withGLContext(std::function<void()> f);
+
+		/**
+		 * Initializes GL resources of the scene.
+		 */
+		void initGL();
+
+		/**
+		 * Resizes FBOs that have window-relative size.
+		 * @param size
+		 */
+		void resizeGL(const Vec2i &size);
+
+		/**
+		 * Draw next frame.
+		 */
+		void drawGL();
+
+		void updateGL();
 
 	protected:
 		ref_ptr<RootNode> renderTree_;
@@ -355,18 +372,10 @@ namespace regen {
 
 		void setTime();
 
-		void initGL();
-
-		void drawGL();
-
-		void updateGL();
-
-		void resizeGL(const Vec2i &size);
-
 		void updateMousePosition();
 	};
 
 } // namespace
 
-#endif // REGEN_APPLICATION_H
+#endif // REGEN_SCENE_H
 

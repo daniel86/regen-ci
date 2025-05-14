@@ -1,14 +1,11 @@
-/*
- * qt-application.cpp
- *
- *  Created on: 31.12.2012
- *      Author: daniel
- */
-
 #include <GL/glew.h>
+// NOTE: QT does not like using glew :/ it will print warnings that can be ignored.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcpp"
+#include <QOpenGLContext>
+#pragma GCC diagnostic pop
 
 #include <QDesktopWidget>
-#include <QOpenGLContext>
 #include <QtWidgets/QHBoxLayout>
 
 #include <regen/config.h>
@@ -17,6 +14,7 @@
 #include <regen/text/font.h>
 
 #include "qt-application.h"
+#include "scene-widget.h"
 
 using namespace regen;
 
@@ -30,15 +28,15 @@ static int appArgCount = 1;
 
 QtApplication::QtApplication(
 		const int &argc, const char **argv,
-		const QGLFormat &glFormat,
+		const QSurfaceFormat &glFormat,
 		GLuint width, GLuint height,
 		QWidget *parent)
-		: Application(argc, argv), isMainloopRunning_(GL_FALSE), exitCode_(0) {
+		: Scene(argc, argv), isMainloopRunning_(GL_FALSE), exitCode_(0) {
 	QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 	app_ = new QApplication(appArgCount, (char **) appArgs);
 
 	glContainer_ = new QWidget(nullptr);
-	glWidget_ = new QTGLWidget(this, glFormat, glContainer_);
+	glWidget_ = new SceneWidget(this, glFormat, glContainer_);
 	glWidget_->setMinimumSize(100, 100);
 	glWidget_->setFocusPolicy(Qt::StrongFocus);
 
@@ -78,12 +76,12 @@ int QtApplication::mainLoop() {
 #ifdef SINGLE_THREAD_GUI_AND_GRAPHICS
 	glWidget_->run();
 #else
-	glWidget_->startRendering();
+	((SceneWidget*)glWidget_)->startRendering();
 	while (isMainloopRunning_) {
 		app_->processEvents();
 		usleepRegen(EVENT_PROCESSING_INTERVAL);
 	}
-	glWidget_->stopRendering();
+	((SceneWidget*)glWidget_)->stopRendering();
 #endif
 	AnimationManager::get().close();
 	BufferObject::destroyMemoryPools();

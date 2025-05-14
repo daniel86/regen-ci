@@ -43,7 +43,7 @@ public:
 			: EventHandler(), fboState_(fbo), wScale_(wScale), hScale_(hScale) {}
 
 	void call(EventObject *evObject, EventData *) {
-		auto *app = (Application *) evObject;
+		auto *app = (Scene *) evObject;
 		auto winSize = app->windowViewport()->getVertex(0);
 		fboState_->resize(winSize.r.x, winSize.r.y);
 	}
@@ -56,8 +56,6 @@ protected:
 void NoiseWidget::gl_loadScene() {
 	AnimationManager::get().pause(GL_TRUE);
 	AnimationManager::get().setRootState(app_->renderTree()->state());
-	// TODO: why needed? seems it is initialized once and then GL context is switched?
-	RenderState::reset();
 
 	// create render target
 	auto winSize = app_->windowViewport()->getVertex(0).r;
@@ -70,7 +68,7 @@ void NoiseWidget::gl_loadScene() {
 		GL_COLOR_ATTACHMENT0 });
 	// resize fbo with window
 	auto resizer = ref_ptr<FBOResizer>::alloc(fboState, 1.0, 1.0);
-	app_->connect(Application::RESIZE_EVENT, resizer);
+	app_->connect(Scene::RESIZE_EVENT, resizer);
 
 	// create a root node (that binds the render target)
 	ref_ptr<StateNode> sceneRoot = ref_ptr<StateNode>::alloc(fboState);
