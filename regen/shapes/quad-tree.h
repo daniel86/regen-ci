@@ -46,9 +46,11 @@ namespace regen {
 
 			~Node();
 
-			bool isLeaf() const;
+			inline bool isLeaf() const;
 
-			bool intersects(const OrthogonalProjection &projection) const;
+			inline bool intersects(const OrthogonalProjection &projection) const;
+
+			inline bool contains(const OrthogonalProjection &projection) const;
 		};
 
 		QuadTree();
@@ -101,6 +103,7 @@ namespace regen {
 		std::map<BoundingShape*, Item*> items_;
 		std::vector<Item *> newItems_;
 		std::stack<Node *> nodePool_;
+		std::stack<Item *> itemPool_;
 		float minNodeSize_ = 0.1f;
 
 		Bounds<Vec2f> newBounds_;
@@ -111,6 +114,10 @@ namespace regen {
 		Node *createNode(const Vec2f &min, const Vec2f &max);
 
 		void freeNode(Node *node);
+
+		Item *createItem(const ref_ptr<BoundingShape> &shape);
+
+		void freeItem(Item *item);
 
 		bool insert(Node *node, Item *shape, bool allowSubdivision);
 

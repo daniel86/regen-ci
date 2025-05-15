@@ -22,12 +22,6 @@ namespace regen {
 
 		explicit OrthogonalProjection(const BoundingShape &shape);
 
-		/**
-		 * Get the bounds of the projection.
-		 * @return The bounds
-		 */
-		Bounds<Vec2f> bounds() const;
-
 		Type type = Type::CIRCLE;
 		std::vector<Vec2f> points;
 		struct Axis {
@@ -37,12 +31,14 @@ namespace regen {
 			float max;
 		};
 		std::vector<Axis> axes;
+		Bounds<Vec2f> bounds;
 
 		void update(const BoundingShape &shape);
 
 	protected:
-		void makePerspectiveProjection(const Frustum &frustum);
-		void makeParallelProjection(const Frustum &frustum);
+		void frustumProjectionTriangle(const Frustum &frustum);
+
+		void frustumProjectionRectangle(const Frustum &frustum);
 	};
 }
 

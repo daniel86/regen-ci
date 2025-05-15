@@ -181,6 +181,11 @@ namespace regen {
 		inline const Vec2& normalize() { *this /= length(); return *this; }
 
 		/**
+		 * @return normalized vector.
+		 */
+		inline Vec2 normalized() const { return Vec2(x, y) / length(); }
+
+		/**
 		 * Computes the dot product between two vectors.
 		 * The dot product is equal to the acos of the angle
 		 * between those vectors.

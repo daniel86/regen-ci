@@ -2,6 +2,8 @@
 #include "bounding-sphere.h"
 #include "frustum.h"
 
+#define FRUSTUM_TRIANGLE_TOLERANCE 0.75
+
 using namespace regen;
 
 template<int Count>
@@ -15,7 +17,8 @@ std::pair<float, float> project(const std::vector<Vec2f> &points, const Vec2f &a
 	return {*minIt, *maxIt};
 }
 
-OrthogonalProjection::OrthogonalProjection(const BoundingShape &shape) {
+OrthogonalProjection::OrthogonalProjection(const BoundingShape &shape)
+		: bounds(0.0f,0.0f) {
 	update(shape);
 }
 
@@ -74,21 +77,42 @@ void OrthogonalProjection::update(const BoundingShape &shape) {
 		case BoundingShapeType::FRUSTUM: {
 			auto *frustum = dynamic_cast<const Frustum *>(&shape);
 			if (frustum->fov > 0.0) {
-				// TODO: Make a nicely fitting 2D projection of frustum if possible.
-				//       But triangle is not always possible, i.e. for up and down directions.
-				//       Better use a trapazoid as a general solution, then simplify to triangle if two points are equal.
-				//       For now just use a rectangle, which is computed for parallel projections too.
-				makePerspectiveProjection(*frustum);
-				//makeParallelProjection(*frustum);
+				double farToNear = sqrt(
+					pow(frustum->points[0].x - frustum->points[4].x, 2) +
+					pow(frustum->points[0].z - frustum->points[4].z, 2));
+				if (farToNear > (frustum->far - frustum->near) * FRUSTUM_TRIANGLE_TOLERANCE) {
+					frustumProjectionTriangle(*frustum);
+				} else {
+					frustumProjectionRectangle(*frustum);
+				}
 			} else {
-				makeParallelProjection(*frustum);
+				frustumProjectionRectangle(*frustum);
 			}
 			break;
 		}
 	}
+
+	// compute the bounds of the projection
+	bounds.min = points[0];
+	bounds.max = points[0];
+	if (type == OrthogonalProjection::Type::CIRCLE) {
+		auto &center = points[0];
+		auto radius = std::sqrt(points[1].x);
+		bounds.min.x = center.x - radius;
+		bounds.min.y = center.y - radius;
+		bounds.max.x = center.x + radius;
+		bounds.max.y = center.y + radius;
+	} else {
+		for (size_t i = 1; i < points.size(); i++) {
+			bounds.min.x = std::min(bounds.min.x, points[i].x);
+			bounds.min.y = std::min(bounds.min.y, points[i].y);
+			bounds.max.x = std::max(bounds.max.x, points[i].x);
+			bounds.max.y = std::max(bounds.max.y, points[i].y);
+		}
+	}
 }
 
-void OrthogonalProjection::makeParallelProjection(const Frustum &frustum) {
+void OrthogonalProjection::frustumProjectionRectangle(const Frustum &frustum) {
 	// approximate the frustum with a rectangle.
 	// To this end start with the 4 corners of the far plane,
 	// and then extend the rectangle to include the near plane.
@@ -154,7 +178,7 @@ void OrthogonalProjection::makeParallelProjection(const Frustum &frustum) {
 	}
 }
 
-void OrthogonalProjection::makePerspectiveProjection(const Frustum &frustum) {
+void OrthogonalProjection::frustumProjectionTriangle(const regen::Frustum &frustum) {
 	type = OrthogonalProjection::Type::TRIANGLE;
 	points.resize(3);
 	// first point: origin of the frustum
@@ -170,23 +194,23 @@ void OrthogonalProjection::makePerspectiveProjection(const Frustum &frustum) {
 	}
 	farPlaneCenter2D *= 0.25f; // Center of all far frustum points
 	auto baseToCenter = farPlaneCenter2D - points[0];
-	// Compute the angles relative to the center
-	std::array<std::pair<float, int>, 4> angles;
+	baseToCenter.normalize();
+	// Compute the scores based on angle
+	std::array<std::pair<float, int>, 4> scores;
 	for (int i = 0; i < 4; ++i) {
 		auto baseToPt = farPoints2D[i] - points[0];
-		angles[i] = {std::acos(
-				baseToCenter.dot(baseToPt) /
-				(baseToCenter.length() * baseToPt.length())), i};
+		baseToPt.normalize();
+		scores[i] = { baseToPt.dot(baseToCenter), i};
 	}
 	// Sort the angles to find the maximum
-	std::sort(angles.begin(), angles.end(), [](const auto &a, const auto &b) {
-		return a.first < b.first;
+	std::sort(scores.begin(), scores.end(), [](const auto &a, const auto &b) {
+		return a.first > b.first;
 	});
-	points[1] = farPoints2D[angles[0].second];
-	points[2] = farPoints2D[angles[1].second];
+	points[1] = farPoints2D[scores[0].second];
+	points[2] = farPoints2D[scores[1].second];
 	if ((points[1] - points[2]).length() < std::numeric_limits<float>::epsilon()) {
 		// If the two points are the same, switch the last two point
-		points[2] = farPoints2D[angles[2].second];
+		points[2] = farPoints2D[scores[2].second];
 	}
 
 	// axes of the triangle (and quad)
@@ -204,22 +228,3 @@ void OrthogonalProjection::makePerspectiveProjection(const Frustum &frustum) {
 	}
 }
 
-Bounds<Vec2f> OrthogonalProjection::bounds() const {
-	Bounds<Vec2f> targetBounds(points[0], points[0]);
-	if (type == OrthogonalProjection::Type::CIRCLE) {
-		auto &center = points[0];
-		auto radius = std::sqrt(points[1].x);
-		targetBounds.min.x = center.x - radius;
-		targetBounds.min.y = center.y - radius;
-		targetBounds.max.x = center.x + radius;
-		targetBounds.max.y = center.y + radius;
-	} else {
-		for (size_t i = 1; i < points.size(); i++) {
-			targetBounds.min.x = std::min(targetBounds.min.x, points[i].x);
-			targetBounds.min.y = std::min(targetBounds.min.y, points[i].y);
-			targetBounds.max.x = std::max(targetBounds.max.x, points[i].x);
-			targetBounds.max.y = std::max(targetBounds.max.y, points[i].y);
-		}
-	}
-	return targetBounds;
-}
