@@ -37,7 +37,7 @@ namespace regen {
 		/**
 		 * @return The size of the bounds
 		 */
-		float size() const {
+		inline float size() const {
 			return (max - min).length();
 		}
 
@@ -52,7 +52,7 @@ namespace regen {
 		 * Increase the bounds to include the given other bounds.
 		 * @param other The other bounds
 		 */
-		void extend(const Bounds<T> &other) {
+		inline void extend(const Bounds<T> &other) {
 			min.setMin(other.min);
 			max.setMax(other.max);
 		}
@@ -62,9 +62,19 @@ namespace regen {
 		 * @param point The point
 		 * @return true if the bounds contain the point
 		 */
-		bool contains(const T &point) const {
+		inline bool contains(const T &point) const {
 			return point.x >= min.x && point.x <= max.x &&
 				   point.y >= min.y && point.y <= max.y;
+		}
+
+		/**
+		 * Check if the bounds contain the given other bounds.
+		 * @param other The other bounds
+		 * @return true if the bounds contain the other bounds
+		 */
+		inline bool contains(const Bounds<T> &other) const {
+			return min.x <= other.min.x && max.x >= other.max.x &&
+				   min.y <= other.min.y && max.y >= other.max.y;
 		}
 	};
 }
