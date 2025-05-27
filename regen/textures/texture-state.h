@@ -11,6 +11,7 @@
 #include <regen/states/state.h>
 #include <regen/states/blend-state.h>
 #include <regen/textures/texture.h>
+#include "regen/gl-types/shader-function.h"
 
 namespace regen {
 	/**
@@ -97,6 +98,29 @@ namespace regen {
 			TRANSFER_TEXCO_NOISE
 		};
 		/**
+		 * \brief Specifies how a texel should be transferred before returning it.
+		 */
+		enum TexelTransfer {
+			/** no transfer. */
+			TEXEL_TRANSFER_IDENTITY,
+			/** eye normal mapping. */
+			TEXEL_TRANSFER_EYE_NORMAL,
+			/** world normal mapping. */
+			TEXEL_TRANSFER_WORLD_NORMAL,
+			/** tangent normal mapping. */
+			TEXEL_TRANSFER_TANGENT_NORMAL,
+			/** unity-style normal mapping. */
+			TEXEL_TRANSFER_UNITY_NORMAL,
+			/** out = 1 - in */
+			TEXEL_TRANSFER_INVERT,
+			TEXEL_TRANSFER_GRAYSCALE,
+			TEXEL_TRANSFER_BRIGHTNESS,
+			TEXEL_TRANSFER_CONTRAST,
+			TEXEL_TRANSFER_SATURATION,
+			TEXEL_TRANSFER_HUE,
+			TEXEL_TRANSFER_GAMMA
+		};
+		/**
 		 * \brief Specifies if texture coordinates should be flipped.
 		 */
 		enum TexcoFlipping {
@@ -170,18 +194,16 @@ namespace regen {
 		void set_blendMode(BlendMode blendMode);
 
 		/**
+		 * Specifies how this texture should be mixed with existing values.
+		 * @param function specification of a shader function that should be used.
+		 */
+		void set_blendMode(const ref_ptr<ShaderFunction> &function);
+
+		/**
 		 * @param factor Specifies how this texture should be mixed with existing
 		 * pixels.
 		 */
 		void set_blendFactor(GLfloat factor);
-
-		/**
-		 * Specifies how this texture should be mixed with existing
-		 * values.
-		 * @param blendFunction user defined GLSL function.
-		 * @param blendName function name of user defined GLSL function.
-		 */
-		void set_blendFunction(const std::string &blendFunction, const std::string &blendName);
 
 		/**
 		 * @param mapping Specifies how a texture should be mapped on geometry.
@@ -190,10 +212,9 @@ namespace regen {
 
 		/**
 		 * Specifies how a texture should be mapped on geometry.
-		 * @param blendFunction user defined GLSL function.
-		 * @param blendName name of user defined GLSL function.
+		 * @param function specification of a shader function that should be used.
 		 */
-		void set_mappingFunction(const std::string &blendFunction, const std::string &blendName);
+		void set_mapping(const ref_ptr<ShaderFunction> &function);
 
 		/**
 		 * @param id Defines what is affected by the texture.
@@ -201,39 +222,32 @@ namespace regen {
 		void set_mapTo(MapTo id);
 
 		/**
-		 * Specifies how a texture should be sampled.
-		 * @param transferKey GLSL include key for transfer function.
-		 * @param transferName name of the transfer function.
+		 * @return true if the texture has a custom transfer function.
 		 */
-		void set_texelTransferKey(const std::string &transferKey, const std::string &transferName = "");
+		bool hasTexelTransfer() const { return texelTransfer_.get(); }
+
+		/**
+		 * Specifies how texture samples are transferred before returning them.
+		 * @param transfer Specifies how texture samples are transfererd before returning them.
+		 */
+		void set_texelTransfer(TextureState::TexelTransfer transfer);
 
 		/**
 		 * Specifies how a texture should be sampled.
-		 * For example to scale each texel by 2.0 you can define following
-		 * transfer function: 'void transfer(inout vec4 texel) { texel *= 2.0; }'
-		 * @param transferFunction user defined GLSL function.
-		 * @param transferName name of user defined GLSL function.
+		 * @param function specification of a shader function that should be used.
 		 */
-		void set_texelTransferFunction(const std::string &transferFunction, const std::string &transferName);
+		void set_texelTransfer(const ref_ptr<ShaderFunction> &function);
 
 		/**
-		 * @param mode Specifies how texture coordinates are transfered before sampling.
+		 * @param mode Specifies how texture coordinates are transferred before sampling.
 		 */
 		void set_texcoTransfer(TransferTexco mode);
 
 		/**
-		 * Specifies how texture coordinates are transfered before sampling.
-		 * @param transferKey GLSL include key for transfer function.
-		 * @param transferName name of the transfer function.
+		 * Specifies how texture coordinates are transferred before sampling.
+		 * @param function specification of a shader function that should be used.
 		 */
-		void set_texcoTransferKey(const std::string &transferKey, const std::string &transferName = "");
-
-		/**
-		 * Specifies how texture coordinates are transfered before sampling.
-		 * @param transferFunction user defined GLSL function.
-		 * @param transferName  name of user defined GLSL function.
-		 */
-		void set_texcoTransferFunction(const std::string &transferFunction, const std::string &transferName);
+		void set_texcoTransfer(const ref_ptr<ShaderFunction> &function);
 
 		/**
 		 * Specifies how texture coordinates should be flipped.
@@ -258,6 +272,21 @@ namespace regen {
 		 */
 		auto ignoreAlpha() const { return ignoreAlpha_; }
 
+		/**
+		 * @return true if the texture is a normal map.
+		 */
+		bool isNormalMap() const { return mapTo_ == MAP_TO_NORMAL; }
+
+		/**
+		 * @return true if the texture is a height map.
+		 */
+		bool isHeightMap() const { return mapTo_ == MAP_TO_HEIGHT; }
+
+		/**
+		 * @return true if the texture is a displacement map.
+		 */
+		bool isDisplacementMap() const { return mapTo_ == MAP_TO_DISPLACEMENT; }
+
 		// override
 		void enable(RenderState *rs) override;
 
@@ -280,28 +309,19 @@ namespace regen {
 		std::string samplerType_;
 
 		BlendMode blendMode_;
-		GLfloat blendFactor_;
-		std::string blendFunction_;
-		std::string blendName_;
-
 		Mapping mapping_;
-		std::string mappingFunction_;
-		std::string mappingName_;
-
 		MapTo mapTo_;
-
-		std::string transferKey_;
-		std::string transferFunction_;
-		std::string transferName_;
-
-		std::string transferTexcoKey_;
-		std::string transferTexcoFunction_;
-		std::string transferTexcoName_;
+		GLfloat blendFactor_;
 
 		GLuint texcoChannel_;
 		GLint lastTexChannel_;
 
 		GLboolean ignoreAlpha_;
+
+		ref_ptr<ShaderFunction> blendFunction_;
+		ref_ptr<ShaderFunction> mappingFunction_;
+		ref_ptr<ShaderFunction> texelTransfer_;
+		ref_ptr<ShaderFunction> texcoTransfer_;
 	};
 
 	std::ostream &operator<<(std::ostream &out, const TextureState::Mapping &v);
@@ -315,6 +335,10 @@ namespace regen {
 	std::ostream &operator<<(std::ostream &out, const TextureState::TransferTexco &v);
 
 	std::istream &operator>>(std::istream &in, TextureState::TransferTexco &v);
+
+	std::ostream &operator<<(std::ostream &out, const TextureState::TexelTransfer &v);
+
+	std::istream &operator>>(std::istream &in, TextureState::TexelTransfer &v);
 } // namespace
 
 namespace regen {

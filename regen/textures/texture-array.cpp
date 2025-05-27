@@ -12,3 +12,28 @@ Texture2DArrayDepth::Texture2DArrayDepth(GLuint numTextures) : Texture2DArray(nu
 	internalFormat_ = GL_DEPTH_COMPONENT;
 	pixelType_ = GL_UNSIGNED_BYTE;
 }
+
+Texture2DArrayMultisample::Texture2DArrayMultisample(
+		GLsizei numSamples,
+		GLuint numTextures,
+		GLboolean fixedSampleLocations)
+		: Texture2DArray(numTextures),
+		  numSamples_(numSamples),
+		  fixedSampleLocations_(fixedSampleLocations) {
+	samplerType_ = "sampler2DMSArray";
+	texBind_.target_ = GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
+	set_numSamples(numSamples);
+}
+
+Texture2DArrayMultisampleDepth::Texture2DArrayMultisampleDepth(
+		GLsizei numSamples,
+		GLuint numTextures,
+		GLboolean fixedSampleLocations)
+		: Texture2DArray(numTextures),
+		  numSamples_(numSamples),
+		  fixedSampleLocations_(fixedSampleLocations) {
+	samplerType_ = "sampler2DMSArray";
+	texBind_.target_ = GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
+	set_numSamples(numSamples);
+}
+

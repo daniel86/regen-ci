@@ -308,7 +308,7 @@ static void loadTexture(
 	if (AI_SUCCESS == aiGetMaterialIntegerArray(aiMat,
 												AI_MATKEY_TEXFLAGS(textureTypes[l], k - 1), &intVal, &maxElements)) {
 		if (intVal & aiTextureFlags_Invert) {
-			texState->set_texelTransferKey("regen.states.textures.transfer.texel_invert");
+			texState->set_texelTransfer(TextureState::TEXEL_TRANSFER_INVERT);
 		}
 		if (intVal & aiTextureFlags_UseAlpha) {
 			REGEN_WARN("aiTextureFlags_UseAlpha is not supported.");
@@ -519,6 +519,7 @@ static void loadTexture(
 			// TODO: make configurable
 			//		- alpha discard threshold
 			//      - texel invert
+			REGEN_WARN("Enabling alpha discard for texture '" << stringVal.data << "'.");
 			texState->set_discardAlpha(true, 0.25f);
 			//texState->set_texelTransferKey("regen.states.textures.transfer.texel_invert");
 			break;
@@ -551,6 +552,7 @@ static void loadTexture(
 		case aiTextureType_NONE:
 			// Dummy value. No texture, but the value to be used as 'texture semantic'
 			// (aiMaterialProperty::mSemantic) for all material properties *not* related to textures.
+			REGEN_WARN("Unknown texture type 'NONE' in '" << filePath << "'.");
 			break;
 		case aiTextureType_UNKNOWN:
 			// Unknown texture. A texture reference that does not match any of the definitions
@@ -563,8 +565,16 @@ static void loadTexture(
 			break;
 	}
 
-	tex->filter().push(TextureFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR));
-	tex->setupMipmaps(GL_DONT_CARE);
+	if (texState->isNormalMap()) {
+		// Normal maps should use linear filtering, but no mipmaps.
+		tex->filter().push(TextureFilter(GL_LINEAR, GL_LINEAR));
+	} else {
+		// Other textures should use linear mipmap filtering.
+		// Note: Assimp does not provide a way to specify the filter type.
+		//       So we assume that all textures are mipmapped.
+		tex->filter().push(TextureFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR));
+		tex->setupMipmaps(GL_DONT_CARE);
+	}
 	mat->joinStates(texState);
 
 	tex->end(RenderState::get());
@@ -642,9 +652,7 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 		// this is the color to be multiplied with the color of translucent light to
 		// construct the final 'destination color' for a particular position in the screen buffer.
 		if (AI_SUCCESS == aiGetMaterialColor(aiMat, AI_MATKEY_COLOR_TRANSPARENT, &aiCol)) {
-			// not supposed to be used like this but for now i think this is ok...
-			auto alpha = mat->alpha()->getVertex(0).r;
-			mat->alpha()->setVertex(0, alpha * (aiCol.r + aiCol.g + aiCol.b) / 3.0f);
+			// TODO: add support for AI_MATKEY_COLOR_TRANSPARENT
 		}
 
 		maxElements = 1;

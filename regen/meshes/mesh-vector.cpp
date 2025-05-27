@@ -13,8 +13,10 @@
 #include "particles.h"
 #include "regen/states/state-node.h"
 #include "regen/scene/loading-context.h"
+#include "regen/scene/resource-manager.h"
 #include "lod/mesh-simplifier.h"
 #include "regen/meshes/terrain/ground.h"
+#include "regen/meshes/lod/impostor-billboard.h"
 
 using namespace regen;
 
@@ -236,6 +238,14 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 		for (GLuint i = 0u; i < out->size(); ++i) {
 			parser->putState(REGEN_STRING(input.getName() << i), (*out)[i]);
 		}
+	} else if (meshType == "impostor-billboard") {
+		auto impostor = ImpostorBillboard::load(ctx, input);
+		if (impostor.get() == nullptr) {
+			REGEN_WARN("Ignoring " << input.getDescription() << ", failed to load impostor billboard.");
+		} else {
+			(*out) = MeshVector(1);
+			(*out)[0] = impostor;
+		}
 	} else if (meshType == "mask-patch") {
 		MaskMesh::Config meshCfg;
 		meshCfg.quad.centerAtOrigin = true;
@@ -283,6 +293,27 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 	} else {
 		REGEN_WARN("Ignoring " << input.getDescription() << ", unknown Mesh type.");
 	}
+	// put resources early such that children can refer to it
+	if (out->size() == 1) {
+		ref_ptr<Mesh> mesh = (*out)[0];
+		parser->putState(input.getName(), mesh);
+	}
+	parser->putResource<MeshVector>(input.getName(), out_);
+
+	std::vector<ref_ptr<scene::SceneInputNode>> visited;
+	// configure shader of meshes.
+	// note: the shader is not compiled here, we only store the import keys
+	// for the meshes, such that createShader() can be called later.
+	for (auto &child : input.getChildren("shader")) {
+		std::queue<ref_ptr<Mesh>> meshQueue;
+		MeshVector::loadIndexRange(*child.get(), out_, meshQueue);
+		visited.push_back(child);
+		while (!meshQueue.empty()) {
+			auto mesh = meshQueue.front();
+			meshQueue.pop();
+			mesh->loadShaderConfig(ctx, *child.get());
+		}
+	}
 
 	// generate LOD levels if requested
 	if (input.hasAttribute("lod-simplification")) {
@@ -308,6 +339,37 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 		}
 	}
 
+	// attach lod meshes to the base mesh
+	auto lodMeshInput = input.getFirstChild("lod-meshes");
+	if (lodMeshInput.get() != nullptr) {
+		visited.push_back(lodMeshInput);
+		for (auto &meshChild : lodMeshInput->getChildren("mesh")) {
+			// TODO: also allow to load mesh by id with external declaration
+			std::queue<ref_ptr<Mesh>> baseMeshQueue;
+			MeshVector::loadIndexRange(*meshChild.get(), out_, baseMeshQueue, "base-mesh");
+			auto baseMesh = baseMeshQueue.front();
+			if (baseMeshQueue.size() > 1) {
+				REGEN_WARN("multiple base mesh indices in lod-mesh in '" << meshChild->getDescription() << "'.");
+			}
+			auto lodMeshVec = parser->getResources()->createMesh(parser, *meshChild.get());
+			if (lodMeshVec.get() == nullptr || lodMeshVec->empty()) {
+				REGEN_WARN("Ignoring " << meshChild->getDescription() << ", failed to load lod mesh.");
+				continue;
+			}
+			auto lodMesh = (*lodMeshVec.get())[0];
+			if (lodMeshVec->size() > 1) {
+				REGEN_WARN("multiple lod mesh indices in '" << meshChild->getDescription() << "'.");
+			}
+			lodMesh->shaderDefine("HAS_LOD", "TRUE");
+			REGEN_DEBUG("Adding LOD mesh '" << meshChild->getName() << "' to base mesh.");
+			baseMesh->addMeshLOD(Mesh::MeshLOD(lodMesh));
+		}
+	}
+	// remove visited children
+	for (auto &child : visited) {
+		input.removeChild(child);
+	}
+
 	// configure mesh LOD
 	{
 		auto thresholds = input.getValue<Vec3f>(
@@ -317,25 +379,9 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 			if (numLODs == 0) {
 				continue;
 			}
-			auto thresholds_i = thresholds;
-			if (numLODs < 4) {
-				thresholds_i.z = FLT_MAX;
-			}
-			if (numLODs < 3) {
-				thresholds_i.y = FLT_MAX;
-			}
-			if (numLODs < 2) {
-				thresholds_i.x = FLT_MAX;
-			}
-			mesh->setLODThresholds(thresholds_i);
+			mesh->setLODThresholds(thresholds);
 		}
 	}
-
-	if (out->size() == 1) {
-		ref_ptr<Mesh> mesh = (*out)[0];
-		parser->putState(input.getName(), mesh);
-	}
-	parser->putResource<MeshVector>(input.getName(), out_); // TODO check if this is needed
 
 	if (input.hasAttribute("primitive")) {
 		GLenum primitive = glenum::primitive(input.getValue("primitive"));
@@ -612,4 +658,64 @@ ref_ptr<TextureMappedText> MeshVector::createTextMesh(LoadingContext &ctx, scene
 	}
 
 	return widget;
+}
+
+std::vector<uint32_t> MeshVector::loadIndexRange(scene::SceneInputNode &input, const std::string &prefix) {
+	std::vector<uint32_t> out;
+	auto meshIndex = input.getValue<int>(REGEN_STRING(prefix << "-index"), -1);
+	if (meshIndex >= 0) {
+		out.push_back(meshIndex);
+	}
+	else if (input.hasAttribute(REGEN_STRING(prefix << "-indices"))) {
+		auto meshIndices = input.getValue(REGEN_STRING(prefix << "-indices"));
+		std::vector<std::string> indexStrings;
+		boost::split(indexStrings, meshIndices, boost::is_any_of(","));
+		for (auto &index: indexStrings) {
+			int i = std::stoi(index);
+			if (i >= 0) {
+				out.push_back(i);
+			} else {
+				REGEN_WARN("Ignoring " << input.getDescription() << ", invalid mesh index '" << index << "'.");
+			}
+		}
+	}
+	else if (input.hasAttribute(REGEN_STRING(prefix << "-index-range"))) {
+		auto meshIndexRange = input.getValue(REGEN_STRING(prefix << "-index-range"));
+		std::vector<std::string> range;
+		boost::split(range, meshIndexRange, boost::is_any_of("-"));
+		if (range.size() == 2 && !range[0].empty() && !range[1].empty()) {
+			int start = std::stoi(range[0]);
+			int end = std::stoi(range[1]);
+			for (int i = start; i <= end; ++i) {
+				if (i >= 0) {
+					out.push_back(i);
+				} else {
+					REGEN_WARN("Ignoring " << input.getDescription() << ", invalid mesh index '" << i << "'.");
+				}
+			}
+		}
+	}
+
+	return out;
+}
+
+void MeshVector::loadIndexRange(
+		scene::SceneInputNode &input,
+		ref_ptr<MeshVector> &meshes,
+		std::queue<ref_ptr<Mesh>> &meshQueue,
+		const std::string &prefix) {
+	auto indexRange = MeshVector::loadIndexRange(input, prefix);
+	if (indexRange.empty()) {
+		for (auto &it: *meshes.get()) {
+			meshQueue.push(it);
+		}
+	} else {
+		for (auto &index: indexRange) {
+			if (index >= 0 && index < static_cast<uint32_t>(meshes->size())) {
+				meshQueue.push((*meshes.get())[index]);
+			} else {
+				REGEN_WARN("Ignoring " << input.getDescription() << ", invalid mesh index '" << index << "'.");
+			}
+		}
+	}
 }

@@ -54,7 +54,7 @@ MeshSimplifier::MeshSimplifier(const ref_ptr<Mesh> &mesh) : mesh_(mesh) {
 			hasValidAttributes_ = false;
 		}
 	}
-	REGEN_INFO("LOD level 0: " <<
+	REGEN_INFO("Input mesh has " <<
 							   "#faces=" << inputIndices_->numVertices() / 3 << " " <<
 							   "#verts=" << inputPos_->numVertices() << " " <<
 							   "#attributes=" << (inputAttributes_.size() + 1) << " ");
@@ -893,7 +893,7 @@ uint32_t MeshSimplifier::createOutputAttributes() {
 		numIndices -= lodLevels_.front().size() * 3;
 	}
 	REGEN_INFO("Mesh simplified:"
-					   << " #lods=" << lodLevels_.size()
+					   << " #lods=" << (lodLevels_.size() - (useOriginal ? 0 : 1))
 					   << " #faces=" << numIndices / 3
 					   << " #verts=" << numVertices
 					   << " #indices=" << numIndices);
@@ -975,16 +975,16 @@ void MeshSimplifier::applyAttributes() {
 	uint32_t indexOffset = 0, vertexOffset = 0, lodIndex = 0;
 	for (size_t i = (useOriginalData() ? 0 : 1); i < lodLevels_.size(); ++i) {
 		auto &faces = lodLevels_[i];
-		meshLODs[lodIndex].numIndices = faces.size() * 3;
-		meshLODs[lodIndex].indexOffset = indexRef->address() + indexOffset * sizeof(uint32_t);
-		meshLODs[lodIndex].vertexOffset = vertexOffset;
+		meshLODs[lodIndex].d->numIndices = faces.size() * 3;
+		meshLODs[lodIndex].d->indexOffset = indexRef->address() + indexOffset * sizeof(uint32_t);
+		meshLODs[lodIndex].d->vertexOffset = vertexOffset;
 		if (i == 0) {
-			meshLODs[lodIndex].numVertices = inputPos_->numVertices();
+			meshLODs[lodIndex].d->numVertices = inputPos_->numVertices();
 		} else {
-			meshLODs[lodIndex].numVertices = lodData_[i - 1].pos.size();
+			meshLODs[lodIndex].d->numVertices = lodData_[i - 1].pos.size();
 		}
-		indexOffset += meshLODs[lodIndex].numIndices;
-		vertexOffset += meshLODs[lodIndex].numVertices;
+		indexOffset += meshLODs[lodIndex].d->numIndices;
+		vertexOffset += meshLODs[lodIndex].d->numVertices;
 		lodIndex += 1;
 	}
 	mesh_->setMeshLODs(meshLODs);

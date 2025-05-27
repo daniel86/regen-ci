@@ -33,8 +33,15 @@ static inline void REGEN_ReadBuffer(GLenum v)
 
 static inline void attachTexture(
 		const ref_ptr<Texture> &tex, GLenum target) {
-	glFramebufferTexture(GL_DRAW_FRAMEBUFFER,
-						 target, tex->id(), 0);
+	if (tex->numSamples() > 1) {
+		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,
+								target,
+								tex->textureBind().target_,
+								tex->id(), 0);
+	} else {
+		glFramebufferTexture(GL_DRAW_FRAMEBUFFER,
+							 target, tex->id(), 0);
+	}
 }
 
 static inline void attachRenderBuffer(
@@ -74,7 +81,6 @@ FBO::FBO(GLuint width, GLuint height, GLuint depth)
 	rs->readFrameBuffer().push(id());
 	readBuffer_.push(GL_COLOR_ATTACHMENT0);
 	rs->readFrameBuffer().pop();
-	GL_ERROR_LOG();
 
 	uniforms_ = ref_ptr<UBO>::alloc("FBO");
 	uniforms_->addBlockInput(viewport_);
@@ -92,7 +98,7 @@ void FBO::set_depthAttachment(const ref_ptr<RenderBuffer> &rbo) {
 	depthTexture_ = ref_ptr<Texture>();
 }
 
-void FBO::createDepthTexture(GLenum target, GLenum format, GLenum type, bool isStencil) {
+void FBO::createDepthTexture(GLenum target, GLenum format, GLenum type, bool isStencil, uint32_t numSamples) {
 	RenderState *rs = RenderState::get();
 	depthAttachmentTarget_ = target;
 	depthAttachmentFormat_ = format;
@@ -102,17 +108,23 @@ void FBO::createDepthTexture(GLenum target, GLenum format, GLenum type, bool isS
 	if (target == GL_TEXTURE_CUBE_MAP) {
 		depth = ref_ptr<TextureCubeDepth>::alloc();
 	} else if (target == GL_TEXTURE_2D_ARRAY) {
-		ref_ptr<Texture2DArrayDepth> depth3D = ref_ptr<Texture2DArrayDepth>::alloc();
+		ref_ptr<Texture3D> depth3D;
+		if (numSamples > 1) {
+			depth3D = ref_ptr<Texture2DArrayMultisampleDepth>::alloc(numSamples);
+		} else {
+			depth3D = ref_ptr<Texture2DArrayDepth>::alloc();
+		}
 		depth3D->set_depth(depth_);
 		depth = depth3D;
 	} else if (depth_ > 1) {
 		ref_ptr<Texture3DDepth> depth3D = ref_ptr<Texture3DDepth>::alloc();
 		depth3D->set_depth(depth_);
 		depth = depth3D;
+	} else if (numSamples > 1) {
+		depth = ref_ptr<Texture2DMultisampleDepth>::alloc(numSamples);
 	} else {
 		depth = ref_ptr<Texture2DDepth>::alloc();
 	}
-	depth->set_targetType(target);
 	depth->set_rectangleSize(width(), height());
 	depth->set_internalFormat(format);
 	depth->set_pixelType(type);
@@ -120,10 +132,12 @@ void FBO::createDepthTexture(GLenum target, GLenum format, GLenum type, bool isS
 	rs->drawFrameBuffer().push(id());
 	{
 		depth->begin(rs);
-		{
+		if (numSamples == 1) {
 			depth->wrapping().push(GL_REPEAT);
 			depth->filter().push(GL_LINEAR);
 			depth->compare().push(TextureCompare(GL_NONE, GL_EQUAL));
+		}
+		{
 			depth->texImage();
 		}
 		depth->end(rs);
@@ -136,8 +150,8 @@ void FBO::createDepthTexture(GLenum target, GLenum format, GLenum type, bool isS
 	rs->drawFrameBuffer().pop();
 }
 
-void FBO::createDepthTexture(GLenum target, GLenum format, GLenum type) {
-	createDepthTexture(target, format, type, false);
+void FBO::createDepthTexture(GLenum target, GLenum format, GLenum type, uint32_t numSamples) {
+	createDepthTexture(target, format, type, false, numSamples);
 }
 
 void FBO::createDepthStencilTexture(GLenum target, GLenum format, GLenum type) {
@@ -186,7 +200,8 @@ ref_ptr<Texture> FBO::createTexture(
 		GLenum targetType,
 		GLenum format,
 		GLint internalFormat,
-		GLenum pixelType) {
+		GLenum pixelType,
+		GLuint numSamples) {
 	RenderState *rs = RenderState::get();
 	ref_ptr<Texture> tex;
 	ref_ptr<Texture3D> tex3d;
@@ -196,24 +211,38 @@ ref_ptr<Texture> FBO::createTexture(
 			tex = ref_ptr<TextureRectangle>::alloc(count);
 			break;
 
+		case GL_TEXTURE_2D:
+			if (numSamples > 1) {
+				tex = ref_ptr<Texture2DMultisample>::alloc(numSamples, count);
+			} else {
+				tex = ref_ptr<Texture2D>::alloc(count);
+			}
+			break;
+
 		case GL_TEXTURE_2D_ARRAY:
-			tex3d = ref_ptr<Texture2DArray>::alloc(count);
+			if (numSamples > 1) {
+				tex3d = ref_ptr<Texture2DArrayMultisample>::alloc(numSamples, count);
+			} else {
+				tex3d = ref_ptr<Texture2DArray>::alloc(count);
+			}
 			tex3d->set_depth(depth);
 			tex = tex3d;
 			break;
 
 		case GL_TEXTURE_CUBE_MAP:
 			tex = ref_ptr<TextureCube>::alloc(count);
+			if (numSamples > 1) {
+				REGEN_WARN("Multisample cube textures not supported. Using normal cube texture.");
+			}
 			break;
 
 		case GL_TEXTURE_3D:
 			tex3d = ref_ptr<Texture3D>::alloc(count);
+			if (numSamples > 1) {
+				REGEN_WARN("Multisample 3D textures not supported. Using normal 3D texture.");
+			}
 			tex3d->set_depth(depth);
 			tex = tex3d;
-			break;
-
-		case GL_TEXTURE_2D:
-			tex = ref_ptr<Texture2D>::alloc(count);
 			break;
 
 		default: // GL_TEXTURE_2D:
@@ -230,9 +259,12 @@ ref_ptr<Texture> FBO::createTexture(
 	rs->activeTexture().push(GL_TEXTURE7);
 	for (GLuint j = 0; j < count; ++j) {
 		rs->textures().push(7, tex->textureBind());
-		tex->wrapping().push(GL_CLAMP_TO_EDGE);
-		tex->filter().push(GL_LINEAR);
+		if (numSamples == 1) {
+			tex->wrapping().push(GL_CLAMP_TO_EDGE);
+			tex->filter().push(GL_LINEAR);
+		}
 		tex->texImage();
+
 		rs->textures().pop(7);
 		tex->nextObject();
 	}
@@ -246,9 +278,10 @@ ref_ptr<Texture> FBO::addTexture(
 		GLenum targetType,
 		GLenum format,
 		GLint internalFormat,
-		GLenum pixelType) {
+		GLenum pixelType,
+		GLuint numSamples) {
 	ref_ptr<Texture> tex = createTexture(width(), height(), depth_,
-										 count, targetType, format, internalFormat, pixelType);
+										 count, targetType, format, internalFormat, pixelType, numSamples);
 
 	for (GLuint j = 0; j < tex->numObjects(); ++j) {
 		addTexture(tex);
@@ -306,13 +339,10 @@ void FBO::blitCopy(
 	if (writeAttachment != GL_DEPTH_ATTACHMENT) {
 		dst.drawBuffers().push(writeAttachment);
 	}
-
-	auto srcTex = colorTextures_[readAttachment - GL_COLOR_ATTACHMENT0];
-	auto dstTex = dst.colorTextures_[writeAttachment - GL_COLOR_ATTACHMENT0];
 	if (keepRatio) {
-		GLuint dstWidth = dst.width();
-		GLuint dstHeight = dst.width() * ((GLfloat) width() / height());
-		GLuint offsetX, offsetY;
+		uint32_t dstWidth = dst.width();
+		uint32_t dstHeight = dst.width() * ((GLfloat) width() / height());
+		uint32_t offsetX, offsetY;
 		if (dstHeight > dst.height()) {
 			dstHeight = dst.height();
 			dstWidth = dst.height() * ((GLfloat) height() / width());
@@ -323,15 +353,22 @@ void FBO::blitCopy(
 			offsetY = (dst.height() - dstHeight) / 2;
 		}
 		glBlitFramebuffer(
-				0, 0, width(), height(),
-				offsetX, offsetY,
-				offsetX + dstWidth,
-				offsetY + dstHeight,
+				0, 0,
+				static_cast<int32_t>(width()),
+				static_cast<int32_t>(height()),
+				static_cast<int32_t>(offsetX),
+				static_cast<int32_t>(offsetY),
+				static_cast<int32_t>(offsetX + dstWidth),
+				static_cast<int32_t>(offsetY + dstHeight),
 				mask, filter);
 	} else {
 		glBlitFramebuffer(
-				0, 0, width(), height(),
-				0, 0, dst.width(), dst.height(),
+				0, 0,
+				static_cast<int32_t>(width()),
+				static_cast<int32_t>(height()),
+				0, 0,
+				static_cast<int32_t>(dst.width()),
+				static_cast<int32_t>(dst.height()),
 				mask, filter);
 	}
 
@@ -360,9 +397,9 @@ void FBO::blitCopyToScreen(
 	screen().drawBuffer_.push(GL_FRONT);
 
 	if (keepRatio) {
-		GLuint dstWidth = screenWidth;
-		GLuint dstHeight = screenWidth * ((GLfloat) width() / height());
-		GLuint offsetX, offsetY;
+		uint32_t dstWidth = screenWidth;
+		uint32_t dstHeight = screenWidth * ((GLfloat) width() / height());
+		uint32_t offsetX, offsetY;
 		if (dstHeight > screenHeight) {
 			dstHeight = screenHeight;
 			dstWidth = screenHeight * ((GLfloat) height() / width());
@@ -373,15 +410,22 @@ void FBO::blitCopyToScreen(
 			offsetY = (screenHeight - dstHeight) / 2;
 		}
 		glBlitFramebuffer(
-				0, 0, width(), height(),
-				offsetX, offsetY,
-				offsetX + dstWidth,
-				offsetY + dstHeight,
+				0, 0,
+				static_cast<int32_t>(width()),
+				static_cast<int32_t>(height()),
+				static_cast<int32_t>(offsetX),
+				static_cast<int32_t>(offsetY),
+				static_cast<int32_t>(offsetX + dstWidth),
+				static_cast<int32_t>(offsetY + dstHeight),
 				mask, filter);
 	} else {
 		glBlitFramebuffer(
-				0, 0, width(), height(),
-				0, 0, screenWidth, screenHeight,
+				0, 0,
+				static_cast<int32_t>(width()),
+				static_cast<int32_t>(height()),
+				0, 0,
+				static_cast<int32_t>(screenWidth),
+				static_cast<int32_t>(screenHeight),
 				mask, filter);
 	}
 
@@ -462,6 +506,15 @@ void FBO::resize(GLuint w, GLuint h, GLuint depth) {
 	rs->drawFrameBuffer().pop();
 }
 
+void FBO::checkStatus() const {
+	RenderState::get()->drawFrameBuffer().push(id());
+	auto status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+	if (status != GL_FRAMEBUFFER_COMPLETE) {
+		REGEN_WARN("Framebuffer not complete: 0x" << std::hex << status << std::dec);
+	}
+	RenderState::get()->drawFrameBuffer().pop();
+}
+
 const ref_ptr<Texture> &FBO::firstColorTexture() const { return colorTextures_.front(); }
 
 namespace regen {
@@ -520,13 +573,14 @@ ref_ptr<FBO> FBO::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 					n->getValue<std::string>("pixel-type", "UNSIGNED_BYTE"));
 			GLenum textureTarget = glenum::textureTarget(
 					n->getValue<std::string>("target", "TEXTURE_2D"));
+			auto numSamples = n->getValue<GLuint>("num-samples", 1);
 
 			GLenum depthFormat;
 			if (depthSize <= 16) depthFormat = GL_DEPTH_COMPONENT16;
 			else if (depthSize <= 24) depthFormat = GL_DEPTH_COMPONENT24;
 			else depthFormat = GL_DEPTH_COMPONENT32;
 
-			fbo->createDepthTexture(textureTarget, depthFormat, depthType);
+			fbo->createDepthTexture(textureTarget, depthFormat, depthType, numSamples);
 
 			ref_ptr<Texture> tex = fbo->depthTexture();
 			Texture::configure(tex, *n.get());
@@ -553,10 +607,12 @@ ref_ptr<FBO> FBO::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 			else if (stencilSize < 16) stencilFormat = GL_STENCIL_INDEX4;
 			else stencilFormat = GL_STENCIL_INDEX8;
 
-			auto stencilTexture = fbo->createTexture(
+			auto stencilTexture = FBO::createTexture(
 					fbo->width(), fbo->height(), fbo->depth(),
 					1, textureTarget,
-					GL_STENCIL_INDEX, stencilFormat, pixelType);
+					GL_STENCIL_INDEX,
+					stencilFormat,
+					pixelType);
 			fbo->set_stencilTexture(stencilTexture);
 		} else {
 			REGEN_WARN("No processor registered for '" << n->getDescription() << "'.");
@@ -573,6 +629,7 @@ ref_ptr<FBO> FBO::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 		fbo->drawBuffers().pop();
 	}
 	GL_ERROR_LOG();
+	fbo->checkStatus();
 
 	return fbo;
 }

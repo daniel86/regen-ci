@@ -213,24 +213,6 @@ float sampleHeight(vec2 uv) {
 --------------------------------------
 --------------------------------------
 
--- normalTBNTransfer
-#ifndef REGEN_normalTBNTransfer_INCLUDED_
-#define2 REGEN_normalTBNTransfer_INCLUDED_
-void normalTBNTransfer(inout vec4 texel)
-{
-#if SHADER_STAGE==fs
-    mat3 tbn = mat3(in_tangent,in_binormal,in_norWorld);
-    texel.xyz = normalize( tbn * ( texel.xyz*2.0 - vec3(1.0) ) );
-#endif
-}
-#endif
-
---------------------------------------
---------------------------------------
----- Texture mapping functions.
---------------------------------------
---------------------------------------
-
 -- applyHeightMaps
 #ifndef REGEN_applyHeightMaps_INCLUDED_
 #define2 REGEN_applyHeightMaps_INCLUDED_
@@ -341,18 +323,7 @@ void textureMappingFragment(in vec3 P, inout vec4 C, inout vec3 N)
 #define2 _MAPTO ${TEX_MAPTO${_ID}}
   #if _MAPTO == NORMAL
     #ifndef FS_NO_OUTPUT
-    // bump!
-    mat3 tbn${INDEX} = mat3(in_tangent,in_binormal,in_norWorld);
-    // Expand the range of the normal value from (0, +1) to (-1, +1).
-    vec3 bump${INDEX} = (texel${INDEX}.rgb * 2.0f) - 1.0f;
-    // TODO: unity-style normal maps are all red with alpha. I did not really find good documentation
-    //       but below looks right for an example mesh. Not sure though if the format should be supported
-    //       and how to handle in assimp loader. With above there will be artifacts using unity-style normal maps.
-    //vec2 bump${INDEX}_u = (texel${INDEX}.ra * 2.0f) - 1.0f;
-    //vec3 bump${INDEX} = normalize(vec3(bump${INDEX}_u.yyx));
-    // Calculate the normal from the data in the normal map.
-    bump${INDEX} = normalize(tbn${INDEX} * bump${INDEX});
-    ${_BLEND}( bump${INDEX}, N, ${TEX_BLEND_FACTOR${_ID}} );
+    ${_BLEND}( texel${INDEX}.xyz, N, ${TEX_BLEND_FACTOR${_ID}} );
     #endif
   #endif
 #endfor
@@ -664,6 +635,60 @@ vec2 texco_planar_reflection(vec3 P, vec3 N)
 --------------------------------------
 --------------------------------------
 
+-- transfer.texel_norTan
+#ifndef REGEN_TRANSFER_NORMAL_TANGENT_
+#define2 REGEN_TRANSFER_NORMAL_TANGENT_
+void texel_norTan(inout vec4 normal) {
+    // Input: normal in tangent space
+    // Output: normal in world space
+    #if SHADER_STAGE == fs
+    // FIXME: function declaration may cause problems, in TES etc where tangent might be array
+    mat3 tbn = mat3(in_tangent,in_binormal,in_norWorld);
+    normal.xyz = normal.xyz*2.0 - vec3(1.0);
+    normal.xyz = normalize( tbn * normal.xyz );
+    #endif
+}
+#endif
+
+-- transfer.texel_norEye
+#ifndef REGEN_TRANSFER_NORMAL_EYE_
+#define2 REGEN_TRANSFER_NORMAL_EYE_
+#include regen.states.camera.transformEyeToWorld
+void texel_norEye(inout vec4 normal) {
+    // Input: normal in eye space (normalized to [0,1] range)
+    // Output: normal in world space
+    normal.xyz = normal.xyz*2.0 - vec3(1.0);
+    normal.xyz = normalize( normal.xyz );
+    normal.xyz = transformEyeToWorld(vec4(normal.xyz,0.0), in_layer).xyz;
+}
+#endif
+
+-- transfer.texel_norWorld
+#ifndef REGEN_TRANSFER_NORMAL_WORLD_
+#define2 REGEN_TRANSFER_NORMAL_WORLD_
+#include regen.models.tf.transformModel
+void texel_norWorld(inout vec4 normal) {
+    // Input: normal in world space (normalized to [0,1] range)
+    // Output: normal in world space
+    normal.xyz = normal.xyz*2.0 - vec3(1.0);
+    normal.xyz = normalize( normal.xyz );
+#ifdef HAS_modelMatrix
+    normal.xyz = normalize(mat3(in_modelMatrix) * normal.xyz);
+#endif
+}
+#endif
+
+-- transfer.texel_norUnity
+#ifndef REGEN_TRANSFER_NORMAL_UNITY_
+#define2 REGEN_TRANSFER_NORMAL_UNITY_
+void texel_norUnity(inout vec4 normal) {
+    // Input: normal in unity style (normalized to [0,1] range)
+    // Output: normal in world space
+    normal.xy = vec2(normal.a, normal.g) * 2.0 - 1.0;
+    normal.z  = sqrt(1.0 - clamp(dot(normal.xy, normal.xy), 0.0, 1.0));
+}
+#endif
+
 -- transfer.texel_invert
 #ifndef REGEN_TRANSFER_TEXEL_INVERT_
 #define2 REGEN_TRANSFER_TEXEL_INVERT_
@@ -762,20 +787,20 @@ void texel_hue(inout vec4 texel)
 --------------------------------------
 --------------------------------------
 
--- noiseTransfer
+-- transfer.texco_noise
 #ifndef REGEN_NOISE_TRANSFER_
 #define2 REGEN_NOISE_TRANSFER_
 const float in_uvNoiseScale = 0.1;
 
 #include regen.noise.random2D.a
 
-void noiseTransfer(inout vec2 texco)
+void texco_noise(inout vec2 texco)
 {
     texco += in_uvNoiseScale * random2D(texco);
 }
 #endif
 
--- parallaxTransfer
+-- transfer.texco_parallax
 #ifndef REGEN_PARALLAX_TRANSFER_
 #define2 REGEN_PARALLAX_TRANSFER_
 const float in_parallaxScale = 0.1;
@@ -787,7 +812,7 @@ const float in_parallaxBias = 0.05;
 #endif
 #include regen.states.textures.sampleHeight
 
-void parallaxTransfer(inout vec2 texco)
+void texco_parallax(inout vec2 texco)
 {
     vec3 offset = eyeVectorTan();
     // parallax mapping with offset limiting
@@ -802,7 +827,7 @@ void parallaxTransfer(inout vec2 texco)
 }
 #endif
 
--- parallaxOcclusionTransfer
+-- transfer.texco_parallax_occlusion
 #ifndef REGEN_PARALLAX_OCCLUSION_TRANSFER_
 #define2 REGEN_PARALLAX_OCCLUSION_TRANSFER_
 const float in_parallaxScale = 0.1;
@@ -814,7 +839,7 @@ const int in_parallaxSteps = 50;
 #endif
 #include regen.states.textures.sampleHeight
 
-void parallaxOcclusionTransfer(inout vec2 texco)
+void texco_parallax_occlusion(inout vec2 texco)
 {
     vec3 offset = eyeVectorTan();
     // step in height each frame
@@ -843,7 +868,7 @@ void parallaxOcclusionTransfer(inout vec2 texco)
 }
 #endif
 
--- reliefTransfer
+-- transfer.texco_relief
 #ifndef REGEN_RELIEF_TRANSFER_
 #define2 REGEN_RELIEF_TRANSFER_
 
@@ -857,7 +882,7 @@ const float in_reliefScale = 0.01;
 #endif
 #include regen.states.textures.sampleHeight
 
-void reliefTransfer(inout vec2 texco)
+void texco_relief(inout vec2 texco)
 {
     vec3 offset = eyeVectorTan();
     vec2 ds = -offset.xy*in_reliefScale/offset.z;
@@ -884,13 +909,13 @@ void reliefTransfer(inout vec2 texco)
 }
 #endif
 
--- fisheyeTransfer
+-- transfer.texco_fisheye
 #ifndef REGEN_TEXCOTRANSFER_FISHEYE_
 #define2 REGEN_TEXCOTRANSFER_FISHEYE_
 
 const float in_fishEyeTheta=0.5;
 
-void fisheyeTransfer(inout vec2 texco)
+void texco_fisheye(inout vec2 texco)
 {
     vec2 uv = texco - vec2(0.5);
     float z = sqrt(1.0 - uv.x*uv.x - uv.y*uv.y);
@@ -900,7 +925,7 @@ void fisheyeTransfer(inout vec2 texco)
 }
 #endif
 
--- wavingTransfer
+-- transfer.texco_waving
 #ifndef REGEN_TEXCOTRANSFER_WAVING_
 #define2 REGEN_TEXCOTRANSFER_WAVING_
 

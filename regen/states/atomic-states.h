@@ -299,6 +299,8 @@ namespace regen {
 
 		void disable(RenderState *rs) override { rs->polygonMode().pop(); }
 
+		void set_fillMode(GLenum mode) { mode_ = mode; }
+
 	protected:
 		GLenum mode_;
 	};
@@ -356,6 +358,40 @@ namespace regen {
 	protected:
 		ref_ptr<ShaderInput4f> inner_;
 		ref_ptr<ShaderInput4f> outer_;
+	};
+
+	/**
+	 * \brief Specifies the minimum rate at which sample shading takes place.
+	 *
+	 * Sample shading is a technique that allows for more detailed shading of
+	 * individual samples within a pixel, rather than just the final color of the pixel.
+	 */
+	class SampleShadingState : public ToggleState {
+	public:
+		/**
+		 * @param enable enables or disables sample shading.
+		 * @param minSamples the minimum number of samples to shade.
+		 */
+		explicit SampleShadingState(float minSamples)
+				: ToggleState(RenderState::SAMPLE_SHADING, true),
+				  minSamples_(minSamples) {}
+
+		// Override
+		void enable(RenderState *rs) override {
+			ToggleState::enable(rs);
+			rs->sampleShading().push(minSamples_);
+		}
+
+		// Override
+		void disable(RenderState *rs) override {
+			rs->sampleShading().pop();
+			ToggleState::disable(rs);
+		}
+
+		static ref_ptr<State> load(LoadingContext &ctx, scene::SceneInputNode &input);
+
+	protected:
+		float minSamples_;
 	};
 
 	/**

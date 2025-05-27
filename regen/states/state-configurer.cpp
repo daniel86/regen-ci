@@ -11,6 +11,7 @@
 #include <regen/utility/string-util.h>
 
 #include "state-configurer.h"
+#include "fbo-state.h"
 
 using namespace regen;
 
@@ -49,10 +50,15 @@ StateConfig &StateConfigurer::cfg() { return cfg_; }
 void StateConfigurer::setVersion(GLuint version) { cfg_.setVersion(version); }
 
 void StateConfigurer::addNode(const StateNode *node) {
+	bool hadFBOBefore = hasFBO_;
+	preAddState(node->state().get());
+	bool hasFBO = hasFBO_;
 	if (node->hasParent()) {
 		addNode(node->parent());
 	}
+	hasFBO_ = hadFBOBefore;
 	addState(node->state().get());
+	hasFBO_ = hasFBO;
 }
 
 void StateConfigurer::addInput(const std::string &name, const ref_ptr<ShaderInput> &in, const std::string &type) {
@@ -67,11 +73,28 @@ void StateConfigurer::addInput(const std::string &name, const ref_ptr<ShaderInpu
 	}
 }
 
+void StateConfigurer::preAddState(const State *s) {
+	const auto *fboState = dynamic_cast<const FBOState *>(s);
+	if (fboState) {
+		// set FBO flag to true, to avoid that parent FBOs are added
+		hasFBO_ = true;
+	}
+	for (const auto & it : s->joined()) {
+		preAddState(it.get());
+	}
+}
+
 void StateConfigurer::addState(const State *s) {
 	const auto *x0 = dynamic_cast<const HasInput *>(s);
 	const auto *x1 = dynamic_cast<const FeedbackSpecification *>(s);
 	const auto *x2 = dynamic_cast<const TextureState *>(s);
 	const auto *x3 = dynamic_cast<const StateSequence *>(s);
+	const auto *fboState = dynamic_cast<const FBOState *>(s);
+
+	if (fboState) {
+		// skip this state if it is a FBO and a child node already has a FBO.
+		if (hasFBO_) { return; }
+	}
 
 	if (x0 != nullptr) {
 		const ref_ptr<InputContainer> &container = x0->inputContainer();
@@ -92,6 +115,9 @@ void StateConfigurer::addState(const State *s) {
 				define(REGEN_STRING("HAS_" << inName), "TRUE");
 				if (in->isVertexAttribute()) {
 					define(REGEN_STRING("HAS_VERTEX_" << inName), "TRUE");
+				}
+				if (in->numArrayElements()>1 || in->forceArray()) {
+					define(REGEN_STRING("IS_ARRAY_" << inName), "TRUE");
 				}
 				if (in->numInstances() > 1) {
 					define("HAS_INSTANCES", "TRUE");
@@ -120,16 +146,22 @@ void StateConfigurer::addState(const State *s) {
 	}
 	if (x2) {
 		// map for loop index to texture id
-		define(
-				REGEN_STRING("TEX_ID" << cfg_.textures_.size()),
-				REGEN_STRING(x2->stateID()));
-		define(
-				REGEN_STRING("TEX_ID_" << x2->name()),
-				REGEN_STRING(x2->stateID()));
-		// remember the number of textures used
-		define("NUM_TEXTURES", REGEN_STRING(cfg_.textures_.size() + 1));
-		cfg_.textures_[x2->name()] = x2->texture();
+		auto needle = cfg_.textures_.find(x2->name());
+		if (needle == cfg_.textures_.end()) {
+			// add texture to the list
+			auto texIdx = cfg_.textures_.size();
+			auto it = cfg_.textures_.insert({ x2->name(), { x2->texture(), texIdx } });
+			needle = it.first;
+		}
+		auto texIdx = textureStates_.size();
+		define(REGEN_STRING("TEX_ID" << texIdx), REGEN_STRING(x2->stateID()));
+		define(REGEN_STRING("TEX_ID_" << x2->name()), REGEN_STRING(x2->stateID()));
+		needle->second.first = x2->texture();
 		addInput(x2->name(), x2->texture(), x2->samplerType());
+		// note: NUM_TEXTURES is rather "num texture states", i.e. one texture can be used
+		//         in multiple states with different mapping etc.
+		textureStates_.insert(x2);
+		define("NUM_TEXTURES", REGEN_STRING(textureStates_.size()));
 	}
 
 	setVersion(s->shaderVersion());

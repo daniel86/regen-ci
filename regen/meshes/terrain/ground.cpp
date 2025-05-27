@@ -60,8 +60,8 @@ void Ground::setMapTextures(
 	normalMap_ = normalMap;
 	auto heightMapState = groundMaterial_->set_texture(
 			heightMap_, TextureState::MAP_TO_HEIGHT, "heightMap");
-	heightMapState->set_mappingFunction("regen.terrain.ground.groundUV", "groundUV");
-	heightMapState->set_blendFunction("regen.terrain.ground.groundHeightBlend", "groundHeightBlend");
+	heightMapState->set_mapping(ShaderFunction::createImport("regen.terrain.ground.groundUV"));
+	heightMapState->set_blendMode(ShaderFunction::createImport("regen.terrain.ground.groundHeightBlend"));
 	groundMaterial_->set_texture(
 			normalMap_, TextureState::MAP_TO_CUSTOM, "normalMap");
 	// TODO: consider using: glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, -bias) to force sharper detail
@@ -431,8 +431,7 @@ ref_ptr<Ground> Ground::load(LoadingContext &ctx, scene::SceneInputNode &input) 
 			}
 			handledChildren.push_back(n);
 		} else if (n->getCategory() == "transform") {
-			auto processor = scene->getStateProcessor(n->getCategory());
-			processor->processInput(scene, *n.get(), ctx.parent(), ground);
+			// note: skip transform, we create one below
 			handledChildren.push_back(n);
 		}
 	}
@@ -461,13 +460,13 @@ ref_ptr<Ground> Ground::load(LoadingContext &ctx, scene::SceneInputNode &input) 
 	}
 	ground->setMapTextures(heightMap, normalMap);
 
-	auto modelTransform = scene->getResource<ModelTransformation>(input.getValue("tf"));
-	if (!modelTransform.get()) {
-		REGEN_WARN("No model transform found for " << input.getDescription() << ".");
-		return {};
-	}
+	auto tfName = input.getValue("tf");
+	auto modelTransform = ref_ptr<ModelTransformation>::alloc();
+	scene->putResource<ModelTransformation>(tfName, modelTransform);
 	ground->setModelTransform(modelTransform);
 	ground->updateAttributes();
+	modelTransform->bufferContainer()->updateBuffer();
+
 	ground->createResources();
 	ground->updateWeightMaps();
 

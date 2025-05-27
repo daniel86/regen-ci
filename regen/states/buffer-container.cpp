@@ -3,6 +3,14 @@
 
 using namespace regen;
 
+// TODO: would be nice if updateBuffer would not be needed.
+//       at least information about shader inputs is needed early when shaders are compiled,
+//       but the actual buffers do not need to be allocated then. So we could dynamically create
+//       ShaderInput etc. and then make a deferred data allocation.
+//       However, one workflow would be that a shader input is added to the container, and then
+//       the input is changed, e.g. to n instances. however, input does not really have a reference
+//       to the container where it is stored.
+
 BufferContainer::BufferContainer(
 	const std::string &bufferName,
 	const std::vector<NamedShaderInput> &namedInputs,
@@ -79,11 +87,11 @@ void BufferContainer::createTBO(const NamedShaderInput &namedInput) {
 	auto shaderType = glenum::glslDataType(
 			namedInput.in_->baseType(),
 			namedInput.in_->valsPerElement());
-	shaderInclude(REGEN_STRING("regen.buffer.tbo." << shaderType));
-	shaderDefine(
+	texState->shaderInclude(REGEN_STRING("regen.buffer.tbo." << shaderType));
+	texState->shaderDefine(
 	 		REGEN_STRING("in_" << namedInput.name_),
 	 		REGEN_STRING("tboRead_" << shaderType << "(tbo_" << namedInput.name_ << ", int(regen_InstanceID))"));
-	shaderDefine(
+	texState->shaderDefine(
 			 REGEN_STRING("fetch_" << namedInput.name_ << "(i)"),
 			 REGEN_STRING("tboRead_" << shaderType << "(tbo_" << namedInput.name_ << ", int(i))"));
 	bufferObjectOfInput_[namedInput.in_.get()] = tbo;
@@ -145,4 +153,30 @@ void BufferContainer::enable(RenderState *rs) {
 		tbo->updateTBO();
 	}
 	State::enable(rs);
+}
+
+void BufferContainer::printLayout() {
+	REGEN_INFO("buffer " << bufferName_);
+	for (auto &ubo: ubos_) {
+		std::stringstream stream;
+		stream << "  [ubo] " << ubo->name() << ":";
+		for (auto &input: ubo->blockInputs()) {
+			stream << " " << input.name_ << ": " << input.in_->inputSize() / 1024.0 << "kB";
+		}
+		REGEN_INFO(stream.str());
+	}
+	for (auto &ssbo: ssbos_) {
+		std::stringstream stream;
+		stream << "  [ssbo] " << ssbo->name() << ":";
+		for (auto &input: ssbo->blockInputs()) {
+			stream << " " << input.name_ << ": " << input.in_->inputSize() / 1024.0 << "kB";
+		}
+		REGEN_INFO(stream.str());
+	}
+	for (auto &tbo: tbos_) {
+		std::stringstream stream;
+		stream << "  [tbo] " << tbo->tboTexture()->name() << ":";
+		stream << tbo->allocatedSize() / 1024.0 << "kB";
+		REGEN_INFO(stream.str());
+	}
 }

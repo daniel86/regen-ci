@@ -6,6 +6,11 @@
 #ifndef OUTPUT_TYPE
 #define OUTPUT_TYPE DEFERRED
 #endif
+#ifdef HAS_alphaMaskMin || HAS_alphaMaskMax || HAS_alphaClipThreshold
+    #ifndef HAS_ALHPHA_MASK_COEFFICIENTS
+#define HAS_ALHPHA_MASK_COEFFICIENTS
+    #endif
+#endif
 
 -- vs
 #include regen.models.mesh.defines
@@ -35,7 +40,7 @@ flat out int out_instanceID;
 #include regen.states.camera.input
 #include regen.states.textures.input
 
-#include regen.states.model.transformModel
+#include regen.models.tf.transformModel
 #ifdef VS_CAMERA_TRANSFORM
     #include regen.states.camera.transformWorldToEye
     #include regen.states.camera.transformEyeToScreen
@@ -279,34 +284,21 @@ void main() {
 #ifdef FS_EARLY_FRAGMENT_TEST
 layout(early_fragment_tests) in;
 #endif
-#if OUTPUT_TYPE == DEFERRED
-///// Deferred fragment shading
-#if SHADING==NONE
-out vec4 out_diffuse;
-#else
-layout(location = 0) out vec4 out_diffuse;
-layout(location = 1) out vec4 out_ambient;
-layout(location = 2) out vec4 out_specular;
-layout(location = 3) out vec4 out_norWorld;
-#ifdef FBO_ATTACHMENT_emission
-layout(location = 4) out vec3 out_emission;
-#endif
-#endif
-#endif
-#if OUTPUT_TYPE == TRANSPARENCY
-///// Direct fragment shading
 layout(location = 0) out vec4 out_color;
-#ifdef USE_AVG_SUM_ALPHA
-layout(location = 1) out vec2 out_counter;
+#ifdef HAS_ATTACHMENT_ambient
+layout(location = ATTACHMENT_IDX_ambient) out vec4 out_ambient;
 #endif
+#ifdef HAS_ATTACHMENT_specular
+layout(location = ATTACHMENT_IDX_specular) out vec4 out_specular;
 #endif
-#if OUTPUT_TYPE == DIRECT
-///// Direct fragment shading
-out vec4 out_color;
+#ifdef HAS_ATTACHMENT_normal
+layout(location = ATTACHMENT_IDX_normal) out vec4 out_normal;
 #endif
-#if OUTPUT_TYPE == COLOR
-///// Plain color fragment shading
-out vec4 out_color;
+#ifdef HAS_ATTACHMENT_emission
+layout(location = ATTACHMENT_IDX_emission) out vec3 out_emission;
+#endif
+#ifdef HAS_ATTACHMENT_counter
+layout(location = ATTACHMENT_IDX_counter) out vec2 out_counter;
 #endif
 
 -- applyBrightness
@@ -321,6 +313,28 @@ void applyBrightness(inout Material mat) {
 }
 #else
 #define applyBrightness(mat)
+#endif
+
+-- applyAlphaMask
+#ifdef HAS_ALHPHA_MASK_COEFFICIENTS
+void applyAlphaMask(inout vec4 color) {
+#ifdef HAS_alphaMaskMin
+    #ifdef HAS_alphaMaskMax
+    color.a = smoothstep(in_alphaMaskMin, in_alphaMaskMax, color.a);
+    #else
+    color.a = step(in_alphaMaskMin, color.a);
+    #endif
+#else
+    #ifdef HAS_alphaMaskMax
+    color.a = step(color.a, in_alphaMaskMax);
+    #endif
+#endif
+#ifdef HAS_alphaClipThreshold
+    color.a = step(in_alphaClip, color.a);
+#endif
+}
+#else
+#define applyAlphaMask(color)
 #endif
 
 -- fs
@@ -356,16 +370,14 @@ void main() {}
 #endif
 #if OUTPUT_TYPE == BLACK
 ///// Output plain black
-out vec4 out_color;
 void main() {
-  out_color = vec4(0.0,0.0,0.0,1.0);
+    out_color = vec4(0.0,0.0,0.0,1.0);
 }
 #endif
 #if OUTPUT_TYPE == WHITE
 ///// Output plain white
-out vec4 out_color;
 void main() {
-  out_color = vec4(1.0);
+    out_color = vec4(1.0);
 }
 #endif
 #if OUTPUT_TYPE == DEFERRED
@@ -385,14 +397,11 @@ void main() {
 #endif
 
 -- fs-moments
-out vec4 out_color;
-
 #if RENDER_TARGET != 2D_ARRAY
 #include regen.states.camera.linearizeDepth
 #endif
 
-void main()
-{
+void main() {
     float depth = gl_FragDepth;
 #if RENDER_TARGET == 2D_ARRAY
     // no need to linearize for ortho projection
@@ -413,11 +422,23 @@ void main()
 in vec3 in_posWorld;
 in vec3 in_posEye;
 #ifdef HAS_TANGENT_SPACE
+    #if HAS_flat_tangent
+flat in vec3 in_tangent;
+    #else
 in vec3 in_tangent;
+    #endif
+    #if HAS_flat_binormal
+flat in vec3 in_binormal;
+    #else
 in vec3 in_binormal;
+    #endif
 #endif
 #ifdef HAS_nor
+    #ifdef HAS_flat_nor
+flat in vec3 in_norWorld;
+    #else
 in vec3 in_norWorld;
+    #endif
 #endif
 
 #ifdef HAS_col
@@ -429,6 +450,11 @@ uniform vec4 in_col;
 #include regen.states.textures.input
 #ifndef FS_NO_OUTPUT
 #include regen.states.material.defines
+#endif
+#ifndef IGNORE_MATERIAL
+    #ifdef HAS_MATERIAL
+    #define USE_MATERIAL
+    #endif
 #endif
 
 #ifdef HAS_CLIPPING
@@ -456,14 +482,16 @@ void main() {
 #ifdef HAS_col
     vec4 color = in_col;
 #else
-    #ifdef HAS_matDiffuse
+    #ifdef USE_MATERIAL
     vec4 color = vec4(in_matDiffuse, 1.0);
     #else
     vec4 color = vec4(1.0);
     #endif
 #endif 
 #ifdef HAS_matAlpha
+    #ifdef USE_MATERIAL
     color.a *= in_matAlpha;
+    #endif
 #endif
 #endif // HAS_COL
 #ifdef HAS_CUSTOM_FRAGMENT_MAPPING
@@ -498,6 +526,9 @@ void main() {
 
 -- writeOutput-color
 #include regen.models.mesh.applyBrightness
+#ifdef HAS_ALHPHA_MASK_COEFFICIENTS
+#include regen.models.mesh.applyAlphaMask
+#endif
 void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
     Material mat;
     mat.ambient = vec3(0.0);
@@ -507,6 +538,9 @@ void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
     applyBrightness(mat);
     textureMappingLight(posWorld, norWorld, mat);
     out_color.rgb = mat.diffuse;
+#ifdef HAS_ALHPHA_MASK_COEFFICIENTS
+    applyAlphaMask(color);
+#endif
     out_color.a = color.a;
 }
 
@@ -516,11 +550,14 @@ uniform vec3 in_ambientLight;
 #include regen.shading.direct.shade
 #endif
 #include regen.models.mesh.applyBrightness
+#ifdef HAS_ALHPHA_MASK_COEFFICIENTS
+#include regen.models.mesh.applyAlphaMask
+#endif
 void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
     Material mat;
     mat.occlusion = 0.0;
 #if SHADING!=NONE
-#ifdef HAS_MATERIAL
+#ifdef USE_MATERIAL
     mat.ambient = in_matAmbient;
     mat.diffuse = color.rgb;
     mat.specular = in_matSpecular;
@@ -540,6 +577,9 @@ void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
         mat.specular*shading.specular.rgb +
         mat.ambient*in_ambientLight;
 #endif
+#ifdef HAS_ALHPHA_MASK_COEFFICIENTS
+    applyAlphaMask(color);
+#endif
 #ifdef USE_AVG_SUM_ALPHA
     out_color = vec4(shadedColor*color.a, color.a);
     out_counter = vec2(1.0);
@@ -553,20 +593,34 @@ void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
 -- writeOutput-deferred
 #if SHADING==NONE
 void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
-    out_diffuse = color;
+    out_color = color;
 }
 #else
 #include regen.models.mesh.applyBrightness
+#ifdef HAS_ALHPHA_MASK_COEFFICIENTS
+#include regen.models.mesh.applyAlphaMask
+#endif
+#ifdef USE_EYESPACE_NORMAL
+#include regen.states.camera.transformWorldToEye
+#endif
 void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
+    #ifdef HAS_ATTACHMENT_normal
     // TODO: only normalize when not using FLOAT textures!
     // map to [0,1] for rgba buffer
-    out_norWorld.xyz = normalize(norWorld)*0.5 + vec3(0.5);
-    out_norWorld.w = 1.0;
+        #ifdef USE_EYESPACE_NORMAL
+    // TODO: rather transform in VS/GS
+    vec3 norEye = transformWorldToEye(vec4(norWorld,0),in_layer).xyz;
+    out_normal.xyz = normalize(norEye)*0.5 + vec3(0.5);
+        #else
+    out_normal.xyz = normalize(norWorld)*0.5 + vec3(0.5);
+        #endif
+    out_normal.w = 1.0;
+    #endif
 
     Material mat;
     mat.occlusion = 0.0;
     mat.diffuse = color.rgb;
-#ifdef HAS_MATERIAL
+#ifdef USE_MATERIAL
     mat.ambient = in_matAmbient;
     mat.specular = in_matSpecular;
     mat.shininess = in_matShininess;
@@ -584,26 +638,33 @@ void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
     #ifdef HAS_MATERIAL_EMISSION
     mat.emission = vec3(0,0,0);
     #endif
-#endif // HAS_MATERIAL
+#endif // USE_MATERIAL
     applyBrightness(mat);
     textureMappingLight(in_posWorld, norWorld, mat);
 
+    out_color.rgb = mat.diffuse.rgb;
+#ifdef HAS_ALHPHA_MASK_COEFFICIENTS
+    applyAlphaMask(color);
+#endif
+    out_color.a = color.a;
+#ifdef HAS_ATTACHMENT_ambient
     out_ambient = vec4(mat.ambient,0.0);
-    out_diffuse.rgb = mat.diffuse.rgb;
-    out_diffuse.a = color.a;
+#endif
+#ifdef HAS_ATTACHMENT_specular
     out_specular.rgb = mat.specular;
     // normalize shininess to [0,1]
     // TODO: only normalize when not using FLOAT textures!
     out_specular.a = clamp(mat.shininess/256.0, 0.0, 1.0);
-    #ifdef FBO_ATTACHMENT_emission
+#endif
+#ifdef HAS_ATTACHMENT_emission
     #ifdef HAS_MATERIAL_EMISSION
     out_emission = mat.emission;
     #else
     out_emission = vec3(0,0,0);
     #endif
-    #endif
+#endif
     // TODO: handle the occlusion value. It might be best to encode it in the g-buffer,
     //       then use this info in deferred shading.
-    //out_norWorld.w = mat.occlusion;
+    //out_normal.w = mat.occlusion;
 }
 #endif // SHADING!=NONE
