@@ -4,10 +4,20 @@
 ---- @see http://www.gamedev.net/page/reference/index.html/_/technical/graphics-programming-and-theory/rendering-water-as-a-post-process-effect-r2642
 --------------------------------------
 --------------------------------------
--- vs
+-- plane.vs
+#include regen.models.mesh.vs
+-- plane.gs
+#include regen.models.mesh.gs
+-- plane.fs
+#include regen.terrain.water.fs
+
+-- fullscreen.vs
 #include regen.filter.sampling.vs
--- gs
+-- fullscreen.gs
 #include regen.filter.sampling.gs
+-- fullscreen.fs
+#include regen.terrain.water.fs
+
 -- fs
 #define NUM_HEIGHT_SAMPLES 10
 #include regen.states.camera.defines
@@ -289,8 +299,7 @@ void computeOverWaterColor(vec3 position, float sceneDepth, vecTexco texco, inou
     color = mix(refraction, color, clamp(depth * in_shoreHardness, 0.0, 1.0));
 #ifdef HAS_planeSize
     // check if surface point lies within boundaries on xz plane
-    outColor.rgb = mix(outColor.rgb, color,
-        0.5*(float(inBounds(surfacePoint.xz)) + (1.0-isAtFarPlane)*float(inBounds(position.xz))));
+    outColor.rgb = mix(outColor.rgb, color, float(inBounds(surfacePoint.xz)));
 #else
     outColor.rgb = color;
 #endif

@@ -5,7 +5,9 @@
     <constant name="map-height-half" value="4.0"/>
     <constant name="map-y-min" value="-4.0"/>
     <constant name="map-size" value="100.0"/>
-    <constant name="water-surface-y" value="1.7"/>
+    <constant name="water-level" value="1.7"/>
+    <constant name="far-plane" value="200.0"/>
+    <constant name="far-plane*0.5" value="100.0"/>
     <constant name="num-cascades" value="4"/>
     <constant name="num-fish" value="2000"/>
 
@@ -121,7 +123,7 @@
             culling-index="main-index"
             camera="main-camera"
             reflector-normal="0,1,0"
-            reflector-point="0,{{water-surface-y}},0"/>
+            reflector-point="0,{{water-level}},0"/>
     <!-- Assets -->
     <asset id="fish-asset" type="asset"
            file="res/models/fish-puffer/PufferFish.fbx"
@@ -302,8 +304,7 @@
 
     <node id="Grass">
         <node>
-            <define key="DISCARD_ALPHA" value="TRUE"/>
-            <blend mode="SRC"/>
+            <alpha discard-threshold="0.25"/>
             <material
                     diffuse="0.1, 0.1, 0.1"
                     ambient="0.1, 0.1, 0.1"
@@ -395,10 +396,8 @@
                     texture-size="256,256">
                 <shader mesh-index="0" key="regen.models.impostor" />
                 <update-state>
-                    <define key="DISCARD_ALPHA" value="TRUE"/>
-                    <define key="DISCARD_ALPHA_THRESHOLD" value="0.25"/>
+                    <alpha discard-threshold="0.25"/>
                     <depth test="1" write="1"/>
-                    <blend mode="src"/>
                 </update-state>
                 <input name="stiffness" type="float" value="0.1"/>
             </mesh>
@@ -419,8 +418,7 @@
             <mesh id="tree-mesh" mesh-index="0" update-visibility="1" />
         </node>
         <node id="tree-twig">
-            <define key="DISCARD_ALPHA" value="TRUE"/>
-            <define key="DISCARD_ALPHA_THRESHOLD" value="0.25"/>
+            <alpha discard-threshold="0.25"/>
             <texture name="windFlow" id="wind-flowmap" mapping="custom" />
             <input name="stiffness" type="float" value="0.5"/>
             <mesh id="tree-mesh" mesh-index="1" update-visibility="0" />
@@ -473,14 +471,13 @@
                         <node>
                             <node id="tree-twig">
                                 <!--
-                                <define key="DISCARD_ALPHA" value="TRUE"/>
-                                <define key="DISCARD_ALPHA_THRESHOLD" value="0.25"/>
+                                <alpha discard-threshold="0.25"/>
                                 -->
                                 <texture name="windFlow" id="wind-flowmap" mapping="custom" />
                                 <input name="stiffness" type="float" value="0.5"/>
                                 <input name="brightness" type="float" value="2.8"/>
-                                <input name="alphaMaskMin" type="float" value="0.3"/>
-                                <input name="alphaMaskMax" type="float" value="0.5"/>
+                                <input name="alphaClipMin" type="float" value="0.3"/>
+                                <input name="alphaClipMax" type="float" value="0.5"/>
                                 <mesh id="tree-mesh" mesh-index="1" update-visibility="0" />
                             </node>
                         </node>
@@ -525,7 +522,6 @@
         <fbo id="reflection-buffer" clear-buffers="0,1,2,3" clear-depth="1"/>
 
         <node id="Reflection-Pass-Deferred">
-            <blend mode="src"/>
             <depth test="1" write="1"/>
             <fbo id="reflection-buffer" draw-buffers="0,1,2,3"/>
             <node import="Shadow-Caster-All"/>
@@ -587,7 +583,7 @@
         <input type="vec2" name="windDirection" value="0.9,0.0"/>
         <input type="vec2" name="waveScale" value="0.05,0.05"/>
         <input type="float" name="heightTextureSize" value="256.0"/>
-        <input type="float" name="surfaceHeight" value="{{water-surface-y}}"/>
+        <input type="float" name="surfaceHeight" value="{{water-level}}"/>
         <input type="float" name="normalScale" value="3.0"/>
         <input type="float" name="refractionConstant" value="30.0"/>
         <input type="float" name="refractionStrength" value="0.24"/>
@@ -600,7 +596,6 @@
 
     <node id="Water-Rendering">
         <depth test="0" write="0"/>
-        <blend mode="src"/>
 
         <define key="USE_REFRACTION" value="TRUE"/>
         <define key="USE_FOAM" value="FALSE"/>
@@ -620,7 +615,27 @@
         <input name="sunDirection" state="sky-sun" component="lightDirection"/>
         <input name="sunColor" state="sky-sun" component="lightDiffuse"/>
 
-        <fullscreen-pass shader="regen.terrain.water"/>
+        <fullscreen-pass shader="regen.terrain.water.fullscreen"/>
+    </node>
+
+    <!-- water surface mesh used for depth rendering and post-processing effects -->
+    <!-- FIXME: this does not work well when camera is facing downwards, effectively looking behind its position in xz plane. -->
+    <mesh id="water-mesh" type="rectangle" lod="0" center="1" usage="STATIC_DRAW"
+          use-normal="0" use-texco="0" use-tangent="0"
+          rotation="0.0,0.0,3.1415"
+          scaling="{{far-plane}},1.0,{{far-plane}}">
+        <transform>
+            <translate value="0.0,{{water-level}},-{{far-plane*0.5}}"/>
+        </transform>
+    </mesh>
+
+    <!-- Render surface plane into depth buffer
+         to be used for post-processing effects -->
+    <node id="Water-Depth">
+        <depth test="1" write="1"/>
+        <define key="IS_VIEW_ALIGNED_GROUND_QUAD" value="TRUE"/>
+        <define key="OUTPUT_TYPE" value="DEPTH"/>
+        <mesh id="water-mesh" shader="regen.models.mesh" />
     </node>
 
     <!--**************************-->
@@ -652,7 +667,7 @@
                 avoidance-distance="0.5"
                 separation-weight="10.0"
                 bounds-min="-50.0, {{map-y-min}}, -9.0"
-                bounds-max="50.0, {{water-surface-y}}, 10.8"
+                bounds-max="50.0, {{water-level}}, 10.8"
                 map-center="0, {{map-y-min}}, 0"
                 map-size="{{map-size}}, {{map-size}}"
                 height-map="ground-height"
@@ -680,12 +695,10 @@
                     latitude-steps="2"
                     texture-size="64,64">
                 <shader mesh-index="0" key="regen.models.impostor">
-                    <define key="DISCARD_ALPHA" value="TRUE"/>
-                    <define key="DISCARD_ALPHA_THRESHOLD" value="0.25"/>
+                    <alpha discard-threshold="0.25"/>
                 </shader>
                 <update-state>
                     <depth test="0" write="0"/>
-                    <blend mode="src"/>
                 </update-state>
             </mesh>
         </lod-meshes>
@@ -721,15 +734,19 @@
 
     <node id="Fog-Draw">
         <node id="Distance-Fog">
-            <blend mode="alpha"/>
+            <fbo id="g-buffer" draw-buffers="1"/>
             <input type="float" name="fogDensity" value="1.0"/>
             <input type="vec2" name="fogDistance" value="25.0,180.0"/>
             <input type="vec3" name="fogColor" value="0.35, 0.55, 0.5"/>
             <input type="vec3" name="sunPosition" state="sky-sun" component="lightPosition"/>
             <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
+            <texture name="gColorTexture" fbo="g-buffer" attachment="0"/>
             <texture name="skyColorTexture" id="sky"/>
             <fullscreen-pass shader="regen.weather.fog.distance"/>
         </node>
+        <view id="Distance Fog">
+            <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+        </view>
     </node>
 
     <!--**************************-->
@@ -744,8 +761,7 @@
         <node import="Shadow-Caster"/>
         <!--
         <node>
-            <define key="DISCARD_ALPHA" value="TRUE"/>
-            <define key="DISCARD_ALPHA_THRESHOLD" value="0.25"/>
+            <alpha discard-threshold="0.25"/>
             <node id="tree-twig">
                 <texture name="windFlow" id="wind-flowmap" mapping="custom" />
                 <input name="stiffness" type="float" value="0.5"/>
@@ -820,6 +836,12 @@
         <node import="Water-Rendering">
             <fbo id="g-buffer" draw-buffers="0"/>
         </node>
+        <node import="Water-Depth">
+            <fbo id="g-buffer" draw-buffers="0"/>
+        </node>
+        <view id="Water">
+            <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
+        </view>
 
         <!-- render transparent objects -->
         <node id="Transparent-Pass">
@@ -842,10 +864,10 @@
         <node import="Fog-Draw"/>
         <node import="Scene-Blur"/>
         <node import="ToneMapping">
-            <fbo id="g-buffer" draw-buffers="1"/>
+            <fbo id="g-buffer" draw-buffers="0"/>
         </node>
         <view id="Scene -- ToneMapping">
-            <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+            <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
         </view>
     </node>
 
@@ -853,7 +875,7 @@
         <input type="int" name="numBlurPixels" value="10"/>
         <input type="float" name="blurSigma" value="2.5"/>
 
-        <filter-sequence id="blurred-scene" fbo="g-buffer" attachment="0">
+        <filter-sequence id="blurred-scene" fbo="g-buffer" attachment="1">
             <filter shader="regen.filter.sampling" scale="0.5"/>
             <filter shader="regen.filter.blur.horizontal"/>
             <filter shader="regen.filter.blur.vertical"/>
@@ -881,7 +903,7 @@
     <node id="ToneMapping">
         <define key="USE_RADIAL_BLUR" value="TRUE"/>
         <define key="USE_VIGNETTE" value="TRUE"/>
-        <texture name="inputTexture" fbo="g-buffer" attachment="0"/>
+        <texture name="inputTexture" fbo="g-buffer" attachment="1"/>
         <texture name="blurTexture" id="blurred-scene"/>
         <input name="ToneMapping" ubo="ToneMapping"/>
         <fullscreen-pass shader="regen.filter.tonemap"/>
@@ -924,7 +946,6 @@
 
             <node id="Geometry-Pass">
                 <fbo id="g-buffer" draw-buffers="0,1,2,3,4"/>
-                <blend mode="src"/>
                 <depth test="1" write="1"/>
                 <node import="Shadow-Caster"/>
                 <node import="Non-Shadow-Caster"/>
@@ -983,19 +1004,19 @@
             <view id="Spatial Index">
                 <node import="spatial-index-debug">
                     <camera id="main-camera"/>
-                    <fbo id="g-buffer" draw-buffers="1"/>
+                    <fbo id="g-buffer" draw-buffers="0"/>
                 </node>
                 <node>
-                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                    <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
                 </node>
             </view>
 
             <node import="GUI-Pass">
-                <fbo id="g-buffer" draw-buffers="1"/>
+                <fbo id="g-buffer" draw-buffers="0"/>
             </node>
 
             <view id="Scene -- Result">
-                <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
             </view>
         </node>
     </node>
