@@ -145,7 +145,7 @@
     <light id="fire-flies-light0"
            num-instances="{{num-fire-flies}}"
            type="POINT"
-           radius="0.5,0.8"
+           radius="0.5,1.4"
            ambient="0.0,0.0,0.0">
         <set target="lightPosition" value="4.0,12.0,-4.0">
             <set mode="circle" blend-mode="ADD" radius="5.0" variance="0.1"
