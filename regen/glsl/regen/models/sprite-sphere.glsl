@@ -21,9 +21,6 @@ out float out_sphereRadius;
 
 void main() {
     vec4 pos = transformModel(vec4(in_pos,1.0));
-#ifdef HAS_modelOffset
-    pos.xyz += in_modelOffset;
-#endif
     gl_Position = pos;
     out_sphereRadius = in_sphereRadius;
 #ifdef HAS_INSTANCES
@@ -183,7 +180,7 @@ void main()
 #endif
     writeOutput(in_posWorld,norWorld.xyz,color);
 #ifdef DISCARD_EMISSION
-    if (length(out_emission) < DISCARD_EMISSION_THRESHOLD) discard;
+    if (dot(out_emission,out_emission) < DISCARD_EMISSION_THRESHOLD) discard;
 #endif
 }
 

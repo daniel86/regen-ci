@@ -134,7 +134,7 @@ void StateConfigurer::addState(const State *s) {
 		}
 		if (container->numInstances()>1) {
 			define("HAS_INSTANCES", "TRUE");
-			cfg_.numInstances_ = container->numInstances();
+			cfg_.numInstances_ = std::max(cfg_.numInstances_, static_cast<uint32_t>(container->numInstances()));
 		}
 	}
 	if (x1) {

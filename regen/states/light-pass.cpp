@@ -109,7 +109,6 @@ void LightPass::createShader(const StateConfig &cfg) {
 	StateConfigurer _cfg(cfg);
 	_cfg.addState(this);
 	_cfg.addState(mesh_.get());
-	bool hasInstancedInputs = false;
 	if (!lights_.empty()) {
 		// add first light to shader to set up shader defines and also instance count
 		auto &firstLight = lights_.front();
@@ -118,16 +117,17 @@ void LightPass::createShader(const StateConfig &cfg) {
 				auto *block = dynamic_cast<BufferBlock *>(in.in_.get());
 				_cfg.addInput(in.in_->name(), in.in_);
 				for (auto &blockUniform: block->blockInputs()) {
-					if (blockUniform.in_->numInstances() > 0) { hasInstancedInputs = true; }
+					numInstances_ = std::max(numInstances_, blockUniform.in_->numInstances());
 				}
 			} else {
 				_cfg.addInput(in.in_->name(), in.in_);
-				if (in.in_->numInstances() > 0) { hasInstancedInputs = true; }
+				numInstances_ = std::max(numInstances_, in.in_->numInstances());
 			}
 		}
 	}
-	if (hasInstancedInputs) {
+	if (numInstances_ > 1) {
 		_cfg.define("HAS_INSTANCES", "TRUE");
+		_cfg.cfg().numInstances_ = std::max(_cfg.cfg().numInstances_, numInstances_);
 	}
 	_cfg.define("NUM_SHADOW_LAYER", REGEN_STRING(numShadowLayer_));
 	shader_->createShader(_cfg.cfg(), shaderKey_);
@@ -198,6 +198,7 @@ void LightPass::enable(RenderState *rs) {
 			}
 		}
 
+		mesh_->updateVisibility(0, numInstances_, 0);
 		mesh_->enable(rs);
 		mesh_->disable(rs);
 

@@ -11,6 +11,12 @@
 #define HAS_ALHPHA_CLIP_COEFFICIENTS
     #endif
 #endif
+#ifndef IGNORE_MATERIAL
+    #ifdef HAS_MATERIAL
+    #define USE_MATERIAL
+    #endif
+    #include regen.states.material.defines
+#endif
 
 -- vs
 #include regen.models.mesh.defines
@@ -442,14 +448,6 @@ uniform vec4 in_col;
 #include regen.states.material.input
 #include regen.states.clipping.input
 #include regen.states.textures.input
-#ifndef FS_NO_OUTPUT
-#include regen.states.material.defines
-#endif
-#ifndef IGNORE_MATERIAL
-    #ifdef HAS_MATERIAL
-    #define USE_MATERIAL
-    #endif
-#endif
 
 #ifdef HAS_CLIPPING
 #include regen.states.clipping.isClipped

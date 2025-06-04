@@ -52,10 +52,10 @@ void LODState::updateMeshLOD() {
 	if (!mesh_.get()) { return; }
 	// set LOD level based on distance
 	auto camPos = camera_->position()->getVertex(0);
-	auto distance = (shapeIndex_->shape()->getCenterPosition() - camPos.r).length();
+	auto distanceSquared = (shapeIndex_->shape()->getCenterPosition() - camPos.r).lengthSquared();
 	camPos.unmap();
 	updateVisibility(
-			mesh_->getLODLevel(distance),
+			mesh_->getLODLevel(distanceSquared),
 			1, 0);
 }
 

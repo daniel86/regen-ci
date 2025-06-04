@@ -99,6 +99,7 @@ namespace regen {
 		GLint shadowColorLoc_ = -1;
 		ShadowFilterMode shadowFiltering_ = SHADOW_FILTERING_NONE;
 		GLuint numShadowLayer_ = 1;
+		uint32_t numInstances_ = 1;
 
 		void addInputLocation(LightPassLight &l,
 							  const ref_ptr<ShaderInput> &in, const std::string &name);
