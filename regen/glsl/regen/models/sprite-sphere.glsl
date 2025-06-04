@@ -180,7 +180,7 @@ void main()
 #endif
     writeOutput(in_posWorld,norWorld.xyz,color);
 #ifdef DISCARD_EMISSION
-    if (length(out_emission) < DISCARD_EMISSION_THRESHOLD) discard;
+    if (dot(out_emission,out_emission) < DISCARD_EMISSION_THRESHOLD) discard;
 #endif
 }
 
