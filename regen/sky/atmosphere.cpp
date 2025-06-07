@@ -1,10 +1,3 @@
-/*
- * atmosphere.cpp
- *
- *  Created on: Jan 4, 2014
- *      Author: daniel
- */
-
 #include <regen/meshes/primitives/rectangle.h>
 #include <regen/states/state-configurer.h>
 
@@ -201,15 +194,16 @@ void Atmosphere::setProperties(AtmosphereProperties &p) {
 	setAbsorption(p.absorption);
 }
 
-const ref_ptr<TextureCube> &Atmosphere::cubeMap() const { return drawState_->cubeMap(); }
+const ref_ptr<TextureCube> &Atmosphere::cubeMap() const {
+	return drawState_->cubeMap();
+}
 
 void Atmosphere::updateSkyLayer(RenderState *rs, GLdouble dt) {
 	rs->drawFrameBuffer().push(fbo_->id());
 	rs->viewport().push(fbo_->glViewport());
 
 	updateState_->enable(rs);
-	updateMesh_->enable(rs);
-	updateMesh_->disable(rs);
+	updateMesh_->draw(rs);
 	updateState_->disable(rs);
 
 	rs->viewport().pop();

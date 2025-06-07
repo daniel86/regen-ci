@@ -1,10 +1,3 @@
-/*
- * stars.cpp
- *
- *  Created on: Oct 4, 2014
- *      Author: daniel
- */
-
 #include "stars.h"
 
 #include <regen/textures/texture-loader.h>
@@ -78,6 +71,7 @@ void Stars::set_brightStarsFile(const std::string &brightStars) {
 		REGEN_WARN("Unable to load bright stars catalog at " << brightStars << ".");
 		return;
 	}
+	REGEN_INFO("Loaded " << bs.numStars() << " bright stars from " << brightStars << ".");
 
 	pos_->setVertexData(bs.numStars());
 	col_->setVertexData(bs.numStars());
