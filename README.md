@@ -22,6 +22,29 @@ Some features from the 4.0 API are also supported but optional for backwards com
 The engine was tested with proprietary NVIDIA and ATI drivers and should work with
 Unix based operating systems and Windows.
 
+Features at a Glance
+=========================
+
+- 🔁 **Hybrid CPU & GPU LOD System**: Efficient Level of Detail (LOD) management using custom SIMD-optimized CPU code and GPU-based compute shaders. Includes GPU-based radix sort and dynamic LOD selection.
+- 🧠 **Culling Optimizations**: Real-time view frustum culling on both CPU and GPU to minimize draw calls.
+- 🪐 **Weather & Atmosphere Simulation**: Realistic dynamic weather including procedural thunderstorms, lightning flashes, wind, rain, snow, and atmospheric scattering.
+- 🌲 **Procedural Terrain & Environment**:
+  - Large-scale terrain rendering
+  - Procedural grass and vegetation generation
+  - Water surfaces with reflection, refraction, and wave animation
+- 🐟 **GPU Boid Simulation**: Real-time simulation of flocking behavior (boids) running both on GPU and CPU for benchmarking and experimentation.
+- 🌌 **High-Quality Scene Rendering**: Deferred shading, volumetric effects, post-processing, physically-based lighting, and sky simulation.
+
+Why Regen?
+=========================
+
+While many game engines focus on tooling or asset pipelines, `regen` is built to explore
+**real-time rendering algorithms**,
+**GPU compute programming**, and **systems-level optimization** in a clean, portable C++ codebase.
+
+Whether you're building a research demo, experimenting with procedural environments,
+or learning advanced OpenGL techniques, `regen` is designed for **deep customization and experimentation**.
+
 Development
 =========================
 The development is at  the moment mostly in maintanance mode. This includes:
@@ -94,22 +117,36 @@ Feature List
 =========================
 Here you find a brief list of supported features in this library.
 
-- `Portability`: Tested with Windows8, Ubuntu11.10 and ArchLinux
+- `Portability`: Tested on Windows and various Linux distributions.
+- `Hybrid LOD System`:
+  - SIMD-optimized CPU implementation of LOD updates and sorting.
+  - GPU compute shader implementation using parallel radix sort for fast LOD ranking.
+- `GPU Culling`:
+  - Per-object and per-instance frustum culling using compute shaders.
+  - Optional CPU-side culling with SIMD acceleration.
+- `Boid Simulation`:
+  - Flocking algorithm with spatial partitioning.
+  - GPU implementation using compute shaders.
+  - Parallel CPU version for comparison and debugging.
+- `Procedural Terrain & Environments`:
+  - Large-scale terrain rendering with LOD and tiled streaming.
+  - Procedural texture blending (e.g., grass, rock, snow).
+  - Dynamic vegetation: Grass, trees, and object scattering.
+- `Weather System`:
+  - Rain, snow, thunder/lightning, wind gusts.
+  - Dynamic lighting.
 - `Augmented GLSL`:
-    - input modification (constant, uniform, attribute, instanced attribute)
-    - support for 'include' and 'for' directive
-- `Render State`: encapsulates GL states and avoids redundant state switches.
-- `Audio/Video`: Streaming from file resources, 3D Sound
-- `Image loading`: Support for common image formats (png, jpg, hdr, ...)
-- `Text rendering`: Loading of Freetype fonts, rendering of texture mapped text
-- `Model loading`: Support for common model formats (3ds, ply, obj, ...), support for bone animations
-- `Shading`: Deferred and Direct shading is supported
-- `Picking`: Supports to distinguish between objects and instances
-- `Scene post processing`: FXAA, Ambient Occlusion, Volumetric Fog, Tonemap ...
-- `Sky Rendering`: Dynamic sky with realistic scattering
-- `Particles`: Simple implementations of smoke,rain,snow particles
-- `Volume Rendering`: Simple raycasting volume renderer
-- `Scene Graph`: Loading scenes from XML resources
+  - GLSL preprocessor extensions: `#include`, `#for`, and instanced attribute injection.
+- `Scene Graph & Resource Loading`:
+  - XML-based scene configuration.
+  - Assimp integration for loading animated models (OBJ, PLY, 3DS, etc.).
+- `Rendering Pipeline`:
+  - Deferred and forward shading.
+  - SSAO, FXAA, volumetric fog, tone mapping.
+- `Realistic Sky Rendering`: Rayleigh and Mie scattering model, time-of-day transitions.
+- `Volume Rendering`: Lightweight raycasting for scientific and artistic purposes.
+- `Instancing & Picking`: Hardware instancing and robust object/instance picking.
+- `Audio/Video`: 3D positional audio and video texture streaming support.
 
 Dependency List
 =========================
