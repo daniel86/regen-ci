@@ -33,6 +33,7 @@ Features at a Glance
   - Procedural grass and vegetation generation
   - Water surfaces with reflection, refraction, and wave animation
 - 🐟 **GPU Boid Simulation**: Real-time simulation of flocking behavior (boids) running both on GPU and CPU for benchmarking and experimentation.
+- 🔥 **Particles**: GPU-simulated systems with configurable behaviors
 - 🌌 **High-Quality Scene Rendering**: Deferred shading, volumetric effects, post-processing, physically-based lighting, and sky simulation.
 
 Why Regen?
@@ -118,25 +119,30 @@ Feature List
 Here you find a brief list of supported features in this library.
 
 - `Portability`: Tested on Windows and various Linux distributions.
-- `Hybrid LOD System`:
+- `GPU + CPU Level-of-Detail (LOD) Handling`:
   - SIMD-optimized CPU implementation of LOD updates and sorting.
   - GPU compute shader implementation using parallel radix sort for fast LOD ranking.
-- `GPU Culling`:
-  - Per-object and per-instance frustum culling using compute shaders.
-  - Optional CPU-side culling with SIMD acceleration.
+  - Procedural mesh simplification
+    - Mesh simplification using edge collapse
+    - Impostor rendering: renders mesh from multiple angles to a texture atlas for billboarding
+  - Frustum culling implemented both on CPU (with SSE) and GPU:
+    - Per-object and per-instance frustum culling using compute shaders.
+    - Optional CPU-side culling with SIMD acceleration and quad tree spatial index
 - `Boid Simulation`:
   - Flocking algorithm with spatial partitioning.
-  - GPU implementation using compute shaders.
-  - Parallel CPU version for comparison and debugging.
+  - GPU implementation using compute shaders, scales well to >100K boids
+  - CPU version for comparison and debugging.
 - `Procedural Terrain & Environments`:
   - Large-scale terrain rendering with LOD and tiled streaming.
-  - Procedural texture blending (e.g., grass, rock, snow).
-  - Dynamic vegetation: Grass, trees, and object scattering.
-- `Weather System`:
-  - Rain, snow, thunder/lightning, wind gusts.
-  - Dynamic lighting.
+  - Multi-layer procedural texturing and blending (e.g., grass, rock, snow).
+  - Water rendering with reflections/refractions
+  - Configurable weather system: thunder, rain, snow, fog, wind
 - `Augmented GLSL`:
   - GLSL preprocessor extensions: `#include`, `#for`, and instanced attribute injection.
+- `Modern GPU Resource Management`
+  - Unified memory abstraction ("Coil") dynamically selects between UBO, SSBO, and TBO depending on platform limits and usage
+  - Proper support for `std140` and `std430` layouts
+  - Virtual memory allocator using buddy allocation, with precise alignment and bound checking
 - `Scene Graph & Resource Loading`:
   - XML-based scene configuration.
   - Assimp integration for loading animated models (OBJ, PLY, 3DS, etc.).
@@ -172,10 +178,6 @@ the following list of libraries:
 - [Qt](http://qt-project.org/) >=5.0 (QtCore, QtGui, QtOpenGL)
     - Note: use Qt5 installer for Win
 
-Documentation
-=========================
-The documentation is hosted using the [gh-pages branch](https://daniel86.github.io/regen/)
-
 Videos of regen in action
 =========================
 
@@ -209,10 +211,20 @@ Videos of regen in action
     </a>
 </p>
 
-Contact
-=========================
-If you find any bugs or if you have any feature requests
-please report them to the [github tracker](https://github.com/daniel86/regen/issues).
 
-You also can contact me directly via mail or Jabber if you like (address: daniel(at)orgizm.net).
+📚 Documentation
+=========================
+
+Documentation is available at: https://daniel86.github.io/regen/
+
+📬 Contact
+=========================
+
+Bug reports or feature requests? Use the GitHub issue tracker.
+You can also reach me via email: daniel(at)orgizm.net.
+
+❤️ Contributions
+=========================
+
+This engine was primarily developed for fun and exploration of real-time rendering techniques. If you find it useful or want to contribute, feel free to reach out or submit a PR.
 
