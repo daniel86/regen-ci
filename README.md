@@ -50,7 +50,7 @@ Feature List
 =========================
 Here you find a brief list of supported features in this library.
 
-- `Portability`: Tested on Windows and various Linux distributions.
+- `Portability`: Tested on Windows and various Linux distributions. Tested with AMD, NVIDIA and Intel driver.
 - `GPU + CPU Level-of-Detail (LOD) Handling`:
   - SIMD-optimized CPU implementation of LOD updates and sorting.
   - GPU compute shader implementation using parallel radix sort for fast LOD ranking.
