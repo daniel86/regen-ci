@@ -46,74 +46,6 @@ While many game engines focus on tooling or asset pipelines, `regen` is built to
 Whether you're building a research demo, experimenting with procedural environments,
 or learning advanced OpenGL techniques, `regen` is designed for **deep customization and experimentation**.
 
-Development
-=========================
-The development is at  the moment mostly in maintanance mode. This includes:
-- Making sure it runs with latest stable Ubuntu
-- Merging pull requests
-
-Additional features are currently only be worked on occasionally to create
-specific scenes, or to explore specific algorithmic challanges in computer graphics.
-
-
-Downloading
-=========================
-Clone the code from [github](https://github.com/daniel86/regen).
-The dev branch contains the most up to date source code.
-For each release you will find a custom branch.
-
-Compiling
-=========================
-`regen` builds with [CMake](http://www.cmake.org/).
-Run `cmake .` in the root directory to generate files needed for compiling.
-On Unix systems CMake will generate Makefile's with usual targets.
-Running `make` invokes the compiler and linker and
-if `make` was successfull a static library `libregen.a`
-was created in the root directory.
-On Windows CMake generates Visual Studio files, just open them and compile from the IDE.
-
-`regen` defines following build targets:
-
-| Target     | Description                    |
-|------------|--------------------------------|
-| `all`      | Compile and link the engine.   |
-| `install`  | Install compiled library.      |
-| `doc`      | Generate doxygen documentation.|
-| `package`  | Generate a regen package (archive file on Linux).|
-
-CMake supports some default parameters for compiler and build path setup, consider the CMake documentations
-for a complete socumentation of these arguments. Some important argument are listed below.
-
-| CMake argument          | Description                       |
-|-------------------------|-----------------------------------|
-| CMAKE_INSTALL_PREFIX    | Path were the engine should get installed when the `install` target is used. |
-| CMAKE_INCLUDE_PATH      | Path were you installed the dependency library headers. |
-| CMAKE_LIBRARY_PATH      | Path were you installed the dependency libraries. |
-| -G $GENERATOR_NAME      | Specifies custom build file generator. You might need to set this to "Visual Studio 11 Win64" when you intend to build the library for Win 64 Bit. |
-
-Following you can find a list of `cmake` arguments with special handling in the `regen` build files:
-
-| CMake argument          | Default | Description                                                                                             |
-|-------------------------|---------|---------------------------------------------------------------------------------------------------------|
-| -DCMAKE_BUILD_TYPE      | Release | One of `Release` or `Debug`. With Debug mode the engine is compiled with additional debugging symbols.  |
-| -DBUILD_TESTS           | 0       | If set to 1 the test applications will be compiled by `all` target                                      |
-| -DBUILD_VIDEO_PLAYER    | 0       | If set to 1 the video player application will be compiled by `all` target                               |
-
-On Windows you might have to set environment variables for the dependency libraries.
-Following you can find a list of those variables:
-
-| Environment variable    | Description                       |
-|-------------------------|-----------------------------------|
-| GLEW_DIR                | Base path for GLEW library.       |
-| Boost_DIR               | Base path for Boost library.      |
-| ASSIMP_DIR              | Base path for Assimp library.     |
-| FREETYPE_DIR            | Base path for Freetype library.   |
-| DEVIL_DIR               | Base path for DevIL library.      |
-| FFMPEG_DIR              | Base path for FFmpeg library.     |
-| OPENAL_DIR              | Base path for OpenAL library.     |
-| ALUT_DIR                | Base path for ALut library.       |
-| BULLET_DIR              | Base path for Bullet library.     |
-
 Feature List
 =========================
 Here you find a brief list of supported features in this library.
@@ -177,6 +109,64 @@ In order to compile the test applications you will also need to install
 the following list of libraries:
 - [Qt](http://qt-project.org/) >=5.0 (QtCore, QtGui, QtOpenGL)
     - Note: use Qt5 installer for Win
+
+Downloading
+=========================
+Clone the code from [github](https://github.com/daniel86/regen).
+The dev branch contains the most up to date source code.
+For each release you will find a custom branch.
+
+Compiling
+=========================
+`regen` builds with [CMake](http://www.cmake.org/).
+Run `cmake .` in the root directory to generate files needed for compiling.
+On Unix systems CMake will generate Makefile's with usual targets.
+Running `make` invokes the compiler and linker and
+if `make` was successfull a static library `libregen.a`
+was created in the root directory.
+On Windows CMake generates Visual Studio files, just open them and compile from the IDE.
+
+`regen` defines following build targets:
+
+| Target     | Description                    |
+|------------|--------------------------------|
+| `all`      | Compile and link the engine.   |
+| `install`  | Install compiled library.      |
+| `doc`      | Generate doxygen documentation.|
+| `package`  | Generate a regen package (archive file on Linux).|
+
+CMake supports some default parameters for compiler and build path setup, consider the CMake documentations
+for a complete socumentation of these arguments. Some important argument are listed below.
+
+| CMake argument          | Description                       |
+|-------------------------|-----------------------------------|
+| CMAKE_INSTALL_PREFIX    | Path were the engine should get installed when the `install` target is used. |
+| CMAKE_INCLUDE_PATH      | Path were you installed the dependency library headers. |
+| CMAKE_LIBRARY_PATH      | Path were you installed the dependency libraries. |
+| -G $GENERATOR_NAME      | Specifies custom build file generator. You might need to set this to "Visual Studio 11 Win64" when you intend to build the library for Win 64 Bit. |
+
+Following you can find a list of `cmake` arguments with special handling in the `regen` build files:
+
+| CMake argument          | Default | Description                                                                                             |
+|-------------------------|---------|---------------------------------------------------------------------------------------------------------|
+| -DCMAKE_BUILD_TYPE      | Release | One of `Release` or `Debug`. With Debug mode the engine is compiled with additional debugging symbols.  |
+| -DBUILD_TESTS           | 0       | If set to 1 the test applications will be compiled by `all` target                                      |
+| -DBUILD_VIDEO_PLAYER    | 0       | If set to 1 the video player application will be compiled by `all` target                               |
+
+On Windows you might have to set environment variables for the dependency libraries.
+Following you can find a list of those variables:
+
+| Environment variable    | Description                       |
+|-------------------------|-----------------------------------|
+| GLEW_DIR                | Base path for GLEW library.       |
+| Boost_DIR               | Base path for Boost library.      |
+| ASSIMP_DIR              | Base path for Assimp library.     |
+| FREETYPE_DIR            | Base path for Freetype library.   |
+| DEVIL_DIR               | Base path for DevIL library.      |
+| FFMPEG_DIR              | Base path for FFmpeg library.     |
+| OPENAL_DIR              | Base path for OpenAL library.     |
+| ALUT_DIR                | Base path for ALut library.       |
+| BULLET_DIR              | Base path for Bullet library.     |
 
 Videos of regen in action
 =========================
