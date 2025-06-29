@@ -137,13 +137,14 @@ void SpatialIndex::updateVisibilityWithCamera(IndexCamera &ic, const BoundingSha
 			if (distances.empty()) { continue; }
 			std::ranges::sort(distances, {}, &IndexedShape::ShapeDistance::distance);
 
-			indexShape->u_instanceCount_ = static_cast<unsigned int>(distances.size());
+			uint32_t startIdx = indexShape->u_instanceCount_;
+			indexShape->u_instanceCount_ = startIdx + static_cast<unsigned int>(distances.size());
 			auto mapped_data = indexShape->mappedInstanceIDs();
 			// convention: first element is the number of visible instances
 			mapped_data[0] = indexShape->u_instanceCount_;
 			std::transform(
 				distances.begin(), distances.end(),
-				mapped_data + 1,
+				mapped_data + startIdx + 1,
 				[](const auto &d) { return d.shape->instanceID(); });
 		}
 	} else {
