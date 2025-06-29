@@ -93,6 +93,9 @@ namespace regen::simd {
 	inline __m256 cmp_or(const __m256 &a, const __m256 &b) {
 		return _mm256_or_ps(a, b);
 	}
+	inline __m256 cmp_and(const __m256 &a, const __m256 &b) {
+		return _mm256_and_ps(a, b);
+	}
 
 	inline __m256i cvttps_epi32(const __m256 &a) { return _mm256_cvttps_epi32(a); }
 
@@ -151,6 +154,7 @@ namespace regen::simd {
 		return _mm_andnot_ps(eq, _mm_castsi128_ps(_mm_set1_epi32(-1)));  // ~eq & all_ones
 	}
 	inline __m128 cmp_or(const __m128 &a, const __m128 &b) { return _mm_or_ps(a, b); }
+	inline __m128 cmp_and(const __m128 &a, const __m128 &b) { return _mm_and_ps(a, b); }
 
 	inline __m128i cvttps_epi32(const __m128 &a) { return _mm_cvttps_epi32(a); }
 
@@ -189,6 +193,8 @@ namespace regen::simd {
 	inline float cmp_gt(const float &a, const float &b)  { return a > b ? 1.0f : 0.0f; }
 	inline float cmp_eq(const float &a, const float &b)  { return a == b ? 1.0f : 0.0f; }
 	inline float cmp_neq(const float &a, const float &b) { return a != b ? 1.0f : 0.0f; }
+	inline float cmp_or(const float &a, const float &b) { return a || b ? 1.0f : 0.0f; }
+	inline float cmp_and(const float &a, const float &b) { return a && b ? 1.0f : 0.0f; }
 
 	inline int movemask_ps(const float &v) { return (v != 0.0f) ? 1 : 0; }
 #endif
