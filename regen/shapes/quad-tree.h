@@ -6,6 +6,7 @@
 #include <regen/shapes/spatial-index.h>
 #include <regen/shapes/bounds.h>
 #include <regen/shapes/orthogonal-projection.h>
+#include "regen/utility/aligned-array.h"
 
 namespace regen {
 	/**
@@ -25,6 +26,7 @@ namespace regen {
 			ref_ptr<BoundingShape> shape;
 			OrthogonalProjection projection;
 			std::vector<Node *> nodes;
+			bool visited = false; // used during intersection tests
 
 			explicit Item(const ref_ptr<BoundingShape> &shape);
 
@@ -52,6 +54,17 @@ namespace regen {
 
 			inline bool contains(const OrthogonalProjection &projection) const;
 		};
+		/**
+		 * @brief Configuration for 3D intersection tests in the quad tree.
+		 * QUAD_TREE_3D_TEST_NONE: No intersection test.
+		 * QUAD_TREE_3D_TEST_CLOSEST: Only the closest intersection is returned.
+		 * QUAD_TREE_3D_TEST_ALL: All intersections are returned.
+		 */
+		enum TestMode_3D {
+			QUAD_TREE_3D_TEST_NONE = 0,
+			QUAD_TREE_3D_TEST_CLOSEST,
+			QUAD_TREE_3D_TEST_ALL
+		};
 
 		QuadTree();
 
@@ -67,13 +80,31 @@ namespace regen {
 		 * @brief Get the number of nodes in the quad tree
 		 * @return The number of nodes
 		 */
-		unsigned int numNodes() const;
+		unsigned int numNodes() const { return numNodes_; }
+
+		/**
+		 * @brief Get the number of leaves in the quad tree
+		 * @return The number of leaves
+		 */
+		unsigned int numLeaves() const { return numLeaves_; }
 
 		/**
 		 * @brief Set the minimum size of a node
 		 * @param size The minimum size
 		 */
 		void setMinNodeSize(float size) { minNodeSize_ = size; }
+
+		/**
+		 * Set the test mode for 3D intersection tests.
+		 * @param mode The test mode to set
+		 */
+		void setTestMode3D(TestMode_3D mode) { testMode3D_ = mode; }
+
+		/**
+		 * Set the distance threshold for close distance tests.
+		 * @param distance The distance threshold to set
+		 */
+		void setCloseDistanceSquared(float d) { closeDistanceSquared_ = d * d; }
 
 		// override SpatialIndex::insert
 		void insert(const ref_ptr<BoundingShape> &shape) override;
@@ -93,18 +124,28 @@ namespace regen {
 		// override SpatialIndex::foreachIntersection
 		void foreachIntersection(
 				const BoundingShape &shape,
-				const std::function<void(const BoundingShape &)> &callback) override;
+				void (*callback)(const BoundingShape&, void*),
+				void *userData) override;
 
 		// override SpatialIndex
 		void debugDraw(DebugInterface &debug) const override;
 
 	protected:
+		struct Private;
+		Private *priv_;
+
 		Node *root_ = nullptr;
-		std::map<BoundingShape*, Item*> items_;
+		std::unordered_map<BoundingShape*, Item*> shapeToItem_;
+		std::vector<Item *> items_;
 		std::vector<Item *> newItems_;
 		std::stack<Node *> nodePool_;
 		std::stack<Item *> itemPool_;
 		float minNodeSize_ = 0.1f;
+		uint32_t numNodes_ = 0;
+		uint32_t numLeaves_ = 0;
+
+		TestMode_3D testMode3D_ = QUAD_TREE_3D_TEST_CLOSEST;
+		float closeDistanceSquared_ = 20.0f * 20.0f; // heuristic threshold for distance to camera position
 
 		Bounds<Vec2f> newBounds_;
 		std::vector<Item *> changedItems_;

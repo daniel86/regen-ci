@@ -16,6 +16,7 @@
 #include <regen/states/model-transformation.h>
 #include <regen/gl-types/input-container.h>
 #include "regen/gl-types/ubo.h"
+#include "regen/meshes/lod/lod-level.h"
 
 namespace regen {
 	/**
@@ -39,6 +40,12 @@ namespace regen {
 		 * @return the stamp when the camera was last updated.
 		 */
 		auto stamp() const { return camStamp_; }
+
+		/**
+		 * Increment the camera stamp.
+		 * @return the new stamp.
+		 */
+		auto nextStamp() { return ++camStamp_; }
 
 		/**
 		 * @return the number of layers.
@@ -79,6 +86,8 @@ namespace regen {
 		 */
 		void setPerspective(float aspect, float fov, float near, float far, unsigned int layer);
 
+		void setPerspective(const Vec4f &params);
+
 		/**
 		 * Update frustum projection and projection matrix.
 		 * @param left the left vertical clipping plane.
@@ -108,24 +117,9 @@ namespace regen {
 		auto &cameraBlock() const { return cameraBlock_; }
 
 		/**
-		 * @return specifies the field of view angle, in degrees, in the y direction.
+		 * @return the projection parameters: near, far, aspect, fov.
 		 */
-		auto &fov() const { return fov_; }
-
-		/**
-		 * @return specifies the aspect ratio that determines the field of view in the x direction.
-		 */
-		auto &aspect() const { return aspect_; }
-
-		/**
-		 * @return specifies the distance from the viewer to the near clipping plane (always positive).
-		 */
-		auto &near() const { return near_; }
-
-		/**
-		 * @return specifies the distance from the viewer to the far clipping plane (always positive).
-		 */
-		auto &far() const { return far_; }
+		auto &projParams() const { return projParams_; }
 
 		/**
 		 * @return the camera position.
@@ -254,7 +248,7 @@ namespace regen {
 		 * Attach the camera to a position, updating the camera position.
 		 * @param attachedPosition the position to attach to.
 		 */
-		void attachToPosition(const ref_ptr<ShaderInput3f> &attachedPosition);
+		void attachToPosition(const ref_ptr<ShaderInput4f> &attachedPosition);
 
 		/**
 		 * Attach the camera to a position, updating the camera position.
@@ -267,6 +261,25 @@ namespace regen {
 		 */
 		void updatePose();
 
+		/**
+		 * @return true is the camera has a fixed LOD quality.
+		 */
+		bool hasFixedLOD() const { return hasFixedLOD_; }
+
+		/**
+		 * @return the fixed LOD quality.
+		 */
+		LODQuality fixedLODQuality() const { return fixedLODQuality_; }
+
+		/**
+		 * Set the fixed LOD quality.
+		 * @param quality the LOD quality to set.
+		 */
+		void setFixedLOD(LODQuality quality) {
+			hasFixedLOD_ = true;
+			fixedLODQuality_ = quality;
+		}
+
 		virtual void updateViewProjection1();
 
 	protected:
@@ -276,17 +289,21 @@ namespace regen {
 		bool isAudioListener_ = false;
 		unsigned int camStamp_ = 0u;
 
+		bool hasFixedLOD_ = false;
+		LODQuality fixedLODQuality_ = LODQuality::LOW;
+
 		std::vector<Frustum> frustum_;
 
 		ref_ptr<UBO> cameraBlock_;
-		ref_ptr<ShaderInput1f> fov_;
-		ref_ptr<ShaderInput1f> aspect_;
-		ref_ptr<ShaderInput1f> far_;
-		ref_ptr<ShaderInput1f> near_;
+		//ref_ptr<ShaderInput1f> fov_;
+		//ref_ptr<ShaderInput1f> aspect_;
+		//ref_ptr<ShaderInput1f> far_;
+		//ref_ptr<ShaderInput1f> near_;
+		ref_ptr<ShaderInput4f> projParams_;
 
-		ref_ptr<ShaderInput3f> position_;
-		ref_ptr<ShaderInput3f> direction_;
-		ref_ptr<ShaderInput3f> vel_;
+		ref_ptr<ShaderInput4f> position_;
+		ref_ptr<ShaderInput4f> direction_;
+		ref_ptr<ShaderInput4f> vel_;
 
 		ref_ptr<ShaderInputMat4> view_;
 		ref_ptr<ShaderInputMat4> viewInv_;
@@ -297,7 +314,7 @@ namespace regen {
 
 		ref_ptr<Animation> attachedMotion_;
 		ref_ptr<ShaderInputMat4> attachedTransform_;
-		ref_ptr<ShaderInput3f> attachedPosition_;
+		ref_ptr<ShaderInput4f> attachedPosition_;
 		bool isAttachedToPosition_ = false;
 		ref_ptr<Animation> cameraMotion_;
 
@@ -322,6 +339,13 @@ namespace regen {
 	protected:
 		ref_ptr<Camera> cam_;
 		ref_ptr<ShaderInput2i> windowViewport_;
+	};
+
+	struct ProjectionParams {
+		float near = 0.1f; // near plane distance
+		float far = 100.0f; // far plane distance
+		float aspect = 1.0f; // aspect ratio
+		float fov = 60.0f; // field of view in degrees
 	};
 } // namespace
 

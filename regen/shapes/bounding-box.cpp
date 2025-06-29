@@ -12,28 +12,31 @@ BoundingBox::BoundingBox(BoundingBoxType type, const Bounds<Vec3f> &bounds)
 		  bounds_(bounds),
 		  basePosition_((bounds.max + bounds.min) * 0.5f) {}
 
-BoundingBox::BoundingBox(BoundingBoxType type, const ref_ptr<Mesh> &mesh)
-		: BoundingShape(BoundingShapeType::BOX, mesh),
+BoundingBox::BoundingBox(BoundingBoxType type, const ref_ptr<Mesh> &mesh, const std::vector<ref_ptr<Mesh>> &parts)
+		: BoundingShape(BoundingShapeType::BOX, mesh, parts),
 		  type_(type),
-		  bounds_(mesh->minPosition(), mesh->maxPosition()),
-		  basePosition_((bounds_.max + bounds_.min) * 0.5f) {
+		  bounds_(mesh->minPosition(), mesh->maxPosition()) {
+	for (const auto &part : parts) {
+		bounds_.min.setMin(part->minPosition());
+		bounds_.max.setMax(part->maxPosition());
+	}
+	basePosition_ = (bounds_.max + bounds_.min) * 0.5f;
 }
 
 void BoundingBox::updateBounds(const Vec3f &min, const Vec3f &max) {
 	bounds_.min = mesh_->minPosition();
 	bounds_.max = mesh_->maxPosition();
+	for (const auto &part : parts_) {
+		bounds_.min.setMin(part->minPosition());
+		bounds_.max.setMax(part->maxPosition());
+	}
 	basePosition_ = (bounds_.max + bounds_.min) * 0.5f;
 }
 
-Vec3f BoundingBox::getCenterPosition() const {
-	Vec3f p = basePosition_;
-	if (modelOffset_.get()) {
-		p += modelOffset_->getVertex(modelOffsetIndex_).r;
-	}
+void BoundingBox::updateShapeOrigin() {
+	shapeOrigin_ = basePosition_;
 	if (transform_.get()) {
-		return p + transform_->get()->getVertex(transformIndex_).r.position();
-	} else {
-		return p;
+		shapeOrigin_ += transform_->position(transformIndex_).r;
 	}
 }
 

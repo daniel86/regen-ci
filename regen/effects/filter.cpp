@@ -132,15 +132,8 @@ FilterSequence::FilterSequence(const ref_ptr<Texture> &input, GLboolean bindInpu
 	inverseViewport_->setUniformData(Vec2f(
 			1.0f / (GLfloat) input->width(), 1.0f / (GLfloat) input->height()));
 
-#ifdef USE_FBO_UBO
-	uniforms_ = ref_ptr<UBO>::alloc("FBO");
-	uniforms_->addUniform(viewport_);
-	uniforms_->addUniform(inverseViewport_);
-	joinShaderInput(uniforms_);
-#else
 	joinShaderInput(viewport_);
 	joinShaderInput(inverseViewport_);
-#endif
 
 	ref_ptr<ShaderInput2f> inverseViewport;
 
@@ -288,6 +281,8 @@ void FilterSequence::resize() {
 	GLuint width = input_->width();
 	GLuint height = input_->height();
 	if (width == lastWidth_ && height == lastHeight_) return;
+	lastWidth_ = width;
+	lastHeight_ = height;
 
 	FBO *last = nullptr;
 	for (auto &it: filterSequence_) {
@@ -302,9 +297,6 @@ void FilterSequence::resize() {
 
 		last = fbo;
 	}
-
-	lastWidth_ = width;
-	lastHeight_ = height;
 }
 
 void FilterSequence::enable(RenderState *rs) {

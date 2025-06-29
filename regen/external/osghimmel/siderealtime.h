@@ -1,5 +1,4 @@
-
-// Copyright (c) 2011-2012, Daniel Müller <dm@g4t3.de>
+// Copyright (c) 2011-2012, Daniel MÃ¼ller <dm@g4t3.de>
 // Computer Graphics Systems Group at the Hasso-Plattner-Institute, Germany
 // All rights reserved.
 //
@@ -31,17 +30,15 @@
 #ifndef __SIDERALTIME_H__
 #define __SIDERALTIME_H__
 
-#include "declspec.h"
 #include "typedefs.h"
 #include "atime.h"
-
 
 namespace osgHimmel
 {
 
 // The mean sideral time, Greenwich hour angle of the mean vernal point.
-const t_longf siderealTime(const t_aTime &aTime);
-const t_longf siderealTime2(const t_aTime &aTime);
+t_longf siderealTime(const t_aTime &aTime);
+float siderealTime2(const t_aTime &aTime);
 
 } // namespace osgHimmel
 

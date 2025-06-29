@@ -4,6 +4,7 @@
 #include <regen/gl-types/gl-param.h>
 #include <regen/gl-types/binding-manager.h>
 #include "scene.h"
+#include "regen/animations/animation-manager.h"
 
 using namespace regen;
 
@@ -55,6 +56,7 @@ Scene::Scene(const int &argc, const char **argv)
 	requiredExt_.emplace_back("GL_ARB_texture_float");
 	requiredExt_.emplace_back("GL_ARB_texture_multisample");
 	requiredExt_.emplace_back("GL_ARB_viewport_array");
+	requiredExt_.emplace_back("GL_ARB_buffer_storage");
 	requiredExt_.emplace_back("GL_ARB_uniform_buffer_object");
 	requiredExt_.emplace_back("GL_ARB_vertex_array_object");
 	requiredExt_.emplace_back("GL_ARB_map_buffer_range");
@@ -238,9 +240,15 @@ void Scene::initGL() {
 	REGEN_DEBUG("MAX_COMPUTE_WORK_GROUP_COUNT: " << glParam<Vec3i>(GL_MAX_COMPUTE_WORK_GROUP_COUNT));
 	REGEN_DEBUG("MAX_COMPUTE_WORK_GROUP_INVOCATIONS: " << glParam<int>(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS));
 	REGEN_DEBUG("MAX_COMPUTE_SHARED_MEMORY_SIZE: " << glParam<int>(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE));
+	REGEN_DEBUG("MIN_MAP_BUFFER_ALIGNMENT: " << glParam<int>(GL_MIN_MAP_BUFFER_ALIGNMENT));
 #undef DEBUG_GLi
 
 	setupShaderLoading();
+
+	// set some configuration options
+	// TODO: check if it make a different e.g. to use alignment of page size 4096 bytes.
+	//BufferMapping::setMinMapAlignment(4096);
+	BufferMapping::setMinMapAlignment(64);
 
 	BufferObject::createMemoryPools();
 	renderTree_->init();
@@ -344,6 +352,10 @@ void Scene::drawGL() {
 
 void Scene::updateGL() {
 	renderTree_->postRender(timeDelta_->getVertex(0).r);
+}
+
+void Scene::flushGL() {
+	AnimationManager::get().flushGraphics();
 }
 
 namespace regen {

@@ -7,7 +7,7 @@ uint selectViewIdx(vec3 viewDirLocal) {
     uint bestIndex = 0;
     /**
     #for VIEW_I to NUM_IMPOSTOR_VIEWS
-    d = dot(viewDirLocal, in_snapshotDirs[${VIEW_I}]);
+    d = dot(viewDirLocal, in_snapshotDirs[${VIEW_I}].xyz);
     if (d > maxDot) {
         maxDot = d;
         bestIndex = ${VIEW_I};
@@ -15,7 +15,7 @@ uint selectViewIdx(vec3 viewDirLocal) {
     #endfor
     **/
     for (uint i = 0; i < NUM_IMPOSTOR_VIEWS; ++i) {
-        d = dot(viewDirLocal, in_snapshotDirs[i]);
+        d = dot(viewDirLocal, in_snapshotDirs[i].xyz);
         if (d > maxDot) {
             maxDot = d;
             bestIndex = i;
@@ -80,11 +80,11 @@ void main() {
     pos = in_modelMatrix * pos;
 #endif
 #ifdef HAS_modelOffset
-    pos.xyz += in_modelOffset;
+    pos.xyz += in_modelOffset.xyz;
 #endif
     gl_Position = pos;
 #ifdef HAS_INSTANCES
-    out_instanceID = gl_InstanceID;
+    out_instanceID = gl_InstanceID + gl_BaseInstance;
 #endif // HAS_INSTANCES
     HANDLE_IO(gl_VertexID);
 }
@@ -107,7 +107,7 @@ out vec3 out_texco0;
 out vec3 out_posEye;
 out vec3 out_posWorld;
 
-buffer vec3 in_snapshotDirs[];
+buffer vec4 in_snapshotDirs[];
 buffer vec4 in_snapshotOrthoBounds[];
 buffer vec2 in_snapshotDepthRanges[];
 

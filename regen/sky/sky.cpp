@@ -2,15 +2,12 @@
 #include "cloud-layer.h"
 #include "atmosphere.h"
 #include "moon.h"
-#include "stars.h"
+#include "earth.h"
+#include "bright-stars.h"
 #include "star-map.h"
 #include "regen/utility/filesystem.h"
 #include "darkness.h"
 
-#include <ctime>
-
-#include <regen/external/osghimmel/earth.h>
-#include <regen/external/osghimmel/moon.h>
 #include <regen/states/depth-state.h>
 #include <regen/states/state-configurer.h>
 
@@ -29,13 +26,13 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 	state()->joinStates(depth);
 
 	//state()->joinStates(ref_ptr<ToggleState>::alloc(RenderState::CULL_FACE, GL_FALSE));
-	state()->joinStates(ref_ptr<BlendState>::alloc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+	state()->joinStates(ref_ptr<BlendState>::alloc(BLEND_MODE_ALPHA));
 
 	noonColor_ = Vec3f(0.5, 0.5, 0.5);
 	dawnColor_ = Vec3f(0.2, 0.15, 0.15);
 	moonSunLightReflectance_ = 0.4;
 
-	astro_ = ref_ptr<osgHimmel::Astronomy>::alloc();
+	astro_ = ref_ptr<Astronomy>::alloc();
 	astro_->setLatitude(52.5491);
 	astro_->setLongitude(13.3611);
 
@@ -48,8 +45,8 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 	cmnUniform_ = ref_ptr<ShaderInput4f>::alloc("cmn");
 	cmnUniform_->setUniformData(Vec4f(
 			0.043,
-			osgHimmel::Earth::meanRadius(),
-			osgHimmel::Earth::meanRadius() + osgHimmel::Earth::atmosphereThicknessNonUniform(),
+			Earth::meanRadius(),
+			Earth::meanRadius() + Earth::atmosphereThicknessNonUniform(),
 			math::random<float>()));
 	uniformBlock->addBlockInput(cmnUniform_);
 
@@ -67,7 +64,11 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 
 	q_ = ref_ptr<ShaderInput1f>::alloc("q");
 	q_->setUniformData(0.0f);
-	uniformBlock->addBlockInput(q_);
+	state()->joinShaderInput(q_);
+
+	sqrt_q_ = ref_ptr<ShaderInput1f>::alloc("sqrt_q");
+	sqrt_q_->setUniformData(0.0f);
+	state()->joinShaderInput(sqrt_q_);
 
 	// directional light that approximates the moon
 	moon_ = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
@@ -76,6 +77,8 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 	moon_->diffuse()->setVertex(0, Vec3f(0.0f));
 	moon_->direction()->setVertex(0, Vec3f(1.0f));
 	uniformBlock->addBlockInput(moon_->direction(), "moonPosition");
+
+	state()->joinShaderInput(uniformBlock);
 
 	Rectangle::Config cfg;
 	cfg.centerAtOrigin = GL_FALSE;
@@ -90,14 +93,13 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 	cfg.usage = BUFFER_USAGE_STATIC_DRAW;
 	skyQuad_ = Rectangle::create(cfg);
 
-	state()->joinShaderInput(uniformBlock);
 	// mae some parts of the sky configurable from the GUI.
 	setAnimationName("sky");
 	joinAnimationState(state());
 	GL_ERROR_LOG();
 }
 
-osgHimmel::AbstractAstronomy &Sky::astro() { return *astro_.get(); }
+Astronomy &Sky::astro() { return *astro_.get(); }
 
 void Sky::set_moonSunLightReflectance(
 		GLfloat moonSunLightReflectance) { moonSunLightReflectance_ = moonSunLightReflectance; }
@@ -111,7 +113,7 @@ GLdouble Sky::latitude() const { return astro_->getLatitude(); }
 void Sky::set_altitude(const float altitude) {
 	auto v_cmnUniform = cmnUniform_->mapClientVertex<Vec4f>(ShaderData::READ | ShaderData::WRITE, 0);
 	v_cmnUniform.w = Vec4f(
-			math::clamp(altitude, 0.001f, osgHimmel::Earth::atmosphereThicknessNonUniform()),
+			math::clamp(altitude, 0.001f, Earth::atmosphereThicknessNonUniform()),
 			v_cmnUniform.r.y,
 			v_cmnUniform.r.z,
 			v_cmnUniform.r.w);
@@ -174,7 +176,7 @@ GLfloat Sky::computeHorizonExtinction(const Vec3f &position, const Vec3f &dir, f
 }
 
 GLfloat Sky::computeEyeExtinction(const Vec3f &eyeDir) {
-	static const float surfaceHeight = 0.99f;
+	static const float surfaceHeight = 0.99f; // TODO: should be configurable
 	static const Vec3f eyePosition(0.0, surfaceHeight, 0.0);
 	return computeHorizonExtinction(eyePosition, eyeDir, surfaceHeight - 0.15f);
 }
@@ -189,14 +191,9 @@ static Vec3f computeColor(const Vec3f &color, GLfloat ext) {
 
 void Sky::animate(GLdouble dt) {
 	if (worldTime_) {
-		// convert to time_t
-		time_t t = boost::posix_time::to_time_t(worldTime_->p_time);
-		// get UTC offset
-		struct tm *tm = gmtime(&t);
-		time_t utcOffset = t - mktime(tm);
-		// create timef object
-		osgHimmel::TimeF time_osg(t, utcOffset);
-		astro_->update(osgHimmel::t_aTime::fromTimeF(time_osg));
+		time_osg_.sett(boost::posix_time::to_time_t(worldTime_->p_time));
+		time_osg_.setUtcOffset(14400); // UTC+4, Berlin time
+		astro_->update(osgHimmel::t_aTime::fromTimeF(time_osg_));
 	}
 
 	// Compute sun/moon directions
@@ -215,11 +212,18 @@ void Sky::animate(GLdouble dt) {
 			sunColor * moonSunLightReflectance_,
 			computeEyeExtinction(moon))
 	);
-
-	const float fovHalf = camera()->fov()->getVertex(0).r * 0.5f * DEGREE_TO_RAD;
-	const float height = static_cast<float>(viewport()->getVertex(0).r.y);
-	q_->setVertex(0, sqrt(2.0f) * 2.0f * tan(fovHalf) / height);
 	R_->setVertex(0, astro().getEquToHorTransform());
+
+	if (camStamp_ != cam_->stamp() || viewportStamp_ != viewport_->stamp()) {
+		const float fovHalf = camera()->projParams()->getVertex(0).r.x * 0.5f * DEGREE_TO_RAD;
+		const float height = static_cast<float>(viewport()->getVertex(0).r.y);
+		const float q = 2.8284271247461903f // = sqrt(2.0f) * 2.0f
+						* tan(fovHalf) / height; // q is the distance from the camera to the sky quad
+		q_->setVertex(0, q);
+		sqrt_q_->setVertex(0, sqrt(q));
+		camStamp_ = cam_->stamp();
+		viewportStamp_ = viewport_->stamp();
+	}
 	// Update random number in cmn uniform
 	updateSeed();
 }
@@ -252,7 +256,7 @@ void SkyView::traverse(RenderState *rs) {
 	}
 }
 
-void SkyView::createShader(RenderState*, const StateConfig &stateCfg) {
+void SkyView::createShader(RenderState *, const StateConfig &stateCfg) {
 	for (auto &layer: layer_) {
 		StateConfigurer cfg(stateCfg);
 		cfg.addNode(layer.get());
@@ -313,34 +317,35 @@ static ref_ptr<StarMap> createStarMapLayer(const ref_ptr<Sky> &sky,
 	return starMap;
 }
 
-static ref_ptr<Stars> createStarsLayer(
+static ref_ptr<BrightStars> createStarsLayer(
 		const ref_ptr<Sky> &sky,
 		scene::SceneInputNode &input) {
-	ref_ptr<Stars> stars = ref_ptr<Stars>::alloc(sky);
+	ref_ptr<BrightStars> stars = ref_ptr<BrightStars>::alloc(sky);
 
 	if (input.hasAttribute("catalog"))
 		stars->set_brightStarsFile(input.getValue("catalog"));
 
 	if (input.hasAttribute("scattering"))
-		stars->set_scattering(input.getValue<float>("scattering", Stars::defaultScattering()));
+		stars->set_scattering(input.getValue<float>("scattering", BrightStars::defaultScattering()));
 
 	if (input.hasAttribute("apparent-magnitude"))
-		stars->set_apparentMagnitude(input.getValue<float>("apparent-magnitude", Stars::defaultApparentMagnitude()));
+		stars->set_apparentMagnitude(
+				input.getValue<float>("apparent-magnitude", BrightStars::defaultApparentMagnitude()));
 
 	if (input.hasAttribute("color"))
-		stars->set_color(input.getValue<Vec3f>("color", Stars::defaultColor()));
+		stars->set_color(input.getValue<Vec3f>("color", BrightStars::defaultColor()));
 
 	if (input.hasAttribute("color-ratio"))
-		stars->set_colorRatio(input.getValue<float>("color-ratio", Stars::defaultColorRatio()));
+		stars->set_colorRatio(input.getValue<float>("color-ratio", BrightStars::defaultColorRatio()));
 
 	if (input.hasAttribute("glare-intensity"))
 		stars->set_glareIntensity(input.getValue<float>("glare-intensity", 1.0f));
 
 	if (input.hasAttribute("glare-scale"))
-		stars->set_glareScale(input.getValue<float>("glare-scale", Stars::defaultGlareScale()));
+		stars->set_glareScale(input.getValue<float>("glare-scale", BrightStars::defaultGlareScale()));
 
 	if (input.hasAttribute("scintillation"))
-		stars->set_scintillation(input.getValue<float>("scintillation", Stars::defaultScintillation()));
+		stars->set_scintillation(input.getValue<float>("scintillation", BrightStars::defaultScintillation()));
 
 	if (input.hasAttribute("scale"))
 		stars->set_scale(input.getValue<float>("scale", 1.0f));
@@ -352,30 +357,30 @@ static ref_ptr<Stars> createStarsLayer(
 	return stars;
 }
 
-static ref_ptr<MoonLayer> createMoonLayer(const ref_ptr<Sky> &sky,
-										  scene::SceneInputNode &input) {
+static ref_ptr<Moon> createMoonLayer(const ref_ptr<Sky> &sky,
+									 scene::SceneInputNode &input) {
 	const std::string textureFile = resourcePath(input.getValue("texture"));
-	ref_ptr<MoonLayer> moon = ref_ptr<MoonLayer>::alloc(sky, textureFile);
+	ref_ptr<Moon> moon = ref_ptr<Moon>::alloc(sky, textureFile);
 
 	if (input.hasAttribute("scale"))
-		moon->set_scale(input.getValue<float>("scale", MoonLayer::defaultScale()));
+		moon->set_scale(input.getValue<float>("scale", Moon::defaultScale()));
 
 	if (input.hasAttribute("scattering"))
-		moon->set_scattering(input.getValue<float>("scattering", MoonLayer::defaultScattering()));
+		moon->set_scattering(input.getValue<float>("scattering", Moon::defaultScattering()));
 
 	if (input.hasAttribute("sun-shine-color"))
-		moon->set_sunShineColor(input.getValue<Vec3f>("sun-shine-color", MoonLayer::defaultSunShineColor()));
+		moon->set_sunShineColor(input.getValue<Vec3f>("sun-shine-color", Moon::defaultSunShineColor()));
 
 	if (input.hasAttribute("earth-shine-color"))
-		moon->set_earthShineColor(input.getValue<Vec3f>("earth-shine-color", MoonLayer::defaultEarthShineColor()));
+		moon->set_earthShineColor(input.getValue<Vec3f>("earth-shine-color", Moon::defaultEarthShineColor()));
 
 	if (input.hasAttribute("sun-shine-intensity"))
 		moon->set_sunShineIntensity(
-				input.getValue<float>("sun-shine-intensity", MoonLayer::defaultSunShineIntensity()));
+				input.getValue<float>("sun-shine-intensity", Moon::defaultSunShineIntensity()));
 
 	if (input.hasAttribute("earth-shine-intensity"))
 		moon->set_earthShineIntensity(
-				input.getValue<float>("earth-shine-intensity", MoonLayer::defaultEarthShineIntensity()));
+				input.getValue<float>("earth-shine-intensity", Moon::defaultEarthShineIntensity()));
 
 	moon->set_updateInterval(
 			input.getValue<GLdouble>("update-interval", 4000.0));

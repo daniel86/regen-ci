@@ -23,7 +23,7 @@ namespace regen {
 		 * @param type The type of the box
 		 * @param mesh The mesh
 		 */
-		BoundingBox(BoundingBoxType type, const ref_ptr<Mesh> &mesh);
+		BoundingBox(BoundingBoxType type, const ref_ptr<Mesh> &mesh, const std::vector<ref_ptr<Mesh>> &parts);
 
 		/**
 		 * @brief Construct a new Bounding Box object
@@ -85,9 +85,6 @@ namespace regen {
 		std::pair<float, float> project(const Vec3f &axis) const;
 
 		// BoundingShape interface
-		Vec3f getCenterPosition() const override;
-
-		// BoundingShape interface
 		void updateBounds(const Vec3f &min, const Vec3f &max) override;
 
 	protected:
@@ -97,6 +94,8 @@ namespace regen {
 		Vec3f basePosition_;
 		// transformed vertices
 		Vec3f vertices_[8];
+
+		void updateShapeOrigin();
 	};
 } // namespace
 

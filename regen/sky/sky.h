@@ -1,5 +1,5 @@
-#ifndef SKY_H_
-#define SKY_H_
+#ifndef REGEN_SKY_H_
+#define REGEN_SKY_H_
 
 #include <list>
 
@@ -10,8 +10,8 @@
 #include <regen/meshes/primitives/rectangle.h>
 
 #include <regen/external/osghimmel/timef.h>
-#include <regen/external/osghimmel/astronomy.h>
 #include "regen/utility/time.h"
+#include "astronomy.h"
 
 namespace regen {
 	class Sky : public StateNode, public Animation, public Resource {
@@ -65,9 +65,9 @@ namespace regen {
 
 		const ref_ptr<Rectangle> &skyQuad() const { return skyQuad_; }
 
-		osgHimmel::AbstractAstronomy &astro();
+		Astronomy &astro();
 
-		void set_astro(const ref_ptr<osgHimmel::AbstractAstronomy> &astro) { astro_ = astro; }
+		void set_astro(const ref_ptr<Astronomy> &astro) { astro_ = astro; }
 
 		void addLayer(const ref_ptr<SkyLayer> &layer);
 
@@ -89,9 +89,12 @@ namespace regen {
 
 		ref_ptr<Camera> cam_;
 		ref_ptr<ShaderInput2i> viewport_;
+		uint32_t camStamp_ = 0;
+		uint32_t viewportStamp_ = 0;
 
 		const WorldTime *worldTime_ = nullptr;
-		ref_ptr<osgHimmel::AbstractAstronomy> astro_;
+		osgHimmel::TimeF time_osg_;
+		ref_ptr<Astronomy> astro_;
 
 		std::list<ref_ptr<SkyLayer> > layer_;
 
@@ -100,6 +103,7 @@ namespace regen {
 		ref_ptr<ShaderInput4f> cmnUniform_;
 		ref_ptr<ShaderInputMat4> R_;
 		ref_ptr<ShaderInput1f> q_;
+		ref_ptr<ShaderInput1f> sqrt_q_;
 		ref_ptr<Rectangle> skyQuad_;
 
 		Vec3f noonColor_;
@@ -130,4 +134,4 @@ namespace regen {
 	};
 }
 
-#endif /* SKY_H_ */
+#endif /* REGEN_SKY_H_ */

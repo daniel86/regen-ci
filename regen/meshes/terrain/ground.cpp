@@ -117,27 +117,23 @@ void Ground::updatePatchSize() {
 }
 
 void Ground::updateGroundPatches() {
-	// TODO: we do not really need model transform here, offset would be enough!
-	//          --> support both here
 	auto numPatches = numPatches_.x * numPatches_.y;
-	auto &tf = modelTransform_->get();
+	auto &tf = modelTransform_->modelOffset();
 	float offsetX = mapCenter_.x - (mapSize_.x / 2.0f);
 	float offsetZ = mapCenter_.z - (mapSize_.z / 2.0f);
 	auto patchHalfSize = patchSize_ / 2.0f;
 	uint32_t tfIndex = 0;
 
 	tf->setInstanceData(numPatches, 1, nullptr);
-	auto *tfData = (Mat4f*)tf->clientData();
+	auto *tfData = (Vec4f*)tf->clientData();
 	for (uint32_t xIdx=0; xIdx<numPatches_.x; ++xIdx) {
 		for (uint32_t zIdx=0; zIdx<numPatches_.y; ++zIdx) {
 			auto xPos = offsetX + (static_cast<float>(xIdx) * patchSize_) + patchHalfSize;
 			auto zPos = offsetZ + (static_cast<float>(zIdx) * patchSize_) + patchHalfSize;
 			auto &patchTF = tfData[tfIndex++];
-			patchTF = Mat4f::identity();
-			patchTF.translate(Vec3f(
-					xPos,
-					mapCenter_.y - mapSize_.y * 0.5f,
-					zPos));
+			patchTF.x = xPos;
+			patchTF.y = mapCenter_.y - mapSize_.y * 0.5f;
+			patchTF.z = zPos;
 		}
 	}
 }
@@ -160,12 +156,9 @@ void Ground::updateAttributes() {
 
 void Ground::createResources() {
 	u_skirtSize_->setVertex(0, skirtSize_);
-	groundUBO_ = ref_ptr<UBO>::alloc("Ground");
-	groundUBO_->addBlockInput(u_mapCenter_); // vec3
-	groundUBO_->addBlockInput(u_skirtSize_); // float
-	groundUBO_->addBlockInput(u_mapSize_);   // vec3
-	groundUBO_->update();
-	joinShaderInput(groundUBO_);
+	joinShaderInput(u_mapCenter_);
+	joinShaderInput(u_skirtSize_);
+	joinShaderInput(u_mapSize_);
 
 	updateMaterialMaps();
 	createWeightPass();
@@ -338,8 +331,10 @@ void Ground::createWeightPass() {
 	weightFBO_->setDrawBuffers(attachments);
 	weightUpdateState_->joinStates(weightFBO_);
 
-	// bind ground UBO for size information
-	weightUpdateState_->joinShaderInput(groundUBO_);
+	// bind ground parameter for size information
+	weightUpdateState_->joinShaderInput(u_mapCenter_);
+	weightUpdateState_->joinShaderInput(u_skirtSize_);
+	weightUpdateState_->joinShaderInput(u_mapSize_);
 	// bind material masks
 	if (materialMaskState_.get()) {
 		weightUpdateState_->joinStates(materialMaskState_);
@@ -440,10 +435,10 @@ ref_ptr<Ground> Ground::load(LoadingContext &ctx, scene::SceneInputNode &input) 
 		input.removeChild(n);
 	}
 
-	auto lodVec = input.getValue<Vec3ui>(
-			"lod-levels", Vec3ui(5,3,1));
+	auto lodVec = input.getValue<Vec4ui>(
+			"lod-levels", Vec4ui(5,3,2, 1));
 	auto patchDensity = input.getValue<uint32_t>("patch-density", 9);
-	ground->setLODConfig(patchDensity, {lodVec.x, lodVec.y, lodVec.z});
+	ground->setLODConfig(patchDensity, {lodVec.x, lodVec.y, lodVec.z, lodVec.w});
 	ground->setMapGeometry(
 			input.getValue<Vec3f>("map-center", Vec3f(0.0f)),
 			input.getValue<Vec3f>("map-size", Vec3f(1.0f)));
@@ -461,7 +456,7 @@ ref_ptr<Ground> Ground::load(LoadingContext &ctx, scene::SceneInputNode &input) 
 	ground->setMapTextures(heightMap, normalMap);
 
 	auto tfName = input.getValue("tf");
-	auto modelTransform = ref_ptr<ModelTransformation>::alloc();
+	auto modelTransform = ref_ptr<ModelTransformation>::alloc(ModelTransformation::TF_OFFSET);
 	scene->putResource<ModelTransformation>(tfName, modelTransform);
 	ground->setModelTransform(modelTransform);
 	ground->updateAttributes();

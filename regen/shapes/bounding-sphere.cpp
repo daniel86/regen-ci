@@ -8,8 +8,8 @@ BoundingSphere::BoundingSphere(const Vec3f &basePosition, GLfloat radius)
 		  basePosition_(basePosition),
 		  radius_(radius) {}
 
-BoundingSphere::BoundingSphere(const ref_ptr<Mesh> &mesh, float radius)
-		: BoundingShape(BoundingShapeType::SPHERE, mesh),
+BoundingSphere::BoundingSphere(const ref_ptr<Mesh> &mesh, const std::vector<ref_ptr<Mesh>> &parts, float radius)
+		: BoundingShape(BoundingShapeType::SPHERE, mesh, parts),
 		  basePosition_(mesh->centerPosition()),
 		  radius_(radius > 0.0f ? radius : computeRadius(mesh->minPosition(), mesh->maxPosition())) {
 	auto sphereMesh = dynamic_cast<Sphere *>(mesh.get());
@@ -38,23 +38,20 @@ bool BoundingSphere::updateTransform(bool forceUpdate) {
 		return false;
 	} else {
 		lastTransformStamp_ = transformStamp();
+		updateShapeOrigin();
 		return true;
 	}
 }
 
-Vec3f BoundingSphere::getCenterPosition() const {
-	Vec3f p = basePosition_;
-	if (modelOffset_.get()) {
-		p += modelOffset_->getVertex(modelOffsetIndex_).r;
-	}
+void BoundingSphere::updateShapeOrigin() {
+	shapeOrigin_ = basePosition_;
 	if (transform_.get()) {
-		p += transform_->get()->getVertex(transformIndex_).r.position();
+		shapeOrigin_ += transform_->position(transformIndex_).r;
 	}
-	return p;
 }
 
 Vec3f BoundingSphere::closestPointOnSurface(const Vec3f &point) const {
-	Vec3f p = getCenterPosition();
+	const Vec3f &p = getShapeOrigin();
 	Vec3f d = point - p;
 	if (d.length() == 0) {
 		return p + Vec3f(0, 0, 1) * radius();
@@ -64,8 +61,8 @@ Vec3f BoundingSphere::closestPointOnSurface(const Vec3f &point) const {
 }
 
 bool BoundingSphere::hasIntersectionWithSphere(const BoundingShape &other) const {
-	Vec3f p_this = getCenterPosition();
-	Vec3f p_other = other.getCenterPosition();
+	const Vec3f &p_this = getShapeOrigin();
+	const Vec3f &p_other = other.getShapeOrigin();
 	if ((p_this - p_other).length() <= radius()) {
 		return true;
 	}

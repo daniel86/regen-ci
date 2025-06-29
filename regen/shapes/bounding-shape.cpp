@@ -12,9 +12,12 @@ BoundingShape::BoundingShape(BoundingShapeType shapeType)
 		  lastGeometryStamp_(0u) {
 }
 
-BoundingShape::BoundingShape(BoundingShapeType shapeType, const ref_ptr<Mesh> &mesh)
+BoundingShape::BoundingShape(BoundingShapeType shapeType,
+			const ref_ptr<Mesh> &mesh,
+			const std::vector<ref_ptr<Mesh>> &parts)
 		: shapeType_(shapeType),
 		  mesh_(mesh),
+		  parts_(parts),
 		  lastGeometryStamp_(mesh_->geometryStamp()) {
 }
 
@@ -42,10 +45,7 @@ bool BoundingShape::updateGeometry() {
 GLuint BoundingShape::numInstances() const {
 	GLuint numInstances = 1;
 	if (transform_.get()) {
-		numInstances = std::max(transform_->get()->numInstances(), numInstances);
-	}
-	if (modelOffset_.get()) {
-		numInstances = std::max(modelOffset_->numInstances(), numInstances);
+		numInstances = std::max(transform_->numInstances(), numInstances);
 	}
 	return numInstances;
 }
@@ -55,38 +55,19 @@ void BoundingShape::setTransform(const ref_ptr<ModelTransformation> &transform, 
 	transformIndex_ = instanceIndex;
 }
 
-void BoundingShape::setTransform(const ref_ptr<ShaderInput3f> &center, unsigned int instanceIndex) {
-	modelOffset_ = center;
-	modelOffsetIndex_ = instanceIndex;
-}
-
 unsigned int BoundingShape::transformStamp() const {
 	unsigned int stamp = 0;
 	if (transform_.get()) {
-		stamp = transform_->get()->stamp();
-	}
-	if (modelOffset_.get()) {
-		stamp = std::max(stamp, modelOffset_->stamp());
+		stamp = transform_->stamp();
 	}
 	return stamp;
 }
 
-Vec3f BoundingShape::translation() const {
+PositionReader BoundingShape::translation() const {
 	if (transform_.get()) {
-		auto p = transform_->get()->getVertex(transformIndex_);
-		if (modelOffset_.get()) {
-			return p.r.position() + modelOffset_->getVertex(modelOffsetIndex_).r;
-		}
-		else {
-			return p.r.position();
-		}
+		return transform_->position(transformIndex_);
 	}
-	else if (modelOffset_.get()) {
-		return modelOffset_->getVertex(modelOffsetIndex_).r;
-	}
-	else {
-		return Vec3f::zero();
-	}
+	return {};
 }
 
 bool BoundingShape::hasIntersectionWith(const BoundingShape &other) const {

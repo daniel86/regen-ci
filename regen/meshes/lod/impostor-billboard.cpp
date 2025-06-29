@@ -99,10 +99,10 @@ void ImpostorBillboard::addMesh(const ref_ptr<Mesh> &mesh, const ref_ptr<State> 
 	meshBoundsRadius_ = meshBounds.radius();
 	meshCornerPoints_ = meshBounds.cornerPoints();
 
-	REGEN_INFO("impostor center: " << meshCenterPoint_);
-	REGEN_INFO("impostor radius: " << meshBoundsRadius_);
-	REGEN_INFO("impostor min: " << minPosition_);
-	REGEN_INFO("impostor max: " << maxPosition_);
+	REGEN_DEBUG("Impostor mesh added -- center: " << meshCenterPoint_
+		<< ", radius: " << meshBoundsRadius_
+		<< ", min: " << minPosition_
+		<< ", max: " << maxPosition_);
 }
 
 void ImpostorBillboard::updateNumberOfViews() {
@@ -121,7 +121,7 @@ void ImpostorBillboard::updateNumberOfViews() {
 	if (hasBottomView_ && !isHemispherical_) numSnapshotViews_++;
 	shaderDefine("NUM_IMPOSTOR_VIEWS", REGEN_STRING(numSnapshotViews_));
 
-	REGEN_INFO("impostor num snapshots: " << numSnapshotViews_);
+	REGEN_DEBUG("impostor num snapshots: " << numSnapshotViews_);
 }
 
 void ImpostorBillboard::ensureResourcesExist() {
@@ -136,17 +136,14 @@ void ImpostorBillboard::createResources() {
 	// create camera for the update pass
 	snapshotCamera_ = ref_ptr<ArrayCamera>::alloc(numSnapshotViews_);
 
-	{ // create UBO with some parameters for the shader
-		billboardUBO_ = ref_ptr<UBO>::alloc("Billboard", BUFFER_USAGE_STATIC_DRAW);
-		billboardUBO_->addBlockInput(depthOffset_);
-		billboardUBO_->addBlockInput(modelOrigin_);
-		billboardUBO_->update();
-		joinShaderInput(billboardUBO_);
+	{ // create parameters for the shader
+		joinShaderInput(depthOffset_);
+		joinShaderInput(modelOrigin_);
 	}
 
 	{ // create view data arrays
 		ssbo_snapshotDirs_ = ref_ptr<SSBO>::alloc("SnapshotDirsData", BUFFER_USAGE_STATIC_DRAW);
-		snapshotDirs_ = ref_ptr<ShaderInput3f>::alloc("snapshotDirs", numSnapshotViews_);
+		snapshotDirs_ = ref_ptr<ShaderInput4f>::alloc("snapshotDirs", numSnapshotViews_);
 		snapshotDirs_->setUniformUntyped();
 		ssbo_snapshotDirs_->addBlockInput(snapshotDirs_);
 		snapshotState_->joinShaderInput(ssbo_snapshotDirs_);
@@ -259,10 +256,9 @@ void ImpostorBillboard::addSnapshotView(uint32_t viewIdx, const Vec3f &dir, cons
 	auto *camViewInv = (Mat4f*)snapshotCamera_->viewInverse()->clientData();
 	auto *camProj    = (Mat4f*)snapshotCamera_->projection()->clientData();
 	auto *camProjInv = (Mat4f*)snapshotCamera_->projectionInverse()->clientData();
-	auto *camNear    = (float*)snapshotCamera_->near()->clientData();
-	auto *camFar     = (float*)snapshotCamera_->far()->clientData();
+	auto *projParams = (ProjectionParams*)snapshotCamera_->projParams()->clientData();
 	auto *camPos     = (Vec3f*)snapshotCamera_->position()->clientData();
-	auto *viewDir    = (Vec3f*)snapshotDirs_->clientData();
+	auto *viewDir    = (Vec4f*)snapshotDirs_->clientData();
 	auto *viewBounds = (Vec4f*)snapshotOrthoBounds_->clientData();
 	auto *viewDepth  = (Vec2f*)snapshotDepthRanges_->clientData();
 
@@ -290,7 +286,8 @@ void ImpostorBillboard::addSnapshotView(uint32_t viewIdx, const Vec3f &dir, cons
 	minZ -= zPadding;
 	maxZ += zPadding;
 
-	viewDir[viewIdx] = -dir;
+	viewDir[viewIdx].xyz_() = -dir;
+	viewDir[viewIdx].w = 0.0f; // no w-component, this is a direction vector
 	viewBounds[viewIdx] = Vec4f(minX, maxX, minY, maxY);
 	viewDepth[viewIdx] = Vec2f(minZ, maxZ);
 #ifdef DEBUG_SNAPSHOT_VIEWS
@@ -304,8 +301,10 @@ void ImpostorBillboard::addSnapshotView(uint32_t viewIdx, const Vec3f &dir, cons
 
 	camProj[viewIdx] = Mat4f::orthogonalMatrix(minX, maxX, minY, maxY, minZ, maxZ);
 	camProjInv[viewIdx] = camProj[viewIdx].orthogonalInverse();
-	camNear[viewIdx] = minZ;
-	camFar[viewIdx] = maxZ;
+	projParams[viewIdx].near = minZ;
+	projParams[viewIdx].far = maxZ;
+	projParams[viewIdx].aspect = abs((maxX - minX) / (maxY - minY));
+	projParams[viewIdx].fov = 0.0f; // orthographic projection, no fov
 	camPos[viewIdx] = eye;
 }
 

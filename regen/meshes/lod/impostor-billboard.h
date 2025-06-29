@@ -197,7 +197,6 @@ namespace regen {
 		std::string snapshotShaderKey_ = "regen.models.impostor.update";
 
 		// container for billboard uniforms
-		ref_ptr<UBO> billboardUBO_;
 		ref_ptr<ShaderInput1f> depthOffset_;
 		ref_ptr<ShaderInput3f> modelOrigin_;
 
@@ -206,7 +205,7 @@ namespace regen {
 		ref_ptr<SSBO> ssbo_snapshotOrthoBounds_;
 		ref_ptr<SSBO> ssbo_snapshotDepthRanges_;
 		// array of view directions, one for each snapshot
-		ref_ptr<ShaderInput3f> snapshotDirs_;
+		ref_ptr<ShaderInput4f> snapshotDirs_;
 		// meshes may have different aspect ratios, so we need to store the bounds
 		ref_ptr<ShaderInput4f> snapshotOrthoBounds_;
 		// the depth ranges for each snapshot, used to compute the depth

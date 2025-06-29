@@ -1,5 +1,4 @@
-
-// Copyright (c) 2011-2012, Daniel Müller <dm@g4t3.de>
+// Copyright (c) 2011-2012, Daniel MÃ¼ller <dm@g4t3.de>
 // Computer Graphics Systems Group at the Hasso-Plattner-Institute, Germany
 // All rights reserved.
 //
@@ -28,12 +27,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include "atime.h"
-
 #include "mathmacros.h"
 #include "timef.h"
-
-#include <assert.h>
-
 
 namespace osgHimmel
 {
@@ -89,42 +84,26 @@ s_AstronomicalTime::s_AstronomicalTime(
 }
 
 
-const s_AstronomicalTime s_AstronomicalTime::fromTimeT(
-    const time_t &time
-,   const time_t &utcOffset)
-{
-    // Daylight saving time should not be concidered here -> julian time functions ignore this.
-
-#ifdef __GNUC__
-    struct tm lcl(*localtime(&time));
-#else // __GNUC__
-    struct tm lcl;
-    localtime_s(&lcl, &time);
-#endif // __GNUC__
-
-    time_t mt = mktime(&lcl);
-
-    if(mt == -1)
-        return s_AstronomicalTime();
-
+s_AstronomicalTime s_AstronomicalTime::fromTimeT(const time_t &time, const time_t &utcOffset) {
+    struct tm utc = *gmtime(&time);
     return s_AstronomicalTime(
-        static_cast<short>(lcl.tm_year + 1900)
-    ,   static_cast<short>(lcl.tm_mon + 1)
-    ,   static_cast<short>(lcl.tm_mday)
-    ,   static_cast<short>(lcl.tm_hour)
-    ,   static_cast<short>(lcl.tm_min)
-    ,   static_cast<short>(lcl.tm_sec)
+        static_cast<short>(utc.tm_year + 1900)
+    ,   static_cast<short>(utc.tm_mon + 1)
+    ,   static_cast<short>(utc.tm_mday)
+    ,   static_cast<short>(utc.tm_hour)
+    ,   static_cast<short>(utc.tm_min)
+    ,   static_cast<short>(utc.tm_sec)
     ,   static_cast<short>(utcOffset));
 }
 
 
-const s_AstronomicalTime s_AstronomicalTime::fromTimeF(const TimeF &t)
+s_AstronomicalTime s_AstronomicalTime::fromTimeF(const TimeF &t)
 {
     return fromTimeT(t.gett(), t.getUtcOffset());
 }
 
 
-const time_t s_AstronomicalTime::toTime_t() const
+time_t s_AstronomicalTime::toTime_t() const
 {
     time_t t = 0;
 
@@ -151,7 +130,7 @@ const time_t s_AstronomicalTime::toTime_t() const
 }
 
 
-const t_longf s_AstronomicalTime::dayf() const
+t_longf s_AstronomicalTime::dayf() const
 {
     return day + _day(hour, minute, second);
 }

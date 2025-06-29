@@ -19,11 +19,6 @@ BoidsGPU::BoidsGPU(const ref_ptr<ModelTransformation> &tf)
 		  Animation(true, false) {
 }
 
-BoidsGPU::BoidsGPU(const ref_ptr<ShaderInput3f> &position)
-		: BoidSimulation(position),
-		  Animation(true, false) {
-}
-
 void BoidsGPU::initBoidSimulation() {
 	// TODO: support attractors and dangers.
 	//         - join their transform input
@@ -59,20 +54,21 @@ void BoidsGPU::createResource() {
 #else
 	std::vector<Vec3f> initialVelocities(numBoids_);
 #endif
-	if(position_.get()) {
-		auto initialPositionData = position_->mapClientData<Vec3f>(ShaderData::READ);
+	if(tf_->hasModelMat()) {
+		auto tfData = tf_->modelMat()->mapClientData<Mat4f>(ShaderData::READ);
 		for (uint32_t i = 0; i < numBoids_; ++i) {
-			initialPositions[i] = initialPositionData.r[i];
+			initialPositions[i] = tfData.r[i].position();
 #ifdef BOID_USE_HALF_VELOCITY
 			initialVelocities[i] = Vec2ui::zero();
 #else
 			initialVelocities[i] = Vec3f::zero();
 #endif
 		}
-	} else {
-		auto tfData = tf_->get()->mapClientData<Mat4f>(ShaderData::READ);
+	}
+	else if(tf_->hasModelOffset()) {
+		auto initialPositionData = tf_->modelOffset()->mapClientData<Vec4f>(ShaderData::READ);
 		for (uint32_t i = 0; i < numBoids_; ++i) {
-			initialPositions[i] = tfData.r[i].position();
+			initialPositions[i] = initialPositionData.r[i].xyz_();
 #ifdef BOID_USE_HALF_VELOCITY
 			initialVelocities[i] = Vec2ui::zero();
 #else
@@ -89,24 +85,6 @@ void BoidsGPU::createResource() {
 	u_numCells_ = ref_ptr<ShaderInput1ui>::alloc("numGridCells");
 	u_numCells_->setUniformData(numCells_);
 
-	{ // UBO with simulation parameters
-		simulationUBO_ = ref_ptr<UBO>::alloc("BoidsSimulation");
-		simulationUBO_->addBlockInput(simulationBoundsMin_);
-		simulationUBO_->addBlockInput(visualRange_);
-		simulationUBO_->addBlockInput(simulationBoundsMax_);
-		simulationUBO_->addBlockInput(maxBoidSpeed_);
-		simulationUBO_->addBlockInput(boidsScale_);
-		simulationUBO_->addBlockInput(baseOrientation_);
-		simulationUBO_->addBlockInput(maxAngularSpeed_);
-		simulationUBO_->addBlockInput(coherenceWeight_);
-		simulationUBO_->addBlockInput(alignmentWeight_);
-		simulationUBO_->addBlockInput(separationWeight_);
-		simulationUBO_->addBlockInput(avoidanceWeight_);
-		simulationUBO_->addBlockInput(avoidanceDistance_);
-		simulationUBO_->addBlockInput(lookAheadDistance_);
-		simulationUBO_->addBlockInput(repulsionFactor_);
-		simulationUBO_->addBlockInput(maxNumNeighbors_);
-	}
 	{ // UBO with grid parameters
 		gridUBO_ = ref_ptr<UBO>::alloc("BoidGrid");
 		gridMin_ = ref_ptr<ShaderInput3f>::alloc("gridMin");
@@ -166,8 +144,6 @@ void BoidsGPU::createResource() {
 
 	if (tf_.get()) {
 		animationState()->joinShaderInput(tfBuffer_);
-	} else {
-		animationState()->joinShaderInput(position_);
 	}
 	// create a state that updates the boids grid
 	updateGridState_ = ref_ptr<StateSequence>::alloc();
@@ -219,8 +195,6 @@ void BoidsGPU::createResource() {
 		updateState->joinShaderInput(velBuffer_);
 		if (tf_.get()) {
 			updateState->joinShaderInput(tfBuffer_);
-		} else {
-			updateState->joinShaderInput(position_);
 		}
 		updateState->joinShaderInput(boidDataBuffer_);
 		updateState->shaderDefine("USE_SORTED_DATA", "TRUE");
@@ -241,7 +215,23 @@ void BoidsGPU::createResource() {
 #ifdef BOID_USE_HALF_VELOCITY
 	simulationState_->shaderDefine("USE_HALF_VELOCITY", "TRUE");
 #endif
-	simulationState_->joinShaderInput(simulationUBO_);
+	{ // simulation parameters
+		simulationState_->joinShaderInput(simulationBoundsMin_);
+		simulationState_->joinShaderInput(visualRange_);
+		simulationState_->joinShaderInput(simulationBoundsMax_);
+		simulationState_->joinShaderInput(maxBoidSpeed_);
+		simulationState_->joinShaderInput(boidsScale_);
+		simulationState_->joinShaderInput(baseOrientation_);
+		simulationState_->joinShaderInput(maxAngularSpeed_);
+		simulationState_->joinShaderInput(coherenceWeight_);
+		simulationState_->joinShaderInput(alignmentWeight_);
+		simulationState_->joinShaderInput(separationWeight_);
+		simulationState_->joinShaderInput(avoidanceWeight_);
+		simulationState_->joinShaderInput(avoidanceDistance_);
+		simulationState_->joinShaderInput(lookAheadDistance_);
+		simulationState_->joinShaderInput(repulsionFactor_);
+		simulationState_->joinShaderInput(maxNumNeighbors_);
+	}
 	simulationState_->joinShaderInput(gridUBO_);
 	simulationState_->joinShaderInput(velBuffer_);
 	simulationState_->joinShaderInput(gridOffsetBuffer_);
@@ -249,8 +239,6 @@ void BoidsGPU::createResource() {
 	simulationState_->joinShaderInput(bboxBuffer_);
 	if (tf_.get()) {
 		simulationState_->joinShaderInput(tfBuffer_);
-	} else {
-		simulationState_->joinShaderInput(position_);
 	}
 #ifdef BOID_USE_SORTED_DATA
 	simulationState_->joinShaderInput(boidDataBuffer_);
@@ -284,15 +272,6 @@ void BoidsGPU::createResource() {
 	simulationState_->joinStates(simulationCompute);
 	createShader(simulationCompute, simulationState_);
 	simulationTimeLoc_ = simulationCompute->shaderState()->shader()->uniformLocation("boidTimeDelta");
-}
-
-ref_ptr<BoidsGPU> BoidsGPU::load(
-			LoadingContext &ctx,
-			scene::SceneInputNode &input,
-			const ref_ptr<ShaderInput3f> &position) {
-	auto boids = ref_ptr<BoidsGPU>::alloc(position);
-	boids->loadSettings(ctx, input);
-	return boids;
 }
 
 ref_ptr<BoidsGPU> BoidsGPU::load(

@@ -98,7 +98,7 @@ QSurfaceFormat SceneWidget::defaultFormat() {
 	QSurfaceFormat format;
 	format.setRenderableType(QSurfaceFormat::OpenGL);
 	format.setProfile(QSurfaceFormat::CoreProfile);
-	format.setVersion(4, 5);
+	format.setVersion(4, 6);
 	// Buffer sizes
 	format.setRedBufferSize(8);
 	format.setGreenBufferSize(8);
@@ -164,6 +164,7 @@ void SceneWidget::run(QOpenGLContext *glContext) {
 		RenderState::get()->drawFrameBuffer().push(0);
 		glContext->swapBuffers(sceneWindow_.get());
 		RenderState::get()->drawFrameBuffer().pop();
+		app_->flushGL();
 
 #ifdef SINGLE_THREAD_GUI_AND_GRAPHICS
 		app_->app_->processEvents();
@@ -186,7 +187,13 @@ SceneWidget::GLThread::GLThread(SceneWidget *glWidget)
 
 void SceneWidget::GLThread::run() {
 	auto sharedContext = new QOpenGLContext();
-	sharedContext->setFormat(glWidget_->sceneWindow_->requestedFormat());
+	auto format = glWidget_->sceneWindow_->requestedFormat();
+	REGEN_INFO("OpenGL format version: "
+			   << format.majorVersion() << "." << format.minorVersion()
+			   << (format.profile() == QSurfaceFormat::CoreProfile ? "Core" :
+				   format.profile() == QSurfaceFormat::CompatibilityProfile ? "Compatibility" :
+				   "NoProfile"));
+	sharedContext->setFormat(format);
 	sharedContext->setShareContext(QOpenGLContext::globalShareContext());
 	sharedContext->create();
 	sharedContext->makeCurrent(glWidget_->sceneWindow_.get());

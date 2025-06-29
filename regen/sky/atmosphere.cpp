@@ -13,7 +13,7 @@ Atmosphere::Atmosphere(
 		: SkyLayer(sky) {
 	updateMesh_ = Rectangle::getUnitQuad();
 
-	state()->joinStates(ref_ptr<BlendState>::alloc(GL_SRC_ALPHA, GL_ONE));
+	//state()->joinStates(ref_ptr<BlendState>::alloc(BLEND_MODE_ALPHA));
 
 	ref_ptr<TextureCube> cubeMap = ref_ptr<TextureCube>::alloc(1);
 	cubeMap->begin(RenderState::get());
@@ -61,14 +61,12 @@ Atmosphere::Atmosphere(
 	///////
 	/// Update State
 	///////
-	auto atmosphereUBO = ref_ptr<UBO>::alloc("Atmosphere");
-	atmosphereUBO->addBlockInput(sky->sun()->direction(), "sunDir");
-	atmosphereUBO->addBlockInput(mie_);
-	atmosphereUBO->addBlockInput(rayleigh_);
-	atmosphereUBO->addBlockInput(spotBrightness_);
-	atmosphereUBO->addBlockInput(skyAbsorption_);
-	atmosphereUBO->addBlockInput(scatterStrength_);
-	updateState_->joinShaderInput(atmosphereUBO);
+	updateState_->joinShaderInput(sky->sun()->direction(), "sunDir");
+	updateState_->joinShaderInput(mie_);
+	updateState_->joinShaderInput(rayleigh_);
+	updateState_->joinShaderInput(spotBrightness_);
+	updateState_->joinShaderInput(skyAbsorption_);
+	updateState_->joinShaderInput(scatterStrength_);
 	updateShader_ = ref_ptr<ShaderState>::alloc();
 	updateState_->joinStates(updateShader_);
 	updateState_->joinShaderInput(sky_->worldTime()->in);
@@ -76,7 +74,6 @@ Atmosphere::Atmosphere(
 
 void Atmosphere::createUpdateShader() {
 	StateConfig shaderConfig = StateConfigurer::configure(updateState_.get());
-	shaderConfig.setVersion(330);
 	updateShader_->createShader(shaderConfig, "regen.weather.atmosphere");
 	updateMesh_->updateVAO(shaderConfig, updateShader_->shader());
 }

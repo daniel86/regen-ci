@@ -9,6 +9,7 @@
 #include <regen/gl-types/input-container.h>
 #include <regen/gl-types/vbo.h>
 #include <regen/gl-types/vao.h>
+#include <regen/gl-types/ssbo.h>
 #include <regen/gl-types/shader.h>
 #include <regen/animations/animation.h>
 #include "regen/physics/physical-object.h"
@@ -188,6 +189,13 @@ namespace regen {
 		void updateVisibility(uint32_t lodLevel, uint32_t numInstances, uint32_t instanceOffset);
 
 		/**
+		 * Set the indirect draw buffer.
+		 * @param indirectDrawBuffer the indirect draw buffer.
+		 * @param baseDrawIdx base draw index.
+		 */
+		void setIndirectDrawBuffer(const ref_ptr<SSBO> &indirectDrawBuffer, uint32_t baseDrawIdx);
+
+		/**
 		 * Reset visibility of all LODs.
 		 * This will set the number of visible instances to 0 for all LODs
 		 * and reset the instance offset.
@@ -267,14 +275,14 @@ namespace regen {
 		 * @param shape the bounding shape.
 		 * @param uploadToGPU true if the shape should be uploaded to GPU.
 		 */
-		void setBoundingShape(const ref_ptr<BoundingShape> &shape, bool uploadToGPU);
+		void setBoundingShape(const ref_ptr<BoundingShape> &shape);
 
 		/**
 		 * Create a bounding sphere or box for this mesh based on the
 		 * min and max positions of vertices.
 		 * @param uploadToGPU true if the shape should be uploaded to GPU.
 		 */
-		void createBoundingSphere(bool uploadToGPU);
+		void createBoundingSphere();
 
 		/**
 		 * Create a bounding box for this mesh based on the
@@ -282,7 +290,7 @@ namespace regen {
 		 * @param isOBB true if the bounding box should be an oriented bounding box.
 		 * @param uploadToGPU true if the shape should be uploaded to GPU.
 		 */
-		void createBoundingBox(bool isOBB, bool uploadToGPU);
+		void createBoundingBox(bool isOBB);
 
 		/**
 		 * @return the bounding shape, if any.
@@ -293,18 +301,6 @@ namespace regen {
 		 * @return the bounding shape.
 		 */
 		const ref_ptr<BoundingShape>& boundingShape() const { return boundingShape_; }
-
-		/**
-		 * Returns a buffer that contains the shape data.
-		 * Only one for all instances in case of instanced draw.
-		 * @return the shape buffer.
-		 */
-		const ref_ptr<UBO>& getShapeBuffer();
-
-		/**
-		 * @return true if the shape buffer is available.
-		 */
-		bool hasShapeBuffer() const { return shapeBuffer_.get() != nullptr; }
 
 		/**
 		 * Set the physical object.
@@ -438,21 +434,18 @@ namespace regen {
 		// note: it is important that this is shared between copies of the mesh
 		//       as the lod state only changes lod level of the original mesh.
 		ref_ptr<uint32_t> lodLevel_;
-		// provides offset to instanceIDMap_ as a uniform for the next LOD level
-		int32_t instanceIDOffset_loc_;
 		uint32_t lastNumVertices_ = 0u;
 		SortMode lodSortMode_ = SortMode::FRONT_TO_BACK;
 
 		ref_ptr<State> cullShape_;
 		ref_ptr<BoundingShape> boundingShape_;
-		ref_ptr<UBO> shapeBuffer_;
 		int32_t shapeType_ = -1;
 
 		ref_ptr<VAO> vao_;
 		ref_ptr<Shader> meshShader_;
 		std::list<InputLocation> vaoAttributes_;
 		std::map<int32_t, std::list<InputLocation>::iterator> vaoLocations_;
-		std::map<int32_t, InputLocation> meshUniforms_;
+		std::vector<int32_t> indirectDrawGroups_;
 
 		std::string shaderKey_;
 		std::map<GLenum, std::string> shaderStageKeys_;
@@ -477,23 +470,17 @@ namespace regen {
 
 		std::vector<ref_ptr<Animation> > animations_;
 
-		void (InputContainer::*draw_)(GLenum);
+		void (InputContainer::*draw_)(GLenum) const;
 
 		void updateDrawFunction();
 
-		void createShapeBuffer();
-
-		void updateShapeBuffer();
-
 		void createShader(const ref_ptr<StateNode> &parentNode, StateConfig &shaderConfigurer);
-
-		void updateShapeBuffer(byte *shapeData);
 
 		void addShaderInput(const std::string &name, const ref_ptr<ShaderInput> &in);
 
 		void drawMesh(RenderState *rs);
 
-		void drawMeshLOD(RenderState *rs, uint32_t lodLevel);
+		void drawMeshLOD(RenderState *rs, uint32_t lodLevel, int32_t multiDrawCount);
 
 		void activateLOD_(uint32_t lodLevel);
 	};

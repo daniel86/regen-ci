@@ -3,6 +3,8 @@
 
 #include <regen/gl-types/buffer-object.h>
 #include "regen/scene/scene-input.h"
+#include "regen/utility/threading.h"
+#include "buffer-mapping.h"
 
 namespace regen {
 	/**
@@ -62,6 +64,13 @@ namespace regen {
 		 * @param name name of the new buffer block
 		 */
 		explicit BufferBlock(const BufferObject &other);
+
+		/**
+		 * Enforce a persistent mapping of the buffer block.
+		 * The default mode is that the mapping mode is determined based on the buffer usage.
+		 * @param isPersistent true if the buffer block should be persistently mapped.
+		 */
+		void setPersistentMapping(bool isPersistent);
 
 		static ref_ptr<BufferBlock> load(LoadingContext &ctx, scene::SceneInputNode &input);
 
@@ -132,18 +141,18 @@ namespace regen {
 		/**
 		 * Lock the UBO, preventing updates.
 		 */
-		void lock() { mutex_.lock(); }
+		void lock() { lock_.lock(); }
 
 		/**
 		 * Unlock the UBO, allowing updates.
 		 */
-		void unlock() { mutex_.unlock(); }
+		void unlock() { lock_.unlock(); }
 
 	protected:
 		StorageQualifier storageQualifier_;
 		MemoryLayout memoryLayout_;
 		int bindingIndex_ = -1;
-		std::mutex mutex_;
+		SpinLock lock_;
 
 		struct BlockInput {
 			BlockInput() = default;
@@ -168,6 +177,9 @@ namespace regen {
 			byte *alignedData = nullptr;
 		};
 
+		bool usePersistentMapping_ = false;
+		ref_ptr<BufferMapping> persistentMapping_;
+
 		std::vector<BlockInput> blockInputs_;
 		std::vector<NamedShaderInput> inputs_;
 		ref_ptr<BufferReference> ref_;
@@ -179,7 +191,11 @@ namespace regen {
 
 		void updateBlockInputs();
 
-		void updateAlignedData(BlockInput &uboInput);
+		void copyBufferData(char *bufferData, bool forceUpdate, bool partialWrite);
+
+		void updateStridedData(BlockInput &uboInput);
+
+		void resize();
 	};
 
 	std::ostream &operator<<(std::ostream &out, const BufferBlock::MemoryLayout &v);

@@ -1,41 +1,65 @@
 -- isSphereVisible
 #ifndef isSphereVisible_included_
 #define2 isSphereVisible_included_
-bool isSphereVisible(vec3 center, float radius) {
-#for PLANE_I to 6
-    if (in_frustumPlanes[${PLANE_I}].w + radius <
-        dot(in_frustumPlanes[${PLANE_I}].xyz, center)) return false;
-#endfor
+bool isSphereVisible(vec3 center, float radius, uint frustumOffset) {
+    uint idx;
+    #for PLANE_I to 6
+    idx = frustumOffset + ${PLANE_I};
+    if (in_frustumPlanes[idx].w +
+        dot(in_frustumPlanes[idx].xyz, center) +
+        radius < 0) return false;
+    #endfor
     return true;
 }
+    #if NUM_CAMERA_LAYERS > 1
+bool isSphereVisible(vec3 center, float radius) {
+    #for LAYER_I to NUM_CAMERA_LAYERS
+    if(isSphereVisible(center, radius, ${LAYER_I} * 6)) return true;
+    #endfor
+    return false;
+}
+    #else // NUM_CAMERA_LAYERS == 1
+#define isSphereVisible(center, radius) isSphereVisible(center, radius, 0)
+    #endif // NUM_CAMERA_LAYERS > 1
 #endif // isSphereVisible_included_
 
 -- isAABBVisible
 #ifndef isAABBVisible_included_
 #define2 isAABBVisible_included_
-bool isAABBVisible_i(vec3 aabbMin, vec3 aabbMax, int i) {
-    // Select most negative vertex (outside-leaning)
+bool isAABBBehindPlane(vec3 aabbMin, vec3 aabbMax, uint i) {
+    // Select vertext farthest from the plane in direction of the plane normal.
+    // If this point is behind the plane, the AABB must be outside of the frustum.
     vec4 plane = in_frustumPlanes[i];
     vec3 p = vec3(
-        plane.x > 0.0 ? aabbMin.x : aabbMax.x,
-        plane.y > 0.0 ? aabbMin.y : aabbMax.y,
-        plane.z > 0.0 ? aabbMin.z : aabbMax.z);
+        plane.x < 0.0 ? aabbMin.x : aabbMax.x,
+        plane.y < 0.0 ? aabbMin.y : aabbMax.y,
+        plane.z < 0.0 ? aabbMin.z : aabbMax.z);
     // Compute distance to plane
-    return (dot(plane.xyz, p) + plane.w < 0.0);
+    return (plane.w + dot(plane.xyz, p) < 0.0);
 }
 
-bool isAABBVisible(vec3 aabbMin, vec3 aabbMax) {
-#for PLANE_I to 6
-    if (isAABBVisible_i(aabbMin, aabbMax, ${PLANE_I})) return false;
-#endfor
+bool isAABBVisible(vec3 aabbMin, vec3 aabbMax, uint frustumOffset) {
+    #for PLANE_I to 6
+    if (isAABBBehindPlane(aabbMin, aabbMax, frustumOffset + ${PLANE_I})) return false;
+    #endfor
     return true;
 }
+    #if NUM_CAMERA_LAYERS > 1
+bool isAABBVisible(vec3 aabbMin, vec3 aabbMax) {
+    #for LAYER_I to NUM_CAMERA_LAYERS
+    if(isAABBVisible(aabbMin, aabbMax, ${LAYER_I} * 6)) return true;
+    #endfor
+    return false;
+}
+    #else // NUM_CAMERA_LAYERS == 1
+#define isAABBVisible(aabbMin, aabbMax) isAABBVisible(aabbMin, aabbMax, 0)
+    #endif // NUM_CAMERA_LAYERS > 1
 #endif // isAABBVisible_included_
 
 -- isOBBVisible
 #ifndef isOBBVisible_included_
 #define2 isOBBVisible_included_
-bool isOBBVisible_i(vec3 center, vec3 halfExtents, mat3 basis, int i) {
+bool isOBBVisible_i(vec3 center, vec3 halfExtents, mat3 basis, uint i) {
     vec4 plane = in_frustumPlanes[i];
     // Project OBB onto plane normal
     float r =
@@ -46,12 +70,22 @@ bool isOBBVisible_i(vec3 center, vec3 halfExtents, mat3 basis, int i) {
     return (s + r < 0.0);
 }
 
-bool isOBBVisible(vec3 center, vec3 halfExtents, mat3 basis) {
-#for PLANE_I to 6
-    if (isOBBVisible_i(center, halfExtents, basis, ${PLANE_I})) return false;
-#endfor
+bool isOBBVisible(vec3 center, vec3 halfExtents, mat3 basis, uint frustumOffset) {
+    #for PLANE_I to 6
+    if (isOBBVisible_i(center, halfExtents, basis, frustumOffset + ${PLANE_I})) return false;
+    #endfor
     return true;
 }
+    #if NUM_CAMERA_LAYERS > 1
+bool isOBBVisible(vec3 center, vec3 halfExtents, mat3 basis) {
+    #for LAYER_I to NUM_CAMERA_LAYERS
+    if(isOBBVisible(center, halfExtents, basis, ${LAYER_I} * 6)) return true;
+    #endfor
+    return false;
+}
+    #else // NUM_CAMERA_LAYERS == 1
+#define isOBBVisible(center, halfExtents, basis) isOBBVisible(center, halfExtents, basis, 0)
+    #endif // NUM_CAMERA_LAYERS > 1
 #endif // isOBBVisible_included_
 
 -- getModelScale
@@ -88,6 +122,7 @@ bool isShapeVisible(uint index, vec3 pos) {
 #ifdef HAS_modelMatrix
     vec3 scale = getModelScale(index);
     radius *= max(max(scale.x, scale.y), scale.z);
+    //pos *= scale;
 #endif // HAS_modelMatrix
 #ifdef HAS_shapeOffset
     return isSphereVisible(pos + in_shapeOffset, radius);
@@ -101,12 +136,13 @@ bool isShapeVisible(uint index, vec3 pos) {
 #if SHAPE_TYPE == AABB
 #include regen.shapes.culling.isAABBVisible
 bool isShapeVisible(uint index, vec3 pos) {
-    vec3 aabbMin = in_shapeAABBMin;
-    vec3 aabbMax = in_shapeAABBMax;
+    vec3 aabbMin = in_shapeAABBMin.xyz;
+    vec3 aabbMax = in_shapeAABBMax.xyz;
     #ifdef HAS_modelMatrix
     vec3 scale = getModelScale(index);
     aabbMin *= scale;
     aabbMax *= scale;
+    //pos *= scale;
     #endif
     return isAABBVisible(pos + aabbMin, pos + aabbMax);
 }

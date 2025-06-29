@@ -119,8 +119,6 @@ Texture::~Texture() {
 	}
 }
 
-GLint Texture::channel() const { return getVertex(0).r; }
-
 GLenum Texture::targetType() const { return texBind_.target_; }
 
 void Texture::set_targetType(GLenum targetType) { texBind_.target_ = targetType; }
@@ -140,7 +138,7 @@ void Texture::set_textureData(GLubyte *textureData, bool owned) {
 
 void Texture::readTextureData() {
 	ScopedTextureActivation sta(*this, RenderState::get());
-	auto *pixels = new GLubyte[numTexel() * glenum::pixelComponents(format())];
+	auto *pixels = new GLubyte[numTexel() * numComponents_];
 	glGetTexImage(targetType(), 0, format(), GL_UNSIGNED_BYTE, pixels);
 	set_textureData(pixels, true);
 }
@@ -159,6 +157,7 @@ void Texture::setupMipmaps(GLenum mode) const {
 
 void Texture::begin(RenderState *rs, GLint x) {
 	set_active(GL_TRUE);
+	v_channel_ = x;
 	setVertex(0, x);
 	rs->activeTexture().push(GL_TEXTURE0 + x);
 	rs->textures().push(x, textureBind());
@@ -168,6 +167,7 @@ void Texture::end(RenderState *rs, GLint x) {
 	rs->textures().pop(x);
 	rs->activeTexture().pop();
 	setVertex(0, -1);
+	v_channel_ = -1;
 	// INVALID_VALUE is generated when texture uniform is enabled
 	// with channel=-1. This flag should avoid calls to glUniform
 	// for this texture.
@@ -189,26 +189,31 @@ Bounds<Vec2ui> Texture::getRegion(const Vec2f &texco, const Vec2f &regionTS) con
 }
 
 unsigned int Texture::texelIndex(const Vec2f &texco) const {
-	auto x = static_cast<unsigned int>(std::round(texco.x * static_cast<float>(width())));
-	auto y = static_cast<unsigned int>(std::round(texco.y * static_cast<float>(height())));
+	auto w = width();
+	auto h = height();
+	//auto x = static_cast<unsigned int>(std::round(texco.x * static_cast<float>(w)));
+	//auto y = static_cast<unsigned int>(std::round(texco.y * static_cast<float>(h)));
+	auto x = static_cast<unsigned int>(texco.x * static_cast<float>(w));
+	auto y = static_cast<unsigned int>(texco.y * static_cast<float>(h));
 	// clamp to texture size
+	// TODO: avoid branch here, rather use a function pointer
 	switch (wrapping_[objectIndex_]->value().x) {
 		case GL_REPEAT:
-			x = x % width();
-			y = y % height();
+			x = x % w;
+			y = y % h;
 			break;
 		case GL_MIRRORED_REPEAT:
-			x = x % (2 * width());
-			y = y % (2 * height());
-			if (x >= width()) x = 2 * width() - x - 1;
-			if (y >= height()) y = 2 * height() - y - 1;
+			x = x % (2 * w);
+			y = y % (2 * h);
+			if (x >= w) x = 2 * w - x - 1;
+			if (y >= h) y = 2 * h - y - 1;
 			break;
 		default: // GL_CLAMP_TO_EDGE:
-			if (x >= width()) x = width() - 1;
-			if (y >= height()) y = height() - 1;
+			if (x >= w) x = w - 1;
+			if (y >= h) y = h - 1;
 			break;
 	}
-	return (y * width() + x);
+	return (y * w + x);
 }
 
 void Texture::resize(unsigned int width, unsigned int height) {

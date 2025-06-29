@@ -3,6 +3,7 @@
 
 #include "boid-simulation.h"
 #include "animation.h"
+#include "regen/math/simd.h"
 
 namespace regen {
 	/**
@@ -19,17 +20,9 @@ namespace regen {
 		 */
 		explicit BoidsCPU(const ref_ptr<ModelTransformation> &tf);
 
-		/**
-		 * Position constructor.
-		 * @param position A shader input with the boid positions.
-		 */
-		explicit BoidsCPU(const ref_ptr<ShaderInput3f> &position);
-
 		~BoidsCPU() override;
 
 		BoidsCPU(const BoidsCPU &) = delete;
-
-		static ref_ptr<BoidsCPU> load(LoadingContext &ctx, scene::SceneInputNode &input, const ref_ptr<ShaderInput3f> &position);
 
 		static ref_ptr<BoidsCPU> load(LoadingContext &ctx, scene::SceneInputNode &input, const ref_ptr<ModelTransformation> &tf);
 
@@ -43,39 +36,69 @@ namespace regen {
 		Private *priv_;
 
 		struct BoidData {
+			std::vector<int32_t> neighbors; // size = maxNumNeighbors
+			uint32_t numNeighbors = 0;
 			Vec3f force;
-			Vec3f velocity;
-			Vec3i gridIndex = Vec3i::zero();
-			std::vector<uint32_t> neighbors;
+			Vec3f sumPos, sumVel, sumSep;
 		};
-		std::vector<BoidData> boidData_;
-		std::vector<Vec3f> boidPositions_;
+		std::vector<BoidData> boidData_;   // size = numBoids_
+
+		inline void setBoidPosition(uint32_t boidIndex, const Vec3f &pos);
+
+		inline Vec3f getBoidPosition(uint32_t boidIndex) const;
+
+		inline void setBoidVelocity(uint32_t boidIndex, const Vec3f &vel);
+
+		inline Vec3f getBoidVelocity(uint32_t boidIndex) const;
+
+		inline Quaternion getBoidOrientation(uint32_t boidIndex) const;
+
+		inline void setBoidOrientation(
+				uint32_t boidIndex, const Quaternion &orientation);
 
 		void updateTransforms();
 
 		void simulateBoids(float dt);
 
-		void simulateBoid(BoidData &boid, Vec3f &boidPos, float dt);
+		void simulateBoid(int32_t boidIdx, float dt);
 
-		void limitVelocity(BoidData &boid, const Vec3f &lastDir);
+		Vec3f accumulateForce(
+				BoidData &boid,
+				const Vec3f &boidPos,
+				const Vec3f &boidVel);
 
-		void homesickness(BoidData &boid, const Vec3f &boidPos);
+		Vec3f limitVelocity(
+				const Vec3f &lastDir,
+				const Vec3f &boidVel,
+				float &boidSpeed);
 
-		bool avoidCollisions(BoidData &boid, const Vec3f &boidPos, float dt);
+		void homesickness(
+				const Vec3f &boidPos, Vec3f &boidForce);
 
-		bool avoidDanger(BoidData &boid, const Vec3f &boidPos);
+		bool avoidCollisions(
+				const Vec3f &boidPos,
+				const Vec3f &boidVel,
+				Vec3f &boidForce,
+				float dt);
 
-		void attract(BoidData &boid, const Vec3f &boidPos);
+		bool avoidDanger(
+				const Vec3f &boidPos, Vec3f &boidForce);
 
-		void updateNeighbours0(BoidData &boid, const Vec3f &boidPos, uint32_t boidIndex);
+		void attract(
+				const Vec3f &boidPos, Vec3f &boidForce);
 
-		void updateNeighbours1(BoidData &boid, const Vec3f &boidPos, uint32_t boidIndex, const Vec3i &gridIndex);
+		void updateNeighbours(
+				BoidData &boid,
+				const Vec3f &boidPos,
+				int32_t boidIndex,
+				const int32_t *neighborIndices,
+				uint32_t neighborCount);
 
-		void updateNeighbours2(BoidData &boid, const Vec3f &boidPos, uint32_t boidIndex, const Vec3i &gridIndex);
+		void clearGrid();
 
 		void updateGrid();
 
-		Vec3i getGridIndex3D(const Vec3f &boid) const;
+		inline Vec3i getGridIndex3D(const Vec3f &boid) const;
 	};
 
 	std::ostream &operator<<(std::ostream &out, const BoidSimulation::ObjectType &v);

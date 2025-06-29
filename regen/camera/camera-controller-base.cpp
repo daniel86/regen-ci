@@ -26,12 +26,12 @@ void CameraControllerBase::updateCamera(const Vec3f &pos, const Vec3f &dir, GLdo
 	// That a single uniform is not crumbled is already ensured by ShaderInput.
 	// Probably, this UBO lock is not necessary when changes in the camera are not super huge,
 	// and frame rate high. But needs more experiments to be certain....
-	auto ubo = cam_->cameraBlock();
+	auto &ubo = cam_->cameraBlock();
 	ubo->lock();
 #endif
-	cam_->position()->setVertex(0, pos);
-	cam_->direction()->setVertex(0, dir);
-	cam_->velocity()->setVertex(0, velocity_);
+	cam_->position()->setVertex3(0, pos);
+	cam_->direction()->setVertex3(0, dir);
+	cam_->velocity()->setVertex3(0, velocity_);
 	cam_->view()->setVertex(0, view_);
 	cam_->viewInverse()->setVertex(0, viewInv_);
 	cam_->viewProjection()->setVertex(0, viewproj_);
@@ -39,6 +39,7 @@ void CameraControllerBase::updateCamera(const Vec3f &pos, const Vec3f &dir, GLdo
 #ifdef SYNCHRONIZE_WITH_UBO
 	ubo->unlock();
 #endif
+	cam_->nextStamp();
 
 	if (cam_->isAudioListener()) {
 		AudioListener::set3f(AL_POSITION, pos);

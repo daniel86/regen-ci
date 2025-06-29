@@ -177,7 +177,7 @@ void main() {
     vec4 spec = texture(in_gSpecularTexture, texco);
     vec4 diff = texture(in_gDiffuseTexture, texco);
 
-    vec3 L = normalize(in_lightDirection);
+    vec3 L = normalize(in_lightDirection.xyz);
     float nDotL = dot( N, L );
     if(nDotL<=0.0) discard;
     out_color = vec4(0.0);
@@ -194,7 +194,7 @@ void main() {
     int shadowLayer = ${NUM_SHADOW_LAYER};
     #for S_LAYER to ${NUM_SHADOW_LAYER}
     shadowLayer = min(shadowLayer, ${NUM_SHADOW_LAYER} -
-            int(depth<in_lightFar[${S_LAYER}])*
+            int(depth<in_lightProjParams[${S_LAYER}].y)*
             (${NUM_SHADOW_LAYER} - ${S_LAYER}));
     #endfor
     // compute texture lookup coordinate
@@ -355,14 +355,14 @@ void main() {
             in_layer);
     vec4 spec = texture(in_gSpecularTexture, texco);
     vec4 diff = texture(in_gDiffuseTexture, texco);
-    vec3 lightVec = in_lightPosition - P;
+    vec3 lightVec = in_lightPosition.xyz - P;
     vec3 L = normalize(lightVec);
     
     // calculate attenuation
     float attenuation = radiusAttenuation(
         length(lightVec), in_lightRadius.x, in_lightRadius.y);
 #ifdef IS_SPOT_LIGHT
-    attenuation *= spotConeAttenuation(L,in_lightDirection,in_lightConeAngles);
+    attenuation *= spotConeAttenuation(L,in_lightDirection.xyz,in_lightConeAngles);
 #endif
     float nDotL = dot( N, L );
     // discard if facing away
@@ -371,6 +371,8 @@ void main() {
     out_color = vec4(0.0);
 
 #ifdef USE_SHADOW_MAP
+    float lightNear = in_lightProjParams.x;
+    float lightFar = in_lightProjParams.y;
     #ifdef IS_SPOT_LIGHT
     /*************************************/
     /***** SPOT SHADOW MAPPING *****/
@@ -380,8 +382,8 @@ void main() {
         in_shadowTexture,
         shadowTexco,
         lightVec,
-        in_lightNear,
-        in_lightFar);
+        lightNear,
+        lightFar);
         #ifdef USE_SHADOW_COLOR
     vec4 shadowColor = textureProj(in_shadowColorTexture,shadowTexco);
         #endif
@@ -390,12 +392,12 @@ void main() {
     /*************************************/
     /***** PARABOLIC SHADOW MAPPING ******/
     /*************************************/
-    int parabolicLayer = int(dot(L, in_lightDirection) > 0.0);
+    int parabolicLayer = int(dot(L, in_lightDirection.xyz) > 0.0);
     vec4 shadowCoord = parabolicShadowCoord(
             parabolicLayer,
             P,
             in_lightMatrix[parabolicLayer],
-            in_lightNear, in_lightFar);
+            lightNear, lightFar);
     float shadow = parabolicShadow${SHADOW_MAP_FILTER}(in_shadowTexture, shadowCoord);
             #if NUM_SHADOW_LAYER == 1
     shadow *= float(1 - parabolicLayer);
@@ -411,13 +413,13 @@ void main() {
     vec3 absLightVec = abs(lightVec);
     float shadowDepth = computeDepth(
         max(absLightVec .x, max(absLightVec .y, absLightVec .z)),
-        in_lightNear, in_lightFar);
+        lightNear, lightFar);
     float shadow = pointShadow${SHADOW_MAP_FILTER}(
         in_shadowTexture,
         L,
         shadowDepth,
-        in_lightNear,
-        in_lightFar,
+        lightNear,
+        lightFar,
         in_shadowInverseSize.x);
             #ifdef USE_SHADOW_COLOR
     vec4 shadowColor = shadowCube(in_shadowColorTexture,vec4(-lightVec,shadowDepth));
@@ -469,7 +471,7 @@ flat out int out_instanceID;
 #endif
 
 uniform vec2 in_lightRadius;
-uniform vec3 in_lightPosition;
+uniform vec4 in_lightPosition;
 
 #if RENDER_LAYER == 1
 #include regen.states.camera.input
@@ -477,14 +479,14 @@ uniform vec3 in_lightPosition;
 #endif
 
 void main() {
-    vec3 posWorld = in_lightPosition + in_pos*in_lightRadius.y;
+    vec3 posWorld = in_lightPosition.xyz + in_pos*in_lightRadius.y;
 #if RENDER_LAYER > 1
     gl_Position = vec4(posWorld,1.0);
 #else
     gl_Position = transformWorldToScreen(vec4(posWorld,1.0),0);
 #endif
 #ifdef HAS_INSTANCES
-    out_instanceID = gl_InstanceID;
+    out_instanceID = gl_InstanceID + gl_BaseInstance;
 #endif // HAS_INSTANCES
 }
 
@@ -539,7 +541,7 @@ uniform mat4 in_modelMatrix;
 void main() {
     out_intersection = (in_modelMatrix * vec4(in_pos,1.0)).xyz;
 #ifdef HAS_INSTANCES
-    out_instanceID = gl_InstanceID;
+    out_instanceID = gl_InstanceID + gl_BaseInstance;
 #endif // HAS_INSTANCES
 #if RENDER_LAYER > 1
     gl_Position = vec4(out_intersection,1.0);

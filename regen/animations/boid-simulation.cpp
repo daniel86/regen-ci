@@ -5,20 +5,14 @@
 using namespace regen;
 
 BoidSimulation::BoidSimulation(const ref_ptr<ModelTransformation> &tf) : tf_(tf) {
-	auto tfInput = tf_->get();
-	auto tfData = tfInput->mapClientData<Mat4f>(ShaderData::READ);
 	boidsScale_ = ref_ptr<ShaderInput3f>::alloc("scaleFactor");
-	boidsScale_->setUniformData(tfData.r[0].scaling());
-	numBoids_ = tfInput->numInstances();
-	tfData.unmap();
-	initBoidSimulation0();
-}
-
-BoidSimulation::BoidSimulation(const ref_ptr<ShaderInput3f> &position) :
-		  position_(position) {
-	numBoids_ = position_->numInstances();
-	boidsScale_ = ref_ptr<ShaderInput3f>::alloc("scaleFactor");
-	boidsScale_->setUniformData(Vec3f(1.0f));
+	if (tf->hasModelMat()) {
+		auto tfData = tf_->modelMat()->mapClientData<Mat4f>(ShaderData::READ);
+		boidsScale_->setUniformData(tfData.r[0].scaling());
+	} else {
+		boidsScale_->setUniformData(Vec3f(1.0f));
+	}
+	numBoids_ = tf->numInstances();
 	initBoidSimulation0();
 }
 
@@ -108,14 +102,6 @@ Vec3f BoidSimulation::getCellCenter(const Vec3ui &gridIndex) const {
 		Vec3f(visualRange_->getVertex(0).r);
 }
 
-uint32_t BoidSimulation::getGridIndex(const Vec3i &v, const Vec3ui &gridSize) {
-	return v.x + v.y * gridSize.x + v.z * gridSize.x * gridSize.y;
-}
-
-uint32_t BoidSimulation::getGridIndex(const Vec3i &v, const Vec3i &gridSize) {
-	return v.x + v.y * gridSize.x + v.z * gridSize.x * gridSize.y;
-}
-
 Vec2f BoidSimulation::computeUV(const Vec3f &boidPosition, const Vec3f &mapCenter, const Vec2f &mapSize) {
 	Vec2f boidCoord(
 			boidPosition.x - mapCenter.x,
@@ -146,18 +132,20 @@ void BoidSimulation::updateGridSize() {
 		static_cast<uint32_t>(ceil(gridSize.x)),
 		static_cast<uint32_t>(ceil(gridSize.y)),
 		static_cast<uint32_t>(ceil(gridSize.z)));
-	numCells_ = v_gridSize.x * v_gridSize.y * v_gridSize.z;
+	uint32_t newNumCells = v_gridSize.x * v_gridSize.y * v_gridSize.z;
 	// makes ure we will get at least one cell
-	if (numCells_ == 0) {
-		numCells_ = 1;
+	if (newNumCells == 0) {
+		newNumCells = 1;
 		v_gridSize.x = 1;
 		v_gridSize.y = 1;
 		v_gridSize.z = 1;
 		gridBounds_.min -= Vec3f(cs) * 0.5f;
 		gridBounds_.max += Vec3f(cs) * 0.5f;
 	}
-	gridSize_->setVertex(0, v_gridSize);
-
+	if (newNumCells != numCells_) {
+		numCells_ = newNumCells;
+		gridSize_->setVertex(0, v_gridSize);
+	}
 }
 
 namespace regen {
@@ -265,7 +253,7 @@ void BoidSimulation::loadSettings(LoadingContext &ctx, scene::SceneInputNode &in
 			auto transformID = objectNode->getValue("tf");
 			auto transform = ctx.scene()->getResource<ModelTransformation>(transformID);
 			if (transform.get() != nullptr) {
-				entityTF = transform->get();
+				entityTF = transform->modelMat();
 			}
 		} else if (objectNode->hasAttribute("point")) {
 			entityTF = ref_ptr<ShaderInputMat4>::alloc("attractorPoint");

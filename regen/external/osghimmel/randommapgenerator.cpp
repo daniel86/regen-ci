@@ -1,5 +1,4 @@
-
-// Copyright (c) 2011-2012, Daniel Müller <dm@g4t3.de>
+// Copyright (c) 2011-2012, Daniel MÃ¼ller <dm@g4t3.de>
 // Computer Graphics Systems Group at the Hasso-Plattner-Institute, Germany
 // All rights reserved.
 //
@@ -57,37 +56,6 @@ void RandomMapGenerator::generate(
             dest[i * N + n] = static_cast<T>(_randf(0.f, scale));
 }
 
-
-void RandomMapGenerator::generate1f(
-    const int width
-,   const int height
-,   float *dest
-,   const int seed)
-{
-    generate<float, 1>(width, height, dest, 1.f, seed);
-}
-
-
-void RandomMapGenerator::generate3f(
-    const int width
-,   const int height
-,   float *dest
-,   const int seed)
-{
-    generate<float, 3>(width, height, dest, 1.f, seed);
-}
-
-
-void RandomMapGenerator::generate4f(
-    const int width
-,   const int height
-,   float *dest
-,   const int seed)
-{
-    generate<float, 4>(width, height, dest, 1.f, seed);
-}
-
-
 void RandomMapGenerator::generate1(
     const int width
 ,   const int height
@@ -96,25 +64,4 @@ void RandomMapGenerator::generate1(
 {
     generate<unsigned char, 1>(width, height, dest, 255.f, seed);
 }
-
-
-void RandomMapGenerator::generate3(
-    const int width
-,   const int height
-,   unsigned char *dest
-,   const int seed)
-{
-    generate<unsigned char, 3>(width, height, dest, 255.f, seed);
-}
-
-
-void RandomMapGenerator::generate4(
-    const int width
-,   const int height
-,   unsigned char *dest
-,   const int seed)
-{
-    generate<unsigned char, 4>(width, height, dest, 255.f, seed);
-}
-
 } // namespace osgHimmel

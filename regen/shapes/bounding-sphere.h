@@ -14,7 +14,7 @@ namespace regen {
 		 * @brief Construct a new Bounding Sphere object
 		 * @param mesh The mesh
 		 */
-		explicit BoundingSphere(const ref_ptr<Mesh> &mesh, float radius = 0.0f);
+		BoundingSphere(const ref_ptr<Mesh> &mesh, const std::vector<ref_ptr<Mesh>> &parts, float radius = 0.0f);
 
 		/**
 		 * @brief Construct a new Bounding Sphere object
@@ -52,14 +52,13 @@ namespace regen {
 		// BoundingShape interface
 		void updateBounds(const Vec3f &min, const Vec3f &max) override;
 
-		// override BoundingShape::getCenterPosition
-		Vec3f getCenterPosition() const override;
-
 	protected:
 		Vec3f basePosition_;
 		GLfloat radius_;
 
 		float computeRadius(const Vec3f &min, const Vec3f &max);
+
+		void updateShapeOrigin();
 	};
 } // namespace
 

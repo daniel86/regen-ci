@@ -12,10 +12,10 @@
     #endif
 #endif
 #ifndef IGNORE_MATERIAL
+    #include regen.states.material.defines
     #ifdef HAS_MATERIAL
     #define USE_MATERIAL
     #endif
-    #include regen.states.material.defines
 #endif
 
 -- vs
@@ -42,9 +42,17 @@ out vec3 out_norWorld;
 #ifdef HAS_INSTANCES
 flat out int out_instanceID;
 #endif
+#ifndef HAS_TESSELATION
+    #ifdef HAS_VERTEX_MASK_MAP
+out float out_mask;
+    #endif
+#endif // HAS_TESSELATION
+
+#include regen.states.textures.input
+
+#define HANDLE_IO(i)
 
 #include regen.states.camera.input
-#include regen.states.textures.input
 
 #include regen.models.tf.transformModel
 #ifdef VS_CAMERA_TRANSFORM
@@ -69,8 +77,6 @@ flat out int out_instanceID;
 #ifndef HAS_TESSELATION
     #include regen.states.textures.mapToVertex
 #endif
-
-#define HANDLE_IO(i)
 
 void main() {
     vec3 posModel = in_pos.xyz;
@@ -124,7 +130,7 @@ void main() {
 #endif
 
 #ifdef HAS_INSTANCES
-    out_instanceID = gl_InstanceID;
+    out_instanceID = gl_InstanceID + gl_BaseInstance;
 #endif // HAS_INSTANCES
 
     HANDLE_IO(gl_VertexID);

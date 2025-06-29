@@ -5,6 +5,7 @@
 #include <regen/gl-types/vbo.h>
 
 #include <set>
+#include "ssbo.h"
 
 namespace regen {
 	/**
@@ -92,6 +93,26 @@ namespace regen {
 		void set_numVisibleInstances(GLuint v) { numVisibleInstances_ = v; }
 
 		/**
+		 * @return Base instance for instanced rendering.
+		 */
+		auto baseInstance() const { return baseInstance_; }
+
+		/**
+		 * @param v Base instance for instanced rendering.
+		 */
+		void set_baseInstance(GLuint v) { baseInstance_ = v; }
+
+		/**
+		 * @return Offset to the indirect draw call in bytes.
+		 */
+		void set_indirectOffset(GLuint v) { indirectOffset_ = v; }
+
+		/**
+		 * @param v the number of multi draw calls.
+		 */
+		void set_multiDrawCount(GLint v) { multiDrawCount_ = v; }
+
+		/**
 		 * @param layout Start recording added inputs.
 		 */
 		void begin(DataLayout layout);
@@ -169,39 +190,103 @@ namespace regen {
 		GLuint indexBuffer() const;
 
 		/**
+		 * @return true if this input container has an index buffer.
+		 */
+		bool hasIndirectDrawBuffer() const { return indirectDrawBuffer_.get() != nullptr; }
+
+		/**
+		 * Sets the indirect draw buffer.
+		 * @param indirectDrawBuffer the indirect draw buffer.
+		 * @param baseDrawIdx base draw index.
+		 */
+		void setIndirectDrawBuffer(const ref_ptr<SSBO> &indirectDrawBuffer, uint32_t baseDrawIdx = 0u);
+
+		/**
+		 * @return the base draw index in the indirect draw buffer.
+		 */
+		uint32_t baseDrawIndex() const { return baseDrawIdx_; }
+
+		/**
+		 * @return the indirect draw buffer.
+		 */
+		const ref_ptr<SSBO> &indirectDrawBuffer() const { return indirectDrawBuffer_; }
+
+		/**
 		 * render primitives from array data.
 		 * @param primitive Specifies what kind of primitives to render.
 		 */
-		void drawArrays(GLenum primitive);
+		void draw(GLenum primitive) const;
+
+		/**
+		 * render primitives from array data.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawIndexed(GLenum primitive) const;
 
 		/**
 		 * draw multiple instances of a range of elements.
 		 * @param primitive Specifies what kind of primitives to render.
 		 */
-		void drawArraysInstanced(GLenum primitive);
-
-		/**
-		 * render primitives from array data.
-		 * @param primitive Specifies what kind of primitives to render.
-		 */
-		void drawElements(GLenum primitive);
+		void drawInstances(GLenum primitive) const;
 
 		/**
 		 * draw multiple instances of a set of elements.
 		 * @param primitive Specifies what kind of primitives to render.
 		 */
-		void drawElementsInstanced(GLenum primitive);
+		void drawInstancesIndexed(GLenum primitive) const;
+
+		/**
+		 * draw multiple instances of a range of elements with base instance.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawBaseInstances(GLenum primitive) const;
+
+		/**
+		 * draw multiple instances of a set of elements with base instance.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawBaseInstancesIndexed(GLenum primitive) const;
+
+		/**
+		 * render primitives from array data using indirect draw call.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawIndirect(GLenum primitive) const;
+
+		/**
+		 * render primitives from array data using indirect draw call.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawIndirectIndexed(GLenum primitive) const;
+
+		/**
+		 * render primitives from array data using multi indirect draw call.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawMultiIndirect(GLenum primitive) const;
+
+		/**
+		 * render primitives from array data using multi indexed indirect draw call.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawMultiIndirectIndexed(GLenum primitive) const;
 
 	protected:
 		ShaderInputList inputs_;
 		std::set<std::string> inputMap_;
-		GLint numVertices_;
-		GLint vertexOffset_;
-		GLint numInstances_;
-		GLint numVisibleInstances_;
-		GLint numIndices_;
-		GLuint maxIndex_;
+		GLint numVertices_ = 0;
+		GLint vertexOffset_ = 0;
+		GLint numInstances_ = 1;
+		GLint numVisibleInstances_ = 1;
+		GLuint baseInstance_ = 0u;
+		GLuint indirectOffset_ = 0u;
+		GLint numIndices_ = 0u;
+		GLuint maxIndex_ = 0u;
 		ref_ptr<ShaderInput> indices_;
+
+		ref_ptr<SSBO> indirectDrawBuffer_;
+		uint32_t baseDrawIdx_ = 0u;
+		int32_t multiDrawCount_ = 1u;
 
 		ShaderInputList uploadInputs_;
 		std::list<ref_ptr<ShaderInput> > uploadAttributes_;

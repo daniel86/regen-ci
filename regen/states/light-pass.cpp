@@ -149,13 +149,16 @@ void LightPass::addLightInput(LightPassLight &light) {
 
 	// add shadow uniforms
 	if (light.camera.get()) {
-		addInputLocation(light, light.camera->lightCamera()->far(), "lightFar");
-		addInputLocation(light, light.camera->lightCamera()->near(), "lightNear");
+		addInputLocation(light, light.camera->lightCamera()->projParams(), "lightProjParams");
 		addInputLocation(light, light.camera->lightMatrix(), "lightMatrix");
 	}
 	if (light.shadow.get()) {
-		addInputLocation(light, light.shadow->sizeInverse(), "shadowInverseSize");
-		addInputLocation(light, light.shadow->size(), "shadowSize");
+		auto shadowSizeInv = createUniform<ShaderInput2f>(
+				"shadowInverseSize", light.shadow->sizeInverse());
+		auto shadowSize = createUniform<ShaderInput2f>(
+				"shadowSize", light.shadow->size());
+		addInputLocation(light, shadowSizeInv, "shadowInverseSize");
+		addInputLocation(light, shadowSize, "shadowSize");
 	}
 
 	// add light UBO, and special light type uniforms
@@ -199,8 +202,7 @@ void LightPass::enable(RenderState *rs) {
 		}
 
 		mesh_->updateVisibility(0, numInstances_, 0);
-		mesh_->enable(rs);
-		mesh_->disable(rs);
+		mesh_->draw(rs);
 
 		if (l.shadow.get()) { l.shadow->end(rs, smChannel); }
 		if (l.shadowColor.get()) { l.shadowColor->end(rs, smColorChannel); }

@@ -1,11 +1,11 @@
 #ifndef REGEN_SPATIAL_INDEX_H_
 #define REGEN_SPATIAL_INDEX_H_
 
+#include <map>
 #include <regen/shapes/bounding-shape.h>
 #include <regen/shapes/indexed-shape.h>
 #include <regen/camera/camera.h>
 #include "regen/utility/debug-interface.h"
-#include "regen/utility/ThreadPool.h"
 #include <regen/scene/loading-context.h>
 
 namespace regen {
@@ -70,7 +70,7 @@ namespace regen {
 		 * @brief Get the shapes in the index
 		 * @return The shapes
 		 */
-		auto &shapes() const { return shapes_; }
+		auto &shapes() const { return nameToShape_; }
 
 		/**
 		 * @brief Get the cameras in the index
@@ -117,7 +117,8 @@ namespace regen {
 		 */
 		virtual void foreachIntersection(
 				const BoundingShape &shape,
-				const std::function<void(const BoundingShape &)> &callback) = 0;
+				void (*callback)(const BoundingShape&, void*),
+				void *userData) = 0;
 
 		/**
 		 * @brief Draw debug information
@@ -126,18 +127,20 @@ namespace regen {
 		virtual void debugDraw(DebugInterface &debug) const = 0;
 
 	protected:
-		ThreadPool threadPool_;
 		struct IndexCamera {
 			ref_ptr<Camera> camera;
-			std::map<std::string_view, ref_ptr<IndexedShape>> shapes;
-			bool sortInstances;
+			std::unordered_map<std::string_view, ref_ptr<IndexedShape>> nameToShape_;
+			// flattened list of shapes for faster access
+			std::vector<IndexedShape*> indexShapes_;
+			// whether to sort instances by distance to camera
+			bool sortInstances = true;
 		};
-		std::map<std::string_view, std::vector<ref_ptr<BoundingShape>>> shapes_;
-		std::map<const Camera *, IndexCamera> cameras_;
+		std::unordered_map<std::string_view, std::vector<ref_ptr<BoundingShape>>> nameToShape_;
+		std::unordered_map<const Camera *, IndexCamera> cameras_;
 
 		void updateVisibility();
 
-		void updateVisibility(IndexCamera &camera, const BoundingShape &shape, bool isMultiShape);
+		void updateVisibilityWithCamera(IndexCamera &camera, const BoundingShape &shape, bool isMultiShape);
 
 		/**
 		 * @brief Add a shape to the index
@@ -152,6 +155,17 @@ namespace regen {
 		void removeFromIndex(const ref_ptr<BoundingShape> &shape);
 
 		static void createIndexShape(IndexCamera &ic, const ref_ptr<BoundingShape> &shape);
+
+		// used internally when handling intersections
+		struct TraversalData {
+			SpatialIndex *index;
+			const Vec4f *camPos;
+			bool isMultiShape;
+		};
+
+		static void handleIntersection_sorted(const BoundingShape &b_shape, void *userData);
+
+		static void handleIntersection_unsorted(const BoundingShape &b_shape, void *userData);
 	};
 } // namespace
 

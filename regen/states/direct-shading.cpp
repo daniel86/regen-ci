@@ -130,13 +130,19 @@ void DirectShading::addLight(
 	}
 
 	if (camera.get()) {
-		joinShaderInput(camera->lightCamera()->far(), REGEN_LIGHT_NAME("lightFar", lightID));
-		joinShaderInput(camera->lightCamera()->near(), REGEN_LIGHT_NAME("lightNear", lightID));
+		joinShaderInput(camera->lightCamera()->projParams(), REGEN_LIGHT_NAME("lightProjParams", lightID));
 		joinShaderInput(camera->lightMatrix(), REGEN_LIGHT_NAME("lightMatrix", lightID));
 	}
 	if (shadow.get()) {
-		joinShaderInput(shadow->sizeInverse(), REGEN_LIGHT_NAME("shadowInverseSize", lightID));
-		joinShaderInput(shadow->size(), REGEN_LIGHT_NAME("shadowSize", lightID));
+		directLight.shadowSizeInv_ = createUniform<ShaderInput2f>(
+			REGEN_LIGHT_NAME("shadowInverseSize", lightID),
+			shadow->sizeInverse());
+		directLight.shadowSize_ = createUniform<ShaderInput2f>(
+			REGEN_LIGHT_NAME("shadowSize", lightID),
+			shadow->size());
+		joinShaderInput(directLight.shadowSizeInv_);
+		joinShaderInput(directLight.shadowSize_);
+
 		directLight.shadowMap_ =
 				ref_ptr<TextureState>::alloc(shadow, REGEN_LIGHT_NAME("shadowTexture", lightID));
 		directLight.shadowMap_->set_mapping(TextureState::MAPPING_CUSTOM);
@@ -166,13 +172,12 @@ void DirectShading::removeLight(const ref_ptr<Light> &l) {
 		for (const auto &jt: in) { disjoinShaderInput(jt.in_); }
 	}
 	if (directLight.camera_.get()) {
-		disjoinShaderInput(directLight.camera_->lightCamera()->far());
-		disjoinShaderInput(directLight.camera_->lightCamera()->near());
+		disjoinShaderInput(directLight.camera_->lightCamera()->projParams());
 		disjoinShaderInput(directLight.camera_->lightMatrix());
 	}
 	if (directLight.shadow_.get()) {
-		disjoinShaderInput(directLight.shadow_->sizeInverse());
-		disjoinShaderInput(directLight.shadow_->size());
+		disjoinShaderInput(directLight.shadowSizeInv_);
+		disjoinShaderInput(directLight.shadowSize_);
 		disjoinStates(directLight.shadowMap_);
 		if (directLight.shadowColor_.get()) {
 			disjoinStates(directLight.shadowColorMap_);

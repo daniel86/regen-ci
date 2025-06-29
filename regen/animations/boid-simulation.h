@@ -20,8 +20,6 @@ namespace regen {
 
 		explicit BoidSimulation(const ref_ptr<ModelTransformation> &tf);
 
-		explicit BoidSimulation(const ref_ptr<ShaderInput3f> &position);
-
 		/**
 		 * Load the boids settings from a scene input node.
 		 * @param parser the scene parser.
@@ -138,16 +136,19 @@ namespace regen {
 
 		Vec3f getCellCenter(const Vec3ui &gridIndex) const;
 
-		static uint32_t getGridIndex(const Vec3i &v, const Vec3ui &gridSize);
+		static inline uint32_t getGridIndex(const Vec3i &v, const Vec3ui &gridSize) {
+			return v.x + v.y * gridSize.x + v.z * gridSize.x * gridSize.y;
+		}
 
-		static uint32_t getGridIndex(const Vec3i &v, const Vec3i &gridSize);
+		static inline int32_t getGridIndex(const Vec3i &v, const Vec3i &gridSize) {
+			return v.x + v.y * gridSize.x + v.z * gridSize.x * gridSize.y;
+		}
 
 		virtual void initBoidSimulation() {};
 
 	protected:
 		uint32_t numBoids_;
 		ref_ptr<ModelTransformation> tf_;
-		ref_ptr<ShaderInput3f> position_;
 		// The bounding box of the boids.
 		Bounds<Vec3f> boidBounds_ = Bounds<Vec3f>(0.0f, 1.0f);
 		Bounds<Vec3f> newBounds_ = Bounds<Vec3f>(0.0f, 0.0f);

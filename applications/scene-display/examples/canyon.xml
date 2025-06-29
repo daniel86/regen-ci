@@ -61,7 +61,6 @@
         <texture id="ambient"/>
         <texture id="specular"/>
         <texture id="normal"/>
-        <texture id="emission" pixel-components="3"/>
         <depth pixel-size="24"/>
     </fbo>
     <!-- FBO for silhouette-based alpha with msaa + alpha coverage -->
@@ -95,10 +94,13 @@
             sampler-type="sampler2DArrayShadow" />
     </fbo>
     <!-- Textures -->
-    <texture id="emission-map-bloom" type="bloom" num-mips="4" input-fbo="g-buffer"/>
     <texture id="ground-color" file="res/textures/terrain/canyon/diffuse.png"/>
     <texture id="ground-normal" file="res/textures/terrain/canyon/normal.png"/>
     <texture id="ground-height" file="res/textures/terrain/canyon/height.png"/>
+    <texture id="ground-noise" type="noise" size="1024.0,1024.0" is-seamless="0"
+            output-generator="0" noise-scale="1.0">
+        <generator id="0" type="perlin" octaves="4" frequency="2.0" persistence="0.5" lacunarity="2.0"/>
+    </texture>
     <texture id="grass-mask" file="res/textures/terrain/canyon/mask-grass.png"/>
     <texture id="tree-mask" file="res/textures/terrain/canyon/mask-trees.png"/>
     <texture id="grass-color" file="res/textures/materials/grass/0/color.png" wrapping="CLAMP_TO_EDGE" />
@@ -107,7 +109,10 @@
             size="128.0,128.0,1.0" noise-scale="1.0"
             swizzle-g="RED" swizzle-b="RED"/>
     <!-- Spatial Index -->
-    <index id="main-index" type="quadtree" max-objects-per-node="4"/>
+    <index id="main-index" type="quadtree"
+            max-objects-per-node="4"
+            test-mode-3d="closest"
+            close-distance="20.0"/>
     <!-- Cameras -->
     <camera id="main-camera"
             culling-index="main-index"
@@ -167,27 +172,19 @@
         <anim-range name="attack2" channel="Hyenas_A15_Atk2" range="1.0,120.0" />
         <anim-range name="attack1" channel="Hyenas_A15_Atk" range="1.0,35.0" />
     </asset>
-    <!-- UBOs -->
-    <block type="ubo" id="SceneUBO">
-        <uniform name="planeSize" type="vec2" value="{{map-size}}, {{map-size}}"/>
-        <uniform name="wind" type="vec2" value="0.6, 0.6"/>
-        <uniform name="windFlowScale" type="float" value="50.0"/>
-        <uniform name="windFlowTime" type="float" value="0.1"/>
-        <uniform name="windStrength" type="float" value="1.0"/>
-    </block>
     <!-- Sky -->
     <sky id="sky" camera="main-camera" update-interval="200.0" >
-        <star-map texture="res/sky/milkyway.png" scattering="0.8" delta-magnitude="0.5" lod="0" />
+        <star-map texture="res/sky/milkyway.png" scattering="0.8" delta-magnitude="0.015" lod="0" />
         <stars catalog="res/sky/bright-stars.bin" scale="1.4"
             scattering="1.0" scintillation="0.2" apparent-magnitude="6.0"
-            glare-intensity="0.04" glare-scale="0.2"
+            glare-intensity="0.08" glare-scale="0.2"
             color="0.66,0.78,1.0" color-ratio="0.66"/>
         <moon texture="res/sky/moon.png" scale="0.04" scattering="4.0"
             sun-shine-color="0.923,0.786,0.636" sun-shine-intensity="128.0"
             earth-shine-color="0.88,0.96,1.0" earth-shine-intensity="8.0" />
         <atmosphere preset="earth" size="256" lod="0">
-            <input type="float" name="cirrus" value="0.8" />
-            <input type="float" name="cumulus" value="0.6" />
+            <input type="float" name="cirrus" value="0.4" />
+            <input type="float" name="cumulus" value="0.2" />
             <input type="float" name="dithering" value="0.2" />
             <input type="float" name="ditheringScale" value="100.0" />
             <input type="float" name="cloudTimeFactor" value="0.3" />
@@ -202,84 +199,44 @@
     <!--**************************-->
 
     <mesh id="ground-mesh"
-          type="rectangle"
-          lod="5"
-          rotation="0.0,0.0,3.1415"
-          scaling="{{map-size}},1.0,{{map-size}}"
-          texco-scaling="1.0,-1.0"
-          use-normal="1"
-          use-texco="1"
-          use-tangent="1"
-          center="1"
-          usage="STATIC_DRAW"
-          primitive="PATCHES">
-        <shader mesh-index="0" key="regen.models.mesh" />
-        <transform>
-            <translate value="0.0,{{map-y-min}},0.0"/>
-        </transform>
+          type="ground"
+          lod-levels="5,4,3,1"
+          lod-thresholds="10.0, 30.0, 60.0"
+          patch-density="24"
+          map-size="{{map-size}},{{map-height}},{{map-size}}"
+          map-center="0.0,0.0,0.0"
+          skirt-size="0.2"
+          weight-map-size="2024"
+          weight-mips="1"
+          triplanar-blending="1"
+          height-map="ground-height"
+          normal-map="ground-normal"
+          tf="ground-tf">
+        <transform id="ground-tf" />
+        <materials>
+            <material type="grass" name="ground/grass" variant="1" uv-scale="0.25"
+                    height-range="0.25, 0.75" height-smooth="0.25"
+                    slope-range="0.0, 25.0" slope-smooth="10.0"/>
+            <material type="rock" name="ground/stone" variant="8" uv-scale="0.1"
+                    height-range="0.0, 1.0"
+                    slope-range="30.0, 180.0" slope-smooth="30.0"/>
+            <material type="sand" name="ground/sand" variant="3" uv-scale="0.05"
+                    height-range="0.0, 0.3" height-smooth="0.2"
+                    slope-range="0.0, 15.0" slope-smooth="15.0"/>
+            <material type="dirt" name="ground/dirt" variant="1" uv-scale="0.5" is-fallback="1"
+                    height-range="0.0, 0.75" height-smooth="0.2"
+                    slope-range="10.0, 180.0" slope-smooth="20.0"/>
+        </materials>
+        <shape id="ground-shape" index="1" cull="1" type="obb"
+            mesh-id="ground-mesh" transform-id="ground-tf" />
     </mesh>
-
-    <!--
-    <mesh id="ground-patches"
-          type="rectangle"
-          lod="2"
-          rotation="0.0,0.0,3.1415"
-          scaling="10.0,1.0,10.0"
-          use-normal="1"
-          use-texco="0"
-          use-tangent="1"
-          center="1"
-          usage="STATIC_DRAW"
-          num-instances="100">
-        <transform id="ground-tf" is-instanced="1" >
-            <set mode="row" target="translate"
-                x-step="10.0,0.0,0.0" x-count="10"
-                z-step="0.0,0.0,10.0" />
-            <translate value="-45.0,{{map-y-min}},-45.0" />
-        </transform>
-        <shape id="ground-shape" index="1" type="aabb" mesh-id="ground-patches" transform-id="ground-tf" />
-    </mesh>
-    -->
 
     <node id="Ground">
         <node id="Ground-quad">
-            <define key="TESS_SPACING" value="equal_spacing"/>
-            <!--
-            <tesselation num-patch-vertices="3" lod-factor="0.2" lod-metric="FIXED_FUNCTION"/>
-            -->
-            <tesselation num-patch-vertices="3" lod-factor="0.2" lod-metric="EDGE_DEVICE_DISTANCE"/>
-            <input name="lodMinDeviceDistance" type="float" value="0.02"/>
-            <input name="lodMaxDeviceDistance" type="float" value="0.6"/>
-            <!--
-            <tesselation num-patch-vertices="3" lod-factor="0.275" lod-metric="EDGE_SCREEN_DISTANCE"/>
-            <input name="lodMinScreenDistance" type="float" value="0.03"/>
-            <input name="lodMaxScreenDistance" type="float" value="0.1"/>
-            -->
-            <material ambient="0.05,0.05,0.05" diffuse="0.5,0.6,0.6" fill-mode="fill"/>
-            <texture name="colorTexture" id="ground-color" map-to="COLOR" mapping="xz_plane"
-                    blend-mode="MUL" />
-            <texture name="normalTexture" id="ground-normal" map-to="NORMAL" mapping="xz_plane" />
-            <texture name="heightTexture" id="ground-height" map-to="HEIGHT" mapping="xz_plane"
-                    blend-mode="ADD" blend-factor="{{map-height}}"/>
-            <mesh id="ground-mesh" />
+            <input type="float" name="noiseScale" value="0.005"/>
+            <texture name="noiseTexture" id="ground-noise"/>
+            <mesh id="ground-mesh" shader="regen.terrain.ground"/>
         </node>
-        <!--
-        <node id="Ground-patches">
-            <input type="vec4" name="clipPlane" value="0.0,1.0,0.0,-2.5"/>
-            <define key="TESS_SPACING" value="fractional_odd_spacing"/>
-            <tesselation num-patch-vertices="3" lod-factor="0.18" lod-metric="EDGE_DEVICE_DISTANCE"/>
-            <input name="lodMinDeviceDistance" type="float" value="0.15"/>
-            <input name="lodMaxDeviceDistance" type="float" value="0.5"/>
-            <input name="minTessLevel" type="float" value="1.0"/>
-            <input name="maxTessLevel" type="float" value="72.0"/>
-            <material ambient="0.05,0.05,0.05" diffuse="0.6,0.6,0.6" fill-mode="fill"/>
-            <texture name="colorTexture" id="ground-color" map-to="COLOR" mapping="xz_plane" />
-            <texture name="normalTexture" id="ground-normal" map-to="NORMAL" mapping="xz_plane" />
-            <texture name="heightTexture" id="ground-height" map-to="HEIGHT" mapping="xz_plane"
-                     blend-mode="ADD" blend-factor="5.0"/>
-            <mesh id="ground-patches" primitive="patches" shader="regen.models.mesh"/>
-        </node>
-        -->
     </node>
 
     <!--**************************-->
@@ -289,13 +246,14 @@
     <mesh id="grass-patches"
           type="mask-patch"
           mask="grass-mask"
-          lod="0"
+          lod-levels="4,3,2,1"
+          lod-thresholds="20.0,60.0,120.0"
           scaling="2.0,1.0,2.0"
           ground-size="{{map-size}},{{map-size}}"
           usage="STATIC_DRAW">
         <shader mesh-index="0" key="regen.terrain.grass.patch" />
-        <transform id="grass-tf">
-            <translate value="0.0,{{map-y-min}},0.0"/>
+        <transform id="grass-tf" mode="offset">
+            <offset value="0.0,{{map-y-min}},0.0"/>
         </transform>
         <shape id="grass-shape" index="1" cull="1" type="aabb"
                 box-size="2.0, {{map-height}}, 2.0"
@@ -306,51 +264,34 @@
     </mesh>
 
     <node id="Grass">
-        <node>
-            <alpha discard-threshold="0.25"/>
-            <material
-                    diffuse="0.1, 0.1, 0.1"
-                    ambient="0.1, 0.1, 0.1"
-                    specular="0.0, 0.0, 0.0"
-                    shininess="256.0"
-                    emission="0.0, 0.0, 0.0"/>
-            <!-- TODO: Can we use alpha blending instead of discard alpha? it can be much faster. -->
-            <!-- <blend mode="ALPHA"/>  -->
-            <!-- TODO: There is some jittering in the grass with tessellation, maybe we can only switch
-                       between fixed level of LODs and not do this continuously. -->
-            <define key="TESS_SPACING" value="equal_spacing"/>
-            <define key="TESS_POWER_OF_TWO" value="TRUE"/>
-            <input name="minTessLevel" type="float" value="1.0"/>
-            <input name="maxTessLevel" type="float" value="50.0"/>
-            <tesselation num-patch-vertices="3" lod-factor="0.35" lod-metric="EDGE_DEVICE_DISTANCE"/>
-            <input name="lodMinDeviceDistance" type="float" value="0.02"/>
-            <input name="lodMaxDeviceDistance" type="float" value="0.6"/>
-            <!-- use more complex geometry in close range. -->
-            <define key="USE_SPRITE_LOD" value="TRUE"/>
-            <input name="lodGeomLevel0" type="float" value="60.0"/>
-            <input name="lodGeomLevel1" type="float" value="160.0"/>
-            <input name="lodGeomBrightness0" type="float" value="1.7"/>
-            <input name="lodGeomVariance" type="float" value="6.0"/>
-            <!-- size and position -->
-            <input name="quadSize" type="vec2" value="0.5, 0.15"/>
-            <input name="posVariation" type="float" value="0.4"/>
-            <input name="offset" type="vec3" value="0.0, -0.2, 0.0"/>
-            <!-- color -->
-            <texture id="grass-color" map-to="color" blend-mode="mul"/>
-            <input name="uvDarken" type="float" value="0.25"/>
-            <!-- wind -->
-            <texture name="windFlow" id="wind-flowmap" />
-            <input name="stiffness" type="float" value="1.0"/>
-            <!-- small-scale wind details -->
-            <texture name="windNoise" id="wind-noise" />
-            <input name="windNoiseScale" type="float" value="100.0"/>
-            <input name="windNoiseSpeed" type="float" value="1.0"/>
-            <input name="windNoiseStrength" type="float" value="0.1"/>
-            <!-- height -->
-            <texture name="heightTexture" id="ground-height" map-to="HEIGHT" mapping="xz_plane"
+        <alpha discard-threshold="0.25"/>
+        <material diffuse="0.1, 0.1, 0.1" ambient="0.1, 0.1, 0.1" specular="0.0, 0.0, 0.0" shininess="256.0"/>
+        <!-- use more complex geometry in close range. -->
+        <define key="USE_SPRITE_LOD" value="TRUE"/>
+        <input name="lodGeomLevel0" type="float" value="60.0"/>
+        <input name="lodGeomLevel1" type="float" value="160.0"/>
+        <input name="lodGeomBrightness0" type="float" value="1.7"/>
+        <input name="lodGeomVariance" type="float" value="6.0"/>
+        <!-- size and position -->
+        <input name="quadSize" type="vec2" value="0.5, 0.15"/>
+        <input name="posVariation" type="float" value="0.4"/>
+        <input name="offset" type="vec3" value="0.0, -0.2, 0.0"/>
+        <!-- color -->
+        <texture id="grass-color" map-to="color" blend-mode="mul"/>
+        <input name="uvDarken" type="float" value="0.25"/>
+        <!-- wind -->
+        <texture name="windFlow" id="wind-flowmap" />
+        <input name="stiffness" type="float" value="1.0"/>
+        <!-- small-scale wind details -->
+        <texture name="windNoise" id="wind-noise" />
+        <input name="windNoiseScale" type="float" value="100.0"/>
+        <input name="windNoiseSpeed" type="float" value="1.0"/>
+        <input name="windNoiseStrength" type="float" value="0.1"/>
+        <!-- height -->
+        <texture name="heightTexture" id="ground-height" map-to="HEIGHT" mapping="xz_plane"
                      blend-mode="ADD" blend-factor="{{map-height}}"/>
-            <mesh id="grass-patches" primitive="patches" />
-        </node>
+        <!-- <mesh id="grass-patches" primitive="patches" /> -->
+        <mesh id="grass-patches" />
     </node>
 
     <!--**************************-->
@@ -383,6 +324,9 @@
                 obj-mesh="tree-mesh"
               />
         </transform>
+        <input join="0" mesh="tree-mesh" mesh-index="1" component="matDiffuse">
+            <set mode="random" min="0.6,0.4,0" max="1,1,1"/>
+        </input>
         <lod-meshes>
             <mesh id="twig-impostor"
                     type="impostor-billboard"
@@ -405,12 +349,6 @@
                 <input name="stiffness" type="float" value="0.1"/>
             </mesh>
         </lod-meshes>
-        <input join="0" mesh="tree-mesh" mesh-index="1" component="matDiffuse">
-            <!--
-            <set mode="random" min="1,1,1" max="5,4,2"/>
-            -->
-            <set mode="random" min="0.6,0.4,0" max="1,1,1"/>
-        </input>
         <shape id="tree-shape" cull="1" index="1" type="aabb" mesh-id="tree-mesh" mesh-index="0" transform-id="tree-tf">
             <has-part mesh-id="tree-mesh" mesh-index="1" />
         </shape>
@@ -573,7 +511,14 @@
     <texture id="water-foam" file="res/textures/water/foam2.jpg" wrapping="REPEAT"
              swizzle-g="RED" swizzle-b="RED"/>
 
-    <block type="ubo" id="WaterUBO">
+    <node id="Water-Rendering">
+        <depth test="0" write="0"/>
+
+        <define key="USE_REFRACTION" value="TRUE"/>
+        <define key="USE_FOAM" value="FALSE"/>
+        <define key="USE_RIPPLES" value="TRUE"/>
+        <define key="USE_SPECULAR" value="TRUE"/>
+
         <input type="vec4" name="normalModifier" value="1.0,2.0,4.0,8.0"/>
         <input type="vec3" name="waterColor" value="0.0078,0.4,0.55"/>
         <input type="float" name="sunScale" value="1.5"/>
@@ -595,17 +540,7 @@
         <input type="float" name="reflectionDisplace" value="10.0"/>
         <input type="float" name="visibility" value="0.9"/>
         <input type="float" name="foamHardness" value="1.0"/>
-    </block>
 
-    <node id="Water-Rendering">
-        <depth test="0" write="0"/>
-
-        <define key="USE_REFRACTION" value="TRUE"/>
-        <define key="USE_FOAM" value="FALSE"/>
-        <define key="USE_RIPPLES" value="TRUE"/>
-        <define key="USE_SPECULAR" value="TRUE"/>
-
-        <input name="WaterUBO" ubo="WaterUBO"/>
         <texture name="depthTexture" fbo="g-buffer" attachment="depth"/>
         <texture name="refractionTexture" fbo="g-buffer" attachment="1"/>
         <texture name="reflectionTexture" id="blurred-reflection"/>
@@ -622,7 +557,6 @@
     </node>
 
     <!-- water surface mesh used for depth rendering and post-processing effects -->
-    <!-- FIXME: this does not work well when camera is facing downwards, effectively looking behind its position in xz plane. -->
     <mesh id="water-mesh" type="rectangle" lod="0" center="1" usage="STATIC_DRAW"
           use-normal="0" use-texco="0" use-tangent="0"
           rotation="0.0,0.0,3.1415"
@@ -632,8 +566,9 @@
         </transform>
     </mesh>
 
-    <!-- Render surface plane into depth buffer
-         to be used for post-processing effects -->
+    <!-- Render surface plane into depth buffer to be used for post-processing effects -->
+    <!-- NOTE: this approach does not work well when camera is facing downwards,
+               however, this is mostly for fog rendering which does not produce noticeable artifacts. -->
     <node id="Water-Depth">
         <depth test="1" write="1"/>
         <define key="IS_VIEW_ALIGNED_GROUND_QUAD" value="TRUE"/>
@@ -689,7 +624,7 @@
                     base-mesh="fish-mesh"
                     base-mesh-index="0"
                     depth-offset="0.5"
-                    normal-correction="0"
+                    normal-correction="1"
                     depth-correction="0"
                     hemispherical="1"
                     top-view="0"
@@ -698,7 +633,7 @@
                     latitude-steps="2"
                     texture-size="64,64">
                 <shader mesh-index="0" key="regen.models.impostor">
-                    <alpha discard-threshold="0.25"/>
+                    <alpha discard-threshold="0.5"/>
                 </shader>
                 <update-state>
                     <depth test="0" write="0"/>
@@ -847,26 +782,11 @@
             <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
         </view>
 
-        <!-- render transparent objects -->
-        <node id="Transparent-Pass">
-            <fbo id="g-buffer" draw-buffers="0"/>
-            <blend mode="add"/>
-            <depth test="1" write="0"/>
-            <!-- render emission light -->
-            <node id="Material-Emission">
-                <texture name="gEmissionTexture" fbo="g-buffer" attachment="4"/>
-                <texture name="gEmissionBlurred" id="emission-map-bloom"/>
-                <!-- <texture name="gEmissionBlurred" id="emission-map-blur" /> -->
-                <fullscreen-pass shader="regen.shading.deferred.emission"/>
-            </node>
-            <!-- <node import="Fire" /> -->
-            <view id="Transparent Objects">
-                <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
-            </view>
-        </node>
-
         <node import="Fog-Draw"/>
-        <node import="Sky"/>
+        <node import="Sky" />
+        <view id="Scene -- Sky">
+            <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+        </view>
         <node import="Scene-Blur"/>
         <node import="ToneMapping">
             <fbo id="g-buffer" draw-buffers="0"/>
@@ -893,7 +813,11 @@
         </view>
     </node>
 
-    <block type="ubo" id="ToneMapping">
+    <node id="ToneMapping">
+        <define key="USE_RADIAL_BLUR" value="TRUE"/>
+        <define key="USE_VIGNETTE" value="TRUE"/>
+        <texture name="inputTexture" fbo="g-buffer" attachment="1"/>
+        <texture name="blurTexture" id="blurred-scene"/>
         <input type="float" name="blurAmount" value="0.3"/>
         <input type="float" name="effectAmount" value="0.1"/>
         <input type="float" name="exposure" value="1.7"/>
@@ -903,14 +827,6 @@
         <input type="float" name="radialBlurScaleMul" value="0.9555"/>
         <input type="float" name="vignetteInner" value="0.9"/>
         <input type="float" name="vignetteOuter" value="1.75"/>
-    </block>
-
-    <node id="ToneMapping">
-        <define key="USE_RADIAL_BLUR" value="TRUE"/>
-        <define key="USE_VIGNETTE" value="TRUE"/>
-        <texture name="inputTexture" fbo="g-buffer" attachment="1"/>
-        <texture name="blurTexture" id="blurred-scene"/>
-        <input name="ToneMapping" ubo="ToneMapping"/>
         <fullscreen-pass shader="regen.filter.tonemap"/>
     </node>
 
@@ -919,7 +835,11 @@
 
     <node id="root">
         <resource id="sky" />
-        <input name="Scene" ubo="SceneUBO"/>
+        <input name="planeSize" type="vec2" value="{{map-size}}, {{map-size}}"/>
+        <input name="wind" type="vec2" value="0.6, 0.6"/>
+        <input name="windFlowScale" type="float" value="50.0"/>
+        <input name="windFlowTime" type="float" value="0.1"/>
+        <input name="windStrength" type="float" value="1.0"/>
 
         <node id="Pre-Render">
             <node id="Shadow-Pass">
@@ -956,24 +876,6 @@
                 <node import="Non-Shadow-Caster"/>
                 <node import="Scene-Geometry"/>
                 <node import="G-Buffer-Views"/>
-                <view id="G-Buffer: Emission">
-                    <blit src-fbo="g-buffer" src-attachment="4" dst-fbo="SCREEN"/>
-                </view>
-            </node>
-
-            <node id="Post-Geometry">
-                <node id="Emission-Update">
-                    <input type="float" name="filterRadius" value="0.01"/>
-                    <bloom fbo="g-buffer" attachment="4" bloom-texture="emission-map-bloom"/>
-                </node>
-                <view id="Emission Mips">
-                    <fbo id="SCREEN"/>
-                    <texture name="inputTexture1" id="emission-map-bloom" mip-level="0"/>
-                    <texture name="inputTexture2" id="emission-map-bloom" mip-level="1"/>
-                    <texture name="inputTexture3" id="emission-map-bloom" mip-level="2"/>
-                    <texture name="inputTexture4" id="emission-map-bloom" mip-level="3"/>
-                    <fullscreen-pass shader="regen.filter.sampling.x4"/>
-                </view>
             </node>
 
             <node id="Shading">
