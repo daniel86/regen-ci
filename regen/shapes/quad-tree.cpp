@@ -77,11 +77,14 @@ namespace regen {
 		void processLeafNode(QuadTreeTraversal &td, Node *leaf);
 		void processSuccessors(QuadTreeTraversal &td);
 		void processQueuedNodes_scalar(QuadTreeTraversal &td, int32_t nodeIdx);
+		void processQueuedNodes_sphere(QuadTreeTraversal &td);
+		void intersectionLoop_sphere(QuadTreeTraversal &td);
 		template<uint32_t NumAxes> void processQueuedNodes(QuadTreeTraversal &td);
 		template<uint32_t NumAxes> void intersectionLoop(QuadTreeTraversal &td);
 #ifndef QUAD_TREE_DISABLE_SIMD
 		template<uint32_t NumAxes> void processAxes_SIMD(QuadTreeTraversal &td, uint8_t &mask);
 		void processAxis_SIMD(QuadTreeTraversal &td, uint8_t &mask, int32_t axisIdx);
+		void processSphere_SIMD(QuadTreeTraversal &td, uint8_t &mask);
 #endif
 	};
 }
@@ -475,6 +478,46 @@ void QuadTree::Private::addNodeToQueue(Node *node) {
 }
 
 #ifndef QUAD_TREE_DISABLE_SIMD
+void QuadTree::Private::processSphere_SIMD(
+		QuadTreeTraversal &td,
+		uint8_t &intersectMask) {
+	using namespace regen::simd;
+
+	Register distX, distY;
+	{
+		const auto &center = td.projection->points[0];
+		// Compute distance along X
+		Register r_center = set1_ps(center.x);
+		Register distL = sub_ps(td.batchBoundsMinX.c, r_center);
+		Register distR = sub_ps(r_center, td.batchBoundsMaxX.c);
+		Register maskL = cmp_lt(r_center, td.batchBoundsMinX.c);
+		Register maskR = cmp_gt(r_center, td.batchBoundsMaxX.c);
+		distX = cmp_or(cmp_and(maskL, distL), cmp_and(maskR, distR));
+
+		// Compute distance along Y
+		r_center = set1_ps(center.y);
+		distL = sub_ps(td.batchBoundsMinY.c, r_center);
+		distR = sub_ps(r_center, td.batchBoundsMaxY.c);
+		maskL = cmp_lt(r_center, td.batchBoundsMinY.c);
+		maskR = cmp_gt(r_center, td.batchBoundsMaxY.c);
+		distY = cmp_or(cmp_and(maskL, distL), cmp_and(maskR, distR));
+	}
+
+	// Compute total squared distance
+	Register sqDist = add_ps(
+		mul_ps(distX, distX),
+		mul_ps(distY, distY));
+
+	// Load radiusSqr into SIMD register
+	const auto &radiusSqr = td.projection->points[1].x; // = radius * radius
+	// Finally, compare against radius², and push nodes that intersect
+	Register sep = cmp_lt(sqDist, set1_ps(radiusSqr));
+
+	// Convert mask to bits
+	uint8_t sepMask = movemask_ps(sep); // 1 = separated
+	intersectMask &= ~sepMask; // Clear bits in intersectMask where sepMask is 1
+}
+
 void QuadTree::Private::processAxis_SIMD(
 		QuadTreeTraversal &td,
 		uint8_t &intersectMask,
@@ -600,6 +643,82 @@ void QuadTree::Private::processQueuedNodes(QuadTreeTraversal &td) {
 	numQueuedItems_ = 0;
 }
 
+void QuadTree::Private::processQueuedNodes_sphere(QuadTreeTraversal &td) {
+	// Process numQueuedItems_ nodes from the queue, performing an intersection test with the shape's projection;
+	// and also writing nodeIdx to successor array if the test succeeds.
+	int32_t nodeIdx = 0;
+	const auto &radiusSqr = td.projection->points[1].x; // = radius * radius
+	const auto &center = td.projection->points[0];
+
+#ifndef QUAD_TREE_DISABLE_SIMD
+	if (numQueuedItems_ >= 64) {
+	#ifdef QUAD_TREE_DEFERRED_BATCH_STORE
+		int32_t batchCount = 0;
+	#endif
+
+		for (; nodeIdx + regen::simd::RegisterWidth <= static_cast<int32_t>(numQueuedItems_);
+			   nodeIdx += regen::simd::RegisterWidth) {
+			// Load the bounds of the node at nodeIdx into the SIMD registers
+			td.batchBoundsMinX.load_aligned(queuedMinX_.data() + nodeIdx);
+			td.batchBoundsMinY.load_aligned(queuedMinY_.data() + nodeIdx);
+			td.batchBoundsMaxX.load_aligned(queuedMaxX_.data() + nodeIdx);
+			td.batchBoundsMaxY.load_aligned(queuedMaxY_.data() + nodeIdx);
+
+			uint8_t mask = regen::simd::RegisterMask;
+			processSphere_SIMD(td, mask);
+#ifdef QUAD_TREE_DEFERRED_BATCH_STORE
+			batchResults_[batchCount++] = mask;
+#else
+			// add nodeIdx to successorIdx_ for each bit set in intersectMask
+			while (mask) {
+				int bitIndex = __builtin_ctz(mask);
+				mask &= (mask - 1);
+				successorIdx_[numSucceedingItems_++] = nodeIdx + bitIndex;
+			}
+#endif
+		}
+
+#ifdef QUAD_TREE_DEFERRED_BATCH_STORE
+		for (int32_t batchIdx = 0; batchIdx < batchCount; ++batchIdx) {
+			uint8_t mask = batchResults_[batchIdx];
+			int32_t startIdx = batchIdx * regen::simd::RegisterWidth;
+			while (mask) {
+				int bitIndex = __builtin_ctz(mask);
+				mask &= (mask - 1);
+				successorIdx_[numSucceedingItems_++] = startIdx + bitIndex;
+			}
+		}
+#endif
+	}
+#endif
+
+	for (; nodeIdx < static_cast<int32_t>(numQueuedItems_); nodeIdx++) {
+		float minX = queuedMinX_[nodeIdx];
+		float maxX = queuedMaxX_[nodeIdx];
+		float minY = queuedMinY_[nodeIdx];
+		float maxY = queuedMaxY_[nodeIdx];
+
+		// Calculate the squared distance from the circle's center to the AABB
+		float sqDist = 0.0f;
+		if (center.x < minX) {
+			sqDist += (minX - center.x) * (minX - center.x);
+		} else if (center.x > maxX) {
+			sqDist += (center.x - maxX) * (center.x - maxX);
+		}
+		if (center.y < minY) {
+			sqDist += (minY - center.y) * (minY - center.y);
+		} else if (center.y > maxY) {
+			sqDist += (center.y - maxY) * (center.y - maxY);
+		}
+		bool hasIntersection = sqDist < radiusSqr;
+
+		// write to successor array
+		successorIdx_[numSucceedingItems_] = nodeIdx;
+		// but only increment the count if the projection intersects with the node
+		numSucceedingItems_ += int32_t(hasIntersection);
+	}
+}
+
 template<uint32_t NumAxes>
 void QuadTree::Private::intersectionLoop(QuadTreeTraversal &td) {
 	// Process the queued nodes, performing an intersection test with the shape's projection;
@@ -608,6 +727,15 @@ void QuadTree::Private::intersectionLoop(QuadTreeTraversal &td) {
 		currIdx_ = nextIdx_;
 		nextIdx_ = 1 - nextIdx_;
 		processQueuedNodes<NumAxes>(td);
+		processSuccessors(td);
+	}
+}
+
+void QuadTree::Private::intersectionLoop_sphere(QuadTreeTraversal &td) {
+	while (numQueuedItems_ > 0) {
+		currIdx_ = nextIdx_;
+		nextIdx_ = 1 - nextIdx_;
+		processQueuedNodes_sphere(td);
 		processSuccessors(td);
 	}
 }
@@ -660,6 +788,9 @@ void QuadTree::Private::processSuccessors(QuadTreeTraversal &td) {
 		auto successor = queuedNodes_[currIdx_][successorIdx];
 
 		if (successor->isLeaf()) {
+			// TODO: Consider using SIMD for processing quad tree leaf node batches.
+			//       One difficulty is that different shape types must be supported,
+			//       which also would use different code paths.
 			processLeafNode(td, successor);
 		} else {
 			// add child nodes to the queue for the next iteration
@@ -769,9 +900,7 @@ void QuadTree::foreachIntersection(
 	}
 
 	if (shape_projection.type == OrthogonalProjection::Type::CIRCLE) {
-		// TODO: implement intersection test with circle
-		REGEN_ERROR("intersection test with circle is not supported.");
-		return;
+		priv_->intersectionLoop_sphere(td);
 	} else {
 		if (shape_projection.axes.size() == 4) {
 			priv_->intersectionLoop<4>(td);
