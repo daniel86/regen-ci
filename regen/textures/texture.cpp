@@ -1,10 +1,3 @@
-/*
- * texture.cpp
- *
- *  Created on: 23.03.2011
- *      Author: daniel
- */
-
 #include <sstream>
 
 #include <regen/utility/string-util.h>
@@ -128,7 +121,7 @@ const TextureBind &Texture::textureBind() {
 	return texBind_;
 }
 
-void Texture::set_textureData(GLubyte *textureData, bool owned) {
+void Texture::set_textureData(const GLubyte *textureData, bool owned) {
 	if (textureData_ && isTextureDataOwned_) {
 		delete[]textureData_;
 	}
@@ -196,7 +189,6 @@ unsigned int Texture::texelIndex(const Vec2f &texco) const {
 	auto x = static_cast<unsigned int>(texco.x * static_cast<float>(w));
 	auto y = static_cast<unsigned int>(texco.y * static_cast<float>(h));
 	// clamp to texture size
-	// TODO: avoid branch here, rather use a function pointer
 	switch (wrapping_[objectIndex_]->value().x) {
 		case GL_REPEAT:
 			x = x % w;
@@ -379,7 +371,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 			auto filename = filePath.substr(filePath.find_last_of('/') + 1);
 			video->setAnimationName(REGEN_STRING("Video" << filename));
 			video->demuxer()->set_repeat(
-					input.getValue<bool>("repeat", 1));
+					input.getValue<bool>("repeat", true));
 			tex = video;
 			video->play();
 			video->startAnimation();

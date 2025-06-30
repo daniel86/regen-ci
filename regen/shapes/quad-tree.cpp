@@ -832,15 +832,19 @@ void QuadTree::Private::processLeafNode(QuadTreeTraversal &td, Node *leaf) {
 		// This is a good approach because:
 		//     (1) shapes that are close use higher level of detail -> more expensive to draw false positives
 		//     (2) most false positives are close to camera position in case camera is above/below the ground level
-		for (const auto &quadShape: leaf->shapes) {
-			// skip shapes that are already visited in this frame
-			if (quadShape->visited) { continue; }
-			quadShape->visited = true;
-
-			float distSq = (td.basePoint - leaf->bounds.center()).lengthSquared();
-			if (distSq > td.tree->closeDistanceSquared_) {
+		float distSq = (td.basePoint - leaf->bounds.center()).lengthSquared();
+		if (distSq > td.tree->closeDistanceSquared_) {
+			for (const auto &quadShape: leaf->shapes) {
+				// skip shapes that are already visited in this frame
+				if (quadShape->visited) { continue; }
+				quadShape->visited = true;
 				td.callback(*quadShape->shape.get(), td.userData);
-			} else {
+			}
+		} else {
+			for (const auto &quadShape: leaf->shapes) {
+				// skip shapes that are already visited in this frame
+				if (quadShape->visited) { continue; }
+				quadShape->visited = true;
 				if (quadShape->shape->hasIntersectionWith(*td.shape)) {
 					td.callback(*quadShape->shape.get(), td.userData);
 				}

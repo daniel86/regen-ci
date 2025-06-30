@@ -517,7 +517,6 @@ static void transformMatrix(
 		const ref_ptr<ModelTransformation> &tf,
 		GLuint numInstances) {
 	for (auto &child: input.getChildren()) {
-		// TODO: this seems bad, why create this every loop? why at all?
 		std::list<GLuint> indices = child->getIndexSequence(numInstances);
 
 		if (child->getCategory() == "set") {

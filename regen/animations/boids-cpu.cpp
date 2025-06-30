@@ -590,6 +590,8 @@ Vec3f BoidsCPU::accumulateForce(BoidData &boid, const Vec3f &boidPos, const Vec3
 
 #ifdef REGEN_BOID_USE_FORCE_SIMD
 	if (boid.numNeighbors >= regen::simd::RegisterWidth) {
+		// NOTE: unfortunately, this does not buy us much as num neighbors is usually capped
+		//       to rather small values, e.g. 100.
 		{ // pass 1: compute average position and velocity
 			BatchOf_Vec3f avgPosition_SIMD(Vec3f::zero());
 			BatchOf_Vec3f avgVelocity_SIMD(Vec3f::zero());

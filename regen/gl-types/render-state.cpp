@@ -1,10 +1,3 @@
-/*
- * render-state.cpp
- *
- *  Created on: 05.08.2012
- *      Author: daniel
- */
-
 #include <regen/config.h>
 #include <regen/gl-types/gl-util.h>
 
@@ -81,11 +74,9 @@ static inline void Regen_Viewport(const Viewport &v) { glViewport(v.x, v.y, v.z,
 static inline void Regen_Texture(GLuint i, const TextureBind &v) { glBindTexture(v.target_, v.id_); }
 
 static inline void Regen_UniformBufferRange(GLuint i, const BufferRange &v) {
-	// TODO: When i is bound to another target, e.g. GL_SHADER_STORAGE_BUFFER or so,
+	// NOTE: When buffer `i` is bound to another target, e.g. GL_SHADER_STORAGE_BUFFER or so,
 	//       then binding it to GL_UNIFORM_BUFFER causes undefined behaviour on some drivers.
-	//       It could be considered as an application error, or we do the extra bookkeeping and
-	//       handle this case here by first unbinding the buffer from the other target.
-	//       At least in debug mode would be nice to get a report on this.
+	//       Here, it is considered as an application error, to avoid extra bookkeeping.
 	glBindBufferRange(GL_UNIFORM_BUFFER, i, v.buffer_, v.offset_, v.size_);
 }
 static inline void Regen_FeedbackBufferRange(GLuint i, const BufferRange &v) {

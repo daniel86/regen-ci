@@ -111,7 +111,7 @@ namespace regen {
 		 * no call to glUniform when inactive.
 		 * @return the active toggle value
 		 */
-		bool active() const { return active_; }
+		inline bool active() const { return active_; }
 
 		/**
 		 * no call to glUniform when inactive.

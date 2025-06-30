@@ -345,7 +345,7 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 		rs->toggles().push(RenderState::RASTERIZER_DISCARD, GL_TRUE);
 		rs->depthMask().push(GL_FALSE);
 		// setup the interpolation shader
-		rs->shader().push(interpolationShader_->id());
+		rs->shader().apply(interpolationShader_->id());
 		interpolationShader_->enable(rs);
 		rs->vao().apply(vao_->id());
 
@@ -381,7 +381,6 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 				rs->feedbackBufferRange().pop(index+1);
 			}
 		}
-		rs->shader().pop();
 		rs->depthMask().pop();
 		rs->toggles().pop(RenderState::RASTERIZER_DISCARD);
 	}

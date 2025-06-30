@@ -1,10 +1,3 @@
-/*
- * texture.h
- *
- *  Created on: 02.02.2011
- *      Author: daniel
- */
-
 #ifndef REGEN_TEXTURE_H_
 #define REGEN_TEXTURE_H_
 
@@ -23,7 +16,7 @@
 
 namespace regen {
 	template<typename T>
-	void regen_lockedTextureParameter(GLenum key, const T &v) {}
+	void regen_lockedTextureParameter(GLenum, const T&) {}
 
 	/**
 	 * \brief State stack for texture parameters.
@@ -61,8 +54,8 @@ namespace regen {
 	typedef Vec3i TextureWrapping;
 	/** compare mode/func */
 	typedef Vec2i TextureCompare;
-	typedef GLint TextureMaxLevel;
-	typedef GLfloat TextureAniso;
+	typedef int32_t TextureMaxLevel;
+	typedef float TextureAniso;
 
 	/**
 	 * \brief A OpenGL Object that contains one or more images
@@ -173,7 +166,7 @@ namespace regen {
 		 * @param data the image data.
 		 * @param owned if true, the texture will take ownership of the data.
 		 */
-		void set_textureData(GLubyte *data, bool owned = false);
+		void set_textureData(const GLubyte *data, bool owned = false);
 
 		/**
 		 * Specifies a pointer to the image data in memory.
@@ -323,14 +316,26 @@ namespace regen {
 
 		/**
 		 * Sample the nearest texel.
-		 * @param texco texture coordinates.
+		 * @param uv texture coordinates.
 		 * @param textureData texture data.
 		 * @param numComponents number of components per texel.
 		 * @return value.
 		 */
 		template<class T>
-		T sampleNearest(const Vec2f &texco, const GLubyte *textureData) const {
-			return sample<T>(texelIndex(texco), textureData);
+		T sampleNearest(const Vec2f &uv, const GLubyte *textureData) const {
+			return sample<T>(texelIndex(uv), textureData);
+		}
+
+		/**
+		 * Sample the nearest texel.
+		 * @param coordinate texture coordinates.
+		 * @param textureData texture data.
+		 * @param numComponents number of components per texel.
+		 * @return value.
+		 */
+		template<class T>
+		T sampleNearest(const Vec2ui &coordinate, const GLubyte *textureData) const {
+			return sample<T>(coordinate.y * width() + coordinate.x, textureData);
 		}
 
 		/**
@@ -341,20 +346,22 @@ namespace regen {
 		 * @return value.
 		 */
 		template<class T>
-		T sampleLinear(const Vec2f &texco, const GLubyte *textureData) const {
+		T sampleLinear(const Vec2f &uv, const GLubyte *textureData) const {
 			auto w = static_cast<float>(width());
 			auto h = static_cast<float>(height());
-			auto x = texco.x * w;
-			auto y = texco.y * h;
-			auto x0 = std::floor(x);
-			auto y0 = std::floor(y);
-			auto x1 = x0 + 1;
-			auto y1 = y0 + 1;
+			float x = uv.x * w;
+			float y = uv.y * h;
+			float x0 = std::floor(x);
+			float y0 = std::floor(y);
+			auto i_x0 = static_cast<uint32_t>(x0);
+			auto i_y0 = static_cast<uint32_t>(y0);
+			uint32_t i_x1 = std::min(i_x0 + 1, width() - 1);
+			uint32_t i_y1 = std::min(i_y0 + 1, height() - 1);
 
-			T v00 = sampleNearest<T>(Vec2f(x0 / w, y0 / h), textureData);
-			T v01 = sampleNearest<T>(Vec2f(x0 / w, y1 / h), textureData);
-			T v10 = sampleNearest<T>(Vec2f(x1 / w, y0 / h), textureData);
-			T v11 = sampleNearest<T>(Vec2f(x1 / w, y1 / h), textureData);
+			T v00 = sampleNearest<T>(Vec2ui(i_x0, i_y0), textureData);
+			T v01 = sampleNearest<T>(Vec2ui(i_x0, i_y1), textureData);
+			T v10 = sampleNearest<T>(Vec2ui(i_x1, i_y0), textureData);
+			T v11 = sampleNearest<T>(Vec2ui(i_x1, i_y1), textureData);
 
 			auto dx = x - x0;
 			auto dy = y - y0;

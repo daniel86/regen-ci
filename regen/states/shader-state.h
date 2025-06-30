@@ -51,8 +51,6 @@ namespace regen {
 		// overwrite
 		void enable(RenderState *) override;
 
-		void disable(RenderState *) override;
-
 		static ref_ptr<Shader> findShader(State *s);
 
 		static ref_ptr<Shader> findShader(StateNode *n);

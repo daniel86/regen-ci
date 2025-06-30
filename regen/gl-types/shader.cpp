@@ -1,5 +1,4 @@
 #include <boost/algorithm/string.hpp>
-#include <boost/regex.hpp>
 
 #include <regen/utility/logging.h>
 #include <regen/gl-types/gl-enum.h>
@@ -156,7 +155,7 @@ Shader::Shader(const std::map<GLenum, std::string> &shaderCodes)
 		: shaderCodes_(shaderCodes),
 		  feedbackLayout_(GL_SEPARATE_ATTRIBS),
 		  feedbackStage_(GL_VERTEX_SHADER) {
-	id_ = ref_ptr<GLuint>::alloc();
+	id_ = ref_ptr<uint32_t>::alloc();
 	*(id_.get()) = glCreateProgram();
 }
 
@@ -167,7 +166,7 @@ Shader::Shader(
 		  shaders_(shaderStages),
 		  feedbackLayout_(GL_SEPARATE_ATTRIBS),
 		  feedbackStage_(GL_VERTEX_SHADER) {
-	id_ = ref_ptr<GLuint>::alloc();
+	id_ = ref_ptr<uint32_t>::alloc();
 	*(id_.get()) = glCreateProgram();
 
 	for (auto &shader: shaders_) {
@@ -177,7 +176,7 @@ Shader::Shader(
 
 Shader::~Shader() {
 	for (auto &shader: shaders_) {
-		ref_ptr<GLuint> &stage = shader.second;
+		ref_ptr<uint32_t> &stage = shader.second;
 		glDetachShader(id(), *stage.get());
 		if (*stage.refCount() == 1) {
 			glDeleteShader(*stage.get());
@@ -262,8 +261,8 @@ unsigned int Shader::id() const {
 bool Shader::compile() {
 	for (auto &shaderCode: shaderCodes_) {
 		const char *source = shaderCode.second.c_str();
-		ref_ptr<GLuint> shaderStage = ref_ptr<GLuint>::alloc();
-		GLuint &stage = *shaderStage.get();
+		ref_ptr<uint32_t> shaderStage = ref_ptr<uint32_t>::alloc();
+		uint32_t &stage = *shaderStage.get();
 		stage = glCreateShader(shaderCode.first);
 		GLint length = -1;
 		GLint status;
@@ -308,9 +307,9 @@ bool Shader::link() {
 		for (auto &it: transformFeedback_) {
 			std::string name = IOProcessor::getNameWithoutPrefix(it);
 			if (name == "Position") {
-				name = "gl_" + name;
+				name = REGEN_STRING("gl_" << name);
 			} else {
-				name = nextStagePrefix + "_" + name;
+				name = REGEN_STRING(nextStagePrefix << "_" << name);
 			}
 			if (validNames_.count(name) > 0) { continue; }
 			auto needle = validNames_.insert(name);
@@ -322,7 +321,7 @@ bool Shader::link() {
 	}
 
 	glLinkProgram(id());
-	GLint status;
+	int status;
 	glGetProgramiv(id(), GL_LINK_STATUS, &status);
 	GL_ERROR_LOG();
 	if (status == GL_FALSE) {
@@ -362,15 +361,15 @@ void Shader::setupInputLocations() {
 	GLenum type;
 	char nameC[320];
 
-	//inputs_.clear();
 	samplerLocations_.clear();
 
 	glGetProgramiv(id(), GL_ACTIVE_UNIFORMS, &count);
-	for (GLint loc_ = 0; loc_ < count; ++loc_) {
+	for (int32_t loc_ = 0; loc_ < count; ++loc_) {
 		glGetActiveUniform(id(), loc_, 320, nullptr, &arraySize, &type, nameC);
 		std::string uniformName(nameC);
 		// for arrays..
-		GLint loc = glGetUniformLocation(id(), nameC);
+		int32_t loc = glGetUniformLocation(id(), nameC);
+		if (loc < 0) { continue; }
 
 		// remember this uniform location
 		std::string attName(nameC);
@@ -449,7 +448,7 @@ void Shader::setupInputLocations() {
 	std::set<int32_t> bindingPoints;
 	// uniform blocks
 	glGetProgramiv(id(), GL_ACTIVE_UNIFORM_BLOCKS, &count);
-	for (GLint blockIndex = 0; blockIndex < count; ++blockIndex) {
+	for (int32_t blockIndex = 0; blockIndex < count; ++blockIndex) {
 		// Note: uniforms inside a uniform block do not have individual uniform locations,
 		// but each block has an index within the shader program.
 		glGetActiveUniformBlockName(id(), blockIndex, 320, &arraySize, nameC);
@@ -482,7 +481,7 @@ void Shader::setupInputLocations() {
 	glGetProgramInterfaceiv(id(),
 			GL_SHADER_STORAGE_BLOCK,
 			GL_ACTIVE_RESOURCES, &count);
-	for (GLint blockIndex = 0; blockIndex < count; ++blockIndex) {
+	for (int32_t blockIndex = 0; blockIndex < count; ++blockIndex) {
 		glGetProgramResourceName(id(),
 				GL_SHADER_STORAGE_BLOCK,
 				blockIndex, 320, &arraySize, nameC);
@@ -510,9 +509,9 @@ void Shader::setupInputLocations() {
 	}
 
 	glGetProgramiv(id(), GL_ACTIVE_ATTRIBUTES, &count);
-	for (GLint loc_ = 0; loc_ < count; ++loc_) {
+	for (int32_t loc_ = 0; loc_ < count; ++loc_) {
 		glGetActiveAttrib(id(), loc_, 320, nullptr, &arraySize, &type, nameC);
-		GLint loc = glGetAttribLocation(id(), nameC);
+		int32_t loc = glGetAttribLocation(id(), nameC);
 
 		// remember this attribute location
 		std::string attName(nameC);
@@ -541,7 +540,7 @@ void Shader::setupInputLocations() {
 }
 
 ref_ptr<ShaderInput> Shader::createUniform(const std::string &name) {
-	GLint loc = uniformLocation(name);
+	int32_t loc = uniformLocation(name);
 	if (loc == -1) {
 		REGEN_WARN("Is not an active uniform '" << name << "' shader=" << id());
 		return {};
