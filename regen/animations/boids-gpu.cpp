@@ -169,7 +169,7 @@ void BoidsGPU::createResource() {
 		auto updateState = ref_ptr<State>::alloc();
 		updateState->joinShaderInput(gridUBO_);
 		updateState->joinShaderInput(((RadixSort*)radixSort_.get())->keyBuffer());
-		updateState->joinShaderInput(((RadixSort*)radixSort_.get())->inputIndexBuffer());
+		updateState->joinShaderInput(((RadixSort*)radixSort_.get())->valueBuffer());
 		updateState->joinShaderInput(gridOffsetBuffer_);
 		updateState->joinShaderInput(u_numCells_);
 		gridResetPass_ = ref_ptr<ComputePass>::alloc("regen.animation.boid.grid.reset");
@@ -189,7 +189,7 @@ void BoidsGPU::createResource() {
 		auto updateState = ref_ptr<State>::alloc();
 		updateState->joinShaderInput(gridUBO_);
 		updateState->joinShaderInput(((RadixSort*)radixSort_.get())->keyBuffer());
-		updateState->joinShaderInput(((RadixSort*)radixSort_.get())->sortedIndexBuffer());
+		updateState->joinShaderInput(((RadixSort*)radixSort_.get())->valueBuffer());
 		updateState->joinShaderInput(gridOffsetBuffer_);
 		#ifdef BOID_USE_SORTED_DATA
 		updateState->joinShaderInput(velBuffer_);
@@ -235,7 +235,7 @@ void BoidsGPU::createResource() {
 	simulationState_->joinShaderInput(gridUBO_);
 	simulationState_->joinShaderInput(velBuffer_);
 	simulationState_->joinShaderInput(gridOffsetBuffer_);
-	simulationState_->joinShaderInput(((RadixSort*)radixSort_.get())->sortedIndexBuffer());
+	simulationState_->joinShaderInput(((RadixSort*)radixSort_.get())->valueBuffer());
 	simulationState_->joinShaderInput(bboxBuffer_);
 	if (tf_.get()) {
 		simulationState_->joinShaderInput(tfBuffer_);
@@ -417,11 +417,11 @@ void BoidsGPU::debugGridSorting(RenderState *rs) {
 	}
 
 	// second map the index buffer and test if the indices are sorted correctly
-	bufferID = ((RadixSort*)radixSort_.get())->sortedIndexBuffer()->blockReference()->bufferID();
+	bufferID = ((RadixSort*)radixSort_.get())->valueBuffer()->blockReference()->bufferID();
 	auto sortedIndexData = (uint32_t *) glMapNamedBufferRange(
 			bufferID,
-			((RadixSort*)radixSort_.get())->sortedIndexBuffer()->blockReference()->address(),
-			((RadixSort*)radixSort_.get())->sortedIndexBuffer()->blockReference()->allocatedSize(),
+			((RadixSort*)radixSort_.get())->valueBuffer()->blockReference()->address(),
+			((RadixSort*)radixSort_.get())->valueBuffer()->blockReference()->allocatedSize(),
 			GL_MAP_READ_BIT);
 	if (sortedIndexData) {
 		uint32_t lastCell = 0;

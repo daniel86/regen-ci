@@ -65,15 +65,7 @@ namespace regen {
 		 * This will remain the same across different frames.
 		 * @return The sorted index buffer.
 		 */
-		ref_ptr<SSBO>& sortedIndexBuffer();
-
-		/**
-		 * The input index buffer.
-		 * This will be the same as the sorted index buffer in the first pass.
-		 * Note that currently this must be initialized externally to [0,..,numKeys_-1].
-		 * @return The input index buffer.
-		 */
-		ref_ptr<SSBO>& inputIndexBuffer();
+		ref_ptr<SSBO>& valueBuffer();
 
 		/**
 		 * Create the resources needed for the radix sort, i.e. buffers
@@ -95,7 +87,7 @@ namespace regen {
 
 		ref_ptr<SSBO> globalHistogramBuffer_;
 		ref_ptr<SSBO> keyBuffer_;
-		ref_ptr<SSBO> valueBuffer_[2];
+		ref_ptr<SSBO> valueBuffer_;
 		ref_ptr<SSBO> userValueBuffer_;
 
 		ref_ptr<ComputePass> radixHistogramPass_;
