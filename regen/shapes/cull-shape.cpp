@@ -41,10 +41,14 @@ void CullShape::initCullShape(const ref_ptr<BoundingShape> &boundingShape, bool 
 
 void CullShape::createBuffers() {
 	numInstances_ = tf_->numInstances();
+	auto numIndices = numInstances_;
+	if (!isIndexShape()) {
+		numIndices *= 2;
+	}
 
 	// Create array with numInstances_ elements.
 	// The instance ids will be added each frame 1. in LOD-groups and 2. in view-dependent order
-	instanceIDMap_ = ref_ptr<ShaderInput1ui>::alloc("instanceIDMap", numInstances_);
+	instanceIDMap_ = ref_ptr<ShaderInput1ui>::alloc("instanceIDMap", numIndices);
 	//instanceIDMap_->set_forceArray(true);
 	instanceIDMap_->setInstanceData(1, 1, nullptr);
 	auto instanceData = instanceIDMap_->mapClientData<GLuint>(ShaderData::WRITE);

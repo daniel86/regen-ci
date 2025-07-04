@@ -50,12 +50,8 @@ void RadixSort::setScanGroupSize(uint32_t size) {
 	}
 }
 
-ref_ptr<SSBO>& RadixSort::sortedIndexBuffer() {
-	return valueBuffer_[outputIdx_];
-}
-
-ref_ptr<SSBO>& RadixSort::inputIndexBuffer() {
-	return valueBuffer_[inputIdx_];
+ref_ptr<SSBO>& RadixSort::valueBuffer() {
+	return valueBuffer_;
 }
 
 void RadixSort::createResources() {
@@ -85,21 +81,15 @@ void RadixSort::createResources() {
 	keyBuffer_->update();
 
 	if (userValueBuffer_.get()) {
-		valueBuffer_[0] = userValueBuffer_;
+		valueBuffer_ = userValueBuffer_;
 	} else {
-		valueBuffer_[0] = ref_ptr<SSBO>::alloc("ValueBuffer1",
+		valueBuffer_ = ref_ptr<SSBO>::alloc("ValueBuffer",
 				BUFFER_USAGE_STREAM_COPY, SSBO::RESTRICT);
-		auto values1 = ref_ptr<ShaderInput1ui>::alloc("values", numKeys_);
+		auto values1 = ref_ptr<ShaderInput1ui>::alloc("values", numKeys_ * 2);
 		values1->set_forceArray(true);
-		valueBuffer_[0]->addBlockInput(values1);
-		valueBuffer_[0]->update();
+		valueBuffer_->addBlockInput(values1);
+		valueBuffer_->update();
 	}
-	valueBuffer_[1] = ref_ptr<SSBO>::alloc("ValueBuffer2",
-			BUFFER_USAGE_STREAM_COPY, SSBO::RESTRICT);
-	auto values2 = ref_ptr<ShaderInput1ui>::alloc("values", numKeys_);
-	values2->set_forceArray(true);
-	valueBuffer_[1]->addBlockInput(values2);
-	valueBuffer_[1]->update();
 
 	globalHistogramBuffer_ = ref_ptr<SSBO>::alloc("HistogramBuffer",
 			BUFFER_USAGE_STREAM_COPY, SSBO::RESTRICT);
@@ -110,13 +100,14 @@ void RadixSort::createResources() {
 	{ // radix histogram
 		radixHistogramPass_->joinShaderInput(globalHistogramBuffer_);
 		radixHistogramPass_->joinShaderInput(keyBuffer_);
+		radixHistogramPass_->joinShaderInput(valueBuffer_);
 		StateConfigurer shaderCfg;
 		shaderCfg.define("NUM_RADIX_BUCKETS", REGEN_STRING(numBuckets_));
 		shaderCfg.define("ONE_LESS_NUM_RADIX_BUCKETS", REGEN_STRING(numBuckets_ - 1));
 		shaderCfg.addState(radixHistogramPass_.get());
 		radixHistogramPass_->createShader(shaderCfg.cfg());
 		// retrieve locations for quick state switching in radix passes
-		histogramReadIndex_ = radixHistogramPass_->shaderState()->shader()->uniformLocation("ValueBuffer");
+		histogramReadIndex_ = radixHistogramPass_->shaderState()->shader()->uniformLocation("readOffset");
 		histogramBitOffsetIndex_ = radixHistogramPass_->shaderState()->shader()->uniformLocation("radixBitOffset");
 	}
 	{
@@ -131,14 +122,15 @@ void RadixSort::createResources() {
 	{ // radix sort
 		radixScatterPass_->joinShaderInput(globalHistogramBuffer_);
 		radixScatterPass_->joinShaderInput(keyBuffer_);
+		radixScatterPass_->joinShaderInput(valueBuffer_);
 		StateConfigurer shaderCfg;
 		shaderCfg.define("NUM_RADIX_BUCKETS", REGEN_STRING(numBuckets_));
 		shaderCfg.define("ONE_LESS_NUM_RADIX_BUCKETS", REGEN_STRING(numBuckets_ - 1));
 		shaderCfg.addState(radixScatterPass_.get());
 		radixScatterPass_->createShader(shaderCfg.cfg());
 		// retrieve locations for quick state switching in radix passes
-		scatterReadIndex_ = radixScatterPass_->shaderState()->shader()->uniformLocation("ReadBuffer");
-		scatterWriteIndex_ = radixScatterPass_->shaderState()->shader()->uniformLocation("WriteBuffer");
+		scatterReadIndex_ = radixScatterPass_->shaderState()->shader()->uniformLocation("readOffset");
+		scatterWriteIndex_ = radixScatterPass_->shaderState()->shader()->uniformLocation("writeOffset");
 		scatterBitOffsetIndex_ = radixScatterPass_->shaderState()->shader()->uniformLocation("radixBitOffset");
 	}
 }
@@ -152,14 +144,14 @@ void RadixSort::sort(RenderState *rs) {
 	// now we can make the radix passes starting with values_[0] as input
 	// and writing to values_[1]. Then we swap the buffers each pass.
 	// In the end, we will have the sorted instanceIDs in values_[0].
-	uint32_t readIndex = 0u;
-	uint32_t writeIndex = 1u;
+	uint32_t readOffset = 0u;
+	uint32_t writeOffset = numKeys_;
 	for (uint32_t bitOffset = 0u; bitOffset < 32u; bitOffset += radixBits_) {
 		// Run histogram pass. As a result we will have global counts for each bucket
 		// and work group in the globalHistogramBuffer_.
 		radixHistogramPass_->enable(rs);
 		glUniform1ui(histogramBitOffsetIndex_, bitOffset);
-		valueBuffer_[readIndex]->bind(histogramReadIndex_);
+		glUniform1ui(histogramReadIndex_, readOffset);
 		radixHistogramPass_->disable(rs);
 #ifdef RADIX_DEBUG_HISTOGRAM
 		printHistogram(rs);
@@ -177,12 +169,12 @@ void RadixSort::sort(RenderState *rs) {
 		// in the values_[writeIndex] buffer.
 		radixScatterPass_->enable(rs);
 		glUniform1ui(scatterBitOffsetIndex_, bitOffset);
-		valueBuffer_[readIndex]->bind(scatterReadIndex_);
-		valueBuffer_[writeIndex]->bind(scatterWriteIndex_);
+		glUniform1ui(scatterReadIndex_, readOffset);
+		glUniform1ui(scatterWriteIndex_, writeOffset);
 		radixScatterPass_->disable(rs);
 
 		// swap read and write buffers
-		std::swap(readIndex, writeIndex);
+		std::swap(readOffset, writeOffset);
 	}
 
 #ifdef RADIX_DEBUG_RESULT
@@ -229,7 +221,7 @@ void RadixSort::printInstanceMap(RenderState *rs) {
 		glUnmapNamedBuffer(keyBuffer_->blockReference()->bufferID());
 	}
 
-	auto idRef = valueBuffer_[outputIdx_]->blockReference();
+	auto idRef = valueBuffer_->blockReference();
 	auto instanceIDs = (uint32_t *) glMapNamedBufferRange(
 			idRef->bufferID(),
 			idRef->address(),
