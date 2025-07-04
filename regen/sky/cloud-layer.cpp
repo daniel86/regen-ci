@@ -26,29 +26,21 @@ static GLfloat *createNoiseSlice(GLuint texSize, GLuint octave) {
 }
 
 static ref_ptr<Texture3D> createNoiseArray(GLuint texSize, GLuint octave, GLuint slices) {
-	RenderState *rs = RenderState::get();
-
 	ref_ptr<Texture3D> tex = ref_ptr<Texture3D>::alloc();
 	//ref_ptr<Texture2DArray> tex = ref_ptr<Texture2DArray>::alloc();
-	tex->begin(rs);
-	{
-		tex->set_rectangleSize(texSize, texSize);
-		tex->set_depth(slices);
-		tex->set_format(GL_RED);
-		tex->set_internalFormat(GL_R16F);
-		tex->set_pixelType(GL_FLOAT);
-
-		tex->texImage();
-		for (uint32_t s = 0; s < slices; ++s) {
-			GLfloat *data = createNoiseSlice(texSize, octave);
-			tex->texSubImage(static_cast<int>(s), (GLubyte *) data);
-			delete[]data;
-		}
-
-		tex->filter().push(GL_LINEAR);
-		tex->wrapping().push(GL_REPEAT);
+	tex->set_rectangleSize(texSize, texSize);
+	tex->set_depth(slices);
+	tex->set_format(GL_RED);
+	tex->set_internalFormat(GL_R16F);
+	tex->set_pixelType(GL_FLOAT);
+	tex->allocTexture();
+	for (uint32_t s = 0; s < slices; ++s) {
+		GLfloat *data = createNoiseSlice(texSize, octave);
+		tex->updateSubImage(static_cast<int>(s), (GLubyte *) data);
+		delete[]data;
 	}
-	tex->end(rs);
+	tex->set_filter(GL_LINEAR);
+	tex->set_wrapping(GL_REPEAT);
 
 	return tex;
 }
@@ -58,25 +50,24 @@ CloudLayer::CloudLayer(const ref_ptr<Sky> &sky, GLuint textureSize)
 		: SkyLayer(sky) {
 	state()->joinStates(ref_ptr<BlendState>::alloc(GL_SRC_ALPHA, GL_ONE));
 
-	cloudTexture_ = ref_ptr<Texture2D>::alloc(1);
-	cloudTexture_->begin(RenderState::get());
+	cloudTexture_ = ref_ptr<Texture2D>::alloc();
 	cloudTexture_->set_rectangleSize(textureSize, textureSize);
 	cloudTexture_->set_format(GL_RED);
 	cloudTexture_->set_internalFormat(GL_R16F);
 	cloudTexture_->set_pixelType(GL_FLOAT);
-	cloudTexture_->filter().push(GL_LINEAR);
-	cloudTexture_->wrapping().push(GL_REPEAT);
-	cloudTexture_->texImage();
-	cloudTexture_->end(RenderState::get());
+	cloudTexture_->allocTexture();
+	cloudTexture_->set_filter(GL_LINEAR);
+	cloudTexture_->set_wrapping(GL_REPEAT);
 	state()->joinStates(ref_ptr<TextureState>::alloc(cloudTexture_, "cloudTexture"));
 
 	// create render target for updating the sky cube map
 	fbo_ = ref_ptr<FBO>::alloc(textureSize, textureSize);
-	RenderState::get()->drawFrameBuffer().push(fbo_->id());
-	fbo_->drawBuffers().push(DrawBuffers::attachment0());
-	glClear(GL_COLOR_BUFFER_BIT);
-	glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, cloudTexture_->id(), 0);
-	RenderState::get()->drawFrameBuffer().pop();
+	glNamedFramebufferTexture(
+			fbo_->id(),
+			GL_COLOR_ATTACHMENT0,
+			cloudTexture_->id(),
+			0);
+	fbo_->clearColor({0.0, 0.0, 0.0, 1.0});
 
 	color_ = ref_ptr<ShaderInput3f>::alloc("color");
 	color_->setUniformData(Vec3f(1.f, 1.f, 1.f));
@@ -174,8 +165,8 @@ float CloudLayer::defaultChangeLow() {
 }
 
 void CloudLayer::updateSkyLayer(RenderState *rs, GLdouble dt) {
-	rs->drawFrameBuffer().push(fbo_->id());
-	glClear(GL_COLOR_BUFFER_BIT);
+	static const Vec4f clearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	fbo_->clearColor(clearColor);
 	rs->viewport().push(fbo_->glViewport());
 
 	updateState_->enable(rs);
@@ -183,7 +174,6 @@ void CloudLayer::updateSkyLayer(RenderState *rs, GLdouble dt) {
 	updateState_->disable(rs);
 
 	rs->viewport().pop();
-	rs->drawFrameBuffer().pop();
 }
 
 

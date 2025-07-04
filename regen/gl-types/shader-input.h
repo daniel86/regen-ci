@@ -1,10 +1,3 @@
-/*
- * shader-input.h
- *
- *  Created on: 15.08.2012
- *      Author: daniel
- */
-
 #ifndef SHADER_INPUT_H_
 #define SHADER_INPUT_H_
 
@@ -117,7 +110,7 @@ namespace regen {
 		 * no call to glUniform when inactive.
 		 * @param v the active toggle value
 		 */
-		void set_active(GLboolean v) { active_ = v; }
+		void set_active(bool v) { active_ = v; }
 
 		/**
 		 * Compare stamps to check if the input data changed.

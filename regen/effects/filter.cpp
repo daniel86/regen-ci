@@ -1,13 +1,5 @@
-/*
- * filter.cpp
- *
- *  Created on: 23.02.2013
- *      Author: daniel
- */
-
 #include <regen/states/state-configurer.h>
-#include <regen/textures/texture-cube.h>
-#include <regen/textures/texture-3d.h>
+#include <regen/textures/texture.h>
 
 #include "filter.h"
 
@@ -308,11 +300,7 @@ void FilterSequence::enable(RenderState *rs) {
 
 	if (clearFirstFilter_) {
 		Filter *firstFilter = (Filter *) (*filterSequence_.begin()).get();
-		rs->drawFrameBuffer().push(firstFilter->output()->fbo_->id());
-		rs->clearColor().push(clearColor_);
-		glClear(GL_COLOR_BUFFER_BIT);
-		rs->clearColor().pop();
-		rs->drawFrameBuffer().pop();
+		firstFilter->output()->fbo_->clearColor(clearColor_);
 	}
 	for (auto &it: filterSequence_) {
 		auto *f = (Filter *) it.get();

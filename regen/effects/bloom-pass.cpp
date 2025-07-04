@@ -33,11 +33,9 @@ BloomPass::BloomPass(
 	upsampleState_->joinStates(upsampleShader_);
 
 	fbo_ = ref_ptr<FBO>::alloc(bloomTexture->width(), bloomTexture->height());
-	RenderState::get()->drawFrameBuffer().push(fbo_->id());
-	glFramebufferTexture(GL_DRAW_FRAMEBUFFER,
+	glNamedFramebufferTexture(fbo_->id(),
 						 GL_COLOR_ATTACHMENT0,
 						 bloomTexture->id(), 0);
-	RenderState::get()->drawFrameBuffer().pop();
 }
 
 void BloomPass::createShader(const StateConfig &cfg) {
@@ -61,18 +59,17 @@ void BloomPass::downsample(RenderState *rs) {
 				static_cast<GLfloat>(1.0 / nextInputTexture->height()));
 
 	for (auto &mip: bloomTexture_->mips()) {
-		glFramebufferTexture(GL_DRAW_FRAMEBUFFER,
+		glNamedFramebufferTexture(fbo_->id(),
 							 GL_COLOR_ATTACHMENT0,
 							 mip.texture->id(), 0);
 		glUniform2f(inverseViewportLocDS_, mip.sizeInverse.x, mip.sizeInverse.y);
 
 		// render a quad that fills the selected mip level
-		nextInputTexture->begin(rs, 0);
+		nextInputTexture->bind();
 		rs->viewport().push(mip.glViewport);
 		fullscreenMesh_d_->enable(rs);
 		fullscreenMesh_d_->disable(rs);
 		rs->viewport().pop();
-		nextInputTexture->end(rs, 0);
 
 		nextInputTexture = mip.texture;
 		glUniform2f(inverseInputSizeLocDS_, mip.sizeInverse.x, mip.sizeInverse.y);
@@ -88,7 +85,7 @@ void BloomPass::upsample(RenderState *rs) {
 		auto &mip = mips[i];
 		auto &nextMip = mips[i - 1];
 
-		glFramebufferTexture(GL_DRAW_FRAMEBUFFER,
+		glNamedFramebufferTexture(fbo_->id(),
 							 GL_COLOR_ATTACHMENT0,
 							 nextMip.texture->id(), 0);
 		glUniform2f(inverseViewportLocUS_,
@@ -96,10 +93,9 @@ void BloomPass::upsample(RenderState *rs) {
 
 		// set next mip texture as render target, and render a quad that fills it
 		rs->viewport().push(nextMip.glViewport);
-		mip.texture->begin(rs, 0);
+		mip.texture->bind();
 		fullscreenMesh_u_->enable(rs);
 		fullscreenMesh_u_->disable(rs);
-		mip.texture->end(rs, 0);
 		rs->viewport().pop();
 	}
 	upsampleState_->disable(rs);

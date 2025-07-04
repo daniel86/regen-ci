@@ -42,12 +42,10 @@ namespace regen {
 			colorBuffer->set_rectangleSize(width_, height_);
 			colorBuffer->set_pixelType(GL_UNSIGNED_BYTE);
 			colorBuffer->set_format(GL_RGB);
-			colorBuffer->set_internalFormat(GL_RGB);
-			colorBuffer->begin(RenderState::get());
-			colorBuffer->texImage();
-			colorBuffer->filter().push(GL_LINEAR);
-			colorBuffer->wrapping().push(GL_REPEAT);
-			colorBuffer->end(RenderState::get());
+			colorBuffer->set_internalFormat(GL_RGB8);
+			colorBuffer->allocTexture();
+			colorBuffer->set_filter(GL_LINEAR);
+			colorBuffer->set_wrapping(GL_REPEAT);
 			fbo->addTexture(colorBuffer);
 			fboState_ = ref_ptr<FBOState>::alloc(fbo);
 			updateState_->joinStates(fboState_);
@@ -111,12 +109,11 @@ namespace regen {
 
 		void paintGL() override {
 			if (!fboState_.get()) return;
-			glBindFramebuffer(GL_READ_FRAMEBUFFER, fboState_->fbo()->id());
-			glBlitFramebuffer(
+			glBlitNamedFramebuffer(
+				fboState_->fbo()->id(), 0,
 				0, 0, width_, height_,
 				0, 0, width_, height_,
 				GL_COLOR_BUFFER_BIT, GL_NEAREST);
-			glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 			GL_ERROR_LOG();
 		}
 

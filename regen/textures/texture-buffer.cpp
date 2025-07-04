@@ -4,8 +4,7 @@
 using namespace regen;
 
 TextureBuffer::TextureBuffer(GLenum texelFormat)
-		: Texture() {
-	texBind_.target_ = GL_TEXTURE_BUFFER;
+		: Texture(GL_TEXTURE_BUFFER, 1) {
 	if (glenum::isSignedIntegerType(texelFormat)) {
 		samplerType_ = "isamplerBuffer";
 	} else if (glenum::isUnsignedIntegerType(texelFormat)) {
@@ -14,42 +13,39 @@ TextureBuffer::TextureBuffer(GLenum texelFormat)
 		samplerType_ = "samplerBuffer";
 	}
 	texelFormat_ = texelFormat;
+	allocTexture_ = &TextureBuffer::allocTexture_noop;
+	updateImage_ = &TextureBuffer::updateImage_noop;
+	updateSubImage_ = &TextureBuffer::updateSubImage_noop;
 }
 
 void TextureBuffer::attach(const ref_ptr<BufferReference> &ref) {
 	attachedVBORef_ = ref;
+	numTexel_ = attachedVBORef_->allocatedSize() / sizeof(GLubyte);
 #ifdef GL_ARB_texture_buffer_range
-	glTexBufferRange(
-			texBind_.target_,
+	glTextureBufferRange(
+			id(),
 			texelFormat_,
 			ref->bufferID(),
 			ref->address(),
 			ref->allocatedSize());
 #else
-	glTexBuffer(texBind_.target_, texelFormat_, ref->bufferID());
+	glTextureBuffer(id(), texelFormat_, ref->bufferID());
 #endif
 	GL_ERROR_LOG();
 }
 
 void TextureBuffer::attach(GLuint storage) {
 	attachedVBORef_ = {};
-	glTexBuffer(texBind_.target_, texelFormat_, storage);
+	glTextureBuffer(id(), texelFormat_, storage);
 	GL_ERROR_LOG();
 }
 
 void TextureBuffer::attach(GLuint storage, GLuint offset, GLuint size) {
 	attachedVBORef_ = {};
 #ifdef GL_ARB_texture_buffer_range
-	glTexBufferRange(texBind_.target_, texelFormat_, storage, offset, size);
+	glTextureBufferRange(id(), texelFormat_, storage, offset, size);
 #else
-	glTexBuffer(texBind_.target_, texelFormat_, storage);
+	glTextureBuffer(id(), texelFormat_, storage);
 #endif
 	GL_ERROR_LOG();
-}
-
-unsigned int TextureBuffer::numTexel() const {
-	return attachedVBORef_->allocatedSize() / sizeof(GLubyte);
-}
-
-void TextureBuffer::texImage() const {
 }

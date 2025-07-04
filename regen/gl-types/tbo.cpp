@@ -15,13 +15,8 @@ void TBO::setBufferInput(const ref_ptr<regen::ShaderInput> &input) {
 	}
 
 	// attach vbo to texture
-	auto rs = RenderState::get();
-	rs->textureBuffer().push(tboRef_->bufferID());
 	tboTexture_ = ref_ptr<TextureBuffer>::alloc(input->dataType());
-	tboTexture_->begin(rs);
 	tboTexture_->attach(tboRef_);
-	tboTexture_->end(rs);
-	rs->textureBuffer().pop();
 }
 
 void TBO::resizeTBO() {
@@ -30,10 +25,7 @@ void TBO::resizeTBO() {
 	}
 	tboRef_ = allocBytes(input_->inputSize());
 	if (tboRef_.get()) {
-		auto rs = RenderState::get();
-		tboTexture_->begin(rs);
 		tboTexture_->attach(tboRef_);
-		tboTexture_->end(rs);
 	}
 }
 
@@ -58,13 +50,10 @@ void TBO::updateTBO() {
 	if (!ref.get()) {
 		return;
 	}
-	auto rs = RenderState::get();
-	rs->textureBuffer().push(ref->bufferID());
 	auto mapped = input_->mapClientDataRaw(ShaderData::READ);
-	glBufferSubData(
-			GL_TEXTURE_BUFFER,
+	glNamedBufferSubData(
+			ref->bufferID(),
 			ref->address(),
 			input_->inputSize(),
 			mapped.r);
-	rs->textureBuffer().pop();
 }

@@ -3,8 +3,7 @@
 #include <regen/utility/string-util.h>
 
 #include "texture-state.h"
-#include "texture-3d.h"
-#include "texture-2d.h"
+#include "texture.h"
 
 namespace regen {
 	std::ostream &operator<<(std::ostream &out, const TextureState::Mapping &mode) {
@@ -396,19 +395,8 @@ void TextureState::set_texcoFlipping(TexcoFlipping mode) {
 ///////
 
 void TextureState::enable(RenderState *rs) {
-	lastTexChannel_ = texture_->channel();
-	if (lastTexChannel_ == -1) {
-		texture_->begin(rs, rs->reserveTextureChannel());
-	}
+	texture_->bind();
 	State::enable(rs);
-}
-
-void TextureState::disable(RenderState *rs) {
-	State::disable(rs);
-	if (lastTexChannel_ == -1) {
-		texture_->end(rs, texture_->channel());
-		rs->releaseTextureChannel();
-	}
 }
 
 ref_ptr<Texture> TextureState::getTexture(
@@ -469,7 +457,7 @@ ref_ptr<TextureState> TextureState::load(LoadingContext &ctx, scene::SceneInputN
 		return {};
 	}
 	if (input.hasAttribute("mip-level") && input.getValue<int>("mip-level", 0) > 0) {
-		auto mipLevel = input.getValue<unsigned int>("mip-level", 1);
+		auto mipLevel = input.getValue<int>("mip-level", 1);
 		auto mipTex = dynamic_cast<TextureMips2D *>(tex.get());
 		if (mipTex) {
 			auto maxLevel = mipTex->numMips();

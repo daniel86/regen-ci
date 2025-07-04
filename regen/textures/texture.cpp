@@ -17,111 +17,194 @@ using namespace regen;
 #include "regen/scene/scene.h"
 #include "regen/scene/loading-context.h"
 #include "regen/gl-types/fbo.h"
+#include "texture-binder.h"
 
-static inline void Regen_TextureFilter(GLenum target, const TextureFilter &v) {
-	glTexParameteri(target, GL_TEXTURE_MIN_FILTER, v.x);
-	glTexParameteri(target, GL_TEXTURE_MAG_FILTER, v.y);
-}
-
-static inline void Regen_TextureLoD(GLenum target, const TextureLoD &v) {
-	glTexParameterf(target, GL_TEXTURE_MIN_LOD, v.x);
-	glTexParameterf(target, GL_TEXTURE_MAX_LOD, v.y);
-}
-
-static inline void Regen_TextureSwizzle(GLenum target, const TextureSwizzle &v) {
-	glTexParameteri(target, GL_TEXTURE_SWIZZLE_R, v.x);
-	glTexParameteri(target, GL_TEXTURE_SWIZZLE_G, v.y);
-	glTexParameteri(target, GL_TEXTURE_SWIZZLE_B, v.z);
-	glTexParameteri(target, GL_TEXTURE_SWIZZLE_A, v.w);
-}
-
-static inline void Regen_TextureWrapping(GLenum target, const TextureWrapping &v) {
-	glTexParameteri(target, GL_TEXTURE_WRAP_S, v.x);
-	glTexParameteri(target, GL_TEXTURE_WRAP_T, v.y);
-	glTexParameteri(target, GL_TEXTURE_WRAP_R, v.z);
-}
-
-static inline void Regen_TextureCompare(GLenum target, const TextureCompare &v) {
-	glTexParameteri(target, GL_TEXTURE_COMPARE_MODE, v.x);
-	glTexParameteri(target, GL_TEXTURE_COMPARE_FUNC, v.y);
-}
-
-static inline void Regen_TextureMaxLevel(GLenum target, const TextureMaxLevel &v) {
-	glTexParameteri(target, GL_TEXTURE_MAX_LEVEL, v);
-}
-
-static inline void Regen_TextureAniso(GLenum target, const TextureAniso &v) {
-	glTexParameterf(target, GL_TEXTURE_MAX_ANISOTROPY_EXT, v);
-}
-
-Texture::Texture(GLuint numTextures)
-		: GLRectangle(glGenTextures, glDeleteTextures, numTextures),
+Texture::Texture(GLenum textureTarget, GLuint numTextures)
+		: GLRectangle(
+				glCreateTextures,
+				glDeleteTextures,
+				textureTarget,
+				numTextures),
 		  ShaderInput1i(REGEN_STRING("textureChannel" << id())),
 		  dim_(2),
 		  format_(GL_RGBA),
 		  internalFormat_(GL_RGBA8),
 		  pixelType_(GL_BYTE),
-		  border_(0),
-		  texBind_(GL_TEXTURE_2D, 0),
-		  numSamples_(1),
+		  texBind_(textureTarget, id()),
 		  textureData_(nullptr),
-		  isTextureDataOwned_(false) {
-	filter_ = new TextureParameterStack<TextureFilter> *[numObjects_];
-	lod_ = new TextureParameterStack<TextureLoD> *[numObjects_];
-	swizzle_ = new TextureParameterStack<TextureSwizzle> *[numObjects_];
-	wrapping_ = new TextureParameterStack<TextureWrapping> *[numObjects_];
-	compare_ = new TextureParameterStack<TextureCompare> *[numObjects_];
-	maxLevel_ = new TextureParameterStack<TextureMaxLevel> *[numObjects_];
-	aniso_ = new TextureParameterStack<TextureAniso> *[numObjects_];
-	for (GLuint i = 0; i < numObjects_; ++i) {
-		filter_[i] = new TextureParameterStack<TextureFilter>(texBind_, Regen_TextureFilter);
-		lod_[i] = new TextureParameterStack<TextureLoD>(texBind_, Regen_TextureLoD);
-		swizzle_[i] = new TextureParameterStack<TextureSwizzle>(texBind_, Regen_TextureSwizzle);
-		wrapping_[i] = new TextureParameterStack<TextureWrapping>(texBind_, Regen_TextureWrapping);
-		compare_[i] = new TextureParameterStack<TextureCompare>(texBind_, Regen_TextureCompare);
-		maxLevel_[i] = new TextureParameterStack<TextureMaxLevel>(texBind_, Regen_TextureMaxLevel);
-		aniso_[i] = new TextureParameterStack<TextureAniso>(texBind_, Regen_TextureAniso);
-	}
-
+		  isTextureDataOwned_(false),
+		  allocTexture_(&Texture::allocTexture_noop),
+		  updateImage_(&Texture::updateImage_noop),
+		  updateSubImage_(&Texture::updateSubImage_noop) {
 	set_rectangleSize(2, 2);
 	samplerType_ = "sampler2D";
 	setUniformData(-1);
+	set_active(false);
 }
 
 Texture::~Texture() {
-	for (GLuint i = 0; i < numObjects_; ++i) {
-		delete filter_[i];
-		delete lod_[i];
-		delete swizzle_[i];
-		delete wrapping_[i];
-		delete compare_[i];
-		delete maxLevel_[i];
-		delete aniso_[i];
-	}
-	delete[]filter_;
-	delete[]lod_;
-	delete[]swizzle_;
-	delete[]wrapping_;
-	delete[]compare_;
-	delete[]maxLevel_;
-	delete[]aniso_;
-
 	if (isTextureDataOwned_ && textureData_) {
 		delete[]textureData_;
 		textureData_ = nullptr;
 	}
 }
 
-GLenum Texture::targetType() const { return texBind_.target_; }
+void Texture::set_filter(const TextureFilter &v) {
+	glTextureParameteri(id(), GL_TEXTURE_MIN_FILTER, v.x);
+	glTextureParameteri(id(), GL_TEXTURE_MAG_FILTER, v.y);
+}
 
-void Texture::set_targetType(GLenum targetType) { texBind_.target_ = targetType; }
+void Texture::set_lod(const TextureLoD &v) {
+	glTextureParameterf(id(), GL_TEXTURE_MIN_LOD, v.x);
+	glTextureParameterf(id(), GL_TEXTURE_MAX_LOD, v.y);
+}
+
+void Texture::set_swizzle(const TextureSwizzle &v) {
+	glTextureParameteri(id(), GL_TEXTURE_SWIZZLE_R, v.x);
+	glTextureParameteri(id(), GL_TEXTURE_SWIZZLE_G, v.y);
+	glTextureParameteri(id(), GL_TEXTURE_SWIZZLE_B, v.z);
+	glTextureParameteri(id(), GL_TEXTURE_SWIZZLE_A, v.w);
+}
+
+void Texture::set_wrapping(const TextureWrapping &v) {
+	glTextureParameteri(id(), GL_TEXTURE_WRAP_S, v.x);
+	glTextureParameteri(id(), GL_TEXTURE_WRAP_T, v.y);
+	glTextureParameteri(id(), GL_TEXTURE_WRAP_R, v.z);
+	wrappingMode_ = v;
+}
+
+void Texture::set_compare(const TextureCompare &v) {
+	glTextureParameteri(id(), GL_TEXTURE_COMPARE_MODE, v.x);
+	glTextureParameteri(id(), GL_TEXTURE_COMPARE_FUNC, v.y);
+}
+
+void Texture::set_maxLevel(const TextureMaxLevel &v) {
+	glTextureParameteri(id(), GL_TEXTURE_MAX_LEVEL, v);
+}
+
+void Texture::set_aniso(const TextureAniso &v) {
+	glTextureParameterf(id(), GL_TEXTURE_MAX_ANISOTROPY_EXT, v);
+}
+
+void Texture::allocTexture1D() {
+	glTextureStorage1D(id(),
+					   getNumMipmaps(),
+					   internalFormat_,
+					   static_cast<int32_t>(width()));
+}
+
+void Texture::allocTexture2D() {
+	glTextureStorage2D(id(),
+					   getNumMipmaps(),
+					   internalFormat_,
+					   static_cast<int32_t>(width()),
+					   static_cast<int32_t>(height()));
+}
+
+void Texture::allocTexture2D_Multisample() {
+	glTextureStorage2DMultisample(id(),
+								  numSamples_,
+								  internalFormat_,
+								  static_cast<int32_t>(width()),
+								  static_cast<int32_t>(height()),
+								  fixedSampleLocations_);
+}
+
+void Texture::allocTexture3D() {
+	glTextureStorage3D(id(),
+					   getNumMipmaps(),
+					   internalFormat_,
+					   static_cast<int32_t>(width()),
+					   static_cast<int32_t>(height()),
+					   static_cast<int32_t>(depth()));
+}
+
+void Texture::updateImage1D(GLubyte *subData) {
+	glTextureSubImage1D(id(),
+						0, // mipmap level
+						0, // x offset
+						static_cast<int32_t>(width()),
+						format_,
+						pixelType_,
+						subData);
+}
+
+void Texture::updateImage2D(GLubyte *subData) {
+	glTextureSubImage2D(id(),
+						0, // mipmap level
+						0, // x offset
+						0, // y offset
+						static_cast<int32_t>(width()),
+						static_cast<int32_t>(height()),
+						format_,
+						pixelType_,
+						subData);
+}
+
+void Texture::updateImage3D(GLubyte *subData) {
+	glTextureSubImage3D(id(),
+						0, // mipmap level
+						0, // x offset
+						0, // y offset
+						0, // z offset
+						static_cast<int32_t>(width()),
+						static_cast<int32_t>(height()),
+						static_cast<int32_t>(depth()),
+						format_,
+						pixelType_,
+						subData);
+}
+
+void Texture::updateSubImage1D(GLint layer, GLubyte *subData) {
+	glTextureSubImage1D(id(),
+						0, // mipmap level
+						0, // x offset
+						static_cast<int32_t>(width()),
+						format_,
+						pixelType_,
+						subData);
+}
+
+void Texture::updateSubImage2D(GLint layer, GLubyte *subData) {
+	glTextureSubImage2D(id(),
+						0, // mipmap level
+						0, // x offset
+						0, // y offset
+						static_cast<int32_t>(width()),
+						static_cast<int32_t>(height()),
+						format_,
+						pixelType_,
+						subData);
+}
+
+void Texture::updateSubImage3D(GLint layer, GLubyte *subData) {
+	glTextureSubImage3D(id(),
+						0, // mipmap level
+						0, // x offset
+						0, // y offset
+						layer, // z offset
+						static_cast<int32_t>(width()),
+						static_cast<int32_t>(height()),
+						1, // depth of the sub-image
+						format_,
+						pixelType_,
+						subData);
+}
+
+GLenum Texture::targetType() const {
+	return texBind_.target_;
+}
+
+void Texture::set_targetType(GLenum targetType) {
+	texBind_.target_ = targetType;
+}
 
 const TextureBind &Texture::textureBind() {
 	texBind_.id_ = id();
 	return texBind_;
 }
 
-void Texture::set_textureData(const GLubyte *textureData, bool owned) {
+void Texture::setTextureData(const GLubyte *textureData, bool owned) {
 	if (textureData_ && isTextureDataOwned_) {
 		delete[]textureData_;
 	}
@@ -129,42 +212,75 @@ void Texture::set_textureData(const GLubyte *textureData, bool owned) {
 	isTextureDataOwned_ = owned;
 }
 
-void Texture::readTextureData() {
-	ScopedTextureActivation sta(*this, RenderState::get());
-	auto *pixels = new GLubyte[numTexel() * numComponents_];
-	glGetTexImage(targetType(), 0, format(), GL_UNSIGNED_BYTE, pixels);
-	set_textureData(pixels, true);
+void Texture::updateTextureData() {
+	auto bufSize = static_cast<int32_t>(numTexel() * numComponents_);
+	auto *pixels = new GLubyte[bufSize];
+	glGetTextureImage(id(), 0,
+					  format(), GL_UNSIGNED_BYTE,
+					  bufSize, pixels);
+	setTextureData(pixels, true);
 }
 
 void Texture::ensureTextureData() {
 	if (!textureData_) {
-		readTextureData();
+		updateTextureData();
 	}
 }
 
-void Texture::setupMipmaps(GLenum mode) const {
-	// glGenerateMipmap was introduced in opengl3.0
-	// before glBuildMipmaps or GL_GENERATE_MIPMAP was used, but these are not supported here.
-	glGenerateMipmap(texBind_.target_);
+void Texture::allocTexture() {
+	Vec3ui size(width(), height(), depth());
+	if (size == allocatedSize_) {
+		// already allocated
+		return;
+	}
+	bool isReAlloc = (
+		allocatedSize_.x > 0 &&
+		allocatedSize_.y > 0 &&
+		allocatedSize_.z > 0);
+	allocatedSize_ = size;
+	numTexel_ = size.x * size.y * size.z;
+	if (isReAlloc) {
+		// NOTE: texture objects must be destroyed and re-created
+		glDeleteTextures(numObjects_, ids_);
+		glGenTextures(numObjects_, ids_);
+	}
+	(this->*(this->allocTexture_))();
 }
 
-void Texture::begin(RenderState *rs, GLint x) {
-	set_active(GL_TRUE);
-	v_channel_ = x;
-	setVertex(0, x);
-	rs->activeTexture().push(GL_TEXTURE0 + x);
-	rs->textures().push(x, textureBind());
+void Texture::updateImage(GLubyte *data) {
+	(this->*(this->updateImage_))(data);
 }
 
-void Texture::end(RenderState *rs, GLint x) {
-	rs->textures().pop(x);
-	rs->activeTexture().pop();
-	setVertex(0, -1);
-	v_channel_ = -1;
-	// INVALID_VALUE is generated when texture uniform is enabled
-	// with channel=-1. This flag should avoid calls to glUniform
-	// for this texture.
-	set_active(GL_FALSE);
+void Texture::updateSubImage(GLint layer, GLubyte *subData) {
+	(this->*(this->updateSubImage_))(layer, subData);
+}
+
+void Texture::setNumMipmaps(int32_t numMips) {
+	numMips_ = numMips;
+}
+
+int32_t Texture::getNumMipmaps() {
+	int32_t maxNumLevels = 1 + (int)floor(log2(std::max({width(), height()})));
+	if (numMips_ >= 0 && numMips_ < maxNumLevels) {
+		return numMips_;
+	} else {
+		return maxNumLevels;
+	}
+}
+
+void Texture::updateMipmaps() {
+	set_filter(TextureFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR));
+	glGenerateTextureMipmap(id());
+}
+
+void Texture::setTextureChannel(int32_t channel) {
+	textureChannel_ = channel;
+	setVertex(0, channel);
+	set_active(channel >= 0);
+}
+
+void Texture::bind() {
+	TextureBinder::bind(this);
 }
 
 Bounds<Vec2ui> Texture::getRegion(const Vec2f &texco, const Vec2f &regionTS) const {
@@ -189,7 +305,7 @@ unsigned int Texture::texelIndex(const Vec2f &texco) const {
 	auto x = static_cast<unsigned int>(texco.x * static_cast<float>(w));
 	auto y = static_cast<unsigned int>(texco.y * static_cast<float>(h));
 	// clamp to texture size
-	switch (wrapping_[objectIndex_]->value().x) {
+	switch (wrappingMode_.x) {
 		case GL_REPEAT:
 			x = x % w;
 			y = y % h;
@@ -208,13 +324,6 @@ unsigned int Texture::texelIndex(const Vec2f &texco) const {
 	return (y * w + x);
 }
 
-void Texture::resize(unsigned int width, unsigned int height) {
-	set_rectangleSize(width, height);
-	RenderState::get()->textures().push(7, textureBind());
-	texImage();
-	RenderState::get()->textures().pop(7);
-}
-
 void Texture::set_textureFile(const std::string &fileName) {
 	if (fileName.empty()) {
 		textureFile_.reset();
@@ -231,7 +340,7 @@ void Texture::set_textureFile(const std::string &directory, const std::string &n
 	}
 }
 
-static std::vector<GLubyte> readTextureData_cfg(LoadingContext &ctx, scene::SceneInputNode &input, GLenum format) {
+static std::vector<GLubyte> readTextureData_cfg(LoadingContext&, scene::SceneInputNode &input, GLenum format) {
 	std::vector<GLubyte> data;
 	auto numPixelComponents = glenum::pixelComponents(format);
 	// iterate over all "texel" children
@@ -253,7 +362,7 @@ static std::vector<GLubyte> readTextureData_cfg(LoadingContext &ctx, scene::Scen
 				data.push_back(v.x);
 				data.push_back(v.y);
 				data.push_back(v.z);
-			} else if (numPixelComponents == 4) {
+			} else {
 				auto v = child->getValue<Vec4ui>("v", Vec4ui(0u));
 				data.push_back(v.x);
 				data.push_back(v.y);
@@ -278,12 +387,13 @@ namespace regen {
 
 		void call(EventObject *, EventData *) override {
 			auto winSize = windowViewport_->getVertex(0).r;
-			winSize.x = (winSize.x * wScale_);
-			winSize.y = (winSize.y * hScale_);
+			winSize.x = static_cast<int32_t>(static_cast<float>(winSize.x) * wScale_);
+			winSize.y = static_cast<int32_t>(static_cast<float>(winSize.y) * hScale_);
 			// FIXME: I think we should enforce GL thread here! But initially the resize needs to be done
 			//        right away as withGLContext causes some fbo errors. possible fix: check if
 			//        we have a GL context, and only use withGLContext if not. Could also do this in withGLContext.
-			tex_->resize(winSize.x, winSize.y);
+			tex_->set_rectangleSize(winSize.x, winSize.y);
+			tex_->allocTexture();
 		}
 
 	protected:
@@ -298,15 +408,16 @@ Vec3i Texture::getSize(
 		const std::string &sizeMode,
 		const Vec3f &size) {
 	if (sizeMode == "abs") {
-		return Vec3i(size.x, size.y, size.z);
+		return size.asVec3i();
 	} else if (sizeMode == "rel") {
 		auto v = viewport->getVertex(0);
-		return Vec3i(
-				(GLint) (size.x * v.r.x),
-				(GLint) (size.y * v.r.y), 1);
+		auto size_i = size.asVec3i();
+		return {
+			(size_i.x * v.r.x),
+			(size_i.y * v.r.y), 1 };
 	} else {
 		REGEN_WARN("Unknown size mode '" << sizeMode << "'.");
-		return Vec3i(size.x, size.y, size.z);
+		return size.asVec3i();
 	}
 }
 
@@ -385,7 +496,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 		auto sizeAbs = getSize(viewport, sizeMode, sizeRel);
 		auto isSeamless = input.getValue<bool>("is-seamless", false);
 		auto generator = NoiseGenerator::load(ctx, input);
-		if(generator.get()) {
+		if (generator.get()) {
 			auto noise = ref_ptr<NoiseTexture2D>::alloc(sizeAbs.x, sizeAbs.y, isSeamless);
 			noise->setNoiseScale(input.getValue<float>("noise-scale", 1.0f));
 			noise->setNoiseGenerator(generator);
@@ -464,7 +575,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 		} else {
 			auto pixelSize = input.getValue<GLuint>("pixel-size", 16);
 			internalFormat = glenum::textureInternalFormat(pixelType,
-					pixelComponents, pixelSize);
+														   pixelComponents, pixelSize);
 		}
 
 		tex = FBO::createTexture(
@@ -497,59 +608,192 @@ void Texture::configure(ref_ptr<Texture> &tex, scene::SceneInputNode &input) {
 		tex->set_samplerType(input.getValue("sampler-type"));
 	}
 	if (tex->numSamples() > 1) {
-		// glTexParameter* not allowed for multi-sampled textures
+		// NOTE: glTexParameter* not allowed for multi-sampled textures
 		return;
 	}
-	tex->begin(RenderState::get(), 0);
-	{
-		if (!input.getValue("wrapping").empty()) {
-			tex->wrapping().push(glenum::wrappingMode(
-					input.getValue<std::string>("wrapping", "CLAMP_TO_EDGE")));
-		}
-		if (!input.getValue("aniso").empty()) {
-			tex->aniso().push(input.getValue<GLfloat>("aniso", 2.0f));
-		}
-		if (!input.getValue("lod").empty()) {
-			tex->lod().push(input.getValue<Vec2f>("lod", Vec2f(1.0f)));
-		}
-		if (!input.getValue("swizzle-r").empty() ||
-			!input.getValue("swizzle-g").empty() ||
-			!input.getValue("swizzle-b").empty() ||
-			!input.getValue("swizzle-a").empty()) {
-			auto swizzleR = static_cast<int>(glenum::textureSwizzle(
-					input.getValue<std::string>("swizzle-r", "RED")));
-			auto swizzleG = static_cast<int>(glenum::textureSwizzle(
-					input.getValue<std::string>("swizzle-g", "GREEN")));
-			auto swizzleB = static_cast<int>(glenum::textureSwizzle(
-					input.getValue<std::string>("swizzle-b", "BLUE")));
-			auto swizzleA = static_cast<int>(glenum::textureSwizzle(
-					input.getValue<std::string>("swizzle-a", "ALPHA")));
-			tex->swizzle().push(Vec4i(swizzleR, swizzleG, swizzleB, swizzleA));
-		}
-		if (!input.getValue("compare-mode").empty()) {
-			auto function = static_cast<int>(glenum::compareFunction(
-					input.getValue<std::string>("compare-function", "LEQUAL")));
-			auto mode = static_cast<int>(glenum::compareMode(
-					input.getValue<std::string>("compare-mode", "NONE")));
-			tex->compare().push(TextureCompare(mode, function));
-		}
-		if (!input.getValue("max-level").empty()) {
-			tex->maxLevel().push(input.getValue<GLint>("max-level", 1000));
-		}
-
-		if (!input.getValue("min-filter").empty() &&
-			!input.getValue("mag-filter").empty()) {
-			auto min = static_cast<int>(glenum::filterMode(input.getValue("min-filter")));
-			auto mag = static_cast<int>(glenum::filterMode(input.getValue("mag-filter")));
-			tex->filter().push(TextureFilter(min, mag));
-		} else if (!input.getValue("min-filter").empty() ||
-				   !input.getValue("mag-filter").empty()) {
-			REGEN_WARN("Minification and magnification filters must be specified both." <<
-																						" One missing for '"
-																						<< input.getDescription()
-																						<< "'.");
-		}
+	if (!input.getValue("wrapping").empty()) {
+		tex->set_wrapping(glenum::wrappingMode(
+				input.getValue<std::string>("wrapping", "CLAMP_TO_EDGE")));
 	}
-	tex->end(RenderState::get(), 0);
+	if (!input.getValue("aniso").empty()) {
+		tex->set_aniso(input.getValue<GLfloat>("aniso", 2.0f));
+	}
+	if (!input.getValue("lod").empty()) {
+		tex->set_lod(input.getValue<Vec2f>("lod", Vec2f(1.0f)));
+	}
+	if (!input.getValue("swizzle-r").empty() ||
+		!input.getValue("swizzle-g").empty() ||
+		!input.getValue("swizzle-b").empty() ||
+		!input.getValue("swizzle-a").empty()) {
+		auto swizzleR = static_cast<int>(glenum::textureSwizzle(
+				input.getValue<std::string>("swizzle-r", "RED")));
+		auto swizzleG = static_cast<int>(glenum::textureSwizzle(
+				input.getValue<std::string>("swizzle-g", "GREEN")));
+		auto swizzleB = static_cast<int>(glenum::textureSwizzle(
+				input.getValue<std::string>("swizzle-b", "BLUE")));
+		auto swizzleA = static_cast<int>(glenum::textureSwizzle(
+				input.getValue<std::string>("swizzle-a", "ALPHA")));
+		tex->set_swizzle(Vec4i(swizzleR, swizzleG, swizzleB, swizzleA));
+	}
+	if (!input.getValue("compare-mode").empty()) {
+		auto function = static_cast<int>(glenum::compareFunction(
+				input.getValue<std::string>("compare-function", "LEQUAL")));
+		auto mode = static_cast<int>(glenum::compareMode(
+				input.getValue<std::string>("compare-mode", "NONE")));
+		tex->set_compare(TextureCompare(mode, function));
+	}
+	if (!input.getValue("max-level").empty()) {
+		tex->set_maxLevel(input.getValue<GLint>("max-level", 1000));
+	}
+
+	if (!input.getValue("min-filter").empty() &&
+		!input.getValue("mag-filter").empty()) {
+		auto min = static_cast<int>(glenum::filterMode(input.getValue("min-filter")));
+		auto mag = static_cast<int>(glenum::filterMode(input.getValue("mag-filter")));
+		tex->set_filter(TextureFilter(min, mag));
+	} else if (!input.getValue("min-filter").empty() ||
+			   !input.getValue("mag-filter").empty()) {
+		REGEN_WARN("Minification and magnification filters must be specified both." <<
+																					" One missing for '"
+																					<< input.getDescription()
+																					<< "'.");
+	}
 	GL_ERROR_LOG();
+}
+
+Texture1D::Texture1D(GLuint numTextures)
+		: Texture(GL_TEXTURE_1D, numTextures) {
+	dim_ = 1;
+	samplerType_ = "sampler1D";
+	allocTexture_ = &Texture1D::allocTexture1D;
+	updateImage_ = &Texture1D::updateImage1D;
+	updateSubImage_ = &Texture1D::updateSubImage1D;
+}
+
+Texture2D::Texture2D(GLenum textureTarget, GLuint numTextures)
+		: Texture(textureTarget, numTextures) {
+	dim_ = 2;
+	samplerType_ = "sampler2D";
+	allocTexture_ = &Texture2D::allocTexture2D;
+	updateImage_ = &Texture2D::updateImage2D;
+	updateSubImage_ = &Texture2D::updateSubImage2D;
+}
+
+TextureMips2D::TextureMips2D(GLuint numMips)
+		: Texture2D(GL_TEXTURE_2D, 1) {
+	numMips_ = std::max(numMips, 1u); // at least one mip level
+	mipTextures_.resize(numMips_);
+	mipRefs_.resize(numMips_-1);
+
+	mipTextures_[0] = this;
+	for (auto i = 1; i < numMips_; ++i) {
+		mipRefs_[i-1] = ref_ptr<Texture2D>::alloc();
+		mipTextures_[i] = mipRefs_[i-1].get();
+	}
+}
+
+TextureRectangle::TextureRectangle(GLuint numTextures)
+		: Texture2D(GL_TEXTURE_RECTANGLE, numTextures) {
+	samplerType_ = "sampler2DRect";
+}
+
+Texture2DDepth::Texture2DDepth(GLenum textureTarget, GLuint numTextures)
+		: Texture2D(textureTarget, numTextures) {
+	format_ = GL_DEPTH_COMPONENT;
+	internalFormat_ = GL_DEPTH_COMPONENT24;
+	pixelType_ = GL_UNSIGNED_BYTE;
+}
+
+Texture2DMultisample::Texture2DMultisample(
+		GLsizei numSamples,
+		GLuint numTextures,
+		GLboolean fixedSampleLocations)
+		: Texture2D(GL_TEXTURE_2D_MULTISAMPLE, numTextures) {
+	fixedSampleLocations_ = fixedSampleLocations;
+	samplerType_ = "sampler2DMS";
+	set_numSamples(numSamples);
+	allocTexture_ = &Texture2DMultisample::allocTexture2D_Multisample;
+	// NOTE: no data can be uploaded from CPU to a multisample texture
+	updateImage_ = &Texture2DMultisample::updateImage_noop;
+	updateSubImage_ = &Texture2DMultisample::updateSubImage_noop;
+}
+
+Texture2DMultisampleDepth::Texture2DMultisampleDepth(
+		GLsizei numSamples,
+		GLboolean fixedSampleLocations)
+		: Texture2DDepth(GL_TEXTURE_2D_MULTISAMPLE, 1) {
+	internalFormat_ = GL_DEPTH_COMPONENT24;
+	fixedSampleLocations_ = fixedSampleLocations;
+	set_numSamples(numSamples);
+	allocTexture_ = &Texture2DMultisampleDepth::allocTexture2D_Multisample;
+	// NOTE: no data can be uploaded from CPU to a multisample texture
+	updateImage_ = &Texture2DMultisampleDepth::updateImage_noop;
+	updateSubImage_ = &Texture2DMultisampleDepth::updateSubImage_noop;
+}
+
+Texture3D::Texture3D(GLenum textureTarget, GLuint numTextures)
+		: Texture(textureTarget, numTextures) {
+	dim_ = 3;
+	samplerType_ = "sampler3D";
+	allocTexture_ = &Texture3D::allocTexture3D;
+	updateImage_ = &Texture3D::updateImage3D;
+	updateSubImage_ = &Texture3D::updateSubImage3D;
+}
+
+void Texture3D::set_depth(GLuint numTextures) {
+	imageDepth_ = numTextures;
+}
+
+Texture3DDepth::Texture3DDepth(GLuint numTextures)
+		: Texture3D(GL_TEXTURE_3D, numTextures) {
+	format_ = GL_DEPTH_COMPONENT;
+	internalFormat_ = GL_DEPTH_COMPONENT24;
+}
+
+Texture2DArray::Texture2DArray(GLenum textureTarget, GLuint numTextures)
+		: Texture3D(textureTarget, numTextures) {
+	samplerType_ = "sampler2DArray";
+}
+
+Texture2DArrayDepth::Texture2DArrayDepth(GLuint numTextures)
+		: Texture2DArray(GL_TEXTURE_2D_ARRAY, numTextures) {
+	format_ = GL_DEPTH_COMPONENT;
+	internalFormat_ = GL_DEPTH_COMPONENT24;
+	pixelType_ = GL_UNSIGNED_BYTE;
+}
+
+Texture2DArrayMultisample::Texture2DArrayMultisample(
+		GLsizei numSamples,
+		GLuint numTextures,
+		GLboolean fixedSampleLocations)
+		: Texture2DArray(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, numTextures) {
+	samplerType_ = "sampler2DMSArray";
+	set_numSamples(numSamples);
+	fixedSampleLocations_ = fixedSampleLocations;
+}
+
+Texture2DArrayMultisampleDepth::Texture2DArrayMultisampleDepth(
+		GLsizei numSamples,
+		GLuint numTextures,
+		GLboolean fixedSampleLocations)
+		: Texture2DArray(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, numTextures) {
+	samplerType_ = "sampler2DMSArray";
+	set_numSamples(numSamples);
+	fixedSampleLocations_ = fixedSampleLocations;
+}
+
+TextureCube::TextureCube(GLuint numTextures)
+		: Texture2D(GL_TEXTURE_CUBE_MAP, numTextures) {
+	samplerType_ = "samplerCube";
+	dim_ = 3;
+	imageDepth_ = 6; // 6 faces for cube map
+	updateImage_ = &TextureCube::updateImage3D;
+	updateSubImage_ = &TextureCube::updateSubImage3D;
+}
+
+TextureCubeDepth::TextureCubeDepth(GLuint numTextures)
+		: TextureCube(numTextures) {
+	format_ = GL_DEPTH_COMPONENT;
+	internalFormat_ = GL_DEPTH_COMPONENT24;
+	pixelType_ = GL_UNSIGNED_BYTE;
 }
