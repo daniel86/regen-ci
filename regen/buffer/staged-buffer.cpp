@@ -740,8 +740,8 @@ void StagedBuffer::resetDirtySegments() {
 void StagedBuffer::createNextDirtySegment() {
 	if (numDirtySegments_ >= dirtySegmentRanges_.size()) {
 		// allocate a new segment if we have no more space
-		dirtySegmentRanges_.emplace_back();
-		dirtyBufferRanges_.emplace_back();
+		dirtySegmentRanges_.resize(dirtySegmentRanges_.size() + 4);
+		dirtyBufferRanges_.resize(dirtyBufferRanges_.size() + 4);
 	}
 	numDirtySegments_ += 1;
 }
