@@ -6,7 +6,10 @@
 using namespace regen;
 
 Ground::Ground() : SkirtQuad() {
-	rectangleConfig_.usage = BUFFER_USAGE_STATIC_DRAW;
+	rectangleConfig_.updateHint.frequency = BUFFER_UPDATE_NEVER;
+	rectangleConfig_.updateHint.scope = BUFFER_UPDATE_FULLY;
+	rectangleConfig_.accessMode = BUFFER_GPU_ONLY;
+	rectangleConfig_.mapMode = BUFFER_MAP_DISABLED;
 	rectangleConfig_.isNormalRequired = false;
 	rectangleConfig_.isTexcoRequired = false;
 	rectangleConfig_.isTangentRequired = false;
@@ -26,7 +29,7 @@ Ground::Ground() : SkirtQuad() {
 	u_skirtSize_->setUniformData(0.05f);
 	u_skirtSize_->setSchema(InputSchema::scale());
 
-	groundMaterial_ = ref_ptr<Material>::alloc();
+	groundMaterial_ = ref_ptr<Material>::alloc(BufferUpdateFlags::NEVER);
 	joinStates(groundMaterial_);
 	groundShaderDefines_ = ref_ptr<State>::alloc();
 	joinStates(groundShaderDefines_);
@@ -118,19 +121,19 @@ void Ground::updatePatchSize() {
 
 void Ground::updateGroundPatches() {
 	auto numPatches = numPatches_.x * numPatches_.y;
-	auto &tf = modelTransform_->modelOffset();
 	float offsetX = mapCenter_.x - (mapSize_.x / 2.0f);
 	float offsetZ = mapCenter_.z - (mapSize_.z / 2.0f);
 	auto patchHalfSize = patchSize_ / 2.0f;
 	uint32_t tfIndex = 0;
 
-	tf->setInstanceData(numPatches, 1, nullptr);
-	auto *tfData = (Vec4f*)tf->clientData();
+	tf_->set_numInstances(numPatches);
+	tf_->modelOffset()->setInstanceData(numPatches, 1, nullptr);
+	auto tfData = tf_->modelOffset()->mapClientData<Vec4f>(BUFFER_GPU_WRITE);
 	for (uint32_t xIdx=0; xIdx<numPatches_.x; ++xIdx) {
 		for (uint32_t zIdx=0; zIdx<numPatches_.y; ++zIdx) {
 			auto xPos = offsetX + (static_cast<float>(xIdx) * patchSize_) + patchHalfSize;
 			auto zPos = offsetZ + (static_cast<float>(zIdx) * patchSize_) + patchHalfSize;
-			auto &patchTF = tfData[tfIndex++];
+			auto &patchTF = tfData.w[tfIndex++];
 			patchTF.x = xPos;
 			patchTF.y = mapCenter_.y - mapSize_.y * 0.5f;
 			patchTF.z = zPos;
@@ -142,8 +145,8 @@ void Ground::updateAttributes() {
 	Rectangle::updateAttributes();
 	updateGroundPatches();
 	// update bounding box
-	auto minPos = rectangleConfig_.translation;
-	auto maxPos = rectangleConfig_.translation;
+	Vec3f minPos = rectangleConfig_.translation;
+	Vec3f maxPos = rectangleConfig_.translation;
 	minPos.x -= patchSize_ * 0.5f;
 	minPos.z -= patchSize_ * 0.5f;
 	maxPos.x += patchSize_ * 0.5f;
@@ -156,9 +159,9 @@ void Ground::updateAttributes() {
 
 void Ground::createResources() {
 	u_skirtSize_->setVertex(0, skirtSize_);
-	joinShaderInput(u_mapCenter_);
-	joinShaderInput(u_skirtSize_);
-	joinShaderInput(u_mapSize_);
+	setInput(u_mapCenter_);
+	setInput(u_skirtSize_);
+	setInput(u_mapSize_);
 
 	updateMaterialMaps();
 	createWeightPass();
@@ -330,9 +333,9 @@ void Ground::createWeightPass() {
 	weightUpdateState_->joinStates(weightFBO_);
 
 	// bind ground parameter for size information
-	weightUpdateState_->joinShaderInput(u_mapCenter_);
-	weightUpdateState_->joinShaderInput(u_skirtSize_);
-	weightUpdateState_->joinShaderInput(u_mapSize_);
+	weightUpdateState_->setInput(u_mapCenter_);
+	weightUpdateState_->setInput(u_skirtSize_);
+	weightUpdateState_->setInput(u_mapSize_);
 	// bind material masks
 	if (materialMaskState_.get()) {
 		weightUpdateState_->joinStates(materialMaskState_);
@@ -452,11 +455,12 @@ ref_ptr<Ground> Ground::load(LoadingContext &ctx, scene::SceneInputNode &input) 
 	ground->setMapTextures(heightMap, normalMap);
 
 	auto tfName = input.getValue("tf");
-	auto modelTransform = ref_ptr<ModelTransformation>::alloc(ModelTransformation::TF_OFFSET);
+	auto modelTransform = ref_ptr<ModelTransformation>::alloc(
+		ModelTransformation::TF_OFFSET, BufferUpdateFlags::NEVER);
 	scene->putResource<ModelTransformation>(tfName, modelTransform);
 	ground->setModelTransform(modelTransform);
 	ground->updateAttributes();
-	modelTransform->bufferContainer()->updateBuffer();
+	modelTransform->tfBuffer()->updateBuffer();
 
 	ground->createResources();
 	ground->updateWeightMaps();

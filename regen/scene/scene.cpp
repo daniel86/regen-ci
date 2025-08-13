@@ -1,10 +1,14 @@
 #include <GL/glew.h>
-#include <regen/gl-types/glsl/includer.h>
+#include "regen/glsl/includer.h"
 #include <regen/config.h>
 #include <regen/gl-types/gl-param.h>
-#include <regen/gl-types/binding-manager.h>
+#include <regen/buffer/binding-manager.h>
+#include <regen/textures/texture-binder.h>
 #include "scene.h"
 #include "regen/animations/animation-manager.h"
+#include "regen/states/light-pass.h"
+
+//#define REGEN_ENABLE_GL_DEBUG_OUTPUT
 
 using namespace regen;
 
@@ -19,15 +23,14 @@ uint32_t Scene::MOUSE_LEAVE_EVENT =
 uint32_t Scene::RESIZE_EVENT =
 		EventObject::registerEvent("resize-event");
 
-Scene::Scene(const int &argc, const char **argv)
+Scene::Scene(const int& /*argc*/, const char** /*argv*/)
 		: EventObject(),
 		  renderTree_(ref_ptr<RootNode>::alloc()),
 		  renderState_(nullptr),
 		  isGLInitialized_(GL_FALSE),
 		  isTimeInitialized_(GL_FALSE),
 		  isVSyncEnabled_(GL_TRUE) {
-	windowViewport_ = ref_ptr<ShaderInput2i>::alloc("windowViewport");
-	windowViewport_->setUniformData(Vec2i(2, 2));
+	screen_ = ref_ptr<Screen>::alloc(Vec2i(2, 2));
 
 	mousePosition_ = ref_ptr<ShaderInput2f>::alloc("mousePosition");
 	mousePosition_->setUniformData(Vec2f(0.0f));
@@ -65,6 +68,7 @@ Scene::Scene(const int &argc, const char **argv)
 	optionalExt_.emplace_back("GL_ARB_seamless_cube_map");
 	optionalExt_.emplace_back("GL_ARB_tessellation_shader");
 	optionalExt_.emplace_back("GL_ARB_texture_buffer_range");
+	optionalExt_.emplace_back("GL_ARB_shader_viewport_layer_array");
 }
 
 void Scene::addShaderPath(const std::string &path) {
@@ -123,7 +127,7 @@ ref_ptr<ShaderInput1i> Scene::isMouseEntered() const {
 
 void Scene::updateMousePosition() {
 	auto mousePosition = mousePosition_->getVertex(0);
-	auto viewport = windowViewport_->getVertex(0);
+	auto viewport = screen_->viewport();
 	// mouse position in range [0,1] within viewport
 	mouseTexco_->setVertex(0, Vec2f(
 			mousePosition.r.x / (GLfloat) viewport.r.x,
@@ -133,8 +137,12 @@ void Scene::updateMousePosition() {
 void Scene::mouseMove(const Vec2i &pos) {
 	boost::posix_time::ptime time(
 			boost::posix_time::microsec_clock::local_time());
-	GLint dx = pos.x - mousePosition_->getVertex(0).r.x;
-	GLint dy = pos.y - mousePosition_->getVertex(0).r.y;
+	int dx, dy;
+	{
+		auto mouse_m = mousePosition_->getVertex(0);
+		dx = pos.x - static_cast<int>(mouse_m.r.x);
+		dy = pos.y - static_cast<int>(mouse_m.r.y);
+	}
 	mousePosition_->setVertex(0, Vec2f(pos.x, pos.y));
 	updateMousePosition();
 
@@ -177,10 +185,24 @@ void Scene::keyDown(const KeyEvent &ev) {
 }
 
 void Scene::resizeGL(const Vec2i &size) {
-	windowViewport_->setVertex(0, size);
+	screen_->setViewport(size);
 	queueEmit(RESIZE_EVENT);
 	updateMousePosition();
 }
+
+#ifdef REGEN_ENABLE_GL_DEBUG_OUTPUT
+void GLAPIENTRY openglDebugCallback(
+    GLenum source,
+    GLenum type,
+    GLuint id,
+    GLenum severity,
+    GLsizei length,
+    const GLchar *message,
+    const void *userParam)
+{
+    REGEN_WARN("GL DEBUG: " << message);
+}
+#endif
 
 void Scene::initGL() {
 	GLenum err = glewInit();
@@ -229,8 +251,10 @@ void Scene::initGL() {
 #endif
 	REGEN_DEBUG("MAX_UNIFORM_BLOCK_SIZE: " << glParam<int>(GL_MAX_UNIFORM_BLOCK_SIZE));
 	REGEN_DEBUG("MAX_UNIFORM_BUFFER_BINDINGS: " << glParam<int>(GL_MAX_UNIFORM_BUFFER_BINDINGS));
+	REGEN_DEBUG("UNIFORM_BUFFER_OFFSET_ALIGNMENT: " << glParam<int>(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT));
 	REGEN_DEBUG("MAX_SHADER_STORAGE_BLOCK_SIZE: " << glParam<int>(GL_MAX_SHADER_STORAGE_BLOCK_SIZE));
 	REGEN_DEBUG("MAX_SHADER_STORAGE_BUFFER_BINDINGS: " << glParam<int>(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS));
+	REGEN_DEBUG("SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT: " << glParam<int>(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT));
 	REGEN_DEBUG("MAX_VERTEX_ATTRIBS: " << glParam<int>(GL_MAX_VERTEX_ATTRIBS));
 	REGEN_DEBUG("MAX_VIEWPORTS: " << glParam<int>(GL_MAX_VIEWPORTS));
 #ifdef GL_ARB_texture_buffer_range
@@ -243,12 +267,14 @@ void Scene::initGL() {
 	REGEN_DEBUG("MIN_MAP_BUFFER_ALIGNMENT: " << glParam<int>(GL_MIN_MAP_BUFFER_ALIGNMENT));
 #undef DEBUG_GLi
 
-	setupShaderLoading();
+#ifdef REGEN_ENABLE_GL_DEBUG_OUTPUT
+	glEnable(GL_DEBUG_OUTPUT);
+	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+	glDebugMessageCallback(openglDebugCallback, NULL);
+	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+#endif
 
-	// set some configuration options
-	// TODO: check if it make a different e.g. to use alignment of page size 4096 bytes.
-	//BufferMapping::setMinMapAlignment(4096);
-	BufferMapping::setMinMapAlignment(64);
+	setupShaderLoading();
 
 	BufferObject::createMemoryPools();
 	renderTree_->init();
@@ -256,16 +282,18 @@ void Scene::initGL() {
 	isGLInitialized_ = GL_TRUE;
 	REGEN_INFO("GL initialized.");
 
-	globalUniforms_ = ref_ptr<UBO>::alloc("GlobalUniforms");
-	globalUniforms_->addBlockInput(windowViewport_);
-	globalUniforms_->addBlockInput(mousePosition_);
-	globalUniforms_->addBlockInput(mouseTexco_);
-	globalUniforms_->addBlockInput(mouseDepth_);
-	globalUniforms_->addBlockInput(timeSeconds_);
-	globalUniforms_->addBlockInput(timeDelta_);
-	globalUniforms_->addBlockInput(worldTime_.in);
-	globalUniforms_->addBlockInput(isMouseEntered_);
-	renderTree_->state()->joinShaderInput(globalUniforms_);
+	globalUniforms_ = ref_ptr<UBO>::alloc("GlobalUniforms", BufferUpdateFlags::FULL_PER_FRAME);
+	globalUniforms_->addStagedInput(mousePosition_);
+	globalUniforms_->addStagedInput(mouseTexco_);
+	globalUniforms_->addStagedInput(mouseDepth_);
+	globalUniforms_->addStagedInput(isMouseEntered_);
+	globalUniforms_->addStagedInput(worldTime_.in);
+	globalUniforms_->addStagedInput(timeSeconds_);
+	globalUniforms_->addStagedInput(timeDelta_);
+	renderTree_->state()->setInput(globalUniforms_);
+	// Note: don't add to the UBO as it might use ring buffer causing
+	// the viewport values to change with a delay of a few frames.
+	renderTree_->state()->setInput(screen_->sh_viewport());
 }
 
 void Scene::setTime() {
@@ -276,12 +304,15 @@ void Scene::setTime() {
 }
 
 void Scene::clear() {
+	disconnectAll();
 	renderTree_->clear();
 	namedToObject_.clear();
 	idToObject_.clear();
 	isTimeInitialized_ = GL_FALSE;
+	StagingSystem::instance().clear();
 	RenderState::reset();
 	BindingManager::clear();
+	TextureBinder::reset();
 }
 
 void Scene::registerInteraction(const std::string &name, const ref_ptr<SceneInteraction> &interaction) {
@@ -346,12 +377,80 @@ void Scene::setWorldTime(float timeInSeconds) {
 	worldTime_.p_time = boost::posix_time::from_time_t((time_t) timeInSeconds);
 }
 
+void Scene::updateBOs() {
+	std::stack<const StateNode*> nodeQueue;
+	std::stack<const State*> stateQueue;
+	std::set<const ShaderInput*> visited;
+	nodeQueue.push(renderTree_.get());
+
+	for (auto &anim : AnimationManager::get().graphicsAnimations()) {
+		if(anim->animationState().get() != nullptr)
+			stateQueue.push(anim->animationState().get());
+	}
+
+	while (!nodeQueue.empty()) {
+		const StateNode *node = nodeQueue.top();
+		nodeQueue.pop();
+		stateQueue.push(node->state().get());
+
+		// push node children to the queue
+		for (const auto &child: node->childs()) {
+			nodeQueue.push(child.get());
+		}
+
+		// process state of node
+		while (!stateQueue.empty()) {
+			const State *state = stateQueue.top();
+			stateQueue.pop();
+
+			const auto *lp = dynamic_cast<const LightPass*>(state);
+			if (lp) {
+				for (const auto &light: lp->lights()) {
+					stateQueue.push(light.light.get());
+				}
+			}
+
+			for (const auto &ni: state->inputs()) {
+				auto input = ni.in_;
+				if (visited.find(input.get()) != visited.end()) {
+					continue; // already processed
+				}
+				visited.insert(input.get());
+
+				ref_ptr<BufferBlock> bufferBlock = ref_ptr<BufferBlock>::dynamicCast(input);
+				if (bufferBlock.get() && bufferBlock->stagingUpdateHint().frequency <= BUFFER_UPDATE_PER_FRAME) {
+					bufferBlock->update();
+				}
+			}
+
+			for (const auto &joined: state->joined()) {
+				stateQueue.push(joined.get());
+			}
+		}
+	}
+}
+
+void Scene::initializeScene() {
+	// traverse the scene and add buffer objects to staging arenas.
+	updateBOs();
+	// adopt buffer ranges for staging
+	StagingSystem::instance().updateBuffers();
+	StagingSystem::instance().updateData();
+}
+
 void Scene::drawGL() {
-	renderTree_->render(timeDelta_->getVertex(0).r);
+	// update staging arenas (up to per-frame frequency)
+	float dt_ms = timeDelta_->getVertex(0).r;
+	StagingSystem::instance().updateData(dt_ms);
+	renderTree_->render(dt_ms);
 }
 
 void Scene::updateGL() {
-	renderTree_->postRender(timeDelta_->getVertex(0).r);
+	// Note: make sure to bind to local variable here. When using
+	// `timeDelta_->getVertex(0).r` as argument, then maybe the lock is not lifted
+	// before postRender starts blocking until scene loading is done.
+	float dt_ms = timeDelta_->getVertex(0).r;
+	renderTree_->postRender(static_cast<double>(dt_ms));
 }
 
 void Scene::flushGL() {

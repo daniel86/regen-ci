@@ -16,33 +16,32 @@ ref_ptr<Rectangle> Rectangle::getUnitQuad() {
 		cfg.rotation = Vec3f(0.5 * M_PI, 0.0f, 0.0f);
 		cfg.texcoScale = Vec2f(1.0);
 		cfg.translation = Vec3f(-1.0f, -1.0f, 0.0f);
-		cfg.usage = BUFFER_USAGE_STATIC_DRAW;
 		mesh = ref_ptr<Rectangle>::alloc(cfg);
 		mesh->updateAttributes();
-		return mesh;
-	} else {
-		return ref_ptr<Rectangle>::alloc(mesh);
 	}
+	return ref_ptr<Rectangle>::alloc(mesh);
 }
 
 Rectangle::Rectangle(const Config &cfg)
-		: Mesh(GL_TRIANGLES, cfg.usage),
+		: Mesh(GL_TRIANGLES, cfg.updateHint),
 		  rectangleConfig_(cfg) {
 	pos_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	nor_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_NOR);
 	texco_ = ref_ptr<ShaderInput2f>::alloc("texco0");
 	tan_ = ref_ptr<ShaderInput4f>::alloc(ATTRIBUTE_NAME_TAN);
 	indices_ = ref_ptr<ShaderInput1ui>::alloc("i");
+	setBufferMapMode(cfg.mapMode);
+	setClientAccessMode(cfg.accessMode);
 }
 
 Rectangle::Rectangle(const ref_ptr<Rectangle> &other)
 		: Mesh(other),
 		  rectangleConfig_(other->rectangleConfig_) {
-	pos_ = ref_ptr<ShaderInput3f>::dynamicCast(inputContainer_->getInput(ATTRIBUTE_NAME_POS));
-	nor_ = ref_ptr<ShaderInput3f>::dynamicCast(inputContainer_->getInput(ATTRIBUTE_NAME_NOR));
-	texco_ = ref_ptr<ShaderInput2f>::dynamicCast(inputContainer_->getInput("texco0"));
-	tan_ = ref_ptr<ShaderInput4f>::dynamicCast(inputContainer_->getInput(ATTRIBUTE_NAME_TAN));
-	indices_ = ref_ptr<ShaderInput1ui>::dynamicCast(inputContainer_->getInput("i"));
+	pos_ = ref_ptr<ShaderInput3f>::dynamicCast(getInput(ATTRIBUTE_NAME_POS));
+	nor_ = ref_ptr<ShaderInput3f>::dynamicCast(getInput(ATTRIBUTE_NAME_NOR));
+	texco_ = ref_ptr<ShaderInput2f>::dynamicCast(getInput("texco0"));
+	tan_ = ref_ptr<ShaderInput4f>::dynamicCast(getInput(ATTRIBUTE_NAME_TAN));
+	indices_ = ref_ptr<ShaderInput1ui>::dynamicCast(getInput("i"));
 }
 
 Rectangle::Config::Config()
@@ -54,8 +53,7 @@ Rectangle::Config::Config()
 		  isNormalRequired(GL_TRUE),
 		  isTexcoRequired(GL_TRUE),
 		  isTangentRequired(GL_FALSE),
-		  centerAtOrigin(GL_FALSE),
-		  usage(BUFFER_USAGE_DYNAMIC_DRAW) {
+		  centerAtOrigin(GL_FALSE) {
 }
 
 void Rectangle::generateLODLevel(const Config &cfg,
@@ -64,23 +62,20 @@ void Rectangle::generateLODLevel(const Config &cfg,
 								 GLuint vertexOffset,
 								 GLuint indexOffset) {
 	// map client data for writing
-	auto indices = indices_->mapClientData<GLuint>(ShaderData::WRITE);
-	auto v_pos = pos_->mapClientData<Vec3f>(ShaderData::WRITE);
+	auto indices = (GLuint*)indices_->clientBuffer()->clientData(0);
+	auto v_pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
 	auto v_nor = (cfg.isNormalRequired ?
-		nor_->mapClientData<Vec3f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec3f>::nullData());
+				  (Vec3f*) nor_->clientBuffer()->clientData(0) : nullptr);
 	auto v_tan = (cfg.isTangentRequired ?
-		tan_->mapClientData<Vec4f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec4f>::nullData());
+				  (Vec4f*) tan_->clientBuffer()->clientData(0) : nullptr);
 	auto v_texco = (cfg.isTexcoRequired ?
-		texco_->mapClientData<Vec2f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec2f>::nullData());
+					(Vec2f*) texco_->clientBuffer()->clientData(0) : nullptr);
 
 	GLuint nextIndex = indexOffset;
 	for (auto &tessFace: tessellation.outputFaces) {
-		indices.w[nextIndex++] = vertexOffset + tessFace.v1;
-		indices.w[nextIndex++] = vertexOffset + tessFace.v2;
-		indices.w[nextIndex++] = vertexOffset + tessFace.v3;
+		indices[nextIndex++] = vertexOffset + tessFace.v1;
+		indices[nextIndex++] = vertexOffset + tessFace.v2;
+		indices[nextIndex++] = vertexOffset + tessFace.v3;
 	}
 
 	GLuint triIndices[3];
@@ -105,18 +100,18 @@ void Rectangle::generateLODLevel(const Config &cfg,
 
 			Vec3f pos = rotMat.transformVector(
 					cfg.posScale * vertex + startPos) + cfg.translation;
-			v_pos.w[vertexIndex] = pos;
+			v_pos[vertexIndex] = pos;
 			minPosition_.setMin(pos);
 			maxPosition_.setMax(pos);
 			if (cfg.isNormalRequired) {
-				v_nor.w[vertexIndex] = normal;
+				v_nor[vertexIndex] = normal;
 			}
 			if (cfg.isTexcoRequired) {
-				v_texco.w[vertexIndex] = cfg.texcoScale - (cfg.texcoScale * Vec2f(vertex.x, vertex.z));
+				v_texco[vertexIndex] = cfg.texcoScale - (cfg.texcoScale * Vec2f(vertex.x, vertex.z));
 			}
 			if (cfg.isTangentRequired) {
-				triVertices[faceVertIndex] = v_pos.w[vertexIndex];
-				triTexco[faceVertIndex] = v_texco.w[vertexIndex];
+				triVertices[faceVertIndex] = v_pos[vertexIndex];
+				triTexco[faceVertIndex] = v_texco[vertexIndex];
 			}
 			faceVertIndex += 1;
 		}
@@ -124,7 +119,7 @@ void Rectangle::generateLODLevel(const Config &cfg,
 		if (cfg.isTangentRequired) {
 			Vec4f tangent = calculateTangent(triVertices, triTexco, normal);
 			for (GLuint i = 0; i < 3; ++i) {
-				v_tan.w[triIndices[i]] = tangent;
+				v_tan[triIndices[i]] = tangent;
 			}
 		}
 	}
@@ -197,7 +192,7 @@ void Rectangle::updateAttributes() {
 						 meshLODs_[i].d->indexOffset);
 	}
 
-	begin(InputContainer::INTERLEAVED);
+	begin(INTERLEAVED);
 	auto indexRef = setIndices(indices_, numVertices);
 	setInput(pos_);
 	if (rectangleConfig_.isNormalRequired)

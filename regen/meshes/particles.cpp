@@ -1,10 +1,3 @@
-/*
- * particles.cpp
- *
- *  Created on: 03.11.2012
- *      Author: daniel
- */
-
 #include <regen/utility/string-util.h>
 #include <regen/states/blend-state.h>
 #include <regen/states/depth-state.h>
@@ -18,13 +11,15 @@ using namespace regen;
 ///////////
 
 Particles::Particles(GLuint numParticles, const std::string &updateShaderKey)
-		: Mesh(GL_POINTS, BUFFER_USAGE_STREAM_DRAW),
+		: Mesh(GL_POINTS, BufferUpdateFlags::NEVER),
 		  Animation(true, false),
 		  updateShaderKey_(updateShaderKey),
 		  maxEmits_(100u) {
 	setAnimationName("particles");
-	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, BUFFER_USAGE_STREAM_DRAW);
-	inputContainer_->set_numVertices(numParticles);
+	setClientAccessMode(BUFFER_CPU_WRITE);
+	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, BufferUpdateFlags::FULL_PER_FRAME);
+	feedbackBuffer_->setClientAccessMode(BUFFER_GPU_ONLY);
+	set_numVertices(numParticles);
 	updateState_ = ref_ptr<ShaderState>::alloc();
 	numParticles_ = numParticles;
 	// create an atomic counter for computing the bounding box
@@ -32,13 +27,13 @@ Particles::Particles(GLuint numParticles, const std::string &updateShaderKey)
 }
 
 void Particles::begin() {
-	begin(InputContainer::INTERLEAVED);
+	Particles::begin(INTERLEAVED);
 }
 
-void Particles::begin(InputContainer::DataLayout layout) {
-	HasInput::begin(layout);
+void Particles::begin(DataLayout layout) {
+	Mesh::begin(layout);
 
-	GLuint numParticles = inputContainer()->numVertices();
+	GLuint numParticles = numVertices();
 
 	// Initialize the random number generator and distribution
 	std::random_device rd;
@@ -64,10 +59,8 @@ void Particles::begin(InputContainer::DataLayout layout) {
 }
 
 ref_ptr<BufferReference> Particles::end() {
-	ShaderInputList particleInputs = inputContainer()->uploadInputs();
-
-	particleRef_ = HasInput::end();
-	feedbackRef_ = feedbackBuffer_->allocBytes(particleRef_->allocatedSize());
+	particleRef_ = Mesh::end();
+	feedbackRef_ = feedbackBuffer_->adoptBufferRange(particleRef_->allocatedSize());
 	if (feedbackRef_.get() == nullptr) {
 		REGEN_WARN("Unable to allocate VBO for particles. Particles will not work.");
 		return particleRef_;
@@ -76,7 +69,7 @@ ref_ptr<BufferReference> Particles::end() {
 
 	// Create shader defines.
 	GLuint counter = 0;
-	for (auto it = particleInputs.begin(); it != particleInputs.end(); ++it) {
+	for (auto it = inputs().begin(); it != inputs().end(); ++it) {
 		if (!it->in_->isVertexAttribute()) continue;
 		shaderDefine(
 				REGEN_STRING("PARTICLE_ATTRIBUTE" << counter << "_TYPE"),
@@ -91,9 +84,9 @@ ref_ptr<BufferReference> Particles::end() {
 		REGEN_DEBUG("Particle attribute '" << it->in_->name() << "' added.");
 	}
 	shaderDefine("NUM_PARTICLE_ATTRIBUTES", REGEN_STRING(counter));
-	createUpdateShader(particleInputs);
+	createUpdateShader();
 
-	for (auto &particleInput: particleInputs) {
+	for (auto &particleInput: inputs()) {
 		const ref_ptr<ShaderInput> in = particleInput.in_;
 		if (!in->isVertexAttribute()) continue;
 		GLint loc = updateState_->shader()->attributeLocation(particleInput.in_->name());
@@ -101,7 +94,7 @@ ref_ptr<BufferReference> Particles::end() {
 		particleAttributes_.emplace_back(in, loc);
 	}
 	// start with zero emitted particles
-	//inputContainer_->set_numVertices(0);
+	//set_numVertices(0);
 
 	return particleRef_;
 }
@@ -246,14 +239,14 @@ void Particles::configureAdvancing(
 	}
 }
 
-void Particles::createUpdateShader(const ShaderInputList &inputs) {
+void Particles::createUpdateShader() {
 	StateConfigurer shaderConfigurer;
 	shaderConfigurer.addState(animationState_.get());
 	shaderConfigurer.addState(this);
 
 	StateConfig &shaderCfg = shaderConfigurer.cfg();
 	shaderCfg.feedbackAttributes_.clear();
-	for (const auto &input: inputs) {
+	for (const auto &input: inputs()) {
 		if (!input.in_->isVertexAttribute()) continue;
 		shaderCfg.feedbackAttributes_.push_back(input.in_->name());
 	}
@@ -286,16 +279,16 @@ void Particles::glAnimate(RenderState *rs, GLdouble dt) {
 
 	/*
 	// only emit a limited number of particles per frame
-	if (inputContainer_->numVertices() < numParticles_) {
-		GLuint nextNumParticles = inputContainer_->numVertices() + maxEmits_;
+	if (numVertices_ < numParticles_) {
+		GLuint nextNumParticles = numVertices_ + maxEmits_;
 		if (nextNumParticles > numParticles_) {
-			inputContainer_->set_numVertices(numParticles_);
+			set_numVertices(numParticles_);
 		} else {
-			inputContainer_->set_numVertices(nextNumParticles);
+			set_numVertices(nextNumParticles);
 		}
 	}
 	*/
-	glDrawArrays(primitive_, 0, inputContainer_->numVertices());
+	glDrawArrays(primitive_, 0, numVertices());
 
 	rs->endTransformFeedback();
 	rs->feedbackBufferRange().pop(0);
@@ -323,8 +316,6 @@ void Particles::glAnimate(RenderState *rs, GLdouble dt) {
 	// Read atomic counter to get the bounding box of the particles
 	//auto bounds = boundingBoxCounter_->updateBounds();
 	//set_bounds(bounds.min, bounds.max);
-
-	GL_ERROR_LOG();
 }
 
 namespace regen {

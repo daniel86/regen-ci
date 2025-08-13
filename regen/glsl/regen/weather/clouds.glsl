@@ -70,71 +70,29 @@ float T(sampler2D tex, vec3 stu) {
 #include regen.models.mesh.defines
 
 in vec3 in_pos;
-#if RENDER_LAYER <= 1
 out vec4 out_ray;
+#ifdef VS_LAYER_SELECTION
+flat out int out_layer;
 #endif
 
+#include regen.layered.VS_SelectLayer
 #include regen.states.camera.input
 
 void main() {
     vec4 p = vec4(in_pos.xy, 0.0, 1.0);
-    gl_Position = p;
-#if RENDER_LAYER <= 1
     out_ray = (in_inverseProjectionMatrix * p) * in_viewMatrix;
-#endif
+    VS_SelectLayer(regen_RenderLayer());
+    gl_Position = p;
 }
 
 -- cloud-layer.gs
-#include regen.states.camera.defines
-#include regen.defines.all
-#if RENDER_LAYER > 1
-#define2 __MAX_VERTICES__ ${${RENDER_LAYER}*3}
-
-layout(triangles) in;
-layout(triangle_strip, max_vertices=${__MAX_VERTICES__}) out;
-
-out vec4 out_ray;
-flat out int out_layer;
-
-#include regen.states.camera.input
-#include regen.states.camera.transformWorldToEye
-#include regen.states.camera.transformEyeToScreen
-#include regen.states.camera.transformScreenToEye
-
-#define HANDLE_IO(i)
-
-void emitVertex(vec4 posWorld, int index, int layer) {
-  vec4 pw = vec4(posWorld.xy,0.0,1.0);
-  vec3 s = transformScreenToEye(pw,layer);
-  out_ray = vec4(s,0.0) * REGEN_VIEW_(layer);
-  out_ray = normalize(out_ray);
-  gl_Position = posWorld;
-  HANDLE_IO(index);
-  EmitVertex();
-}
-
-void main() {
-#for LAYER to ${RENDER_LAYER}
-#ifndef SKIP_LAYER${LAYER}
-  // select framebuffer layer
-  gl_Layer = ${LAYER};
-  out_layer = ${LAYER};
-  emitVertex(gl_in[0].gl_Position, 0, ${LAYER});
-  emitVertex(gl_in[1].gl_Position, 1, ${LAYER});
-  emitVertex(gl_in[2].gl_Position, 2, ${LAYER});
-  EndPrimitive();
-#endif // SKIP_LAYER
-#endfor
-}
-#endif
+#include regen.models.mesh.gs
 
 -- cloud-layer.fs
 out vec4 out_color;
 in vec4 in_ray;
 
 uniform sampler2D in_cloudTexture;
-
-uniform vec3 in_sunPosition;
 
 const float in_altitude = 2.0;
 const float in_offset = -0.5;
@@ -226,11 +184,11 @@ void main() {
     layerIntersection(eye, o, in_altitude, t);
 
 #ifdef USE_SCATTER
-    vec2 sd = scatter(eye, normalize(in_sunPosition));
+    vec2 sd = scatter(eye, normalize(in_lightDirection_Sun.xyz));
     sd.y *= (1.0 - pow(t, 0.8) * 12e-3);
     out_color = vec4(mix(in_tcolor, in_bcolor, sd.x) * (1 - sd.x), sd.y);
 #else
-    float sunFactor = smoothstep(-0.1, 0.1, in_sunPosition.y);
+    float sunFactor = smoothstep(-0.1, 0.1, in_lightDirection_Sun.y);
     vec3 cloudColor = mix(vec3(0.4,0.3,0.3), in_color, sunFactor);
     out_color = vec4(cloudColor, T(in_cloudTexture, o + t * eye));
 #endif

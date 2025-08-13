@@ -5,7 +5,7 @@
 #include <regen/shapes/bounds.h>
 #include <regen/meshes/mesh-vector.h>
 #include <regen/textures/texture.h>
-#include "regen/states/fbo-state.h"
+#include "regen/textures/fbo-state.h"
 #include "regen/camera/array-camera.h"
 
 namespace regen {
@@ -220,6 +220,10 @@ namespace regen {
 		ref_ptr<Texture2DArray> snapshotNormal_;
 		ref_ptr<Texture2DArrayDepth> snapshotDepth_;
 		bool useAlbedoMips_ = true;
+
+		Vec4f *m_viewDir_ = nullptr;
+		Vec4f *m_viewBounds_ = nullptr;
+		Vec2f *m_viewDepth_ = nullptr;
 
 		void updateAttributes();
 

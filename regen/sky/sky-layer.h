@@ -4,7 +4,7 @@
 #include <regen/meshes/mesh-state.h>
 #include <regen/states/state.h>
 #include <regen/states/state-node.h>
-#include <regen/states/shader-state.h>
+#include "regen/glsl/shader-state.h"
 
 namespace regen {
 	class Sky;
@@ -22,6 +22,8 @@ namespace regen {
 		virtual GLdouble updateInterval() const { return updateInterval_; }
 
 		virtual void updateSkyLayer(RenderState *rs, GLdouble dt) {}
+
+		bool advanceTime(double dt);
 
 		virtual void createUpdateShader() {}
 

@@ -6,11 +6,10 @@
 #include <regen/states/state.h>
 #include <regen/states/state-config.h>
 #include <regen/states/feedback-state.h>
-#include <regen/gl-types/input-container.h>
-#include <regen/gl-types/vbo.h>
+#include <regen/buffer/vbo.h>
 #include <regen/gl-types/vao.h>
-#include <regen/gl-types/ssbo.h>
-#include <regen/gl-types/shader.h>
+#include <regen/buffer/ssbo.h>
+#include "regen/glsl/shader.h"
 #include <regen/animations/animation.h>
 #include "regen/physics/physical-object.h"
 #include "regen/states/state-node.h"
@@ -26,9 +25,17 @@ namespace regen {
 	 * When this State is enabled the actual draw call is done. Make sure to setup shader
 	 * and server side states before.
 	 */
-	class Mesh : public State, public HasInput {
+	class Mesh : public State {
 	public:
 		static constexpr const char *TYPE_NAME = "Mesh";
+
+		/**
+		 * \brief Vertex array data layout.
+		 */
+		enum DataLayout {
+			INTERLEAVED,
+			SEQUENTIAL
+		};
 
 		/**
 		 * \brief A mesh level of detail (LOD) description.
@@ -41,6 +48,7 @@ namespace regen {
 				uint32_t numVertices = 0;
 				uint32_t vertexOffset = 0;
 				uint32_t numIndices = 0;
+				// offset into the index buffer for this LOD, in bytes.
 				uint32_t indexOffset = 0;
 				// current number of visible instances for this LOD.
 				uint32_t numVisibleInstances = 0;
@@ -68,10 +76,10 @@ namespace regen {
 			}
 			explicit MeshLOD(const ref_ptr<Mesh> &mesh)
 					: impostorMesh(mesh) {
-				d->numVertices = mesh->inputContainer()->numVertices();
-				d->vertexOffset = mesh->inputContainer()->vertexOffset();
-				d->numIndices = mesh->inputContainer()->numIndices();
-				d->indexOffset = mesh->inputContainer()->indexOffset();
+				d->numVertices = mesh->numVertices();
+				d->vertexOffset = mesh->vertexOffset();
+				d->numIndices = mesh->numIndices();
+				d->indexOffset = mesh->indexOffset();
 				d->numVisibleInstances = 0;
 				d->instanceOffset = 0;
 			}
@@ -106,9 +114,31 @@ namespace regen {
 		 * @param primitive Specifies what kind of primitives to render.
 		 * @param usage VBO usage.
 		 */
-		Mesh(GLenum primitive, BufferUsage usage);
+		Mesh(GLenum primitive, const BufferUpdateFlags &hints);
 
 		~Mesh() override;
+
+		/**
+		 * Set the mapping mode for the vertex buffer.
+		 * Note that mapping will not be possible if the buffer when
+		 * map mode is set to BUFFER_MAP_DISABLED.
+		 * @param mode the mapping mode to set.
+		 */
+		void setBufferMapMode(BufferMapMode mode);
+
+		/**
+		 * Set the access mode for the vertex buffer.
+		 * This will determine how the buffer can be accessed by the CPU and GPU.
+		 * Note that GPU_ONLY buffers cannot be modified at all by the CPU,
+		 * no copying or mapping is possible!
+		 * @param mode the access mode to set.
+		 */
+		void setClientAccessMode(ClientAccessMode mode);
+
+		/**
+		 * @return VBO that manages the vertex array data.
+		 */
+		const ref_ptr<VBO> &meshBuffer() const { return meshBuffer_; }
 
 		/**
 		 * @param out Set of meshes using the ShaderInputcontainer of this mesh
@@ -135,6 +165,137 @@ namespace regen {
 		 * @return true if this mesh has a shader key.
 		 */
 		bool hasShaderKey() const { return !shaderKey_.empty() || !shaderStageKeys_.empty(); }
+
+		/**
+		 * Begin recording ShaderInput's.
+		 * @param layout Start recording added inputs.
+		 */
+		void begin(DataLayout layout);
+
+		/**
+		 * Finish previous call to begin(). All recorded inputs are
+		 * uploaded to VBO memory.
+		 */
+		ref_ptr<BufferReference> end();
+
+		/**
+		 * @return Specifies the number of vertices to be rendered.
+		 */
+		void set_vertexOffset(int32_t v);
+
+		/**
+		 * @return Specifies the number of vertices to be rendered.
+		 */
+		int32_t vertexOffset() const;
+
+		/**
+		 * @return Base instance for instanced rendering.
+		 */
+		uint32_t baseInstance() const;
+
+		/**
+		 * @param v Base instance for instanced rendering.
+		 */
+		void set_baseInstance(uint32_t v);
+
+		/**
+		 * @return Number of visible instances of added input data.
+		 */
+		int32_t numVisibleInstances() const;
+
+		/**
+		 * @param v Specifies the number of instances to be rendered.
+		 */
+		void set_numVisibleInstances(int32_t v);
+
+		/**
+		 * Sets the index attribute.
+		 * @param indices the index attribute.
+		 * @param maxIndex maximal index in the index array.
+		 */
+		ref_ptr<BufferReference> setIndices(const ref_ptr<ShaderInput> &indices, uint32_t maxIndex);
+
+		/**
+		 * @return Specifies the offset to the index buffer in bytes.
+		 */
+		void set_indexOffset(uint32_t v);
+
+		/**
+		 * @return Specifies the number of indices to be rendered.
+		 */
+		void set_numIndices(int32_t v);
+
+		/**
+		 * @return number of indices to vertex data.
+		 */
+		int numIndices() const;
+
+		/**
+		 * @return the maximal index in the index buffer.
+		 */
+		uint32_t maxIndex() const;
+
+		/**
+		 * @return the offset to the index buffer in bytes.
+		 */
+		uint32_t indexOffset() const;
+
+		/**
+		 * @return indexes to the vertex data of this primitive set.
+		 */
+		const ref_ptr<ShaderInput> &indices() const;
+
+		/**
+		 * @return index buffer used by this mesh.
+		 */
+		uint32_t indexBuffer() const;
+
+		/**
+		 * Sets the indirect draw buffer.
+		 * @param indirectDrawBuffer the indirect draw buffer.
+		 * @param baseDrawIdx base draw index.
+		 * @param numDrawLayers number of draw layers for each LOD level.
+		 */
+		void setIndirectDrawBuffer(
+					const ref_ptr<SSBO> &indirectDrawBuffer,
+					uint32_t baseDrawIdx,
+					uint32_t numDrawLayers);
+
+		/**
+		 * Create an indirect draw buffer for this mesh.
+		 * This will create a draw command for each LOD level and layer.
+		 * Note that this will switch the draw command such that each mesh draw
+		 * is done numDrawLayers times for each LOD level.
+		 * Usually the LOD system is used to create the indirect draw buffer,
+		 * but for some cases it is convenient to create it manually.
+		 * @param numDrawLayers the number of draw layers for each LOD level.
+		 */
+		void createIndirectDrawBuffer(uint32_t numDrawLayers);
+
+		/**
+		 * @return true if this input container has an index buffer.
+		 */
+		bool hasIndirectDrawBuffer() const { return indirectDrawBuffer_.get() != nullptr; }
+
+		/**
+		 * @return the base draw index in the indirect draw buffer.
+		 */
+		uint32_t baseDrawIndex() const { return baseDrawIdx_; }
+
+		/**
+		 * @return Offset to the indirect draw call in bytes.
+		 */
+		void set_indirectOffset(uint32_t v) { indirectOffset_ = v; }
+
+		/**
+		 * @param v the number of multi draw calls.
+		 */
+		void set_multiDrawCount(int32_t v) { multiDrawCount_ = v; }
+
+		/**
+		 * @return the indirect draw buffer.
+		 */
+		const ref_ptr<SSBO> &indirectDrawBuffer() const { return indirectDrawBuffer_; }
 
 		/**
 		 * Create a shader for this mesh.
@@ -179,6 +340,11 @@ namespace regen {
 		void activateLOD(uint32_t lodLevel);
 
 		/**
+		 * Ensure the mesh has at least one LOD level.
+		 */
+		void ensureLOD();
+
+		/**
 		 * Update the visibility of instances for the given LOD level.
 		 * This will set the number of visible instances and the instance offset
 		 * for the next LOD level.
@@ -187,13 +353,6 @@ namespace regen {
 		 * @param instanceOffset offset into the instance ID map.
 		 */
 		void updateVisibility(uint32_t lodLevel, uint32_t numInstances, uint32_t instanceOffset);
-
-		/**
-		 * Set the indirect draw buffer.
-		 * @param indirectDrawBuffer the indirect draw buffer.
-		 * @param baseDrawIdx base draw index.
-		 */
-		void setIndirectDrawBuffer(const ref_ptr<SSBO> &indirectDrawBuffer, uint32_t baseDrawIdx);
 
 		/**
 		 * Reset visibility of all LODs.
@@ -248,16 +407,17 @@ namespace regen {
 		void set_lodSortMode(SortMode mode) { lodSortMode_ = mode; }
 
 		/**
-		 * @return the active input container.
-		 */
-		const ref_ptr<InputContainer> &activeInputContainer() const;
-
-		/**
 		 * Sets the cull shape for this mesh.
 		 * It holds some state that is used to cull the mesh
 		 * @param cullShape the cull shape to set.
 		 */
 		void setCullShape(const ref_ptr<State> &cullShape);
+
+		/**
+		 * Set the instance buffer for this mesh.
+		 * @param instanceBuffer the instance buffer to set.
+		 */
+		void setInstanceBuffer(const ref_ptr<SSBO> &instanceBuffer);
 
 		/**
 		 * @return the cull shape.
@@ -425,9 +585,76 @@ namespace regen {
 		// override
 		void disable(RenderState *) override;
 
+		/**
+		 * render primitives from array data.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void draw(GLenum primitive) const;
+
+		/**
+		 * render primitives from array data.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawIndexed(GLenum primitive) const;
+
+		/**
+		 * draw multiple instances of a range of elements.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawInstances(GLenum primitive) const;
+
+		/**
+		 * draw multiple instances of a set of elements.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawInstancesIndexed(GLenum primitive) const;
+
+		/**
+		 * draw multiple instances of a range of elements with base instance.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawBaseInstances(GLenum primitive) const;
+
+		/**
+		 * draw multiple instances of a set of elements with base instance.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawBaseInstancesIndexed(GLenum primitive) const;
+
+		/**
+		 * render primitives from array data using indirect draw call.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawIndirect(GLenum primitive) const;
+
+		/**
+		 * render primitives from array data using indirect draw call.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawIndirectIndexed(GLenum primitive) const;
+
+		/**
+		 * render primitives from array data using multi indirect draw call.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawMultiIndirect(GLenum primitive) const;
+
+		/**
+		 * render primitives from array data using multi indexed indirect draw call.
+		 * @param primitive Specifies what kind of primitives to render.
+		 */
+		void drawMultiIndirectIndexed(GLenum primitive) const;
+
 	protected:
 		GLenum primitive_;
+		ref_ptr<VBO> meshBuffer_;
+		DataLayout uploadLayout_ = INTERLEAVED;
 
+		ref_ptr<VAO> vao_;
+		std::list<InputLocation> vaoAttributes_;
+		std::map<int32_t, std::list<InputLocation>::iterator> vaoLocations_;
+
+		ref_ptr<SSBO> instanceBuffer_;
 		std::vector<MeshLOD> meshLODs_;
 		ref_ptr<ShaderInput3f> lodThresholds_;
 		Vec3f v_lodThresholds_;
@@ -441,17 +668,17 @@ namespace regen {
 		ref_ptr<BoundingShape> boundingShape_;
 		int32_t shapeType_ = -1;
 
-		ref_ptr<VAO> vao_;
-		ref_ptr<Shader> meshShader_;
-		std::list<InputLocation> vaoAttributes_;
-		std::map<int32_t, std::list<InputLocation>::iterator> vaoLocations_;
+		// indirect draw buffer data
+		uint32_t baseDrawIdx_ = 0u;
+		uint32_t numDrawLayers_ = 1u;
+		int32_t multiDrawCount_ = 1u;
+		uint32_t indirectOffset_ = 0u;
+		ref_ptr<SSBO> indirectDrawBuffer_;
 		std::vector<int32_t> indirectDrawGroups_;
 
+		ref_ptr<Shader> meshShader_;
 		std::string shaderKey_;
 		std::map<GLenum, std::string> shaderStageKeys_;
-
-		// a state shared among all copies of this mesh.
-		ref_ptr<State> sharedState_;
 
 		ref_ptr<BufferRange> feedbackRange_;
 		uint32_t feedbackCount_ = 0;
@@ -470,7 +697,7 @@ namespace regen {
 
 		std::vector<ref_ptr<Animation> > animations_;
 
-		void (InputContainer::*draw_)(GLenum) const;
+		void (Mesh::*draw_)(GLenum) const;
 
 		void updateDrawFunction();
 
@@ -480,9 +707,15 @@ namespace regen {
 
 		void drawMesh(RenderState *rs);
 
-		void drawMeshLOD(RenderState *rs, uint32_t lodLevel, int32_t multiDrawCount);
+		void drawMeshLOD(RenderState *rs, uint32_t lodLevel, uint32_t drawIdx, int32_t multiDrawCount);
 
 		void activateLOD_(uint32_t lodLevel);
+
+	private:
+		struct SharedData; // forward declaration
+		ref_ptr<SharedData> shared_;
+		// a state shared among all copies of this mesh.
+		ref_ptr<State> sharedState_;
 	};
 } // namespace
 

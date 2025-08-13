@@ -30,7 +30,40 @@
 #endif
 #endif // regen_InstanceID_defined_
 
+-- regen_RenderLayer
+#ifndef regen_RenderLayer_defined_
+#define2 regen_RenderLayer_defined_
+#if RENDER_LAYER > 1
+    // Compute render layer from gl_DrawID.
+    // Currently the mesh may have n indirect draw calls for n LOD levels,
+    // with layered rendering we repeat each LOD level for each layer.
+    #ifdef USE_GS_LAYERED_RENDERING
+    #define regen_RenderLayer() 0
+    #else
+    #define regen_RenderLayer() (gl_DrawID % ${RENDER_LAYER})
+    #endif
+#else
+    #define regen_RenderLayer() 0
+#endif
+#endif // regen_InstanceID_defined_
+
 -- all
+// enable GL_ARB_shader_viewport_layer_array if we do layered rendering.
+// this allows us to select the render layer in the vertex shader.
+#if SHADER_STAGE == vs && RENDER_LAYER > 1
+    #ifdef ARB_shader_viewport_layer_array
+        #ifndef USE_GS_LAYERED_RENDERING
+            #ifndef USE_GEOMETRY_SHADER
+#extension GL_ARB_shader_viewport_layer_array : require
+            #endif
+        #endif
+    #endif
+#endif
+#if RENDER_LAYER > 1
+    #ifndef USE_GS_LAYERED_RENDERING
+#define VS_LAYER_SELECTION
+    #endif
+#endif
 #ifdef HAS_nor && HAS_tan
 #define HAS_TANGENT_SPACE
 #endif

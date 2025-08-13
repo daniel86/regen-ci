@@ -3,8 +3,7 @@
 
 #include <regen/states/state.h>
 #include <regen/textures/texture-state.h>
-#include <regen/gl-types/input-container.h>
-#include <regen/gl-types/shader-input.h>
+#include "regen/glsl/shader-input.h"
 #include <regen/utility/ref-ptr.h>
 
 namespace regen {
@@ -55,7 +54,7 @@ namespace regen {
 	/**
 	 * \brief Provides material related uniforms.
 	 */
-	class Material : public HasInputState {
+	class Material : public State {
 	public:
 		/**
 		 * Defines how height maps are used.
@@ -71,7 +70,7 @@ namespace regen {
 			HEIGHT_MAP_PARALLAX_OCCLUSION
 		};
 
-		Material();
+		Material(const BufferUpdateFlags &updateFlags = { BUFFER_UPDATE_NEVER, BUFFER_UPDATE_PARTIALLY });
 
 		static ref_ptr<Material> load(LoadingContext &ctx, scene::SceneInputNode &input);
 

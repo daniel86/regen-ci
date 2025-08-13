@@ -1,15 +1,8 @@
-/*
- * atomic-states.h
- *
- *  Created on: 28.02.2013
- *      Author: daniel
- */
-
 #ifndef ATOMIC_STATES_H_
 #define ATOMIC_STATES_H_
 
 #include <regen/states/state.h>
-#include <regen/gl-types/fbo.h>
+#include "regen/textures/fbo.h"
 
 namespace regen {
 	/**
@@ -193,9 +186,9 @@ namespace regen {
 				GLenum srcAlpha, GLenum dstAlpha)
 				: ServerSideState(), func_(BlendFunction(srcRGB, dstRGB, srcAlpha, dstAlpha)) {}
 
-		void enable(RenderState *state) override { state->blendFunction().push(func_); }
-
-		void disable(RenderState *state) override { state->blendFunction().pop(); }
+		void enable(RenderState *state) override {
+			state->blendFunction().apply(func_);
+		}
 
 	protected:
 		BlendFunction func_;
@@ -399,22 +392,31 @@ namespace regen {
 	 */
 	class ClearState : public ServerSideState {
 	public:
-		ClearState() = default;
+		ClearState(const ref_ptr<FBO> &fbo)
+				: ServerSideState(), fbo_(fbo) {}
 
-		void addClearBit(GLbitfield clearBit) { clearBits_ |= clearBit; }
+		void addClearBit(GLbitfield clearBit) {
+			clearBits_ |= clearBit;
+		}
 
-		void enable(RenderState *state) override { glClear(clearBits_); }
+		void enable(RenderState *state) override {
+			if (clearBits_ & GL_COLOR_BUFFER_BIT) {
+				static const Vec4f defaultClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+				fbo_->clearAllColorAttachments(defaultClearColor);
+			}
+			if (clearBits_ & GL_DEPTH_BUFFER_BIT) {
+				static const float defaultClearDepth = 1.0f;
+				fbo_->clearDepthAttachment(defaultClearDepth);
+			}
+			if (clearBits_ & GL_STENCIL_BUFFER_BIT) {
+				static const GLint defaultClearStencil = 0;
+				fbo_->clearStencilAttachment(defaultClearStencil);
+			}
+		}
 
 	protected:
+		ref_ptr<FBO> fbo_;
 		GLbitfield clearBits_ = 0;
-	};
-
-	/**
-	 * \brief Clear depth buffer to preset values.
-	 */
-	class ClearDepthState : public ServerSideState {
-	public:
-		void enable(RenderState *state) override { glClear(GL_DEPTH_BUFFER_BIT); }
 	};
 
 	/**
@@ -441,11 +443,9 @@ namespace regen {
 		// override
 		void enable(RenderState *rs) override {
 			for (auto & it : data) {
-				if (!rs->drawFrameBuffer().isLocked()) {
-					fbo_->applyDrawBuffers(it.colorBuffers);
-					rs->clearColor().push(it.clearColor);
-					glClear(GL_COLOR_BUFFER_BIT);
-					rs->clearColor().pop();
+				fbo_->applyDrawBuffers(it.colorBuffers);
+				for (uint32_t attachmentIdx = 0; attachmentIdx < it.colorBuffers.buffers_.size(); ++attachmentIdx) {
+					fbo_->clearColorAttachment(attachmentIdx, it.clearColor);
 				}
 			}
 		}

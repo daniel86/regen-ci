@@ -1,17 +1,9 @@
-/*
- * shader-configurer.cpp
- *
- *  Created on: 31.12.2012
- *      Author: daniel
- */
-
-#include <regen/gl-types/input-container.h>
 #include <regen/states/light-state.h>
 #include <regen/meshes/mesh-state.h>
 #include <regen/utility/string-util.h>
 
 #include "state-configurer.h"
-#include "fbo-state.h"
+#include "regen/textures/fbo-state.h"
 
 using namespace regen;
 
@@ -36,6 +28,8 @@ StateConfigurer::StateConfigurer(const StateConfig &cfg)
 
 StateConfigurer::StateConfigurer()
 		: numLights_(0) {
+	static const bool has_ARB_shader_viewport_layer_array =
+		glewIsSupported("GL_ARB_shader_viewport_layer_array");
 	// default is using separate attributes.
 	cfg_.feedbackMode_ = GL_SEPARATE_ATTRIBS;
 	cfg_.feedbackStage_ = GL_VERTEX_SHADER;
@@ -43,6 +37,10 @@ StateConfigurer::StateConfigurer()
 	cfg_.setVersion(460);
 	// initially no lights added
 	define("NUM_LIGHTS", "0");
+	if (has_ARB_shader_viewport_layer_array) {
+		// enable layer rendering in vertex shader
+		define("ARB_shader_viewport_layer_array", "TRUE");
+	}
 }
 
 StateConfig &StateConfigurer::cfg() { return cfg_; }
@@ -61,15 +59,28 @@ void StateConfigurer::addNode(const StateNode *node) {
 	hasFBO_ = hasFBO;
 }
 
-void StateConfigurer::addInput(const std::string &name, const ref_ptr<ShaderInput> &in, const std::string &type) {
+void StateConfigurer::addInput(const std::string &name,
+		const ref_ptr<ShaderInput> &in,
+		const std::string &type,
+		const std::string &memberSuffix) {
 	auto needle = inputNames_.find(name);
 	if (needle == inputNames_.end()) {
-		cfg_.inputs_.emplace_back(in, name, type);
+		cfg_.inputs_.emplace_back(in, name, type, memberSuffix);
 		auto it = cfg_.inputs_.end();
 		--it;
 		inputNames_[name] = it;
 	} else {
-		*needle->second = NamedShaderInput(in, name, type);
+		*needle->second = NamedShaderInput(in, name, type, memberSuffix);
+	}
+	if (in->isBufferBlock()) {
+		auto block = dynamic_cast<BufferBlock*>(in.get());
+		for (auto& blockUniform : block->stagedInputs()) {
+			std::string memberName = (blockUniform.name_.empty() ? blockUniform.in_->name() : blockUniform.name_);
+			if (!memberSuffix.empty()) {
+				memberName += memberSuffix;
+			}
+			define(REGEN_STRING("HAS_" << memberName), "TRUE");
+		}
 	}
 }
 
@@ -85,7 +96,6 @@ void StateConfigurer::preAddState(const State *s) {
 }
 
 void StateConfigurer::addState(const State *s) {
-	const auto *x0 = dynamic_cast<const HasInput *>(s);
 	const auto *x1 = dynamic_cast<const FeedbackSpecification *>(s);
 	const auto *x2 = dynamic_cast<const TextureState *>(s);
 	const auto *x3 = dynamic_cast<const StateSequence *>(s);
@@ -96,13 +106,11 @@ void StateConfigurer::addState(const State *s) {
 		if (hasFBO_) { return; }
 	}
 
-	if (x0 != nullptr) {
-		const ref_ptr<InputContainer> &container = x0->inputContainer();
-
+	{
 		// remember inputs, they will be enabled automatically
 		// when the shader is enabled.
-		for (const auto & it : container->inputs()) {
-			addInput(it.name_, it.in_);
+		for (const auto & it : s->inputs()) {
+			addInput(it.name_, it.in_, it.type_, it.memberSuffix_);
 
 			std::queue<std::pair<const std::string&,ShaderInput*>> queue;
 			queue.emplace(it.in_->name(), it.in_.get());
@@ -126,15 +134,27 @@ void StateConfigurer::addState(const State *s) {
 
 				if (in->isBufferBlock()) {
 					auto block = dynamic_cast<BufferBlock*>(in);
-					for (auto& blockUniform : block->blockInputs()) {
-						queue.emplace(blockUniform.name_, blockUniform.in_.get());
+					for (auto& blockUniform : block->stagedInputs()) {
+						if (!it.memberSuffix_.empty()) {
+							if (blockUniform.name_.empty()) {
+								queue.emplace(
+									REGEN_STRING(blockUniform.in_->name() << it.memberSuffix_),
+									blockUniform.in_.get());
+							} else {
+								queue.emplace(
+									REGEN_STRING(blockUniform.name_ << it.memberSuffix_),
+									blockUniform.in_.get());
+							}
+						} else {
+							queue.emplace(blockUniform.name_, blockUniform.in_.get());
+						}
 					}
 				}
 			}
 		}
-		if (container->numInstances()>1) {
+		if (s->numInstances()>1) {
 			define("HAS_INSTANCES", "TRUE");
-			cfg_.numInstances_ = std::max(cfg_.numInstances_, static_cast<uint32_t>(container->numInstances()));
+			cfg_.numInstances_ = std::max(cfg_.numInstances_, static_cast<uint32_t>(s->numInstances()));
 		}
 	}
 	if (x1) {

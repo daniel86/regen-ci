@@ -9,8 +9,8 @@ NodeEyeDepthComparator::NodeEyeDepthComparator(
 }
 
 GLfloat NodeEyeDepthComparator::getEyeDepth(const Vec3f &p) const {
-	auto mat = cam_->view()->getVertex(0);
-	return mat.r.x[2] * p.x + mat.r.x[6] * p.y + mat.r.x[10] * p.z + mat.r.x[14];
+	auto &mat = cam_->view()[0];
+	return mat.x[2] * p.x + mat.x[6] * p.y + mat.x[10] * p.z + mat.x[14];
 }
 
 ModelTransformation *NodeEyeDepthComparator::findModelTransformation(StateNode *n) const {
@@ -43,16 +43,16 @@ ModelTransformation *NodeEyeDepthComparator::getModelTransformation(StateNode *n
 }
 
 bool NodeEyeDepthComparator::operator()(ref_ptr<StateNode> &n0, ref_ptr<StateNode> &n1) const {
-	auto *modelMat0 = getModelTransformation(n0.get());
-	auto *modelMat1 = getModelTransformation(n1.get());
-	if (modelMat0 != nullptr && modelMat1 != nullptr) {
+	auto *tf0 = getModelTransformation(n0.get());
+	auto *tf1 = getModelTransformation(n1.get());
+	if (tf0 != nullptr && tf1 != nullptr) {
 		auto diff = mode_ * (
-				getEyeDepth(modelMat0->modelMat()->getVertex(0).r.position()) -
-				getEyeDepth(modelMat1->modelMat()->getVertex(0).r.position()));
+				getEyeDepth(tf0->modelMat()->getVertex(0).r.position()) -
+				getEyeDepth(tf1->modelMat()->getVertex(0).r.position()));
 		return diff < 0;
-	} else if (modelMat0 != nullptr) {
+	} else if (tf0 != nullptr) {
 		return true;
-	} else if (modelMat1 != nullptr) {
+	} else if (tf1 != nullptr) {
 		return false;
 	} else {
 		return n0 < n1;

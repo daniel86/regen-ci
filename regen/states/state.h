@@ -1,27 +1,18 @@
-/*
- * state.h
- *
- *  Created on: 03.08.2012
- *      Author: daniel
- */
-
-#ifndef STATE_H_
-#define STATE_H_
+#ifndef REGEN_STATE_H_
+#define REGEN_STATE_H_
 
 #include <set>
 
 #include <regen/utility/event-object.h>
 #include <regen/utility/ref-ptr.h>
-#include <regen/gl-types/shader-input.h>
-#include <regen/gl-types/input-container.h>
+#include "regen/glsl/shader-input.h"
 #include <regen/gl-types/render-state.h>
-#include "regen/gl-types/ubo.h"
+#include "regen/buffer/ubo.h"
 
 namespace regen {
 	struct StateInput {
 		ref_ptr<ShaderInput> in;
 		ref_ptr<BufferBlock> block;
-		ref_ptr<InputContainer> container;
 	};
 
 	/**
@@ -40,7 +31,7 @@ namespace regen {
 		 */
 		explicit State(const ref_ptr<State> &other);
 
-		~State() override = default;
+		~State() override;
 
 		/**
 		 * @return flag indicating if this state is hidden.
@@ -55,7 +46,7 @@ namespace regen {
 		/**
 		 * @return joined states.
 		 */
-		const std::list<ref_ptr<State> > &joined() const;
+		const std::vector<ref_ptr<State> > &joined() const { return joined_; }
 
 		/**
 		 * Add a state to the end of the list of joined states.
@@ -70,23 +61,48 @@ namespace regen {
 		void joinStatesFront(const ref_ptr<State> &state);
 
 		/**
-		 * Add a shader input state to the front of the list of joined states.
-		 * @param in the shader input data.
-		 * @param name optional name overwrite.
-		 */
-		void joinShaderInput(const ref_ptr<ShaderInput> &in, const std::string &name = "");
-
-		/**
 		 * Remove a state from the list of joined states.
 		 * @param state a previously joined state.
 		 */
 		void disjoinStates(const ref_ptr<State> &state);
 
 		/**
-		 * Remove a shader input state from the list of joined states.
+		 * @return Previously added shader inputs.
+		 */
+		const std::vector<NamedShaderInput> &inputs() const;
+
+		/**
+		 * @param name the shader input name.
+		 * @return true if an input data with given name was added before.
+		 */
+		bool hasInput(const std::string &name) const;
+
+		/**
+		 * @param name the shader input name.
+		 * @return input data with specified name.
+		 */
+		ref_ptr<ShaderInput> getInput(const std::string &name) const;
+
+		/**
+		 * @param in the shader input data.
+		 * @param name the shader input name.
+		 * @return iterator of data container
+		 */
+		void setInput(const ref_ptr<ShaderInput> &in,
+				const std::string &name = "",
+				const std::string &memberSuffix = "");
+
+		/**
+		 * Remove previously added shader input.
 		 * @param in a previously joined state.
 		 */
-		void disjoinShaderInput(const ref_ptr<ShaderInput> &in);
+		void removeInput(const ref_ptr<ShaderInput> &in);
+
+		/**
+		 * Remove previously added shader input.
+		 * @param name the shader input name.
+		 */
+		void removeInput(const std::string &name);
 
 		/**
 		 * Fins ShaderInput attached to this State and joined states.
@@ -100,6 +116,26 @@ namespace regen {
 		 * @return The ShaderInput if any or a null reference if not found.
 		 */
 		std::optional<StateInput> findShaderInput(const std::string &name);
+
+		/**
+		 * @return Specifies the number of vertices to be rendered.
+		 */
+		int32_t numVertices() const;
+
+		/**
+		 * @param v Specifies the number of vertices to be rendered.
+		 */
+		void set_numVertices(int32_t v);
+
+		/**
+		 * @return Number of instances of added input data.
+		 */
+		int32_t numInstances() const;
+
+		/**
+		 * @param v Specifies the number of instances to be rendered.
+		 */
+		void set_numInstances(int32_t v);
 
 		/**
 		 * Defines a GLSL macro.
@@ -117,7 +153,7 @@ namespace regen {
 		/**
 		 * @return GLSL macros.
 		 */
-		const std::map<std::string, std::string> &shaderDefines() const;
+		const std::map<std::string, std::string> &shaderDefines() const { return shaderDefines_; }
 
 		/**
 		 * Adds a GLSL include to generated shaders.
@@ -140,23 +176,23 @@ namespace regen {
 		/**
 		 * @return GLSL functions.
 		 */
-		const std::map<std::string, std::string> &shaderFunctions() const;
+		const std::map<std::string, std::string> &shaderFunctions() const { return shaderFunctions_; }
 
 		/**
 		 * @return the minimum GLSL version.
 		 */
-		GLuint shaderVersion() const;
+		uint32_t shaderVersion() const { return shaderVersion_; }
 
 		/**
 		 * @param version the minimum GLSL version.
 		 */
-		void setShaderVersion(GLuint version);
+		void setShaderVersion(uint32_t version) { shaderVersion_ = std::max(shaderVersion_, version); }
 
 		/**
 		 * For all joined states and this state collect all
 		 * uniform states and set the constant.
 		 */
-		void setConstantUniforms(GLboolean isConstant = GL_TRUE);
+		void setConstantUniforms(bool isConstant = true);
 
 		/**
 		 * Activate state in given RenderState.
@@ -176,30 +212,25 @@ namespace regen {
 		void attach(const ref_ptr<EventObject> &obj);
 
 	protected:
+		std::vector<ref_ptr<State> > joined_;
+		std::vector<ref_ptr<EventObject> > attached_;
+		bool isHidden_ = false;
+
+		// shader inputs
+		// note: the inputs are not share between copies.
+		// e.g. a basic mesh sets up inputs such as vertex attributes, and copies of the mesh
+		// may add additional specialized inputs for their respective shaders.
+		std::vector<NamedShaderInput> inputs_;
+		std::set<std::string> inputMap_;
+
 		std::map<std::string, std::string> shaderDefines_;
 		std::vector<std::string> shaderIncludes_;
 		std::map<std::string, std::string> shaderFunctions_;
+		GLuint shaderVersion_ = 330;
 
-		std::list<ref_ptr<State> > joined_;
-		std::list<ref_ptr<EventObject> > attached_;
-		ref_ptr<HasInput> inputStateBuddy_;
-		bool isHidden_ = false;
-		GLuint shaderVersion_;
-	};
-} // namespace
-
-namespace regen {
-	/**
-	 * \brief A state with an input container.
-	 */
-	class HasInputState : public State, public HasInput {
-	public:
-		/**
-		 * @param usage the buffer object usage.
-		 */
-		explicit HasInputState(
-			BufferTarget target = ARRAY_BUFFER,
-			BufferUsage usage = BUFFER_USAGE_DYNAMIC_DRAW) : State(), HasInput(target, usage) {}
+	private:
+		struct StateShared; // forward declaration
+		ref_ptr<StateShared> shared_;
 	};
 } // namespace
 
@@ -227,7 +258,7 @@ namespace regen {
 		/**
 		 * @return the global state.
 		 */
-		const ref_ptr<State> &globalState() const;
+		const ref_ptr<State> &globalState() const  { return globalState_; }
 
 		// override
 		void enable(RenderState *) override;
@@ -239,19 +270,4 @@ namespace regen {
 	};
 } // namespace
 
-namespace regen {
-	/**
-	 * \brief interface for resizable objects.
-	 */
-	class Resizable {
-	public:
-		virtual ~Resizable() = default;
-
-		/**
-		 * Resize buffers / textures.
-		 */
-		virtual void resize() = 0;
-	};
-} // namespace
-
-#endif /* STATE_H_ */
+#endif /* REGEN_STATE_H_ */

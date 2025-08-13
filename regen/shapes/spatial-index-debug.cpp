@@ -8,13 +8,12 @@ using namespace regen;
 SpatialIndexDebug::SpatialIndexDebug(const ref_ptr<SpatialIndex> &index)
 		: StateNode(),
 		  HasShader("regen.models.lines"),
-		  HasInput(ARRAY_BUFFER, BUFFER_USAGE_DYNAMIC_DRAW),
 		  index_(index),
 		  lineLocation_(-1),
 		  vbo_(0) {
 	lineColor_ = ref_ptr<ShaderInput3f>::alloc("lineColor");
 	lineColor_->setUniformData(Vec3f(1.0f));
-	state()->joinShaderInput(lineColor_);
+	state()->setInput(lineColor_);
 	state()->joinStates(shaderState_);
 	lineVertices_ = ref_ptr<ShaderInput3f>::alloc("lineVertices");
 	lineVertices_->setVertexData(2);
@@ -36,7 +35,7 @@ void SpatialIndexDebug::drawLine(const Vec3f &from, const Vec3f &to, const Vec3f
 	lineVertices_->setVertex(1, to);
 	// update gpu-side vertex data
 	{
-		auto mappedClientData = lineVertices_->mapClientDataRaw(ShaderData::READ);
+		auto mappedClientData = lineVertices_->mapClientDataRaw(BUFFER_GPU_READ);
 		glBufferData(GL_ARRAY_BUFFER, bufferSize_, mappedClientData.r, GL_DYNAMIC_DRAW);
 	}
 	// draw the line
@@ -186,5 +185,4 @@ void SpatialIndexDebug::traverse(regen::RenderState *rs) {
 	}
 	index_->debugDraw(*this);
 	state()->disable(rs);
-	GL_ERROR_LOG();
 }

@@ -128,8 +128,8 @@ void SpatialIndex::updateVisibilityWithCamera(IndexCamera &ic, const BoundingSha
 			indexShape->instanceDistances_.clear();
 		}
 
-		auto camPos = ic.camera->position()->getVertex(0);
-		traversalData.camPos = &camPos.r;
+		auto &camPos = ic.camera->position()[0];
+		traversalData.camPos = &camPos;
 
 		foreachIntersection(camera_shape, SpatialIndex::handleIntersection_sorted, &traversalData);
 		for (auto &indexShape: ic.indexShapes_) {
@@ -171,9 +171,8 @@ void SpatialIndex::updateVisibility() {
 
 		if (ic.second.camera->isOmni()) {
 			// omni camera -> intersection test with bounding sphere
-			auto projParams = ic.first->projParams()->getVertex(0);
-			BoundingSphere sphereShape(Vec3f::zero(), projParams.r.y);
-			sphereShape.setTransform(ref_ptr<ModelTransformation>::alloc(ic.first->position()));
+			auto &projParams = ic.first->projParams()[0];
+			BoundingSphere sphereShape(ic.first->position()[0].xyz_(), projParams.far);
 			sphereShape.updateTransform(true);
 			updateVisibilityWithCamera(ic.second, sphereShape, false);
 		}
@@ -192,9 +191,9 @@ void SpatialIndex::updateVisibility() {
 		}
 
 		for (auto &indexShape: ic.second.indexShapes_) {
-			indexShape->unmapInstanceIDs_internal();
 			indexShape->visible_ = indexShape->u_visible_;
 			indexShape->instanceCount_ = indexShape->u_instanceCount_;
+			indexShape->unmapInstanceIDs_internal();
 		}
 	}
 }
@@ -209,7 +208,7 @@ void SpatialIndex::createIndexShape(IndexCamera &ic, const ref_ptr<BoundingShape
 	auto is = ref_ptr<IndexedShape>::alloc(ic.camera, shape);
 	is->visibleVec_ = ref_ptr<ShaderInput1ui>::alloc("instanceIDs", 1);
 	is->visibleVec_->setInstanceData(shape->numInstances() + 1, 1, nullptr);
-	auto mapped = is->visibleVec_->mapClientData<unsigned int>(ShaderData::WRITE);
+	auto mapped = is->visibleVec_->mapClientData<unsigned int>(BUFFER_GPU_WRITE);
 	for (unsigned int i = 0; i < shape->numInstances(); ++i) {
 		mapped.w[i + 1] = i;
 	}

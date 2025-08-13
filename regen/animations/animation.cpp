@@ -1,10 +1,3 @@
-/*
- * animation.cpp
- *
- *  Created on: 30.01.2011
- *      Author: daniel
- */
-
 #include <regen/animations/animation-manager.h>
 #include <regen/utility/threading.h>
 #include <regen/utility/logging.h>
@@ -54,10 +47,10 @@ void Animation::startAnimation() {
 void Animation::stopAnimation() {
 	if (!isRunning_) return;
 
+	isRunning_ = false;
 	unqueueEmit(ANIMATION_STARTED);
 	queueEmit(ANIMATION_STOPPED);
 	AnimationManager::get().removeAnimation(this);
-	isRunning_ = false;
 }
 
 GLboolean Animation::try_lock() { return mutex_.try_lock(); }

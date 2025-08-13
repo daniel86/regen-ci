@@ -39,7 +39,6 @@ ref_ptr<Disc> Disc::getUnitDisc() {
 		cfg.isNormalRequired = GL_FALSE;
 		cfg.isTangentRequired = GL_FALSE;
 		cfg.discRadius = 1.0f;
-		cfg.usage = BUFFER_USAGE_STATIC_DRAW;
 		mesh = ref_ptr<Disc>::alloc(cfg);
 		return mesh;
 	} else {
@@ -48,24 +47,22 @@ ref_ptr<Disc> Disc::getUnitDisc() {
 }
 
 Disc::Disc(const Config &cfg)
-		: Mesh(GL_TRIANGLES, cfg.usage) {
+		: Mesh(GL_TRIANGLES, cfg.updateHint) {
 	pos_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	nor_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_NOR);
 	tan_ = ref_ptr<ShaderInput4f>::alloc(ATTRIBUTE_NAME_TAN);
 	indices_ = ref_ptr<ShaderInput1ui>::alloc("i");
+	setBufferMapMode(cfg.mapMode);
+	setClientAccessMode(cfg.accessMode);
 	updateAttributes(cfg);
 }
 
 Disc::Disc(const ref_ptr<Disc> &other)
 		: Mesh(other) {
-	pos_ = ref_ptr<ShaderInput3f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_POS));
-	nor_ = ref_ptr<ShaderInput3f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_NOR));
-	tan_ = ref_ptr<ShaderInput4f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_TAN));
-	indices_ = ref_ptr<ShaderInput1ui>::dynamicCast(
-			inputContainer_->getInput("i"));
+	pos_ = ref_ptr<ShaderInput3f>::dynamicCast(getInput(ATTRIBUTE_NAME_POS));
+	nor_ = ref_ptr<ShaderInput3f>::dynamicCast(getInput(ATTRIBUTE_NAME_NOR));
+	tan_ = ref_ptr<ShaderInput4f>::dynamicCast(getInput(ATTRIBUTE_NAME_TAN));
+	indices_ = ref_ptr<ShaderInput1ui>::dynamicCast(getInput("i"));
 }
 
 Disc::Config::Config()
@@ -76,7 +73,6 @@ Disc::Config::Config()
 		  texcoMode(TEXCO_MODE_UV),
 		  isNormalRequired(GL_TRUE),
 		  isTangentRequired(GL_FALSE),
-		  usage(BUFFER_USAGE_DYNAMIC_DRAW),
 		  discRadius(1.0f) {
 }
 
@@ -86,17 +82,14 @@ void Disc::generateLODLevel(const Config &cfg,
 							GLuint indexOffset) {
 	const float angleStep = 2.0f * M_PI / lodLevel;
 
-	auto indices = indices_->mapClientData<GLuint>(ShaderData::WRITE);
-	auto v_pos = pos_->mapClientData<Vec3f>(ShaderData::WRITE);
+	auto indices = (GLuint*)indices_->clientBuffer()->clientData(0);
+	auto v_pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
 	auto v_nor = (cfg.isNormalRequired ?
-		nor_->mapClientData<Vec3f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec3f>::nullData());
+				  (Vec3f*) nor_->clientBuffer()->clientData(0) : nullptr);
 	auto v_tan = (cfg.isTangentRequired ?
-		tan_->mapClientData<Vec4f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec4f>::nullData());
+				  (Vec4f*) tan_->clientBuffer()->clientData(0) : nullptr);
 	auto v_texco = (cfg.texcoMode == TEXCO_MODE_UV ?
-		texco_->mapClientData<Vec2f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec2f>::nullData());
+					(Vec2f*) texco_->clientBuffer()->clientData(0) : nullptr);
 
 	GLuint vertexIndex = vertexOffset;
 	for (GLuint i = 0; i <= lodLevel; ++i) {
@@ -106,19 +99,19 @@ void Disc::generateLODLevel(const Config &cfg,
 
 		Vec3f pos(cfg.discRadius * cosAngle, 0.0f, cfg.discRadius * sinAngle);
 		pos = cfg.posScale * pos;
-		v_pos.w[vertexIndex] = pos;
+		v_pos[vertexIndex] = pos;
 
 		if (cfg.isNormalRequired) {
-			v_nor.w[vertexIndex] = Vec3f(0.0f, 1.0f, 0.0f);
+			v_nor[vertexIndex] = Vec3f(0.0f, 1.0f, 0.0f);
 		}
 
 		if (cfg.texcoMode == TEXCO_MODE_UV) {
 			Vec2f texco(pos.x / cfg.discRadius + 0.5f, pos.z / cfg.discRadius + 0.5f);
-			v_texco.w[vertexIndex] = texco * cfg.texcoScale;
+			v_texco[vertexIndex] = texco * cfg.texcoScale;
 		}
 
 		if (cfg.isTangentRequired) {
-			v_tan.w[vertexIndex] = Vec4f(-sinAngle, 0.0f, cosAngle, 1.0f);
+			v_tan[vertexIndex] = Vec4f(-sinAngle, 0.0f, cosAngle, 1.0f);
 		}
 
 		++vertexIndex;
@@ -127,9 +120,9 @@ void Disc::generateLODLevel(const Config &cfg,
 	// Generate indices
 	GLuint index = indexOffset;
 	for (GLuint i = 0; i < lodLevel; ++i) {
-		indices.w[index++] = vertexOffset + lodLevel;
-		indices.w[index++] = vertexOffset + i + 1;
-		indices.w[index++] = vertexOffset + i;
+		indices[index++] = vertexOffset + lodLevel;
+		indices[index++] = vertexOffset + i + 1;
+		indices[index++] = vertexOffset + i;
 	}
 }
 
@@ -172,7 +165,7 @@ void Disc::updateAttributes(const Config &cfg) {
 	}
 
 	// Set up the vertex attributes
-	begin(InputContainer::INTERLEAVED);
+	begin(INTERLEAVED);
 	auto indexRef = setIndices(indices_, numVertices);
 	setInput(pos_);
 	if (cfg.isNormalRequired) {

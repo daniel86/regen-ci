@@ -1,9 +1,9 @@
 #include "TextureWidget.h"
 #include "RegenWidgetGL.h"
-#include "regen/gl-types/fbo.h"
-#include "regen/states/fbo-state.h"
+#include "regen/textures/fbo.h"
+#include "regen/textures/fbo-state.h"
 #include "regen/textures/texture-state.h"
-#include "regen/states/shader-state.h"
+#include "regen/glsl/shader-state.h"
 #include "regen/states/state-configurer.h"
 #include "regen/meshes/primitives/rectangle.h"
 #include "regen/textures/texture-loader.h"
@@ -36,8 +36,6 @@ namespace regen {
 			if(isInitialized_) return;
 			isInitialized_ = true;
 
-			// create a framebuffer object for the texture
-			auto fbo = ref_ptr<FBO>::alloc(width_, height_);
 			auto colorBuffer = ref_ptr<Texture2D>::alloc();
 			colorBuffer->set_rectangleSize(width_, height_);
 			colorBuffer->set_pixelType(GL_UNSIGNED_BYTE);
@@ -46,13 +44,21 @@ namespace regen {
 			colorBuffer->allocTexture();
 			colorBuffer->set_filter(GL_LINEAR);
 			colorBuffer->set_wrapping(GL_REPEAT);
-			fbo->addTexture(colorBuffer);
+
+			// create a framebuffer object for the texture
+			auto fbo = ref_ptr<FBO>::alloc(width_, height_);
+			auto attachment = fbo->addTexture(colorBuffer);
 			fboState_ = ref_ptr<FBOState>::alloc(fbo);
+			ClearColorState::Data clearData;
+			clearData.clearColor = Vec4f(1.0f, 1.0f, 1.0f, 1.0f);
+			clearData.colorBuffers = { attachment };
+			fboState_->addDrawBuffer(attachment);
+			fboState_->setClearColor(clearData);
 			updateState_->joinStates(fboState_);
 
-			auto texture = ref_ptr<Texture>::dynamicCast(widget_->input());
-			if(!texture.get()) return;
-			switch (texture->textureBind().target_) {
+			texture_ = ref_ptr<Texture>::dynamicCast(widget_->input());
+			if(!texture_.get()) return;
+			switch (texture_->textureBind().target_) {
 				case GL_TEXTURE_BUFFER:
 					// skip rendering for this texture type
 					return;
@@ -60,15 +66,18 @@ namespace regen {
 					break;
 			}
 
-			auto textureState = ref_ptr<TextureState>::alloc(texture, "inputTexture");
+			// Note: this state is used in the main render thread, attached
+			// to the node that hosts the texture.
+			auto textureState = ref_ptr<TextureState>::alloc(texture_, "inputTexture");
 			updateState_->joinStates(textureState);
 
 			auto fullscreenMesh = Rectangle::getUnitQuad();
 
 			StateConfigurer shaderConfigurer;
 			shaderConfigurer.addState(updateState_.get());
+			shaderConfigurer.addState(textureState.get());
 			shaderState_ = ref_ptr<ShaderState>::alloc();
-			shaderState_->createShader(shaderConfigurer.cfg(), getShaderKey(texture));
+			shaderState_->createShader(shaderConfigurer.cfg(), getShaderKey(texture_));
 			fullscreenMesh->updateVAO(shaderConfigurer.cfg(), shaderState_->shader());
 			updateState_->joinStates(shaderState_);
 			updateState_->joinStates(fullscreenMesh);
@@ -103,17 +112,29 @@ namespace regen {
 
 		void enable(RenderState *rs) override {
 			initializeGL_();
+
+			// We need to manually reset the draw buffer state.
+			// The reason is that currently this is handled by a "parent-FBO" link
+			// that we do not provide here, so we need to reset the draw buffer
+			// state manually.
+			auto oldDB = rs->drawFrameBuffer().current();
+			auto oldViewport = rs->viewport().current();
+
 			updateState_->enable(rs);
 			updateState_->disable(rs);
+
+			rs->drawFrameBuffer().apply(oldDB);
+			rs->viewport().apply(oldViewport);
 		}
 
 		void paintGL() override {
 			if (!fboState_.get()) return;
-			glBlitNamedFramebuffer(
-				fboState_->fbo()->id(), 0,
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, fboState_->fbo()->id());
+			glBlitFramebuffer(
 				0, 0, width_, height_,
 				0, 0, width_, height_,
 				GL_COLOR_BUFFER_BIT, GL_NEAREST);
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 			GL_ERROR_LOG();
 		}
 
@@ -136,6 +157,7 @@ namespace regen {
 		ref_ptr<FBOState> fboState_;
 		ref_ptr<ShaderState> shaderState_;
 		ref_ptr<State> updateState_;
+		ref_ptr<Texture> texture_;
 		int width_ = 256;
 		int height_ = 256;
 		bool isInitialized_ = false;

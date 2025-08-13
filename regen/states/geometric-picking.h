@@ -2,12 +2,12 @@
 #define GEOM_PICKING_STATE_H_
 
 #include <regen/states/state.h>
-#include <regen/gl-types/fbo.h>
+#include "regen/textures/fbo.h"
 #include "regen/camera/camera.h"
 #include "state-node.h"
 #include "pick-data.h"
-#include "regen/gl-types/pbo.h"
-#include "regen/gl-types/buffer-mapping.h"
+#include "regen/buffer/pbo.h"
+#include "regen/buffer/staging-buffer.h"
 
 namespace regen {
 	/**
@@ -53,7 +53,8 @@ namespace regen {
 		ref_ptr<VBO> feedbackBuffer_;
 		ref_ptr<BufferRange> bufferRange_;
 		ref_ptr<BufferReference> vboRef_;
-		ref_ptr<BufferStructMapping<PickData>> pickMapping_;
+		ref_ptr<StagingStructBuffer<PickData>> pickMapping_;
+		BufferRange feedbackRange_;
 		GLuint bufferSize_;
 
 		void updateMouse();

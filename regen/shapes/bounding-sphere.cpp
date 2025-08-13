@@ -44,10 +44,7 @@ bool BoundingSphere::updateTransform(bool forceUpdate) {
 }
 
 void BoundingSphere::updateShapeOrigin() {
-	shapeOrigin_ = basePosition_;
-	if (transform_.get()) {
-		shapeOrigin_ += transform_->position(transformIndex_).r;
-	}
+	shapeOrigin_ = basePosition_ + translation();
 }
 
 Vec3f BoundingSphere::closestPointOnSurface(const Vec3f &point) const {
@@ -69,3 +66,43 @@ bool BoundingSphere::hasIntersectionWithSphere(const BoundingShape &other) const
 	Vec3f closestPoint = other.closestPointOnSurface(p_this);
 	return (closestPoint - p_this).length() <= radius();
 }
+
+/**
+bool hasHalfSphereIntersection(const Vec3f &center, GLfloat radius) const {
+	// get the distance from the camera to the center of the sphere
+	auto d = Plane(
+			position_[0].xyz_(),
+			direction_[0].xyz_()).distance(center);
+	// check if the sphere is outside the far plane
+	if (d - radius > projParams_[0].far) return false;
+	// check if the sphere is inside the near plane
+	if (d + radius < projParams_[0].near) return false;
+	// check if the sphere is inside the half sphere
+	auto halfSphereRadius = projParams_[0].far;
+	auto halfSphereNormal = direction_[0];
+	auto halfSphereCenter = position_[0].xyz_() + halfSphereNormal.xyz_() * halfSphereRadius;
+	return Plane(halfSphereCenter, halfSphereNormal.xyz_()).distance(center) < radius;
+}
+
+bool hasHalfSphereIntersection(const Vec3f &center, const Vec3f *points) const {
+	// get the distance from the camera to the center of the sphere
+	auto d = Plane(
+			position_[0].xyz_(),
+			direction_[0].xyz_()).distance(center);
+	// check if the sphere is outside the far plane
+	if (d > projParams_[0].far) return false;
+	// check if the sphere is inside the near plane
+	if (d < projParams_[0].near) return false;
+	// check if the sphere is inside the half sphere
+	auto halfSphereRadius = projParams_[0].far;
+	auto halfSphereNormal = direction_[0];
+	auto halfSphereCenter = position_[0].xyz_() + halfSphereNormal.xyz_() * halfSphereRadius;
+	auto halfSphere = Plane(halfSphereCenter, halfSphereNormal.xyz_());
+	for (int i = 0; i < 8; ++i) {
+		if (halfSphere.distance(center + points[i]) < 0) {
+			return false;
+		}
+	}
+	return true;
+}
+ */

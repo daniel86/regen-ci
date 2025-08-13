@@ -1,15 +1,8 @@
-/*
- * light-pass.h
- *
- *  Created on: 13.03.2013
- *      Author: daniel
- */
-
-#ifndef __LIGHT_PASS_H_
-#define __LIGHT_PASS_H_
+#ifndef REGEN_LIGHT_PASS_H_
+#define REGEN_LIGHT_PASS_H_
 
 #include <regen/states/state.h>
-#include <regen/states/shader-state.h>
+#include "regen/glsl/shader-state.h"
 #include <regen/meshes/mesh-state.h>
 #include <regen/camera/light-camera.h>
 
@@ -73,6 +66,12 @@ namespace regen {
 		 */
 		void setShadowFiltering(ShadowFilterMode mode);
 
+		/**
+		 * Enable or disable ambient light computation in this pass.
+		 * @param useAmbient true to use ambient light, false to disable it.
+		 */
+		void setUseAmbient(bool useAmbient);
+
 		// override
 		void enable(RenderState *rs) override;
 
@@ -108,4 +107,4 @@ namespace regen {
 	};
 } // namespace
 
-#endif /* __LIGHT_PASS_H_ */
+#endif /* REGEN_LIGHT_PASS_H_ */

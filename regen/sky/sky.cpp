@@ -13,20 +13,17 @@
 
 using namespace regen;
 
-Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
+Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<Screen> &screen)
 		: StateNode(),
 		  Animation(true, true),
 		  cam_(cam),
-		  viewport_(viewport) {
+		  screen_(screen) {
 	ref_ptr<DepthState> depth = ref_ptr<DepthState>::alloc();
 	depth->set_depthFunc(GL_LEQUAL);
 	depth->set_depthRange(1.0, 1.0);
 	depth->set_useDepthWrite(GL_FALSE);
 	depth->set_useDepthTest(GL_TRUE);
 	state()->joinStates(depth);
-
-	//state()->joinStates(ref_ptr<ToggleState>::alloc(RenderState::CULL_FACE, GL_FALSE));
-	state()->joinStates(ref_ptr<BlendState>::alloc(BLEND_MODE_ALPHA));
 
 	noonColor_ = Vec3f(0.5, 0.5, 0.5);
 	dawnColor_ = Vec3f(0.2, 0.15, 0.15);
@@ -36,7 +33,7 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 	astro_->setLatitude(52.5491);
 	astro_->setLongitude(13.3611);
 
-	auto uniformBlock = ref_ptr<UBO>::alloc("Sky");
+	auto uniformBlock = ref_ptr<UBO>::alloc("Sky", BufferUpdateFlags::FULL_PER_FRAME);
 
 	// 0: altitude in km
 	// 1: apparent angular radius (not diameter!)
@@ -48,37 +45,37 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 			Earth::meanRadius(),
 			Earth::meanRadius() + Earth::atmosphereThicknessNonUniform(),
 			math::random<float>()));
-	uniformBlock->addBlockInput(cmnUniform_);
+	uniformBlock->addStagedInput(cmnUniform_);
 
 	R_ = ref_ptr<ShaderInputMat4>::alloc("equToHorMatrix");
 	R_->setUniformData(Mat4f::identity());
-	uniformBlock->addBlockInput(R_);
+	uniformBlock->addStagedInput(R_);
 
 	// directional light that approximates the sun
 	sun_ = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
-	sun_->set_isAttenuated(GL_FALSE);
-	sun_->specular()->setVertex(0, Vec3f(0.0f));
-	sun_->diffuse()->setVertex(0, Vec3f(0.0f));
-	sun_->direction()->setVertex(0, Vec3f(1.0f));
-	uniformBlock->addBlockInput(sun_->direction(), "sunPosition");
+	sun_->set_isAttenuated(false);
+	sun_->setSpecular(0, Vec3f(0.0f));
+	sun_->setDiffuse(0, Vec3f(0.0f));
+	sun_->setDirection(0, Vec3f(1.0f));
+	state()->setInput(sun_->lightUBO(), "SunLight", "_Sun");
 
 	q_ = ref_ptr<ShaderInput1f>::alloc("q");
 	q_->setUniformData(0.0f);
-	state()->joinShaderInput(q_);
+	state()->setInput(q_);
 
 	sqrt_q_ = ref_ptr<ShaderInput1f>::alloc("sqrt_q");
 	sqrt_q_->setUniformData(0.0f);
-	state()->joinShaderInput(sqrt_q_);
+	state()->setInput(sqrt_q_);
 
 	// directional light that approximates the moon
 	moon_ = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
-	moon_->set_isAttenuated(GL_FALSE);
-	moon_->specular()->setVertex(0, Vec3f(0.0f));
-	moon_->diffuse()->setVertex(0, Vec3f(0.0f));
-	moon_->direction()->setVertex(0, Vec3f(1.0f));
-	uniformBlock->addBlockInput(moon_->direction(), "moonPosition");
+	moon_->set_isAttenuated(false);
+	moon_->setSpecular(0, Vec3f(0.0f));
+	moon_->setDiffuse(0, Vec3f(0.0f));
+	moon_->setDirection(0, Vec3f(1.0f));
+	state()->setInput(moon_->lightUBO(), "MoonLight", "_Moon");
 
-	state()->joinShaderInput(uniformBlock);
+	state()->setInput(uniformBlock);
 
 	Rectangle::Config cfg;
 	cfg.centerAtOrigin = GL_FALSE;
@@ -90,12 +87,21 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<ShaderInput2i> &viewport)
 	cfg.rotation = Vec3f(0.5 * M_PI, 0.0f, 0.0f);
 	cfg.texcoScale = Vec2f(1.0);
 	cfg.translation = Vec3f(-1.0f, -1.0f, 0.0f);
-	cfg.usage = BUFFER_USAGE_STATIC_DRAW;
+	cfg.updateHint.frequency = BUFFER_UPDATE_NEVER;
+	cfg.updateHint.scope = BUFFER_UPDATE_FULLY;
+	cfg.mapMode = BUFFER_MAP_DISABLED;
+	cfg.accessMode = BUFFER_CPU_WRITE;
 	skyQuad_ = Rectangle::create(cfg);
 
 	// mae some parts of the sky configurable from the GUI.
 	setAnimationName("sky");
-	joinAnimationState(state());
+	// make sure the client buffer data is initialized
+	animate(0.0f);
+	// Note: disabled because animation manager allways activates this state,
+	//       but we do not need to if sky does not need update.
+	// TODO: Make the "idle" state part of animation, then animation manager can
+	//       skip activation of this state.
+	//joinAnimationState(state());
 	GL_ERROR_LOG();
 }
 
@@ -111,7 +117,7 @@ GLdouble Sky::longitude() const { return astro_->getLongitude(); }
 GLdouble Sky::latitude() const { return astro_->getLatitude(); }
 
 void Sky::set_altitude(const float altitude) {
-	auto v_cmnUniform = cmnUniform_->mapClientVertex<Vec4f>(ShaderData::READ | ShaderData::WRITE, 0);
+	auto v_cmnUniform = cmnUniform_->mapClientVertex<Vec4f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 	v_cmnUniform.w = Vec4f(
 			math::clamp(altitude, 0.001f, Earth::atmosphereThicknessNonUniform()),
 			v_cmnUniform.r.y,
@@ -128,7 +134,7 @@ void Sky::set_latitude(const float latitude) {
 }
 
 void Sky::updateSeed() {
-	auto v_cmnUniform = cmnUniform_->mapClientVertex<Vec4f>(ShaderData::READ | ShaderData::WRITE, 0);
+	auto v_cmnUniform = cmnUniform_->mapClientVertex<Vec4f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 	v_cmnUniform.w = Vec4f(
 			v_cmnUniform.r.x,
 			v_cmnUniform.r.y,
@@ -139,7 +145,6 @@ void Sky::updateSeed() {
 void Sky::addLayer(const ref_ptr<SkyLayer> &layer) {
 	//addChild(layer);
 	this->layer_.push_back(layer);
-	GL_ERROR_LOG();
 }
 
 void Sky::createShader() {
@@ -199,39 +204,50 @@ void Sky::animate(GLdouble dt) {
 	// Compute sun/moon directions
 	Vec3f moon = astro_->getMoonPosition(false);
 	Vec3f sun = astro_->getSunPosition(false);
-	sun_->direction()->setVertex(0, sun);
-	moon_->direction()->setVertex(0, moon);
+	sun_->setDirection(0, sun);
+	moon_->setDirection(0, moon);
 	// Compute sun/moon diffuse color
 	GLfloat sunExt = computeEyeExtinction(sun);
 	Vec3f sunColor = math::mix(dawnColor_, noonColor_, abs(sunExt));
-	sun_->diffuse()->setVertex(0, computeColor(
+	sun_->setDiffuse(0, computeColor(
 			sunColor,
-			sunExt)
-	);
-	moon_->diffuse()->setVertex(0, computeColor(
+			sunExt));
+	moon_->setDiffuse(0, computeColor(
 			sunColor * moonSunLightReflectance_,
-			computeEyeExtinction(moon))
-	);
+			computeEyeExtinction(moon)));
 	R_->setVertex(0, astro().getEquToHorTransform());
 
-	if (camStamp_ != cam_->stamp() || viewportStamp_ != viewport_->stamp()) {
-		const float fovHalf = camera()->projParams()->getVertex(0).r.x * 0.5f * DEGREE_TO_RAD;
-		const float height = static_cast<float>(viewport()->getVertex(0).r.y);
+	if (camStamp_ != cam_->stamp() || viewportStamp_ != screen_->stampOfWriteData()) {
+		const float fovHalf = camera()->projParams()[0].fov * 0.5f * DEGREE_TO_RAD;
+		const float height = static_cast<float>(screen_->viewport().r.y);
 		const float q = 2.8284271247461903f // = sqrt(2.0f) * 2.0f
 						* tan(fovHalf) / height; // q is the distance from the camera to the sky quad
 		q_->setVertex(0, q);
 		sqrt_q_->setVertex(0, sqrt(q));
 		camStamp_ = cam_->stamp();
-		viewportStamp_ = viewport_->stamp();
+		viewportStamp_ = screen_->stampOfWriteData();
 	}
+
 	// Update random number in cmn uniform
 	updateSeed();
 }
 
 void Sky::glAnimate(RenderState *rs, GLdouble dt) {
+	bool needsUpdate = false;
+	for (auto &layer: layer_) {
+		if (layer->advanceTime(dt)) {
+			needsUpdate = true;
+			break;
+		}
+	}
+	if (!needsUpdate) {
+		return;
+	}
+	state_->enable(rs);
 	for (auto &layer: layer_) {
 		layer->updateSky(rs, dt);
 	}
+	state_->disable(rs);
 }
 
 SkyView::SkyView(const ref_ptr<Sky> &sky)
@@ -249,9 +265,27 @@ void SkyView::addLayer(const ref_ptr<SkyLayer> &layer) {
 }
 
 void SkyView::traverse(RenderState *rs) {
-	if (!isHidden_ && !state_->isHidden()) {
+	if (!isHidden_ && !state_->isHidden() && !layer_.empty()) {
 		sky_->state()->enable(rs);
-		StateNode::traverse(rs);
+		state()->enable(rs);
+
+		// render first layer without blending
+		auto &firstLayer = layer_.front();
+		firstLayer->traverse(rs);
+
+		if (layer_.size()>1) {
+			rs->toggles().push(RenderState::BLEND, GL_TRUE);
+			for (size_t i = 1; i < layer_.size(); ++i) {
+				auto &layer = layer_[i];
+				if (layer->isHidden()) {
+					continue;
+				}
+				layer->traverse(rs);
+			}
+			rs->toggles().pop(RenderState::BLEND);
+		}
+
+		state()->disable(rs);
 		sky_->state()->disable(rs);
 	}
 }
@@ -261,8 +295,18 @@ void SkyView::createShader(RenderState *, const StateConfig &stateCfg) {
 		StateConfigurer cfg(stateCfg);
 		cfg.addNode(layer.get());
 
-		layer->getShaderState()->createShader(cfg.cfg());
-		layer->getMeshState()->updateVAO(cfg.cfg(), layer->getShaderState()->shaderState()->shader());
+		auto hasShader = layer->getShaderState();
+		auto mesh = layer->getMeshState();
+
+		// replicate each mesh LOD numLayer times for indirect multi-layer rendering
+		const uint32_t numRenderLayer = cfg.cfg().numRenderLayer();
+		if (numRenderLayer > 1) {
+			REGEN_INFO("Using indirect multi-layer sky-pass with " << numRenderLayer << " layers.");
+			mesh->createIndirectDrawBuffer(numRenderLayer);
+		}
+
+		hasShader->createShader(cfg.cfg());
+		mesh->updateVAO(cfg.cfg(), hasShader->shaderState()->shader());
 	}
 }
 
@@ -491,7 +535,7 @@ ref_ptr<Sky> Sky::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 		return {};
 	}
 
-	ref_ptr<Sky> sky = ref_ptr<Sky>::alloc(cam, scene->getViewport());
+	ref_ptr<Sky> sky = ref_ptr<Sky>::alloc(cam, scene->screen());
 
 	sky->setWorldTime(&scene->application()->worldTime());
 

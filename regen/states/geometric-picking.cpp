@@ -1,6 +1,5 @@
 #include "geometric-picking.h"
 #include "atomic-states.h"
-#include "depth-state.h"
 #include "feedback-state.h"
 #include "regen/scene/node-processor.h"
 
@@ -18,11 +17,11 @@ GeomPicking::GeomPicking(const ref_ptr<Camera> &camera, const ref_ptr<ShaderInpu
 	mouseTexco_ = mouseTexco;
 	mousePosVS_ = ref_ptr<ShaderInput3f>::alloc("mousePosVS");
 	mousePosVS_->setUniformData(Vec3f(0.0f));
-	state_->joinShaderInput(mousePosVS_);
+	state_->setInput(mousePosVS_);
 
 	mouseDirVS_ = ref_ptr<ShaderInput3f>::alloc("mouseDirVS");
 	mouseDirVS_->setUniformData(Vec3f(0.0f, 1.0f, 0.0f));
-	state_->joinShaderInput(mouseDirVS_);
+	state_->setInput(mouseDirVS_);
 
 	// skip fragment shader, only up to geometry shader is needed
 	state_->joinStates(ref_ptr<ToggleState>::alloc(RenderState::RASTERIZER_DISCARD, GL_TRUE));
@@ -37,19 +36,31 @@ GeomPicking::GeomPicking(const ref_ptr<Camera> &camera, const ref_ptr<ShaderInpu
 
 	// setup transform feedback buffer
 	bufferSize_ = sizeof(PickData) * maxPickedObjects_;
-	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, BUFFER_USAGE_STREAM_DRAW);
-	vboRef_ = feedbackBuffer_->allocBytes(bufferSize_);
+	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, BufferUpdateFlags::FULL_PER_FRAME);
+	// note: we use separate staging buffer for reading the feedback buffer.
+	feedbackBuffer_->setBufferMapMode(BUFFER_MAP_DISABLED);
+	//feedbackBuffer_->setBufferMapMode(BUFFER_MAP_PERSISTENT_COHERENT);
+	//feedbackBuffer_->setBufferAccessMode(BUFFER_CPU_READ);
+	vboRef_ = feedbackBuffer_->adoptBufferRange(bufferSize_);
 	if (vboRef_.get() == nullptr) {
 		REGEN_WARN("Unable to allocate VBO for picking. Picking will not work.");
 		return;
 	}
 	bufferRange_ = ref_ptr<BufferRange>::alloc();
 	bufferRange_->buffer_ = vboRef_->bufferID();
+	feedbackRange_.buffer_ = vboRef_->bufferID();
+	feedbackRange_.size_ = bufferSize_;
 
 	// Create a double-buffered PBO for reading the feedback buffer
-	pickMapping_ = ref_ptr<BufferStructMapping<PickData>>::alloc(
-			MAP_READ | MAP_PERSISTENT | MAP_COHERENT,
-			DOUBLE_BUFFER);
+	// TODO: check if it is better to use two buffers, one mapped and one that we copy to like we did before.
+	BufferFlags mappingFlags(
+			TRANSFORM_FEEDBACK_BUFFER,
+			BufferUpdateFlags::FULL_PER_FRAME);
+	mappingFlags.accessMode = BUFFER_CPU_READ;
+	mappingFlags.mapMode = BUFFER_MAP_PERSISTENT_COHERENT;
+	mappingFlags.bufferingMode = DOUBLE_BUFFER;
+	pickMapping_ = ref_ptr<StagingStructBuffer<PickData>>::alloc(mappingFlags);
+	pickMapping_->resizeBuffer(bufferSize_, 2);
 
 	// setup transform feedback specification, this is needed for shaders to know what to output
 	feedbackState_ = ref_ptr<FeedbackSpecification>::alloc(maxPickedObjects_);
@@ -64,13 +75,13 @@ GeomPicking::GeomPicking(const ref_ptr<Camera> &camera, const ref_ptr<ShaderInpu
 GeomPicking::~GeomPicking() = default;
 
 void GeomPicking::updateMouse() {
-	auto inverseProjectionMatrix = camera_->projectionInverse()->getVertex(0);
+	auto &inverseProjectionMatrix = camera_->projectionInverse(0);
 	auto mouse = mouseTexco_->getVertex(0);
 	// find view space mouse ray intersecting the frustum
 	Vec2f mouseNDC = mouse.r * 2.0 - Vec2f(1.0);
 	// in NDC space the ray starts at (mx,my,0) and ends at (mx,my,1)
-	Vec4f mouseRayNear = inverseProjectionMatrix.r ^ Vec4f(mouseNDC, 0.0, 1.0);
-	Vec4f mouseRayFar = inverseProjectionMatrix.r ^ Vec4f(mouseNDC, 1.0, 1.0);
+	Vec4f mouseRayNear = inverseProjectionMatrix ^ Vec4f(mouseNDC, 0.0, 1.0);
+	Vec4f mouseRayFar = inverseProjectionMatrix ^ Vec4f(mouseNDC, 1.0, 1.0);
 	mouseRayNear.xyz_() /= mouseRayNear.w;
 	mouseRayFar.xyz_() /= mouseRayFar.w;
 	mousePosVS_->setVertex(0, mouseRayNear.xyz_());
@@ -93,7 +104,7 @@ void GeomPicking::traverse(RenderState *rs) {
 		// update buffer range of pickable
 		bufferRange_->offset_ = feedbackCount * sizeof(PickData);
 		bufferRange_->size_ = bufferSize_ - bufferRange_->offset_;
-		bufferRange_->offset_ += vboRef_->address();
+		bufferRange_->offset_ += feedbackRange_.offset_;
 		pickableMesh->setFeedbackRange(bufferRange_);
 		glBeginQuery(GL_PRIMITIVES_GENERATED, feedbackQuery);
 		// render pickable
@@ -108,9 +119,20 @@ void GeomPicking::traverse(RenderState *rs) {
 	glDeleteQueries(1, &feedbackQuery);
 
 	if (feedbackCount > 0) {
-		pickMapping_->readBuffer(vboRef_, GL_TRANSFORM_FEEDBACK_BUFFER);
+		// NOTE: the staging buffer pickMapping_ is currently not wrapped by a BO that adds itself to the
+		//       StagingSystem, so we need to manually update it. reason: currently VBOs are not
+		//       supported in the StagingSystem.
+		//       Later, we might want to add the picking buffer to staging system to gain advantages of
+		//       centralized update and synchronization.
+		if(!pickMapping_->readBuffer(vboRef_, feedbackRange_, 0u)) {
+			REGEN_WARN("Failed to read feedback buffer for picking.");
+			hasPickedObject_ = false;
+			// avoid further processing
+			state_->disable(rs);
+			return;
+		}
 		if (pickMapping_->hasReadData()) {
-			auto &pickData = pickMapping_->storageValue();
+			auto &pickData = pickMapping_->stagingReadValue();
 			pickedObject_.depth = pickData.depth;
 			pickedObject_.instanceID = pickData.instanceID;
 			pickedObject_.objectID = pickData.objectID;

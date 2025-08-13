@@ -1,5 +1,4 @@
 #include <regen/config.h>
-#include <regen/gl-types/gl-util.h>
 
 #include "render-state.h"
 
@@ -46,8 +45,6 @@ static inline void Regen_BlendEquationi(GLuint i, const BlendEquation &v) { glBl
 static inline void Regen_BlendFunc(const BlendFunction &v) { glBlendFuncSeparate(v.x, v.y, v.z, v.w); }
 
 static inline void Regen_BlendFunci(GLuint i, const BlendFunction &v) { glBlendFuncSeparatei(i, v.x, v.y, v.z, v.w); }
-
-static inline void Regen_ClearColor(const ClearColor &v) { glClearColor(v.x, v.y, v.z, v.w); }
 
 static inline void Regen_ColorMask(const ColorMask &v) { glColorMask(v.x, v.y, v.z, v.w); }
 
@@ -102,20 +99,23 @@ inline void Regen_Toggle(GLuint index, const GLboolean &v) {
 	toggleFunctions[v](toggleID);
 }
 
-RenderState *RenderState::instance_ = nullptr;
-
-RenderState *RenderState::get() {
+RenderState *RenderState::get(bool reset) {
+	thread_local static RenderState *instance_ = nullptr;
 	if (instance_ == nullptr) {
+		instance_ = new RenderState();
+	} else if (reset) {
+		delete instance_;
 		instance_ = new RenderState();
 	}
 	return instance_;
 }
 
-void RenderState::reset() {
-	if (instance_ != nullptr) {
-		delete instance_;
-		instance_ = new RenderState();
-	}
+RenderState *RenderState::get() {
+	return RenderState::get(false);
+}
+
+RenderState* RenderState::reset() {
+	return RenderState::get(true);
 }
 
 #ifdef WIN32
@@ -135,8 +135,6 @@ template<typename T> void Regen_DepthMask(T v)
 { glDepthMask(v); }
 template<typename T> void Regen_DepthFunc(T v)
 { glDepthFunc(v); }
-template<typename T> void Regen_ClearDepth(T v)
-{ glClearDepth(v); }
 template<typename T> void Regen_StencilMask(T v)
 { glStencilMask(v); }
 template<typename T> void Regen_PolygonMode(GLenum key,T v)
@@ -166,7 +164,6 @@ template<typename T> void Regen_VAO(T v)
 #define Regen_CullFace glCullFace
 #define Regen_DepthMask glDepthMask
 #define Regen_DepthFunc glDepthFunc
-#define Regen_ClearDepth glClearDepth
 #define Regen_StencilMask glStencilMask
 #define Regen_PolygonMode glPolygonMode
 #define Regen_PointSize glPointSize
@@ -181,6 +178,8 @@ template<typename T> void Regen_VAO(T v)
 #define Regen_VAO glBindVertexArray
 #endif
 
+template<typename T> void regen_noop_arg1(const T &v) {}
+
 RenderState::RenderState()
 		: maxDrawBuffers_(getGLInteger(GL_MAX_DRAW_BUFFERS)),
 		  maxTextureUnits_(getGLInteger(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS)),
@@ -194,9 +193,8 @@ RenderState::RenderState()
 		  maxShaderStorageBuffers_(getGLInteger("GL_ARB_shader_storage_buffer_object",
 												GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, 0)),
 		  feedbackCount_(0),
-		  toggles_(TOGGLE_STATE_LAST, regen_lockedValue, Regen_Toggle),
+		  toggles_(TOGGLE_STATE_LAST, regen_noop_arg1, Regen_Toggle),
 		  arrayBuffer_(GL_ARRAY_BUFFER, Regen_BindBuffer),
-		  elementArrayBuffer_(GL_ELEMENT_ARRAY_BUFFER, Regen_BindBuffer),
 		  feedbackBuffer_(GL_TRANSFORM_FEEDBACK_BUFFER, Regen_BindBuffer),
 		  uniformBuffer_(GL_UNIFORM_BUFFER, Regen_BindBuffer),
 		  shaderStorageBuffer_(GL_SHADER_STORAGE_BUFFER, Regen_BindBuffer),
@@ -210,20 +208,19 @@ RenderState::RenderState()
 		  renderBuffer_(GL_RENDERBUFFER, Regen_BindRenderbuffer),
 		  atomicCounterBuffer_(GL_ATOMIC_COUNTER_BUFFER, Regen_BindBuffer),
 		  vao_(Regen_VAO),
-		  uniformBufferRange_(maxUniformBuffers_, regen_lockedValue, Regen_UniformBufferRange),
-		  feedbackBufferRange_(maxFeedbackBuffers_, regen_lockedValue, Regen_FeedbackBufferRange),
-		  atomicCounterBufferRange_(maxAtomicCounterBuffers_, regen_lockedValue, Regen_AtomicCounterBufferRange),
-		  ssboRange_(maxShaderStorageBuffers_, regen_lockedValue, Regen_ShaderStorageBufferRange),
+		  uniformBufferRange_(maxUniformBuffers_, regen_noop_arg1, Regen_UniformBufferRange),
+		  feedbackBufferRange_(maxFeedbackBuffers_, regen_noop_arg1, Regen_FeedbackBufferRange),
+		  atomicCounterBufferRange_(maxAtomicCounterBuffers_, regen_noop_arg1, Regen_AtomicCounterBufferRange),
+		  ssboRange_(maxShaderStorageBuffers_, regen_noop_arg1, Regen_ShaderStorageBufferRange),
 		  readFrameBuffer_(GL_READ_FRAMEBUFFER, Regen_BindFramebuffer),
 		  drawFrameBuffer_(GL_DRAW_FRAMEBUFFER, Regen_BindFramebuffer),
 		  viewport_(Regen_Viewport),
 		  shader_(Regen_UseProgram),
-		  textures_(maxTextureUnits_, regen_lockedValue, Regen_Texture),
+		  textures_(maxTextureUnits_, regen_noop_arg1, Regen_Texture),
 		  scissor_(maxViewports_, Regen_Scissor, Regen_Scissori),
 		  cullFace_(Regen_CullFace),
 		  depthMask_(Regen_DepthMask),
 		  depthFunc_(Regen_DepthFunc),
-		  depthClear_(Regen_ClearDepth),
 		  depthRange_(maxViewports_, Regen_DepthRange, Regen_DepthRangei),
 		  blendColor_(Regen_BlendColor),
 		  blendEquation_(maxDrawBuffers_, Regen_BlendEquation, Regen_BlendEquationi),
@@ -239,7 +236,6 @@ RenderState::RenderState()
 		  patchVertices_(GL_PATCH_VERTICES, Regen_PatchParameteri),
 		  patchLevel_(Regen_PatchLevel),
 		  colorMask_(maxDrawBuffers_, Regen_ColorMask, Regen_ColorMaski),
-		  clearColor_(Regen_ClearColor),
 		  lineWidth_(Regen_LineWidth),
 		  minSampleShading_(Regen_MinSampleShading),
 		  logicOp_(Regen_LogicOp),
@@ -272,11 +268,11 @@ RenderState::RenderState()
 		}
 		toggles_.push(i, enabled);
 	}
+	toggles_.push(RenderState::BLEND, GL_FALSE);
 	// init value states
 	cullFace_.push(GL_BACK);
 	depthMask_.push(GL_TRUE);
 	depthFunc_.push(GL_LEQUAL);
-	depthClear_.push(1.0);
 	depthRange_.push(DepthRange(0.0, 1.0));
 	blendEquation_.push(BlendEquation(GL_FUNC_ADD));
 	blendFunc_.push(BlendFunction(GL_ONE, GL_ONE, GL_ZERO, GL_ZERO));
@@ -285,7 +281,6 @@ RenderState::RenderState()
 	pointSize_.push(1.0);
 	lineWidth_.push(1.0);
 	colorMask_.push(ColorMask(GL_TRUE));
-	clearColor_.push(ClearColor(0.0f));
 	logicOp_.push(GL_COPY);
 	frontFace_.push(GL_CCW);
 	pointFadeThreshold_.push(1.0);
@@ -300,7 +295,7 @@ RenderState::RenderState()
 	GL_ERROR_LOG();
 }
 
-ParameterStackAtomic<GLuint>& RenderState::buffer(GLenum target) {
+KeyedStateStack<GLuint>& RenderState::buffer(GLenum target) {
 	switch (target) {
 		case GL_UNIFORM_BUFFER:
 			return uniformBuffer_;
@@ -326,17 +321,16 @@ ParameterStackAtomic<GLuint>& RenderState::buffer(GLenum target) {
 			return atomicCounterBuffer_;
 		case GL_ARRAY_BUFFER:
 			return arrayBuffer_;
-		case GL_ELEMENT_ARRAY_BUFFER:
-			return elementArrayBuffer_;
 		case GL_TRANSFORM_FEEDBACK_BUFFER:
 			return feedbackBuffer_;
 		default:
-			REGEN_WARN("Unknown buffer target " << target << ". Using GL_ARRAY_BUFFER.");
-			return arrayBuffer_;
+			REGEN_WARN("Unknown buffer target 0x"
+				<< std::hex << target << ". Using GL_SHADER_STORAGE_BUFFER.");
+			return shaderStorageBuffer_;
 	}
 }
 
-IndexedValueStack<BufferRange>& RenderState::bufferRange(GLenum target) {
+IndexedStateStack<BufferRange>& RenderState::bufferRange(GLenum target) {
 	switch (target) {
 		case GL_UNIFORM_BUFFER:
 			return uniformBufferRange_;
@@ -346,9 +340,14 @@ IndexedValueStack<BufferRange>& RenderState::bufferRange(GLenum target) {
 			return ssboRange_;
 		case GL_TRANSFORM_FEEDBACK_BUFFER:
 			return feedbackBufferRange_;
-		default: // GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, GL_DRAW_INDIRECT_BUFFER
-			REGEN_WARN("Unknown buffer target " << target << ". Using GL_UNIFORM_BUFFER.");
-			return uniformBufferRange_;
+		case GL_DRAW_INDIRECT_BUFFER:
+			// Note: Allow binding draw indirect buffer as a shader storage buffer.
+			//       This is useful for compute shaders that update the draw indirect buffer.
+			return ssboRange_;
+		default: // GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER
+			REGEN_WARN("Invalid buffer range target 0x"
+				<< std::hex << target << ". Using GL_SHADER_STORAGE_BUFFER.");
+			return ssboRange_;
 	}
 }
 

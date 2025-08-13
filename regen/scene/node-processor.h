@@ -9,7 +9,7 @@
 #define REGEN_NODE_CATEGORY "node"
 
 #include <regen/states/state-node.h>
-#include <regen/states/lod-state.h>
+#include <regen/shapes/lod-state.h>
 #include "regen/states/state-node-comparator.h"
 
 namespace regen::scene {
@@ -89,7 +89,7 @@ namespace regen::scene {
 				auto newNodeID = scene->putNamedObject(newNode);
 				auto u_objectID = ref_ptr<ShaderInput1i>::alloc("objectID");
 				u_objectID->setUniformData(newNodeID);
-				newNode->state()->joinShaderInput(u_objectID);
+				newNode->state()->setInput(u_objectID);
 			}
 			if (input.hasAttribute("sort")) {
 				// Sort node children by model view matrix.

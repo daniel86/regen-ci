@@ -1,15 +1,8 @@
-/*
- * blit-to-screen.h
- *
- *  Created on: 04.08.2012
- *      Author: daniel
- */
-
 #ifndef BLIT_TO_SCREEN_H_
 #define BLIT_TO_SCREEN_H_
 
 #include <regen/states/state.h>
-#include <regen/gl-types/fbo.h>
+#include "regen/textures/fbo.h"
 
 namespace regen {
 	class BlitState : public State {
@@ -76,7 +69,7 @@ namespace regen {
 		 */
 		BlitToScreen(
 				const ref_ptr<FBO> &fbo,
-				const ref_ptr<ShaderInput2i> &viewport,
+				const ref_ptr<Screen> &screen,
 				GLenum attachment = GL_COLOR_ATTACHMENT0,
 				GLboolean keepRatio = GL_FALSE);
 
@@ -100,7 +93,7 @@ namespace regen {
 		/**
 		 * @return the viewport.
 		 */
-		auto &viewport() { return viewport_; }
+		auto &screen() { return screen_; }
 
 		/**
 		 * @return the attachment of the FBO.
@@ -112,7 +105,7 @@ namespace regen {
 
 	protected:
 		ref_ptr<FBO> fbo_;
-		ref_ptr<ShaderInput2i> viewport_;
+		ref_ptr<Screen> screen_;
 		GLenum attachment_;
 		GLenum filterMode_;
 		GLenum sourceBuffer_;
@@ -135,7 +128,7 @@ namespace regen {
 		BlitTexToScreen(
 				const ref_ptr<FBO> &fbo,
 				const ref_ptr<Texture> &texture,
-				const ref_ptr<ShaderInput2i> &viewport,
+				const ref_ptr<Screen> &screen,
 				GLenum attachment = GL_COLOR_ATTACHMENT0);
 
 		// override

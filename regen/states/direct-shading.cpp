@@ -3,7 +3,6 @@
 #include "direct-shading.h"
 #include "regen/camera/light-camera-parabolic.h"
 #include "regen/scene/node-processor.h"
-#include <regen/textures/texture.h>
 
 using namespace regen;
 
@@ -15,7 +14,7 @@ DirectShading::DirectShading() : State(), idCounter_(0) {
 	ambientLight_ = ref_ptr<ShaderInput3f>::alloc("ambientLight");
 	ambientLight_->setUniformData(Vec3f(0.2f));
 	ambientLight_->setSchema(InputSchema::color());
-	joinShaderInput(ambientLight_);
+	setInput(ambientLight_);
 }
 
 static std::string shadowFilterMode(ShadowFilterMode f) {
@@ -109,29 +108,36 @@ void DirectShading::addLight(
 
 	// join light shader inputs using a name override
 	{
-		const ShaderInputList &in = light->inputContainer()->inputs();
-		for (auto it = in.begin(); it != in.end(); ++it) {
-			if (it->in_->isBufferBlock()) {
+		for (auto &it : light->inputs()) {
+			if (it.in_->isBufferBlock()) {
 				// if the input is a uniform block, we add all uniforms to the shader
 				// to avoid name clash.
-				// TODO: find a way to use UBO without the name clash
-				auto *block = dynamic_cast<BufferBlock *>(it->in_.get());
-				for (auto &blockUniform: block->blockInputs()) {
-					joinShaderInput(
-							blockUniform.in_,
-							REGEN_LIGHT_NAME(blockUniform.name_, lightID));
+				auto *block = dynamic_cast<BufferBlock *>(it.in_.get());
+				auto *ubo = dynamic_cast<UBO *>(block);
+				if (ubo) {
+					setInput(it.in_,
+						REGEN_LIGHT_NAME(block->name(), lightID),
+						REGEN_STRING(lightID));
+				} else {
+					REGEN_WARN("Unexpected input type for light: "
+							   << it.in_->name() << " (" << block->name() << ")");
+					for (auto &blockUniform: block->stagedInputs()) {
+						setInput(
+								blockUniform.in_,
+								REGEN_LIGHT_NAME(blockUniform.name_, lightID));
+					}
 				}
 			} else {
-				joinShaderInput(
-						it->in_,
-						REGEN_LIGHT_NAME(it->in_->name(), lightID));
+				setInput(
+						it.in_,
+						REGEN_LIGHT_NAME(it.in_->name(), lightID));
 			}
 		}
 	}
 
 	if (camera.get()) {
-		joinShaderInput(camera->lightCamera()->projParams(), REGEN_LIGHT_NAME("lightProjParams", lightID));
-		joinShaderInput(camera->lightMatrix(), REGEN_LIGHT_NAME("lightMatrix", lightID));
+		setInput(camera->lightCamera()->sh_projParams(), REGEN_LIGHT_NAME("lightProjParams", lightID));
+		setInput(camera->shadowBuffer(), "Shadow", REGEN_STRING(lightID));
 	}
 	if (shadow.get()) {
 		directLight.shadowSizeInv_ = createUniform<ShaderInput2f>(
@@ -140,8 +146,8 @@ void DirectShading::addLight(
 		directLight.shadowSize_ = createUniform<ShaderInput2f>(
 			REGEN_LIGHT_NAME("shadowSize", lightID),
 			shadow->size());
-		joinShaderInput(directLight.shadowSizeInv_);
-		joinShaderInput(directLight.shadowSize_);
+		setInput(directLight.shadowSizeInv_);
+		setInput(directLight.shadowSize_);
 
 		directLight.shadowMap_ =
 				ref_ptr<TextureState>::alloc(shadow, REGEN_LIGHT_NAME("shadowTexture", lightID));
@@ -168,16 +174,15 @@ void DirectShading::removeLight(const ref_ptr<Light> &l) {
 
 	DirectLight &directLight = *it;
 	{
-		const ShaderInputList &in = l->inputContainer()->inputs();
-		for (const auto &jt: in) { disjoinShaderInput(jt.in_); }
+		for (const auto &jt: l->inputs()) { removeInput(jt.in_); }
 	}
 	if (directLight.camera_.get()) {
-		disjoinShaderInput(directLight.camera_->lightCamera()->projParams());
-		disjoinShaderInput(directLight.camera_->lightMatrix());
+		removeInput(directLight.camera_->lightCamera()->sh_projParams());
+		removeInput(directLight.camera_->sh_lightMatrix());
 	}
 	if (directLight.shadow_.get()) {
-		disjoinShaderInput(directLight.shadowSizeInv_);
-		disjoinShaderInput(directLight.shadowSize_);
+		removeInput(directLight.shadowSizeInv_);
+		removeInput(directLight.shadowSize_);
 		disjoinStates(directLight.shadowMap_);
 		if (directLight.shadowColor_.get()) {
 			disjoinStates(directLight.shadowColorMap_);
@@ -231,7 +236,6 @@ ref_ptr<DirectShading> DirectShading::load(LoadingContext &ctx, scene::SceneInpu
 			REGEN_WARN("Unable to find Light for '" << n->getDescription() << "'.");
 			continue;
 		}
-		REGEN_INFO("processing light '" << n->getName() << "' for " << input.getDescription() << ".");
 
 		auto shadowFiltering =
 				n->getValue<ShadowFilterMode>("shadow-filter", SHADOW_FILTERING_NONE);

@@ -1,7 +1,6 @@
 #include <stack>
 #include "model-transformation.h"
 #include "regen/meshes/mesh-vector.h"
-#include "regen/textures/texture.h"
 #include "regen/animations/boids-cpu.h"
 #include "regen/animations/boids-gpu.h"
 #include "regen/animations/transform-animation.h"
@@ -9,9 +8,10 @@
 
 using namespace regen;
 
-ModelTransformation::ModelTransformation(int tfMode)
+ModelTransformation::ModelTransformation(int tfMode, const BufferUpdateFlags &tfUpdateFlags)
 		: State(),
-		  tfMode_(tfMode) {
+		  tfMode_(tfMode),
+		  tfUpdateFlags_(tfUpdateFlags) {
 	modelMat_ = ref_ptr<ShaderInputMat4>::alloc("modelMatrix");
 	modelOffset_ = ref_ptr<ShaderInput4f>::alloc("modelOffset");
 	velocity_ = ref_ptr<ShaderInput3f>::alloc("meshVelocity");
@@ -26,9 +26,10 @@ ModelTransformation::ModelTransformation(int tfMode)
 	initBufferContainer();
 }
 
-ModelTransformation::ModelTransformation(const ref_ptr<ShaderInput4f> &offset)
+ModelTransformation::ModelTransformation(const ref_ptr<ShaderInput4f> &offset, const BufferUpdateFlags &tfUpdateFlags)
 		: State(),
-		  tfMode_(TF_OFFSET) {
+		  tfMode_(TF_OFFSET),
+		  tfUpdateFlags_(tfUpdateFlags) {
 	modelOffset_ = offset;
 	modelMat_ = ref_ptr<ShaderInputMat4>::alloc("modelMatrix");
 	velocity_ = ref_ptr<ShaderInput3f>::alloc("meshVelocity");
@@ -38,9 +39,10 @@ ModelTransformation::ModelTransformation(const ref_ptr<ShaderInput4f> &offset)
 	initBufferContainer();
 }
 
-ModelTransformation::ModelTransformation(const ref_ptr<ShaderInputMat4> &mat)
+ModelTransformation::ModelTransformation(const ref_ptr<ShaderInputMat4> &mat, const BufferUpdateFlags &tfUpdateFlags)
 		: State(),
-		  tfMode_(TF_MATRIX) {
+		  tfMode_(TF_MATRIX),
+		  tfUpdateFlags_(tfUpdateFlags) {
 	modelMat_ = mat;
 	modelMat_->setSchema(InputSchema::transform());
 
@@ -54,63 +56,45 @@ ModelTransformation::ModelTransformation(const ref_ptr<ShaderInputMat4> &mat)
 }
 
 void ModelTransformation::initBufferContainer() {
-	bufferContainer_ = ref_ptr<BufferContainer>::alloc("ModelTransformation");
+	tfBuffer_ = ref_ptr<BufferContainer>::alloc("ModelTransformation", tfUpdateFlags_);
 	if (tfMode_ & TF_MATRIX) {
-		bufferContainer_->addInput(modelMat_);
+		tfBuffer_->addInput(modelMat_);
 	}
 	if (tfMode_ & TF_OFFSET) {
-		bufferContainer_->addInput(modelOffset_);
+		tfBuffer_->addInput(modelOffset_);
 	}
-	bufferContainer_->addInput(velocity_);
-	joinStates(bufferContainer_);
+	tfBuffer_->addInput(velocity_);
+	joinStates(tfBuffer_);
 }
 
 uint32_t ModelTransformation::stamp() const {
 	if (tfMode_ == TF_OFFSET) {
-		return modelOffset_->stamp();
+		return modelOffset_->stampOfReadData();
 	} else if (tfMode_ == TF_MATRIX) {
-		return modelMat_->stamp();
+		return modelMat_->stampOfReadData();
 	} else {
-		return modelOffset_->stamp() + modelMat_->stamp();
+		return modelOffset_->stampOfReadData() + modelMat_->stampOfReadData();
 	}
 }
 
-uint32_t ModelTransformation::numInstances() const {
-	if (tfMode_ == TF_OFFSET) {
-		return modelOffset_->numInstances();
-	} else if (tfMode_ == TF_MATRIX) {
-		return modelMat_->numInstances();
-	} else {
-		return std::max(modelOffset_->numInstances(), modelMat_->numInstances());
-	}
+void ModelTransformation::setModelMat(const Mat4f *mat) {
+	auto mapped = modelMat_->mapClientData<Mat4f>(BUFFER_GPU_WRITE);
+	std::memcpy(mapped.w.data(), mat, modelMat_->clientBuffer()->dataSize());
 }
 
-ShaderInput *PositionReader::getModelMat(const ModelTransformation *tf) {
-	return tf->hasModelMat() ? tf->modelMat().get() : nullptr;
+void ModelTransformation::setModelMat(uint32_t idx, const Mat4f &mat) {
+	modelMat_->setVertex(idx, mat);
 }
 
-ShaderInput *PositionReader::getModelOffset(const ModelTransformation *tf) {
-	return tf->hasModelOffset() ? tf->modelOffset().get() : nullptr;
-}
-
-const Vec3f &PositionReader::getPositionReference(const ModelTransformation *tf, unsigned int vertexIndex) const {
-	if (tf->hasModelOffset() && tf->hasModelMat()) {
-		tf->tmpPos_ =
-			((const Mat4f *) rawData_mat.r)[vertexIndex].position() +
-			((const Vec4f *) rawData_offset.r)[vertexIndex].xyz_();
-		return tf->tmpPos_;
-	}
-	if (tf->hasModelOffset()) {
-		return ((const Vec4f *) rawData_offset.r)[vertexIndex].xyz_();
-	}
-	if (tf->hasModelMat()) {
-		return ((const Mat4f *) rawData_mat.r)[vertexIndex].position();
-	}
-	return Vec3f::zero();
+void ModelTransformation::setModelOffset(uint32_t idx, const Vec3f &offset) {
+	modelOffset_->setVertex3(idx, offset);
 }
 
 PositionReader ModelTransformation::position(uint32_t idx) const {
-	return {this, idx};
+	return {
+		hasModelMat() ? modelMat().get() : nullptr,
+		hasModelOffset() ? modelOffset().get() : nullptr,
+		idx};
 }
 
 void ModelTransformation::enable(RenderState *rs) {
@@ -134,7 +118,9 @@ void ModelTransformation::enable(RenderState *rs) {
 }
 
 static void transformMatrix(
-		const std::string &target, Mat4f &mat, const Vec3f &value) {
+		const std::string &target,
+		Mat4f &mat,
+		const Vec3f &value) {
 	if (target == "translate") {
 		mat.x[12] += value.x;
 		mat.x[13] += value.y;
@@ -150,22 +136,18 @@ static void transformMatrix(
 	}
 }
 
-static void transformMatrix2(
-		const std::string &target, Mat4f &mat, Vec4f &offset, const Vec3f &value) {
+static void transformOffset(
+		const std::string &target, Vec4f &offset, const Vec3f &value) {
 	if (target == "translate") {
-		mat.x[12] += value.x;
-		mat.x[13] += value.y;
-		mat.x[14] += value.z;
-	} else if (target == "scale") {
-		mat.scale(value);
-	} else if (target == "rotate") {
-		Quaternion q(0.0, 0.0, 0.0, 1.0);
-		q.setEuler(value.x, value.y, value.z);
-		mat *= q.calculateMatrix();
-	} else if (target == "offset") {
 		offset.x += value.x;
 		offset.y += value.y;
 		offset.z += value.z;
+	} else if (target == "scale") {
+		offset.x *= value.x;
+		offset.y *= value.y;
+		offset.z *= value.z;
+	} else if (target == "rotate") {
+		REGEN_WARN("Cannot rotate offset '" << target << "'.");
 	} else {
 		REGEN_WARN("Unknown distribute target '" << target << "'.");
 	}
@@ -345,7 +327,7 @@ static void makeInstances(InstancePlaneGenerator &generator, unsigned int i, uns
 static GLuint transformMatrixPlane(
 		scene::SceneLoader *scene,
 		scene::SceneInputNode &input,
-		const ref_ptr<ShaderInputMat4> &matrixInput,
+		const ref_ptr<ModelTransformation> &tf,
 		GLuint numInstances) {
 	auto areaSize = input.getValue<Vec2f>("area-size", Vec2f(10.0f));
 	auto areaHalfSize = areaSize * 0.5f;
@@ -443,12 +425,10 @@ static GLuint transformMatrixPlane(
 		return numInstances;
 	} else {
 		numInstances = generator.instanceData.size();
-		matrixInput->setInstanceData(numInstances, 1, nullptr);
-		auto matrices = matrixInput->mapClientData<Mat4f>(ShaderData::WRITE);
 		// TODO: apply previous transform instead of overwriting
-		for (GLuint i = 0; i < numInstances; i += 1) {
-			matrices.w[i] = generator.instanceData[i];
-		}
+		tf->modelMat()->setInstanceData(numInstances, 1,
+				(byte*)generator.instanceData.data());
+		tf->set_numInstances(numInstances);
 	}
 
 	return numInstances;
@@ -478,7 +458,7 @@ static void transformAnimation(
 							   << child->getDescription() << " has no model matrix.");
 			return;
 		}
-		auto transformAnimation = ref_ptr<TransformAnimation>::alloc(tf->modelMat());
+		auto transformAnimation = ref_ptr<TransformAnimation>::alloc(tf);
 
 		if (child->hasAttribute("mesh-id")) {
 			auto meshID = child->getValue("mesh-id");
@@ -527,30 +507,50 @@ static void transformMatrix(
 			}
 			auto mode = child->getValue("mode");
 			if (mode == "plane") {
-				numInstances = transformMatrixPlane(scene, *child.get(), tf->modelMat(), numInstances);
+				numInstances = transformMatrixPlane(scene, *child.get(), tf, numInstances);
 			} else {
-				auto matrices = tf->modelMat()->mapClientData<Mat4f>(ShaderData::WRITE);
+				auto matrices = tf->modelMat()->mapClientData<Mat4f>(BUFFER_GPU_WRITE);
+				if (matrices.w.data() != matrices.r.data()) {
+					// Make sure we can read most recent data from matrices.w
+					std::memcpy((byte*)matrices.w.data(), (const byte*)matrices.r.data(),
+							sizeof(Mat4f) * tf->modelMat()->numInstances());
+				}
 				scene::ValueGenerator<Vec3f> generator(child.get(), indices.size(),
 													   child->getValue<Vec3f>("value", Vec3f(0.0f)));
 				const auto target = child->getValue<std::string>("target", "translate");
 
-				for (unsigned int &indice: indices) {
-					transformMatrix(target, matrices.w[indice], generator.next());
+				for (unsigned int &idx: indices) {
+					transformMatrix(target, matrices.w[idx], generator.next());
 				}
 			}
 		} else if (child->getCategory() == "animation") {
 			transformAnimation(scene, child, state, parent, tf);
 		} else {
-			auto &modelMat = tf->modelMat();
-			auto &modelOffset = tf->modelOffset();
-			auto v_modelMat = modelMat->mapClientData<Mat4f>(ShaderData::WRITE);
-			auto v_modelOffset = modelOffset->mapClientData<Vec4f>(ShaderData::WRITE);
-			for (unsigned int &j: indices) {
-				transformMatrix2(
-						child->getCategory(),
-						(modelMat->numInstances() > 1 ? v_modelMat.w[j] : v_modelMat.w[0]),
-						(modelOffset->numInstances() > 1 ? v_modelOffset.w[j] : v_modelOffset.w[0]),
-						child->getValue<Vec3f>("value", Vec3f(0.0f)));
+			if (tf->hasModelMat()) {
+				auto matrices = tf->modelMat()->mapClientData<Mat4f>(BUFFER_GPU_WRITE);
+				if (matrices.w.data() != matrices.r.data()) {
+					// Make sure we can read most recent data from matrices.w
+					std::memcpy((byte*)matrices.w.data(), (const byte*)matrices.r.data(),
+							sizeof(Mat4f) * tf->modelMat()->numInstances());
+				}
+				for (unsigned int &j: indices) {
+					transformMatrix(
+							child->getCategory(), matrices.w[j],
+							child->getValue<Vec3f>("value", Vec3f(0.0f)));
+				}
+			} else if (tf->hasModelOffset()) {
+				auto &modelOffset = tf->modelOffset();
+				auto offsets = modelOffset->mapClientData<Vec4f>(BUFFER_GPU_WRITE);
+				if (offsets.w.data() != offsets.r.data()) {
+					// Make sure we can read most recent data from offsets.w
+					std::memcpy((byte*)offsets.w.data(), (const byte*)offsets.r.data(),
+							sizeof(Vec4f) * modelOffset->numInstances());
+				}
+				for (unsigned int &j: indices) {
+					transformOffset(
+							child->getCategory(), offsets.w[j],
+							child->getValue<Vec3f>("value", Vec3f(0.0f)));
+				}
 			}
 		}
 	}
@@ -582,36 +582,51 @@ ModelTransformation::load(LoadingContext &ctx, scene::SceneInputNode &input, con
 			tfMode = ModelTransformation::TF_OFFSET | ModelTransformation::TF_MATRIX;
 		}
 	}
-	transform = ref_ptr<ModelTransformation>::alloc(tfMode);
+	BufferUpdateFlags updateFlags;
+	updateFlags.frequency = input.getValue<BufferUpdateFrequency>(
+		"update-frequency", BUFFER_UPDATE_PER_FRAME);
+	updateFlags.scope = input.getValue<BufferUpdateScope>(
+		"update-scope", BUFFER_UPDATE_FULLY);
+
+	transform = ref_ptr<ModelTransformation>::alloc(tfMode, updateFlags);
 	// read the gpu-usage flag
 	if (input.getValue<std::string>("gpu-usage", "READ") == "WRITE") {
-		transform->modelMat()->set_gpuUsage(ShaderData::WRITE);
-		transform->modelOffset()->set_gpuUsage(ShaderData::WRITE);
+		transform->modelMat()->setServerAccessMode(BUFFER_GPU_WRITE);
+		transform->modelOffset()->setServerAccessMode(BUFFER_GPU_WRITE);
 	} else {
-		transform->modelMat()->set_gpuUsage(ShaderData::READ);
-		transform->modelOffset()->set_gpuUsage(ShaderData::READ);
+		transform->modelMat()->setServerAccessMode(BUFFER_GPU_READ);
+		transform->modelOffset()->setServerAccessMode(BUFFER_GPU_READ);
 	}
 
 	// Handle instanced model matrix
 	if (isInstanced && numInstances > 1) {
-		auto &modelMat = transform->modelMat();
-		auto &modelOffset = transform->modelOffset();
+		transform->set_numInstances(numInstances);
 		if (transform->hasModelMat()) {
-			modelMat->setInstanceData(numInstances, 1, nullptr);
-			auto matrices = modelMat->mapClientData<Mat4f>(ShaderData::WRITE);
-			for (GLuint i = 0; i < numInstances; i += 1) matrices.w[i] = Mat4f::identity();
+			// allocate client memory for model matrix
+			transform->modelMat()->setInstanceData(numInstances, 1, nullptr);
 		} else if (transform->hasModelOffset()) {
-			modelOffset->setInstanceData(numInstances, 1, nullptr);
-			auto offsets = modelOffset->mapClientData<Vec4f>(ShaderData::WRITE);
-			for (GLuint i = 0; i < numInstances; i += 1) offsets.w[i] = Vec4f(0.0f, 0.0f, 0.0f, 1.0f);
+			// allocate client memory for model offset
+			transform->modelOffset()->setInstanceData(numInstances, 1, nullptr);
 		}
-		// update numInstances
-		transformMatrix(scene, input, state, ctx.parent(), transform, numInstances);
-	} else {
-		transformMatrix(scene, input, state, ctx.parent(), transform, 1u);
 	}
+	// set identity matrices on both slots
+	for (GLuint i = 0; i < numInstances; i += 1) {
+		Mat4f *mat0 = (Mat4f*) transform->modelMat()->clientData(0);
+		Mat4f *mat1 = (Mat4f*) transform->modelMat()->clientData(1);
+		for (GLuint j = 0; j < transform->modelMat()->numInstances(); j += 1) {
+			mat0[j] = Mat4f::identity();
+			if(mat1) mat1[j] = Mat4f::identity();
+		}
+		Vec4f *offset0 = (Vec4f*) transform->modelOffset()->clientData(0);
+		Vec4f *offset1 = (Vec4f*) transform->modelOffset()->clientData(1);
+		for (GLuint j = 0; j < transform->modelOffset()->numInstances(); j += 1) {
+			offset0[j] = Vec4f(0.0f, 0.0f, 0.0f, 1.0f);
+			if (offset1) offset1[j] = Vec4f(0.0f, 0.0f, 0.0f, 1.0f);
+		}
+	}
+	transformMatrix(scene, input, state, ctx.parent(), transform, numInstances);
 
-	transform->bufferContainer()->updateBuffer();
+	transform->tfBuffer()->updateBuffer();
 	state->joinStates(transform);
 	scene->putResource<ModelTransformation>(input.getName(), transform);
 	return transform;

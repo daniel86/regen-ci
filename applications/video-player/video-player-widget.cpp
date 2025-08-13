@@ -1,17 +1,10 @@
-/*
- * video-player-widget.cpp
- *
- *  Created on: 01.01.2013
- *      Author: daniel
- */
-
 #include <iostream>
 
 #include "video-player-widget.h"
-#include "regen/gl-types/fbo.h"
+#include "regen/textures/fbo.h"
 #include <regen/textures/texture-state.h>
-#include <regen/states/shader-state.h>
-#include <regen/states/fbo-state.h>
+#include "regen/glsl/shader-state.h"
+#include "regen/textures/fbo-state.h"
 #include <regen/states/blit-state.h>
 #include <regen/meshes/primitives/rectangle.h>
 #include <regen/states/state-configurer.h>
@@ -41,7 +34,6 @@ extern "C" {
 #define __CLOSE_INPUT__(x) av_close_input_file(x)
 #endif
 
-#include <regen/utility/string-util.h>
 #include <regen/animations/animation-manager.h>
 
 using namespace std;
@@ -101,14 +93,11 @@ VideoPlayerWidget::VideoPlayerWidget(QtApplication *app)
 		  app_(app),
 		  gain_(1.0f),
 		  elapsedTimer_(this),
-		  activePlaylistRow_(NULL),
+		  activePlaylistRow_(nullptr),
 		  wereControlsShown_(GL_FALSE) {
 	setMouseTracking(true);
 	setAcceptDrops(true);
 	controlsShown_ = GL_TRUE;
-
-	vid_ = ref_ptr<VideoTexture>::alloc();
-	demuxer_ = vid_->demuxer();
 
 	ui_.setupUi(this);
 	app_->glWidget()->setEnabled(false);
@@ -132,7 +121,7 @@ VideoPlayerWidget::VideoPlayerWidget(QtApplication *app)
 	connect(&elapsedTimer_, SIGNAL(timeout()), this, SLOT(updateElapsedTime()));
 	elapsedTimer_.start();
 
-	srand(time(NULL));
+	srand(time(nullptr));
 
 	initAnim_ = ref_ptr<VideoInitAnimation>::alloc(this);
 	initAnim_->startAnimation();
@@ -144,9 +133,11 @@ public:
 	FBOResizer(const ref_ptr<FBOState> &fbo, GLfloat wScale, GLfloat hScale)
 			: EventHandler(), fboState_(fbo), wScale_(wScale), hScale_(hScale) {}
 
-	void call(EventObject *evObject, EventData *) {
-		Scene *app = (Scene *) evObject;
-		auto winSize = app->windowViewport()->getVertex(0);
+	~FBOResizer() override = default;
+
+	void call(EventObject *evObject, EventData *) override {
+		auto *app = (Scene *) evObject;
+		auto winSize = app->screen()->viewport();
 		fboState_->resize(winSize.r.x * wScale_, winSize.r.y * hScale_);
 	}
 
@@ -156,7 +147,7 @@ protected:
 };
 
 void setBlitToScreen(Scene *app, const ref_ptr<FBO> &fbo, GLenum attachment) {
-	ref_ptr<State> blitState = ref_ptr<BlitToScreen>::alloc(fbo, app->windowViewport(), attachment);
+	ref_ptr<State> blitState = ref_ptr<BlitToScreen>::alloc(fbo, app->screen(), attachment);
 	app->renderTree()->addChild(ref_ptr<StateNode>::alloc(blitState));
 }
 
@@ -201,10 +192,13 @@ ref_ptr<Mesh> createVideoWidget(
 void VideoPlayerWidget::gl_loadScene() {
 	AnimationManager::get().pause(GL_TRUE);
 
+	vid_ = ref_ptr<VideoTexture>::alloc();
+	demuxer_ = vid_->demuxer();
+
 	// create render target
-	auto winSize = app_->windowViewport()->getVertex(0);
+	auto winSize = app_->screen()->viewport();
 	ref_ptr<FBO> fbo = ref_ptr<FBO>::alloc(winSize.r.x, winSize.r.y);
-	ref_ptr<Texture> target = fbo->addTexture(1, GL_TEXTURE_2D, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE);
+	ref_ptr<Texture> target = fbo->addTexture(1, GL_TEXTURE_2D, GL_RGB, GL_RGB8, GL_UNSIGNED_BYTE);
 	ref_ptr<FBOState> fboState = ref_ptr<FBOState>::alloc(fbo);
 	fboState->addDrawBuffer(GL_COLOR_ATTACHMENT0);
 	// resize fbo with window
@@ -219,6 +213,7 @@ void VideoPlayerWidget::gl_loadScene() {
 	setBlitToScreen(app_, fbo, GL_COLOR_ATTACHMENT0);
 	GL_ERROR_LOG();
 
+	vid_->startAnimation();
 	initAnim_ = ref_ptr<Animation>();
 	AnimationManager::get().resume();
 	REGEN_INFO("Video Scene Loaded.");
@@ -290,11 +285,11 @@ void VideoPlayerWidget::setVideoFile(const string &filePath) {
 int VideoPlayerWidget::addPlaylistItem(const string &filePath) {
 	// load information about the video file.
 	// if libav cannot open the file skip it
-	AVFormatContext *formatCtx = NULL;
-	if (avformat_open_input(&formatCtx, filePath.c_str(), NULL, NULL) != 0) {
+	AVFormatContext *formatCtx = nullptr;
+	if (avformat_open_input(&formatCtx, filePath.c_str(), nullptr, nullptr) != 0) {
 		return -1;
 	}
-	if (avformat_find_stream_info(formatCtx, NULL) < 0) {
+	if (avformat_find_stream_info(formatCtx, nullptr) < 0) {
 		return -1;
 	}
 	GLdouble numSeconds = formatCtx->duration / (GLdouble) AV_TIME_BASE;
@@ -304,13 +299,13 @@ int VideoPlayerWidget::addPlaylistItem(const string &filePath) {
 	int row = ui_.playlistTable->rowCount();
 	ui_.playlistTable->insertRow(row);
 
-	QTableWidgetItem *fileNameItem = new QTableWidgetItem;
+	auto *fileNameItem = new QTableWidgetItem;
 	fileNameItem->setText(filename.c_str());
 	fileNameItem->setTextAlignment(Qt::AlignLeft);
 	fileNameItem->setData(1, QVariant(filePath.c_str()));
 	ui_.playlistTable->setItem(row, 0, fileNameItem);
 
-	QTableWidgetItem *lengthItem = new QTableWidgetItem;
+	auto *lengthItem = new QTableWidgetItem;
 	lengthItem->setText(formatTime(numSeconds));
 	lengthItem->setTextAlignment(Qt::AlignLeft);
 	lengthItem->setData(1, QVariant(filePath.c_str()));
@@ -332,8 +327,8 @@ void VideoPlayerWidget::addLocalPath(const string &filePath) {
 			}
 		}
 		files.sort();
-		for (QStringList::iterator it = files.begin(); it != files.end(); ++it) {
-			addPlaylistItem(it->toStdString());
+		for (auto & file : files) {
+			addPlaylistItem(file.toStdString());
 		}
 	}
 }
@@ -343,6 +338,7 @@ void VideoPlayerWidget::addLocalPath(const string &filePath) {
 //////////////////////////////
 
 void VideoPlayerWidget::updateSize() {
+	if (!vid_.get()) return;
 	GLfloat widgetRatio = ui_.blackBackground->width() / (GLfloat) ui_.blackBackground->height();
 	GLfloat videoRatio = vid_->width() / (GLfloat) vid_->height();
 	GLint w, h;
@@ -403,7 +399,7 @@ void VideoPlayerWidget::toggleFullscreen() {
 }
 
 void VideoPlayerWidget::openVideoFile() {
-	QWidget *parent = NULL;
+	QWidget *parent = nullptr;
 	QFileDialog dialog(parent);
 	dialog.setFileMode(QFileDialog::AnyFile);
 	dialog.setNameFilters({"Videos (*.avi *.mpg)", "All files (*.*)"});
@@ -430,7 +426,7 @@ void VideoPlayerWidget::playlistActivated(QTableWidgetItem *item) {
 void VideoPlayerWidget::nextVideo() {
 	int row = ui_.playlistTable->rowCount();
 	if (row == 0) return;
-	int activeRow = (activePlaylistRow_ != NULL ? activePlaylistRow_->row() : -1);
+	int activeRow = (activePlaylistRow_ != nullptr ? activePlaylistRow_->row() : -1);
 
 	if (ui_.shuffleButton->isChecked()) {
 		row = rand() % ui_.playlistTable->rowCount();
@@ -454,7 +450,7 @@ void VideoPlayerWidget::nextVideo() {
 
 void VideoPlayerWidget::previousVideo() {
 	int row;
-	int activeRow = (activePlaylistRow_ != NULL ? activePlaylistRow_->row() : -1);
+	int activeRow = (activePlaylistRow_ != nullptr ? activePlaylistRow_->row() : -1);
 
 	if (ui_.shuffleButton->isChecked()) {
 		row = rand() % ui_.playlistTable->rowCount();
@@ -545,7 +541,7 @@ void VideoPlayerWidget::dragEnterEvent(QDragEnterEvent *event) {
 
 void VideoPlayerWidget::dropEvent(QDropEvent *event) {
 	QList<QUrl> uris = event->mimeData()->urls();
-	for (QList<QUrl>::iterator it = uris.begin(); it != uris.end(); ++it) {
-		addLocalPath(it->toLocalFile().toStdString());
+	for (auto & uri : uris) {
+		addLocalPath(uri.toLocalFile().toStdString());
 	}
 }

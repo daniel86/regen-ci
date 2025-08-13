@@ -1,12 +1,3 @@
-/*
- * reflection-camera.cpp
- *
- *  Created on: Dec 15, 2013
- *      Author: daniel
- */
-
-#include <GL/glew.h>
-
 #include "reflection-camera.h"
 
 using namespace regen;
@@ -17,7 +8,11 @@ namespace regen {
 		explicit ReflectionUpdater(ReflectionCamera *camera)
 				: Animation(false, true),
 				  camera_(camera) {}
-		void animate(double dt) override { camera_->updateReflection(); }
+		void animate(double dt) override {
+			if(camera_->updateReflection()) {
+				camera_->updateShaderData(static_cast<float>(dt));
+			}
+		}
 	private:
 		ReflectionCamera *camera_;
 	};
@@ -26,37 +21,37 @@ namespace regen {
 ReflectionCamera::ReflectionCamera(
 		const ref_ptr<Camera> &userCamera,
 		const ref_ptr<Mesh> &mesh,
-		unsigned int vertexIndex,
+		uint32_t vertexIndex,
 		bool hasBackFace)
 		: Camera(1),
 		  userCamera_(userCamera),
 		  vertexIndex_(vertexIndex),
-		  projStamp_(userCamera->projection()->stamp() - 1),
-		  camPosStamp_(userCamera->position()->stamp() - 1),
-		  camDirStamp_(userCamera->direction()->stamp() - 1),
-		  cameraChanged_(GL_TRUE),
-		  isFront_(GL_TRUE),
-		  hasMesh_(GL_TRUE),
+		  projStamp_(userCamera->projectionStamp() - 1),
+		  camPosStamp_(userCamera->positionStamp() - 1),
+		  camDirStamp_(userCamera->directionStamp() - 1),
+		  cameraChanged_(true),
+		  isFront_(true),
+		  hasMesh_(true),
 		  hasBackFace_(hasBackFace) {
-	setPerspective(userCamera_->projParams()->getVertex(0).r);
-
-	clipPlane_ = ref_ptr<ShaderInput4f>::alloc("clipPlane");
-	clipPlane_->setUniformData(Vec4f(0.0f));
-	setInput(clipPlane_);
+	setPerspective(userCamera_->projParams()[0]);
 
 	pos_ = mesh->positions();
 	nor_ = mesh->normals();
 	isReflectorValid_ = (pos_.get() != nullptr) && (nor_.get() != nullptr);
 	if (isReflectorValid_) {
-		posStamp_ = pos_->stamp() - 1;
-		norStamp_ = nor_->stamp() - 1;
+		posStamp_ = pos_->stampOfReadData() - 1;
+		norStamp_ = nor_->stampOfReadData() - 1;
 	}
 
 	auto modelMat = mesh->findShaderInput("modelMatrix");
 	transform_ = modelMat.value().in;
 	if (transform_.get() != nullptr) {
-		transformStamp_ = transform_->stamp() - 1;
+		transformStamp_ = transform_->stampOfReadData() - 1;
 	}
+
+	sh_clipPlane_ = ref_ptr<ShaderInput4f>::alloc("clipPlane");
+	sh_clipPlane_->setUniformData(Vec4f::zero());
+	cameraBlock_->addStagedInput(sh_clipPlane_);
 
 	reflectionUpdater_ = ref_ptr<ReflectionUpdater>::alloc(this);
 	reflectionUpdater_->startAnimation();
@@ -67,20 +62,16 @@ ReflectionCamera::ReflectionCamera(
 		const Vec3f &reflectorNormal,
 		const Vec3f &reflectorPoint,
 		bool hasBackFace)
-		: Camera(1),
+		: Camera(1, userCamera->cameraBlock()->stagingUpdateHint()),
 		  userCamera_(userCamera),
-		  projStamp_(userCamera->projection()->stamp() - 1),
-		  camPosStamp_(userCamera->position()->stamp() - 1),
-		  camDirStamp_(userCamera->direction()->stamp() - 1),
+		  projStamp_(userCamera->projectionStamp() - 1),
+		  camPosStamp_(userCamera->positionStamp() - 1),
+		  camDirStamp_(userCamera->directionStamp() - 1),
 		  cameraChanged_(true),
 		  isFront_(true),
 		  hasMesh_(false),
 		  hasBackFace_(hasBackFace) {
-	setPerspective(userCamera_->projParams()->getVertex(0).r);
-
-	clipPlane_ = ref_ptr<ShaderInput4f>::alloc("clipPlane");
-	clipPlane_->setUniformData(Vec4f(0.0f));
-	setInput(clipPlane_);
+	setPerspective(userCamera_->projParams()[0]);
 
 	vertexIndex_ = 0;
 	transformStamp_ = 0;
@@ -90,44 +81,48 @@ ReflectionCamera::ReflectionCamera(
 	norWorld_ = reflectorNormal;
 	isReflectorValid_ = true;
 
-	clipPlane_->setVertex(0, Vec4f(
-			norWorld_.x, norWorld_.y, norWorld_.z,
-			norWorld_.dot(posWorld_)));
 	reflectionMatrix_ = Mat4f::reflectionMatrix(posWorld_, norWorld_);
+
+	clipPlane_[0] = Vec4f(
+			norWorld_.x, norWorld_.y, norWorld_.z,
+			norWorld_.dot(posWorld_));
+	sh_clipPlane_ = ref_ptr<ShaderInput4f>::alloc("clipPlane");
+	sh_clipPlane_->setUniformData(clipPlane_[0]);
+	cameraBlock_->addStagedInput(sh_clipPlane_);
 
 	reflectionUpdater_ = ref_ptr<ReflectionUpdater>::alloc(this);
 	reflectionUpdater_->startAnimation();
 }
 
-void ReflectionCamera::updateReflection() {
+bool ReflectionCamera::updateReflection() {
 	if (isHidden() || !isReflectorValid_) {
-		return;
+		return false;
 	}
 
 	bool reflectorChanged = false;
 	if (hasMesh_) {
-		if (transform_.get() != nullptr && transform_->stamp() != transformStamp_) {
+		if (transform_.get() != nullptr && transform_->stampOfReadData() != transformStamp_) {
 			reflectorChanged = true;
-			transformStamp_ = transform_->stamp();
+			transformStamp_ = transform_->stampOfReadData();
 		}
-		if (nor_->stamp() != norStamp_) {
+		if (nor_->stampOfReadData() != norStamp_) {
 			reflectorChanged = true;
-			norStamp_ = nor_->stamp();
+			norStamp_ = nor_->stampOfReadData();
 		}
-		if (pos_->stamp() != posStamp_) {
+		if (pos_->stampOfReadData() != posStamp_) {
 			reflectorChanged = true;
-			posStamp_ = pos_->stamp();
+			posStamp_ = pos_->stampOfReadData();
 		}
 		// Compute plane parameters...
 		if (reflectorChanged) {
 			if (!pos_->hasClientData()) pos_->readServerData();
 			if (!nor_->hasClientData()) nor_->readServerData();
-			posWorld_ = pos_->mapClientData<Vec3f>(ShaderData::READ).r[vertexIndex_];
-			norWorld_ = nor_->mapClientData<Vec3f>(ShaderData::READ).r[vertexIndex_];
+			posWorld_ = pos_->mapClientData<Vec3f>(BUFFER_GPU_READ).r[vertexIndex_];
+			norWorld_ = nor_->mapClientData<Vec3f>(BUFFER_GPU_READ).r[vertexIndex_];
 
 			if (transform_.get() != nullptr) {
 				if (!transform_->hasClientData()) transform_->readServerData();
-				auto transform = transform_->mapClientData<Mat4f>(ShaderData::READ);
+				auto transform = transform_->mapClientData<Mat4f>(BUFFER_GPU_READ);
 				posWorld_ = (transform.r[0] ^ Vec4f(posWorld_, 1.0)).xyz_();
 				norWorld_ = (transform.r[0] ^ Vec4f(norWorld_, 0.0)).xyz_();
 				norWorld_.normalize();
@@ -136,45 +131,42 @@ void ReflectionCamera::updateReflection() {
 	}
 
 	// Switch normal if viewer is behind reflector.
-	GLboolean isFront = norWorld_.dot(
-		userCamera_->position()->getVertex(0).r.xyz_() - posWorld_) > 0.0;
+	bool isFront = norWorld_.dot(userCamera_->position(0) - posWorld_) > 0.0;
 	if (isFront != isFront_) {
 		isFront_ = isFront;
 		reflectorChanged = true;
 	}
 	// Skip back faces
-	if (!isFront && !hasBackFace_) return;
+	if (!isFront && !hasBackFace_) return false;
 
 	// Compute reflection matrix...
 	if (reflectorChanged) {
 		if (isFront_) {
-			clipPlane_->setVertex(0, Vec4f(
+			setClipPlane(0, Vec4f(
 					norWorld_.x, norWorld_.y, norWorld_.z,
 					norWorld_.dot(posWorld_)));
 			reflectionMatrix_ = Mat4f::reflectionMatrix(posWorld_, norWorld_);
 		} else {
 			// flip reflector normal
 			Vec3f n = -norWorld_;
-			clipPlane_->setVertex(0, Vec4f(n.x, n.y, n.z, n.dot(posWorld_)));
+			setClipPlane(0, Vec4f(n.x, n.y, n.z, n.dot(posWorld_)));
 			reflectionMatrix_ = Mat4f::reflectionMatrix(posWorld_, n);
 		}
 	}
 
 	// Compute reflection camera direction
-	if (reflectorChanged || userCamera_->direction()->stamp() != camDirStamp_) {
-		camDirStamp_ = userCamera_->direction()->stamp();
-		Vec3f dir = reflectionMatrix_.rotateVector(userCamera_->direction()->getVertex(0).r.xyz_());
+	if (reflectorChanged || userCamera_->directionStamp() != camDirStamp_) {
+		camDirStamp_ = userCamera_->directionStamp();
+		Vec3f dir = reflectionMatrix_.rotateVector(userCamera_->direction(0));
 		dir.normalize();
-		direction_->setVertex3(0, dir);
+		setDirection(0, dir);
 
 		reflectorChanged = true;
 	}
 	// Compute reflection camera position
-	if (reflectorChanged || userCamera_->position()->stamp() != camPosStamp_) {
-		camPosStamp_ = userCamera_->position()->stamp();
-		Vec3f reflected = reflectionMatrix_.transformVector(
-			userCamera_->position()->getVertex(0).r.xyz_());
-		position_->setVertex3(0, reflected);
+	if (reflectorChanged || userCamera_->positionStamp() != camPosStamp_) {
+		camPosStamp_ = userCamera_->positionStamp();
+		setPosition(0,  reflectionMatrix_.transformVector(userCamera_->position(0)));
 
 		reflectorChanged = true;
 	}
@@ -186,12 +178,10 @@ void ReflectionCamera::updateReflection() {
 	}
 
 	// Compute projection matrix
-	if (userCamera_->projection()->stamp() != projStamp_) {
-		projStamp_ = userCamera_->projection()->stamp();
-		proj_->setUniformData(
-				userCamera_->projection()->getVertex(0).r);
-		projInv_->setUniformData(
-				userCamera_->projectionInverse()->getVertex(0).r);
+	if (userCamera_->projectionStamp() != projStamp_) {
+		projStamp_ = userCamera_->projectionStamp();
+		setProjection(0, userCamera_->projection(0));
+		setProjectionInverse(0, userCamera_->projectionInverse(0));
 		cameraChanged_ = true;
 	}
 
@@ -200,5 +190,8 @@ void ReflectionCamera::updateReflection() {
 		updateViewProjection(0u,0u);
 		cameraChanged_ = false;
 		camStamp_ += 1u;
+		return true;
+	} else {
+		return false;
 	}
 }

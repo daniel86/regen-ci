@@ -8,8 +8,8 @@
 
 #include <regen/gl-types/gl-rectangle.h>
 #include <regen/gl-types/render-state.h>
-#include <regen/gl-types/shader-input.h>
-#include <regen/gl-types/vbo.h>
+#include "regen/glsl/shader-input.h"
+#include <regen/buffer/vbo.h>
 #include "regen/shapes/bounds.h"
 #include "regen/scene/scene-input.h"
 #include "regen/textures/texture-file.h"
@@ -418,7 +418,7 @@ namespace regen {
 
 		static void configure(ref_ptr<Texture> &tex, scene::SceneInputNode &input);
 
-		static Vec3i getSize(const ref_ptr<ShaderInput2i> &viewport,
+		static Vec3i getSize(const Vec2i &viewport,
 							 const std::string &sizeMode, const Vec3f &size);
 
 	protected:
@@ -436,9 +436,17 @@ namespace regen {
 		int32_t numSamples_ = 1;
 		GLboolean fixedSampleLocations_ = GL_TRUE;
 		int32_t textureChannel_ = -1;
-		TextureWrapping wrappingMode_ = Vec3i(GL_CLAMP_TO_EDGE);
 		std::string samplerType_;
 		std::optional<TextureFile> textureFile_;
+
+		// texture state
+		TextureFilter texFilter_ = Vec2i(GL_LINEAR, GL_LINEAR);
+		TextureWrapping wrappingMode_ = Vec3i(GL_CLAMP_TO_EDGE);
+		std::optional<TextureLoD> texLoD_ = std::nullopt;
+		std::optional<TextureSwizzle> texSwizzle_ = std::nullopt;
+		std::optional<TextureCompare> texCompare_ = std::nullopt;
+		std::optional<TextureMaxLevel> texMaxLevel_ = std::nullopt;
+		std::optional<TextureAniso> texAniso_ = std::nullopt;
 
 		// client data, or null
 		const GLubyte *textureData_;
@@ -532,11 +540,11 @@ namespace regen {
 	public:
 		explicit TextureMips2D(GLuint numMips = 4);
 
-		auto &mipTextures() { return mipTextures_; }
+		std::vector<Texture *> &mipTextures() { return mipTextures_; }
 
-		auto &mipRefs() { return mipRefs_; }
+		std::vector<ref_ptr<Texture2D>> &mipRefs() { return mipRefs_; }
 
-		auto numMips() const { return numMips_; }
+		uint32_t numCustomMips() const { return mipTextures_.size(); }
 
 	protected:
 		std::vector<Texture *> mipTextures_;

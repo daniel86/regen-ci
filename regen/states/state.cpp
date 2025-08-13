@@ -1,79 +1,70 @@
-/*
- * state.cpp
- *
- *  Created on: 01.08.2012
- *      Author: daniel
- */
-
-#include <regen/gl-types/input-container.h>
 #include <regen/scene/loading-context.h>
 
 #include "state.h"
 
 using namespace regen;
 
+struct State::StateShared {
+	int32_t numVertices_ = 0;
+	int32_t numInstances_ = 1;
+};
+
 State::State()
 		: EventObject(),
-		  shaderVersion_(130) {
+		  Resource() {
+	shared_ = ref_ptr<StateShared>::alloc();
 }
 
 State::State(const ref_ptr<State> &other)
 		: EventObject(),
-		  shaderDefines_(other->shaderDefines_),
-		  shaderFunctions_(other->shaderFunctions_),
 		  joined_(other->joined_),
-		  inputStateBuddy_(other->inputStateBuddy_),
+		  attached_(other->attached_),
 		  isHidden_(other->isHidden_),
-		  shaderVersion_(other->shaderVersion_) {
+		  shaderDefines_(other->shaderDefines_),
+		  shaderIncludes_(other->shaderIncludes_),
+		  shaderFunctions_(other->shaderFunctions_),
+		  shaderVersion_(other->shaderVersion_),
+		  shared_(other->shared_) {
+	inputs_ = other->inputs_;
+	inputMap_ = other->inputMap_;
 }
 
-GLuint State::shaderVersion() const { return shaderVersion_; }
-
-void State::setShaderVersion(GLuint version) {
-	if (version > shaderVersion_) shaderVersion_ = version;
+State::~State() {
+	while (!inputs_.empty()) {
+		removeInput(inputs_.begin()->name_);
+	}
+	attached_.clear();
+	joined_.clear();
 }
 
-void State::shaderDefine(const std::string &name, const std::string &value) {
-	shaderDefines_[name] = value;
+const std::vector<NamedShaderInput> &State::inputs() const {
+	return inputs_;
 }
 
-void State::shaderUndefine(const std::string &name) {
-	auto it = shaderDefines_.find(name);
-	if (it != shaderDefines_.end()) {
-		shaderDefines_.erase(it);
+int32_t State::numVertices() const {
+	return shared_->numVertices_;
+}
+
+void State::set_numVertices(int32_t v) {
+	shared_->numVertices_ = v;
+}
+
+int32_t State::numInstances() const {
+	return shared_->numInstances_;
+}
+
+void State::set_numInstances(int32_t v) {
+	shared_->numInstances_ = v;
+}
+
+void State::setConstantUniforms(bool isConstant) {
+	for (const auto &it: inputs_) {
+		it.in_->set_isConstant(isConstant);
+	}
+	for (const auto &it: joined()) {
+		it->setConstantUniforms(isConstant);
 	}
 }
-
-const std::map<std::string, std::string> &State::shaderDefines() const {
-	return shaderDefines_;
-}
-
-void State::shaderInclude(const std::string &path) {
-	shaderIncludes_.push_back(path);
-}
-
-void State::shaderFunction(const std::string &name, const std::string &value) { shaderFunctions_[name] = value; }
-
-const std::map<std::string, std::string> &State::shaderFunctions() const { return shaderFunctions_; }
-
-static void setConstantUniforms_(State *s, GLboolean isConstant) {
-	auto *inState = dynamic_cast<HasInput *>(s);
-	if (inState) {
-		const ShaderInputList &in = inState->inputContainer()->inputs();
-		for (const auto &it: in) {
-			it.in_->set_isConstant(isConstant);
-		}
-	}
-	for (const auto &it: s->joined()) {
-		setConstantUniforms_(it.get(), isConstant);
-	}
-}
-
-void State::setConstantUniforms(GLboolean isConstant) {
-	setConstantUniforms_(this, isConstant);
-}
-
-const std::list<ref_ptr<State> > &State::joined() const { return joined_; }
 
 void State::enable(RenderState *state) {
 	for (auto &it: joined_) {
@@ -91,9 +82,13 @@ void State::attach(const ref_ptr<EventObject> &obj) {
 	attached_.push_back(obj);
 }
 
-void State::joinStates(const ref_ptr<State> &state) { joined_.push_back(state); }
+void State::joinStates(const ref_ptr<State> &state) {
+	joined_.push_back(state);
+}
 
-void State::joinStatesFront(const ref_ptr<State> &state) { joined_.push_front(state); }
+void State::joinStatesFront(const ref_ptr<State> &state) {
+	joined_.insert(joined_.begin(), state);
+}
 
 void State::disjoinStates(const ref_ptr<State> &state) {
 	for (auto it = joined_.begin(); it != joined_.end(); ++it) {
@@ -104,55 +99,88 @@ void State::disjoinStates(const ref_ptr<State> &state) {
 	}
 }
 
-void State::joinShaderInput(const ref_ptr<ShaderInput> &in, const std::string &name) {
-	auto *inState = dynamic_cast<HasInput *>(this);
-	if (inputStateBuddy_.get()) { inState = inputStateBuddy_.get(); }
-	else if (!inState) {
-		ref_ptr<HasInputState> inputState = ref_ptr<HasInputState>::alloc();
-		inState = inputState.get();
-		joinStatesFront(inputState);
-		inputStateBuddy_ = inputState;
-	}
-	inState->setInput(in, name);
+bool State::hasInput(const std::string &name) const {
+	return inputMap_.count(name) > 0;
 }
 
-void State::disjoinShaderInput(const ref_ptr<ShaderInput> &in) {
-	auto *inState = dynamic_cast<HasInput *>(this);
-	if (inputStateBuddy_.get()) { inState = inputStateBuddy_.get(); }
-	else if (!inState) return;
-	inState->inputContainer()->removeInput(in);
+ref_ptr<ShaderInput> State::getInput(const std::string &name) const {
+	for (const auto &input: inputs_) {
+		if (name == input.name_) return input.in_;
+	}
+	return {};
+}
+
+void State::setInput(const ref_ptr<ShaderInput> &in, const std::string &name, const std::string &memberSuffix) {
+	const std::string &inputName = (name.empty() ? in->name() : name);
+
+	if (in->isVertexAttribute() && in->numVertices() > static_cast<uint32_t>(shared_->numVertices_)) {
+		shared_->numVertices_ = static_cast<int>(in->numVertices());
+	}
+	if (in->numInstances() > 1) {
+		shared_->numInstances_ = static_cast<int>(in->numInstances());
+	}
+	// check for instances of attributes within UBO
+	if (in->isBufferBlock()) {
+		auto *block = dynamic_cast<BufferBlock *>(in.get());
+		for (auto &namedInput: block->stagedInputs()) {
+			if (namedInput.in_->isVertexAttribute() &&
+			    namedInput.in_->numVertices() > static_cast<uint32_t>(shared_->numVertices_)) {
+				shared_->numVertices_ = static_cast<int>(namedInput.in_->numVertices());
+			}
+			if (namedInput.in_->numInstances() > 1) {
+				shared_->numInstances_ = static_cast<int>(namedInput.in_->numInstances());
+			}
+		}
+	}
+
+	if (inputMap_.count(inputName) > 0) {
+		removeInput(inputName);
+	} else { // insert into map of known attributes
+		inputMap_.insert(inputName);
+	}
+
+	// TODO: Rather push back here. But it seems some code relies on the order of inputs.
+	//       This should be fixed in the future.
+	inputs_.insert(inputs_.begin(), NamedShaderInput{in, inputName, "", memberSuffix});
+}
+
+void State::removeInput(const ref_ptr<ShaderInput> &in) {
+	inputMap_.erase(in->name());
+	removeInput(in->name());
+}
+
+void State::removeInput(const std::string &name) {
+	std::vector<NamedShaderInput>::iterator it;
+	for (it = inputs_.begin(); it != inputs_.end(); ++it) {
+		if (it->name_ == name) { break; }
+	}
+	if (it == inputs_.end()) { return; }
+	//it->in_->set_buffer(0u, {});
+	inputs_.erase(it);
 }
 
 void State::collectShaderInput(ShaderInputList &out) {
-	auto *inState = dynamic_cast<HasInput *>(this);
-	if (inState != nullptr) {
-		const ref_ptr<InputContainer> &container = inState->inputContainer();
-		out.insert(out.end(), container->inputs().begin(), container->inputs().end());
-	}
+	out.insert(out.end(), inputs_.begin(), inputs_.end());
 	for (auto &buddy : joined_) { buddy->collectShaderInput(out); }
 }
 
 std::optional<StateInput> State::findShaderInput(const std::string &name) {
 	StateInput ret;
 
-	auto *inState = dynamic_cast<HasInput *>(this);
-	if (inState != nullptr) {
-		ret.container = inState->inputContainer();
-		auto &l = ret.container->inputs();
-		for (const auto &inNamed: l) {
-			if (name == inNamed.name_ || name == inNamed.in_->name()) {
-				ret.in = inNamed.in_;
-				ret.block = {};
-				return ret;
-			}
-			if (inNamed.in_->isBufferBlock()) {
-				auto block = ref_ptr<BufferBlock>::dynamicCast(inNamed.in_);
-				for (auto &blockUniform: block->blockInputs()) {
-					if (name == blockUniform.name_ || name == blockUniform.in_->name()) {
-						ret.block = block;
-						ret.in = blockUniform.in_;
-						return ret;
-					}
+	auto &l = inputs();
+	for (const auto &inNamed: l) {
+		if (name == inNamed.name_ || name == inNamed.in_->name()) {
+			ret.in = inNamed.in_;
+			ret.block = {};
+			return ret;
+		}
+		if (inNamed.in_->isBufferBlock()) {
+			auto block = ref_ptr<BufferBlock>::dynamicCast(inNamed.in_);
+			for (auto &blockUniform: block->stagedInputs()) {
+				if (name == blockUniform.name_ || name == blockUniform.in_->name()) {
+					ret.block = block;
+					ret.in = blockUniform.in_;
+					return ret;
 				}
 			}
 		}
@@ -168,6 +196,25 @@ std::optional<StateInput> State::findShaderInput(const std::string &name) {
 	return std::nullopt;
 }
 
+void State::shaderDefine(const std::string &name, const std::string &value) {
+	shaderDefines_[name] = value;
+}
+
+void State::shaderUndefine(const std::string &name) {
+	auto it = shaderDefines_.find(name);
+	if (it != shaderDefines_.end()) {
+		shaderDefines_.erase(it);
+	}
+}
+
+void State::shaderInclude(const std::string &path) {
+	shaderIncludes_.push_back(path);
+}
+
+void State::shaderFunction(const std::string &name, const std::string &value) {
+	shaderFunctions_[name] = value;
+}
+
 //////////
 //////////
 
@@ -176,8 +223,6 @@ StateSequence::StateSequence() : State() {
 }
 
 void StateSequence::set_globalState(const ref_ptr<State> &globalState) { globalState_ = globalState; }
-
-const ref_ptr<State> &StateSequence::globalState() const { return globalState_; }
 
 void StateSequence::enable(RenderState *state) {
 	globalState_->enable(state);

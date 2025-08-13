@@ -2,7 +2,7 @@
 #define REGEN_BLOOM_PASS_H
 
 #include <regen/states/fullscreen-pass.h>
-#include <regen/states/fbo-state.h>
+#include "regen/textures/fbo-state.h"
 #include "bloom-texture.h"
 
 namespace regen {
@@ -28,6 +28,8 @@ namespace regen {
 		ref_ptr<BloomTexture> bloomTexture_;
 		ref_ptr<Mesh> fullscreenMesh_d_;
 		ref_ptr<Mesh> fullscreenMesh_u_;
+		uint32_t bloomWidth_ = 0;
+		uint32_t bloomHeight_ = 0;
 
 		ref_ptr<FBO> fbo_;
 
@@ -37,11 +39,13 @@ namespace regen {
 		ref_ptr<State> upsampleState_;
 		ref_ptr<ShaderState> upsampleShader_;
 		GLint inverseViewportLocUS_;
+		GLint inputTextureLocUS_;
 
 		ref_ptr<State> downsampleState_;
 		ref_ptr<ShaderState> downsampleShader_;
 		GLint inverseViewportLocDS_;
 		GLint inverseInputSizeLocDS_;
+		GLint inputTextureLocDS_;
 
 		void downsample(RenderState *rs);
 

@@ -64,14 +64,14 @@ createConvexHull(SceneInputNode &input, const ref_ptr<Mesh> &mesh) {
 	bool loadServerData = !pos->hasClientData();
 	if (loadServerData) pos->readServerData();
 
-	auto v_pos = pos->mapClientData<btScalar>(ShaderData::READ);
+	auto v_pos = pos->mapClientData<btScalar>(BUFFER_GPU_READ);
 	//create a hull approximation
 	//btShapeHull* hull = new btShapeHull(originalConvexShape);
 	//btScalar margin = originalConvexShape->getMargin();
 	//hull->buildHull(margin);
 	//btConvexHullShape* simplifiedConvexShape = new btConvexHullShape(hull->getVertexPointer(),hull->numVertices());
 
-	auto shape = ref_ptr<btConvexHullShape>::alloc(v_pos.r, pos->numVertices());
+	auto shape = ref_ptr<btConvexHullShape>::alloc(v_pos.r.data(), pos->numVertices());
 	if (loadServerData) pos->deallocateClientData();
 	return shape;
 
@@ -80,7 +80,7 @@ createConvexHull(SceneInputNode &input, const ref_ptr<Mesh> &mesh) {
 static ref_ptr<btCollisionShape>
 createTriangleMesh(SceneInputNode &input, const ref_ptr<Mesh> &mesh) {
 	auto pos = (mesh.get() == nullptr ? ref_ptr<ShaderInput>() : mesh->positions());
-	auto indices = (mesh.get() == nullptr ? ref_ptr<ShaderInput>() : mesh->inputContainer()->indices());
+	auto indices = (mesh.get() == nullptr ? ref_ptr<ShaderInput>() : mesh->indices());
 
 	if (indices.get() == nullptr) {
 		REGEN_WARN("Ignoring physical shape for '" << input.getDescription() << "'. Mesh has no Indices.");
@@ -117,8 +117,8 @@ createTriangleMesh(SceneInputNode &input, const ref_ptr<Mesh> &mesh) {
 
 	if (!pos->hasClientData()) pos->readServerData();
 	if (!indices->hasClientData()) indices->readServerData();
-	auto v_pos = pos->mapClientDataRaw(ShaderData::READ);
-	auto indices_data = indices->mapClientDataRaw(ShaderData::READ);
+	auto v_pos = pos->mapClientDataRaw(BUFFER_GPU_READ);
+	auto indices_data = indices->mapClientDataRaw(BUFFER_GPU_READ);
 	btMesh.m_vertexBase = v_pos.r;
 	btMesh.m_triangleIndexBase = indices_data.r;
 
@@ -361,11 +361,7 @@ static ref_ptr<SpatialIndex> getSpatialIndex(scene::SceneLoader *scene, SceneInp
 static ref_ptr<ShaderInput4f> getOffset(
 		SceneInputNode &input,
 		const ref_ptr<Mesh> &mesh,
-		const ref_ptr<ModelTransformation> &transform,
 		const std::vector<ref_ptr<Mesh>> &parts) {
-	if (transform.get() && transform->hasModelOffset()) {
-		return transform->modelOffset();
-	}
 	// try to find shader inputs of mesh
 	ref_ptr<Mesh> m = mesh;
 	if (m.get() == nullptr) {
@@ -408,8 +404,11 @@ void ShapeProcessor::processInput(
 
 	auto transform = scene->getResource<ModelTransformation>(transformID);
 	if(!transform.get()) {
-		auto offset = getOffset(input, mesh, transform, parts);
+		auto offset = getOffset(input, mesh, parts);
 		if (offset.get()) {
+			// TODO: Improve this, we should not create a new ModelTransformation.
+			//   The offset might be part of another BO, so best would be to create a "virtual" TF
+			//   in the range of the offset in its buffer.
 			transform = ref_ptr<ModelTransformation>::alloc(offset);
 		}
 	}
@@ -423,13 +422,13 @@ void ShapeProcessor::processInput(
 	if (isPhysicalShape) {
 		// add shape to physics engine
 		if (numInstances == 1) {
-			auto motion = ref_ptr<ModelMatrixMotion>::alloc(transform->modelMat(), 0);
+			auto motion = ref_ptr<ModelMatrixMotion>::alloc(transform, 0);
 			auto physicalProps = createPhysicalProps(input, mesh, motion);
 			auto physicalObject = ref_ptr<PhysicalObject>::alloc(physicalProps);
 			mesh->addPhysicalObject(physicalObject);
 			scene->getPhysics()->addObject(physicalObject);
 		} else {
-			auto motionAnim = ref_ptr<ModelMatrixUpdater>::alloc(transform->modelMat());
+			auto motionAnim = ref_ptr<ModelMatrixUpdater>::alloc(transform);
 			for (GLuint i = 0; i < numInstances; ++i) {
 				auto motion = ref_ptr<Mat4fMotion>::alloc(motionAnim, i);
 				auto physicalProps = createPhysicalProps(input, mesh, motion);

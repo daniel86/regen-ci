@@ -9,10 +9,15 @@
 #define HANDLE_IO(i)
 void emitVertex(vec3 pos, int index, int layer) {
     vec4 posWorld = vec4(normalize(pos),1.0);
-    out_posWorld = posWorld;
-    out_posEye = transformWorldToEye(posWorld,layer);
-    gl_Position = transformEyeToScreen(out_posEye,layer);
-    gl_Position.z = gl_Position.w;
+#ifdef VS_CAMERA_TRANSFORM
+    out_posWorld = posWorld.xyz;
+    vec4 posEye = transformWorldToEye(posWorld,layer);
+    out_posEye = posEye.xyz;
+    gl_Position = transformEyeToScreen(posEye,layer);
+#else
+    gl_Position = posWorld;
+#endif
+    VS_SelectLayer(layer);
     HANDLE_IO(index);
 }
 
@@ -22,69 +27,32 @@ void emitVertex(vec3 pos, int index, int layer) {
 in vec3 in_pos;
 
 #include regen.states.camera.input
-
-#if RENDER_LAYER == 1
-out vec4 out_posWorld;
-out vec4 out_posEye;
+#ifdef VS_LAYER_SELECTION
+flat out int out_layer;
 #endif
+#include regen.layered.VS_SelectLayer
 
-#if RENDER_LAYER == 1
+#ifdef VS_CAMERA_TRANSFORM
+out vec3 out_posWorld;
+out vec3 out_posEye;
 #include regen.states.camera.transformWorldToEye
 #include regen.states.camera.transformEyeToScreen
-#include regen.models.sky-box.emitVertex
 #endif
+
 -- vs
 #include regen.models.sky-box.vs_include
-#if RENDER_LAYER == 1
+#include regen.models.sky-box.emitVertex
 void main() {
-    emitVertex(in_pos.xyz, gl_VertexID, 0);
+    int layer = regen_RenderLayer();
+    emitVertex(in_pos.xyz, gl_VertexID, layer);
 }
-#else
-#define HANDLE_IO(i)
-void main() {
-    gl_Position = vec4(in_pos,0.0);
-    HANDLE_IO(gl_VertexID);
-}
-#endif
 
 -- tcs
 #include regen.models.mesh.tcs
 -- tes
 #include regen.models.mesh.tes
-
--- gs_include
-#include regen.states.camera.defines
-#include regen.defines.all
-#define2 __MAX_VERTICES__ ${${RENDER_LAYER}*3}
-
-layout(triangles) in;
-layout(triangle_strip, max_vertices=${__MAX_VERTICES__}) out;
-
-out vec4 out_posWorld;
-out vec4 out_posEye;
-flat out int out_layer;
-
-#include regen.states.camera.input
-#include regen.states.camera.transformWorldToEye
-#include regen.states.camera.transformEyeToScreen
-
-#include regen.models.sky-box.emitVertex
 -- gs
-#if RENDER_LAYER > 1
-#include regen.models.sky-box.gs_include
-void main() {
-#for LAYER to ${RENDER_LAYER}
-#ifndef SKIP_LAYER${LAYER}
-  gl_Layer = ${LAYER};
-  out_layer = ${LAYER};
-  emitVertex(gl_in[0].gl_Position.xyz, 0, ${LAYER}); EmitVertex();
-  emitVertex(gl_in[1].gl_Position.xyz, 1, ${LAYER}); EmitVertex();
-  emitVertex(gl_in[2].gl_Position.xyz, 2, ${LAYER}); EmitVertex();
-  EndPrimitive();
-#endif // SKIP_LAYER
-#endfor
-}
-#endif
+#include regen.models.mesh.gs
 
 -- fs
 #include regen.models.mesh.defines

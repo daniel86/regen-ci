@@ -96,7 +96,7 @@
         <sky id="sky"/>
     </node>
 
-    <block type="ubo" id="WindUBO">
+    <block type="ubo" id="WindUBO" update-frequency="NEVER">
         <uniform name="wind" type="vec2" value="0.1, 0.1"/>
         <uniform name="windFlowScale" type="float" value="150.0"/>
         <uniform name="windFlowTime" type="float" value="0.2"/>
@@ -106,12 +106,13 @@
     <!--**************************-->
     <!--**************************-->
 
-    <mesh id="ground-mesh" type="rectangle" lod="0" center="1" usage="STATIC_DRAW"
+    <mesh id="ground-mesh" type="rectangle" lod="0" center="1"
           use-normal="1" use-texco="1" use-tangent="1"
           rotation="0.0,0.0,3.1415"
           scaling="1000.0,1000.0,1000.0"
-          texco-scaling="400.0,400.0">
-        <transform>
+          texco-scaling="400.0,400.0"
+          update-frequency="NEVER">
+        <transform update-frequency="NEVER">
             <translate value="0.0,-2.0,0.0"/>
         </transform>
         <material preset="ground/stone" variant="4"/>
@@ -131,7 +132,8 @@
           asset="dwarf-asset-instanced"
           asset-indices="*"
           asset-animation="1"
-          num-instances="100">
+          num-instances="100"
+          update-frequency="NEVER">
         <transform is-instanced="1">
             <set mode="fade" target="scale"
                  start="1.0,1.0,1.0" stop="1.25,1.25,1.25"
@@ -163,7 +165,7 @@
         <input type="vec2" name="initialBrightness" value="5.0,2.0"/>
         <input type="vec2" name="emitterCone" value="60.0,30.0"/>
         <input type="float" name="surfaceHeight" value="{{map-y-min}}"/>
-        <input name="cameraPosition" state="main-camera" component="cameraPosition"/>
+        <input name="Camera" state="main-camera" component="Camera"/>
         <input type="float" name="windFactor" value="10.0"/>
         <input name="Wind" ubo="WindUBO"/>
         <texture name="windFlow" id="wind-flowmap"/>
@@ -205,13 +207,8 @@
         <depth test="0" write="0"/>
         <input type="vec3" name="lightAmbient" value="0.3,0.3,0.3"/>
 
-        <node id="Ambient-Shading">
-            <blend mode="add"/>
-            <fullscreen-pass shader="regen.shading.deferred.ambient"/>
-        </node>
         <node id="Light-Shading">
-            <blend mode="add"/>
-            <light-pass type="DIRECTIONAL"
+            <light-pass type="DIRECTIONAL" ambient="1"
                         shader="regen.shading.deferred.directional"
                         shadow-filter="NONE">
                 <light id="sky-sun"
@@ -237,8 +234,7 @@
             <input type="float" name="fogHeightMin" value="-10.0"/>
             -->
             <input type="vec2" name="farDistance" value="150.0,200.0"/>
-            <input type="vec3" name="sunPosition" state="sky-sun" component="lightDirection"/>
-            <input type="vec3" name="sunColor" state="sky-sun" component="lightDiffuse"/>
+            <input name="SunLight" state="sky-sun" component="Light" member-suffix="_Sun"/>
             <input type="vec3" name="warmTint" value="0.6, 0.4, 0.3" />
             <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
             <texture name="gColorTexture" fbo="g-buffer" attachment="1"/>

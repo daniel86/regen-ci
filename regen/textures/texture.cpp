@@ -16,7 +16,7 @@ using namespace regen;
 #include "regen/effects/bloom-texture.h"
 #include "regen/scene/scene.h"
 #include "regen/scene/loading-context.h"
-#include "regen/gl-types/fbo.h"
+#include "fbo.h"
 #include "texture-binder.h"
 
 Texture::Texture(GLenum textureTarget, GLuint numTextures)
@@ -43,6 +43,9 @@ Texture::Texture(GLenum textureTarget, GLuint numTextures)
 }
 
 Texture::~Texture() {
+	if (textureChannel_ != -1) {
+		TextureBinder::release(this);
+	}
 	if (isTextureDataOwned_ && textureData_) {
 		delete[]textureData_;
 		textureData_ = nullptr;
@@ -52,18 +55,18 @@ Texture::~Texture() {
 void Texture::set_filter(const TextureFilter &v) {
 	glTextureParameteri(id(), GL_TEXTURE_MIN_FILTER, v.x);
 	glTextureParameteri(id(), GL_TEXTURE_MAG_FILTER, v.y);
+	texFilter_ = v;
 }
 
 void Texture::set_lod(const TextureLoD &v) {
 	glTextureParameterf(id(), GL_TEXTURE_MIN_LOD, v.x);
 	glTextureParameterf(id(), GL_TEXTURE_MAX_LOD, v.y);
+	texLoD_ = v;
 }
 
 void Texture::set_swizzle(const TextureSwizzle &v) {
-	glTextureParameteri(id(), GL_TEXTURE_SWIZZLE_R, v.x);
-	glTextureParameteri(id(), GL_TEXTURE_SWIZZLE_G, v.y);
-	glTextureParameteri(id(), GL_TEXTURE_SWIZZLE_B, v.z);
-	glTextureParameteri(id(), GL_TEXTURE_SWIZZLE_A, v.w);
+	glTextureParameteriv(id(), GL_TEXTURE_SWIZZLE_RGBA, &v.x);
+	texSwizzle_ = v;
 }
 
 void Texture::set_wrapping(const TextureWrapping &v) {
@@ -76,14 +79,17 @@ void Texture::set_wrapping(const TextureWrapping &v) {
 void Texture::set_compare(const TextureCompare &v) {
 	glTextureParameteri(id(), GL_TEXTURE_COMPARE_MODE, v.x);
 	glTextureParameteri(id(), GL_TEXTURE_COMPARE_FUNC, v.y);
+	texCompare_ = v;
 }
 
 void Texture::set_maxLevel(const TextureMaxLevel &v) {
 	glTextureParameteri(id(), GL_TEXTURE_MAX_LEVEL, v);
+	texMaxLevel_ = v;
 }
 
 void Texture::set_aniso(const TextureAniso &v) {
 	glTextureParameterf(id(), GL_TEXTURE_MAX_ANISOTROPY_EXT, v);
+	texAniso_ = v;
 }
 
 void Texture::allocTexture1D() {
@@ -242,9 +248,26 @@ void Texture::allocTexture() {
 	if (isReAlloc) {
 		// NOTE: texture objects must be destroyed and re-created
 		glDeleteTextures(numObjects_, ids_);
-		glGenTextures(numObjects_, ids_);
+		glCreateTextures(texBind_.target_, numObjects_, ids_);
 	}
-	(this->*(this->allocTexture_))();
+	texBind_.id_ = ids_[0];
+	objectIndex_ = 0;
+	for (GLuint j = 0; j < numObjects_; ++j) {
+		(this->*(this->allocTexture_))();
+		if (isReAlloc) {
+			set_wrapping(wrappingMode_);
+			set_filter(texFilter_);
+			if (texLoD_) { set_lod(*texLoD_); }
+			if (texSwizzle_) { set_swizzle(*texSwizzle_); }
+			if (texCompare_) { set_compare(*texCompare_); }
+			if (texMaxLevel_) { set_maxLevel(*texMaxLevel_); }
+			if (texAniso_) { set_aniso(*texAniso_); }
+		}
+		nextObject();
+	}
+	if (isReAlloc) {
+		TextureBinder::rebind(this);
+	}
 }
 
 void Texture::updateImage(GLubyte *data) {
@@ -378,43 +401,41 @@ namespace regen {
 	class TextureResizer : public EventHandler {
 	public:
 		TextureResizer(const ref_ptr<Texture> &tex,
-					   const ref_ptr<ShaderInput2i> &windowViewport,
+					   const ref_ptr<Screen> &screen,
 					   GLfloat wScale, GLfloat hScale)
 				: EventHandler(),
 				  tex_(tex),
-				  windowViewport_(windowViewport),
+				  screen_(screen),
 				  wScale_(wScale), hScale_(hScale) {}
 
+		~TextureResizer() override = default;
+
 		void call(EventObject *, EventData *) override {
-			auto winSize = windowViewport_->getVertex(0).r;
+			Vec2i winSize = screen_->viewport().r;
 			winSize.x = static_cast<int32_t>(static_cast<float>(winSize.x) * wScale_);
 			winSize.y = static_cast<int32_t>(static_cast<float>(winSize.y) * hScale_);
-			// FIXME: I think we should enforce GL thread here! But initially the resize needs to be done
-			//        right away as withGLContext causes some fbo errors. possible fix: check if
-			//        we have a GL context, and only use withGLContext if not. Could also do this in withGLContext.
 			tex_->set_rectangleSize(winSize.x, winSize.y);
 			tex_->allocTexture();
 		}
 
 	protected:
 		ref_ptr<Texture> tex_;
-		ref_ptr<ShaderInput2i> windowViewport_;
+		ref_ptr<Screen> screen_;
 		GLfloat wScale_, hScale_;
 	};
 }
 
 Vec3i Texture::getSize(
-		const ref_ptr<ShaderInput2i> &viewport,
+		const Vec2i &viewport,
 		const std::string &sizeMode,
 		const Vec3f &size) {
 	if (sizeMode == "abs") {
 		return size.asVec3i();
 	} else if (sizeMode == "rel") {
-		auto v = viewport->getVertex(0);
-		auto size_i = size.asVec3i();
 		return {
-			(size_i.x * v.r.x),
-			(size_i.y * v.r.y), 1 };
+			static_cast<int>(size.x * static_cast<float>(viewport.x)),
+			static_cast<int>(size.y * static_cast<float>(viewport.y)),
+			1 };
 	} else {
 		REGEN_WARN("Unknown size mode '" << sizeMode << "'.");
 		return size.asVec3i();
@@ -423,7 +444,7 @@ Vec3i Texture::getSize(
 
 ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 	ref_ptr<Texture> tex;
-	auto &viewport = ctx.scene()->getViewport();
+	auto &screen = ctx.scene()->screen();
 	const std::string typeName = input.getValue("type");
 
 	if (input.hasAttribute("file")) {
@@ -493,7 +514,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 	} else if (typeName == "noise") {
 		auto sizeMode = input.getValue<std::string>("size-mode", "abs");
 		auto sizeRel = input.getValue<Vec3f>("size", Vec3f(256.0, 256.0, 1.0));
-		auto sizeAbs = getSize(viewport, sizeMode, sizeRel);
+		auto sizeAbs = getSize(screen->viewport().r, sizeMode, sizeRel);
 		auto isSeamless = input.getValue<bool>("is-seamless", false);
 		auto generator = NoiseGenerator::load(ctx, input);
 		if (generator.get()) {
@@ -529,7 +550,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 		} else if (ramp == "inline") {
 			auto format = glenum::textureFormat(
 					input.getValue<std::string>("format", "LUMINANCE"));
-			auto internalFormat = format;
+			auto internalFormat = glenum::textureInternalFormat(format);
 			if (input.hasAttribute("internal-format")) {
 				internalFormat = glenum::textureInternalFormat(
 						input.getValue<std::string>("internal-format", "LUMINANCE"));
@@ -550,7 +571,8 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 		if (inputFBO.get() == nullptr) {
 			REGEN_WARN("Unable to find FBO for '" << input.getDescription() << "'.");
 		} else {
-			auto resizer = ref_ptr<TextureResizer>::alloc(bloomTexture, viewport, 1.0, 1.0);
+			auto resizer = ref_ptr<TextureResizer>::alloc(
+					bloomTexture, screen, 1.0, 1.0);
 			ctx.scene()->addEventHandler(Scene::RESIZE_EVENT, resizer);
 			tex = bloomTexture;
 			bloomTexture->resize(inputFBO->width(), inputFBO->height());
@@ -558,7 +580,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 	} else {
 		auto sizeMode = input.getValue<std::string>("size-mode", "abs");
 		auto sizeRel = input.getValue<Vec3f>("size", Vec3f(256.0, 256.0, 1.0));
-		Vec3i sizeAbs = getSize(viewport, sizeMode, sizeRel);
+		Vec3i sizeAbs = getSize(screen->viewport().r, sizeMode, sizeRel);
 
 		auto texCount = input.getValue<GLuint>("count", 1);
 		auto pixelComponents = input.getValue<GLuint>("pixel-components", 4);
@@ -578,17 +600,28 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 														   pixelComponents, pixelSize);
 		}
 
+		auto textureFormat = glenum::textureFormat(pixelComponents);
+		REGEN_DEBUG("Creating texture with "
+					<< sizeAbs.x << "x" << sizeAbs.y << "x" << sizeAbs.z
+					<< ", " << texCount << " textures, "
+					<< "target: 0x" << std::hex << textureTarget << ", "
+					<< "format: 0x" << std::hex << textureFormat << ", "
+					<< "internal-format: 0x" << std::hex << internalFormat << ", "
+					<< "pixel-type: 0x" << std::hex << pixelType << std::dec << ", "
+					<< numSamples << " samples.");
 		tex = FBO::createTexture(
 				sizeAbs.x, sizeAbs.y, sizeAbs.z,
 				texCount,
 				textureTarget,
-				glenum::textureFormat(pixelComponents),
+				textureFormat,
 				internalFormat,
 				pixelType,
 				numSamples);
 
 		if (input.hasAttribute("size-mode") && sizeMode == "rel") {
-			auto resizer = ref_ptr<TextureResizer>::alloc(tex, viewport, sizeRel.x, sizeRel.y);
+			auto resizer = ref_ptr<TextureResizer>::alloc(
+					tex, screen,
+					sizeRel.x, sizeRel.y);
 			ctx.scene()->addEventHandler(Scene::RESIZE_EVENT, resizer);
 		}
 	}
@@ -681,12 +714,12 @@ Texture2D::Texture2D(GLenum textureTarget, GLuint numTextures)
 
 TextureMips2D::TextureMips2D(GLuint numMips)
 		: Texture2D(GL_TEXTURE_2D, 1) {
-	numMips_ = std::max(numMips, 1u); // at least one mip level
-	mipTextures_.resize(numMips_);
-	mipRefs_.resize(numMips_-1);
+	numMips_ = 1; // we do not use the built-in mipmap generation
+	mipTextures_.resize(numMips);
+	mipRefs_.resize(numMips-1);
 
 	mipTextures_[0] = this;
-	for (auto i = 1; i < numMips_; ++i) {
+	for (uint32_t i = 1u; i < numMips; ++i) {
 		mipRefs_[i-1] = ref_ptr<Texture2D>::alloc();
 		mipTextures_[i] = mipRefs_[i-1].get();
 	}

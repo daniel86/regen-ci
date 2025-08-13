@@ -42,32 +42,36 @@ bool BoundingShape::updateGeometry() {
 	}
 }
 
-GLuint BoundingShape::numInstances() const {
-	GLuint numInstances = 1;
-	if (transform_.get()) {
-		numInstances = std::max(transform_->numInstances(), numInstances);
-	}
-	return numInstances;
+uint32_t BoundingShape::numInstances() const {
+	return transform_.get() ? transform_->numInstances() : 1u;
 }
 
-void BoundingShape::setTransform(const ref_ptr<ModelTransformation> &transform, unsigned int instanceIndex) {
+uint32_t BoundingShape::transformStamp() const {
+	return transform_.get() ? transform_->stamp() : localStamp_;
+}
+
+void BoundingShape::setTransform(const ref_ptr<ModelTransformation> &transform, uint32_t instanceIndex) {
 	transform_ = transform;
+	localTransform_ = Mat4f::identity();
 	transformIndex_ = instanceIndex;
 }
 
-unsigned int BoundingShape::transformStamp() const {
-	unsigned int stamp = 0;
+void BoundingShape::setTransform(const Mat4f &localTransform) {
+	localTransform_ = localTransform;
 	if (transform_.get()) {
-		stamp = transform_->stamp();
+		localStamp_ = transform_->stamp();
 	}
-	return stamp;
+	localStamp_ += 1u;
+	transform_ = {};
+	transformIndex_ = 0;
 }
 
-PositionReader BoundingShape::translation() const {
+const Vec3f& BoundingShape::translation() const {
 	if (transform_.get()) {
-		return transform_->position(transformIndex_);
+		return transform_->position(transformIndex_).r;
+	} else {
+		return localTransform_.position();
 	}
-	return {};
 }
 
 bool BoundingShape::hasIntersectionWith(const BoundingShape &other) const {

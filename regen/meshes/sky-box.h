@@ -1,10 +1,3 @@
-/*
- * sky-box.h
- *
- *  Created on: 04.08.2012
- *      Author: daniel
- */
-
 #ifndef SKY_BOX_H_
 #define SKY_BOX_H_
 
@@ -12,8 +5,8 @@
 #include <regen/camera/camera.h>
 #include <regen/textures/texture-state.h>
 #include <regen/states/light-state.h>
-#include <regen/states/shader-state.h>
-#include <regen/gl-types/fbo.h>
+#include "regen/glsl/shader-state.h"
+#include "regen/textures/fbo.h"
 
 namespace regen {
 	/**

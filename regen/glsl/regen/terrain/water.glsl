@@ -37,7 +37,7 @@ uniform sampler2D in_foamTexture;
 uniform vec2 in_inverseViewport;
 // camera input
 #include regen.states.camera.input
-uniform mat4 in_reflectionMatrix;
+uniform mat4 in_viewProjectionMatrix_Reflection;
 
 const float in_heightTextureSize = 256.0;
 const float in_time = 0.0;
@@ -67,8 +67,8 @@ const float in_refractionStrength = 0.0;
 const float in_reflectionDisplace = 30.0;
 
 // Sun configuration
-const vec3 in_sunColor = vec3(1.0,1.0,1.0);
-const vec3 in_sunDirection = vec3(0.0,-1.0,0.0);
+const vec3 in_lightDiffuse_Sun = vec3(1.0,1.0,1.0);
+const vec3 in_lightDirection_Sun = vec3(0.0,-1.0,0.0);
 const float in_sunScale = 3.0;
 // Color of the water surface
 const vec3 in_waterColor = vec3(0.0078,0.5176,0.7);
@@ -228,7 +228,7 @@ void computeOverWaterColor(vec3 position, float sceneDepth, vecTexco texco, inou
 #endif
 
     // Compute reflection color
-    vec4 proj = in_reflectionMatrix * vec4(surfacePoint.xyz,1.0);
+    vec4 proj = in_viewProjectionMatrix_Reflection * vec4(surfacePoint.xyz,1.0);
     proj.x = proj.x + in_reflectionDisplace * surfaceNormal.x;
     proj.z = proj.z + in_reflectionDisplace * surfaceNormal.z;
     vec2 reflectionTexco = (proj.xy/proj.w + vec2(1.0))*0.5;
@@ -243,7 +243,7 @@ void computeOverWaterColor(vec3 position, float sceneDepth, vecTexco texco, inou
     vec3 refraction = texture(in_refractionTexture, computeTexco(texco)).rgb;
 #endif
     // compute the water color based on depth and color extinction
-    float k = clamp(length(in_sunColor) / in_sunScale, 0.0, 1.0);
+    float k = clamp(length(in_lightDiffuse_Sun) / in_sunScale, 0.0, 1.0);
     vec3 c0 = mix(
         refraction,
         k*in_waterColor,
@@ -280,18 +280,18 @@ void computeOverWaterColor(vec3 position, float sceneDepth, vecTexco texco, inou
 
 #ifdef USE_SPECULAR
     vec3 mirrorEye = 2.0*dot(eyeVecNorm, surfaceNormal)*surfaceNormal - eyeVecNorm;
-    float dotSpec = clamp(dot(mirrorEye.xyz, in_sunDirection) * 0.5 + 0.5, 0.0, 1.0);
-    float spec = (1.0-fresnel)*(in_shininess*1.8 + 0.2)*clamp(in_sunDirection.y,0.0,1.0)*pow(dotSpec,512.0);
+    float dotSpec = clamp(dot(mirrorEye.xyz, in_lightDirection_Sun) * 0.5 + 0.5, 0.0, 1.0);
+    float spec = (1.0-fresnel)*(in_shininess*1.8 + 0.2)*clamp(in_lightDirection_Sun.y,0.0,1.0)*pow(dotSpec,512.0);
     spec += 25.0*spec*clamp(in_shininess - 0.05, 0.0, 1.0);
 #endif
 
     vec3 color = mix(refraction, reflection, fresnel);
 #ifdef USE_FOAM && USE_SPECULAR
-    color += max(spec,foam)*in_sunColor.rgb;
+    color += max(spec,foam)*in_lightDiffuse_Sun.rgb;
 #elif USE_FOAM
-    color += foam*in_sunColor.rgb;
+    color += foam*in_lightDiffuse_Sun.rgb;
 #elif USE_SPECULAR
-    color += spec*in_sunColor.rgb;
+    color += spec*in_lightDiffuse_Sun.rgb;
 #endif
 #ifdef USE_FOAM
     //color = mix(refraction, color, clamp(depth * in_foamHardness, 0.0, 1.0));

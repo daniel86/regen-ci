@@ -9,31 +9,46 @@
 #include "regen/states/state-configurer.h"
 #include "regen/shapes/cull-shape.h"
 #include "regen/gl-types/draw-command.h"
+#include "regen/buffer/dibo.h"
 
 // TODO: think about making a distinction between mesh resource and state.
 // TODO: think about introducing a notion of model replacing mesh vector.
 
+//#define REGEN_MESH_DISABLE_MULTI_DRAW
+
 using namespace regen;
 
-Mesh::Mesh(GLenum primitive, BufferUsage usage)
+struct Mesh::SharedData {
+	int32_t vertexOffset_ = 0;
+	int32_t numVisibleInstances_ = 1;
+	uint32_t baseInstance_ = 0u;
+	// index data
+	int32_t numIndices_ = 0u;
+	uint32_t maxIndex_ = 0u;
+	ref_ptr<ShaderInput> indices_;
+};
+
+Mesh::Mesh(GLenum primitive, const BufferUpdateFlags &hints)
 		: State(),
-		  HasInput(ARRAY_BUFFER, usage),
 		  primitive_(primitive),
-		  lodLevel_(ref_ptr<uint32_t>::alloc(0u)),
 		  vao_(ref_ptr<VAO>::alloc()),
+		  lodLevel_(ref_ptr<uint32_t>::alloc(0u)),
 		  minPosition_(-1.0f),
-		  maxPosition_(1.0f) {
-	draw_ = &InputContainer::draw;
+		  maxPosition_(1.0f),
+		  shared_(ref_ptr<SharedData>::alloc()) {
+	draw_ = &Mesh::draw;
 	set_primitive(primitive);
 	lodThresholds_ = ref_ptr<ShaderInput3f>::alloc("lodThresholds");
 	lodThresholds_->setUniformData(Vec3f::zero());
 	sharedState_ = ref_ptr<State>::alloc();
+	meshBuffer_ = ref_ptr<VBO>::alloc(ARRAY_BUFFER, hints);
 }
 
 Mesh::Mesh(const ref_ptr<Mesh> &sourceMesh)
 		: State(sourceMesh),
-		  HasInput(sourceMesh->inputContainer()),
 		  primitive_(sourceMesh->primitive_),
+		  meshBuffer_(sourceMesh->meshBuffer_),
+		  uploadLayout_(sourceMesh->uploadLayout_),
 		  meshLODs_(sourceMesh->meshLODs_),
 		  v_lodThresholds_(sourceMesh->v_lodThresholds_),
 		  lodLevel_(sourceMesh->lodLevel_),
@@ -42,16 +57,16 @@ Mesh::Mesh(const ref_ptr<Mesh> &sourceMesh)
 		  shapeType_(sourceMesh->shapeType_),
 		  shaderKey_(sourceMesh->shaderKey_),
 		  shaderStageKeys_(sourceMesh->shaderStageKeys_),
-		  sharedState_(sourceMesh->sharedState_),
 		  feedbackCount_(0),
 		  hasInstances_(sourceMesh->hasInstances_),
 		  sourceMesh_(sourceMesh),
-		  isMeshView_(GL_TRUE),
+		  isMeshView_(true),
 		  minPosition_(sourceMesh->minPosition()),
 		  maxPosition_(sourceMesh->maxPosition()),
-		  geometryStamp_(sourceMesh->geometryStamp_) {
+		  geometryStamp_(sourceMesh->geometryStamp_),
+		  shared_(sourceMesh->shared_),
+		  sharedState_(sourceMesh->sharedState_) {
 	vao_ = ref_ptr<VAO>::alloc();
-	draw_ = sourceMesh_->draw_;
 	sourceMesh_->meshViews_.insert(this);
 	lodThresholds_ = ref_ptr<ShaderInput3f>::alloc("lodThresholds");
 	lodThresholds_->setUniformData(sourceMesh->lodThresholds()->getVertex(0).r);
@@ -61,12 +76,105 @@ Mesh::Mesh(const ref_ptr<Mesh> &sourceMesh)
 			lod.impostorMesh = ref_ptr<Mesh>::alloc(lod.impostorMesh);
 		}
 	}
+	updateDrawFunction();
 }
 
 Mesh::~Mesh() {
 	if (isMeshView_) {
 		sourceMesh_->meshViews_.erase(this);
 	}
+}
+
+void Mesh::setBufferMapMode(BufferMapMode mode) {
+	meshBuffer_->setBufferMapMode(mode);
+}
+
+void Mesh::setClientAccessMode(ClientAccessMode mode) {
+	meshBuffer_->setClientAccessMode(mode);
+}
+
+void Mesh::begin(DataLayout layout) {
+	uploadLayout_ = layout;
+}
+
+ref_ptr<BufferReference> Mesh::end() {
+	ref_ptr<BufferReference> ref;
+	std::list<ref_ptr<ShaderInput>> attributes;
+
+	// collect all attribute inputs that are not already uploaded
+	for (auto &in : inputs()) {
+		if (in.in_->isVertexAttribute()) {
+			attributes.push_back(in.in_);
+		}
+	}
+	// adopt a buffer range to store the vertex data
+	if (!attributes.empty()) {
+		if (uploadLayout_ == SEQUENTIAL) {
+			ref = meshBuffer_->allocSequential(attributes);
+		} else if (uploadLayout_ == INTERLEAVED) {
+			ref = meshBuffer_->allocInterleaved(attributes);
+		}
+	}
+	return ref;
+}
+
+ref_ptr<BufferReference> Mesh::setIndices(const ref_ptr<ShaderInput> &indices, GLuint maxIndex) {
+	shared_->indices_ = indices;
+	shared_->numIndices_ = static_cast<int32_t>(shared_->indices_->numVertices());
+	shared_->maxIndex_ = maxIndex;
+	return meshBuffer_->alloc(shared_->indices_);
+}
+
+void Mesh::set_vertexOffset(int32_t v) {
+	shared_->vertexOffset_ = v;
+}
+
+int32_t Mesh::vertexOffset() const {
+	return shared_->vertexOffset_;
+}
+
+uint32_t Mesh::baseInstance() const {
+	return shared_->baseInstance_;
+}
+
+void Mesh::set_baseInstance(uint32_t v) {
+	shared_->baseInstance_ = v;
+}
+
+int32_t Mesh::numVisibleInstances() const {
+	return shared_->numVisibleInstances_;
+}
+
+void Mesh::set_numVisibleInstances(int32_t v) {
+	shared_->numVisibleInstances_ = v;
+}
+
+void Mesh::set_numIndices(int32_t v) {
+	shared_->numIndices_ = v;
+}
+
+int Mesh::numIndices() const {
+	return shared_->numIndices_;
+}
+
+uint32_t Mesh::maxIndex() const {
+	return shared_->maxIndex_;
+}
+
+uint32_t Mesh::indexOffset() const {
+	return shared_->indices_.get() ? shared_->indices_->offset() : 0u;
+}
+
+const ref_ptr<ShaderInput> &Mesh::indices() const {
+	return shared_->indices_;
+}
+
+void Mesh::set_indexOffset(uint32_t v) {
+	if (shared_->indices_.get()) { shared_->indices_->set_offset(v); }
+}
+
+GLuint Mesh::indexBuffer() const {
+	return shared_->indices_.get() ? shared_->indices_->buffer() : 0;
 }
 
 void Mesh::getMeshViews(std::set<Mesh *> &out) {
@@ -83,15 +191,17 @@ void Mesh::addShaderInput(const std::string &name, const ref_ptr<ShaderInput> &i
 			REGEN_ERROR("Shader input '" << name << "' is not a BufferBlock.");
 			return;
 		}
-		for (auto &blockUniform: block->blockInputs()) {
+		for (auto &blockUniform: block->stagedInputs()) {
 			if (blockUniform.in_->numInstances() > 1) {
-				inputContainer_->set_numInstances(blockUniform.in_->numInstances());
+				set_numInstances(blockUniform.in_->numInstances());
+				set_numVisibleInstances(blockUniform.in_->numInstances());
 				hasInstances_ = true;
 			}
 		}
 	}
 	if (in->numInstances() > 1) {
-		inputContainer_->set_numInstances(in->numInstances());
+		set_numInstances(in->numInstances());
+		set_numVisibleInstances(in->numInstances());
 		hasInstances_ = true;
 	}
 
@@ -103,7 +213,7 @@ void Mesh::addShaderInput(const std::string &name, const ref_ptr<ShaderInput> &i
 		}
 		if (!in->bufferIterator().get()) {
 			// allocate VBO memory if not already allocated
-			inputContainer_->inputBuffer()->alloc(in);
+			meshBuffer_->alloc(in);
 		}
 
 		auto needle = vaoLocations_.find(loc);
@@ -126,6 +236,11 @@ void Mesh::createShader(const ref_ptr<StateNode> &parentNode) {
 	if (meshLODs_.size()>1) {
 		shaderConfigurer.define("HAS_LOD", "TRUE");
 	}
+	if (!indirectDrawBuffer_.get()) {
+		// If we do not have an indirect draw buffer,
+		// then multi-layered rendering must be done with GS.
+		shaderConfigurer.define("USE_GS_LAYERED_RENDERING", "TRUE");
+	}
 	if (cullShape_.get()) {
 		shaderConfigurer.addState(cullShape_.get());
 	}
@@ -134,6 +249,14 @@ void Mesh::createShader(const ref_ptr<StateNode> &parentNode) {
 
 void Mesh::createShader(const ref_ptr<StateNode> &parentNode, StateConfig &shaderConfig) {
 	auto shaderState = ref_ptr<ShaderState>::alloc();
+	for (auto &joinedState : joined()) {
+		// disjoin any ShaderState that might be joined
+		auto *shaderStateJoined = dynamic_cast<ShaderState *>(joinedState.get());
+		if (shaderStateJoined != nullptr) {
+			disjoinStates(joinedState);
+			break;
+		}
+	}
 	joinStates(shaderState);
 
 	if(shaderKey_.empty()) {
@@ -161,6 +284,8 @@ void Mesh::createShader(const ref_ptr<StateNode> &parentNode, StateConfig &shade
 	// create shader of lod meshes
 	for (auto &lod : meshLODs_) {
 		if (lod.impostorMesh.get()) {
+			lod.impostorMesh->setIndirectDrawBuffer(
+				indirectDrawBuffer_, baseDrawIdx_, numDrawLayers_);
 			lod.impostorMesh->createShader(parentNode);
 		}
 	}
@@ -171,7 +296,8 @@ void Mesh::updateVAO(const StateConfig &cfg, const ref_ptr<Shader> &meshShader) 
 	meshShader_ = meshShader;
 	hasInstances_ = cfg.numInstances_ > 1;
 	if (cfg.numInstances_ > 1) {
-		inputContainer()->set_numInstances(cfg.numInstances_);
+		set_numInstances(cfg.numInstances_);
+		set_numVisibleInstances(cfg.numInstances_);
 	}
 
 	// reset attribute list
@@ -203,78 +329,93 @@ void Mesh::updateVAO() {
 		const ref_ptr<ShaderInput> &in = vaoAttribute.input;
 		if (lastArrayBuffer != in->buffer()) {
 			lastArrayBuffer = in->buffer();
+			// NOTE: With VAO bound, ARRAY_BUFFER binding is still handled globally,
+			//       it is not part of VAO state.
 			rs->arrayBuffer().apply(lastArrayBuffer);
 		}
 		in->enableAttribute(vaoAttribute.location);
 		if (in->numInstances() > 1) hasInstances_ = true;
 	}
 	// bind the index buffer
-	if (inputContainer_->indexBuffer() > 0) {
-		rs->elementArrayBuffer().apply(inputContainer_->indexBuffer());
+	if (indexBuffer() > 0) {
+		// NOTE: ELEMENT_ARRAY_BUFFER binding is part of VAO state!
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer());
 	}
 
+	// group together LODs that can be drawn with multi draw calls,
+	// i.e. those that do not have impostor meshes.
+	indirectDrawGroups_.clear();
+
 	if (meshLODs_.empty()) {
-		meshLODs_.emplace_back(
-			inputContainer_->numVertices(),
-			inputContainer_->vertexOffset(),
-			inputContainer_->numIndices(),
-			inputContainer_->indexOffset());
+		ensureLOD();
 	} else {
+#ifndef REGEN_MESH_DISABLE_MULTI_DRAW
+		uint32_t drawGroupIdx = 0;
+#endif
 		for (auto &lodData : meshLODs_) {
 			if (lodData.d->numVertices == lastNumVertices_ && !lodData.impostorMesh.get()) {
 				// update the full LOD data if it is not an impostor mesh
-				lodData.d->numVertices = inputContainer_->numVertices();
-				lodData.d->vertexOffset = inputContainer_->vertexOffset();
-				lodData.d->numIndices = inputContainer_->numIndices();
-				lodData.d->indexOffset = inputContainer_->indexOffset();
+				lodData.d->numVertices = numVertices();
+				lodData.d->vertexOffset = vertexOffset();
+				lodData.d->numIndices = numIndices();
+				lodData.d->indexOffset = indexOffset();
 			}
+#ifndef REGEN_MESH_DISABLE_MULTI_DRAW
+			if (indirectDrawGroups_.size() <= drawGroupIdx) {
+				indirectDrawGroups_.emplace_back(0);
+			}
+			if (lodData.impostorMesh.get()) {
+				indirectDrawGroups_.emplace_back(1);
+				// note: for now do not use multi draw calls for impostor meshes
+				drawGroupIdx += 2;
+			} else {
+				indirectDrawGroups_[drawGroupIdx] += 1;
+			}
+#endif
 		}
 	}
-	lastNumVertices_ = inputContainer_->numVertices();
+#ifndef REGEN_MESH_DISABLE_MULTI_DRAW
+	if (indirectDrawGroups_.size() == meshLODs_.size()) {
+		// seems nothing was joined...
+		indirectDrawGroups_.clear();
+	}
+#endif
+	lastNumVertices_ = numVertices();
 
 	// initialize num visible instances and offsets for all LODs
 	resetVisibility();
 }
 
 void Mesh::updateDrawFunction() {
-	if (inputContainer_->indexBuffer() > 0) {
-		if (inputContainer_->hasIndirectDrawBuffer()) {
-			if (indirectDrawGroups_.empty()) {
-				draw_ = &InputContainer::drawIndirectIndexed;
+	if (indexBuffer() > 0) {
+		if (hasIndirectDrawBuffer()) {
+			if (indirectDrawGroups_.empty() && numDrawLayers_ == 1) {
+				draw_ = &Mesh::drawIndirectIndexed;
 			} else {
-				draw_ = &InputContainer::drawMultiIndirectIndexed;
+				draw_ = &Mesh::drawMultiIndirectIndexed;
 			}
 		} else if (hasInstances_) {
-			draw_ = &InputContainer::drawBaseInstancesIndexed;
+			draw_ = &Mesh::drawBaseInstancesIndexed;
 		} else {
-			draw_ = &InputContainer::drawIndexed;
+			draw_ = &Mesh::drawIndexed;
 		}
 	} else {
-		if (inputContainer_->hasIndirectDrawBuffer()) {
-			if (indirectDrawGroups_.empty()) {
-				draw_ = &InputContainer::drawIndirect;
+		if (hasIndirectDrawBuffer()) {
+			if (indirectDrawGroups_.empty() && numDrawLayers_ == 1) {
+				draw_ = &Mesh::drawIndirect;
 			} else {
-				draw_ = &InputContainer::drawMultiIndirect;
+				draw_ = &Mesh::drawMultiIndirect;
 			}
 		} else if (hasInstances_) {
-			draw_ = &InputContainer::drawBaseInstances;
+			draw_ = &Mesh::drawBaseInstances;
 		} else {
-			draw_ = &InputContainer::draw;
+			draw_ = &Mesh::draw;
 		}
 	}
 }
 
 uint32_t Mesh::numLODs() const {
 	return meshLODs_.empty() ? 1u : meshLODs_.size();
-}
-
-const ref_ptr<InputContainer> &Mesh::activeInputContainer() const {
-	auto &currentLOD = meshLODs_[*lodLevel_.get()];
-	if (currentLOD.impostorMesh.get()) {
-		return currentLOD.impostorMesh->inputContainer();
-	} else {
-		return inputContainer_;
-	}
 }
 
 unsigned int Mesh::getLODLevel(float distanceSquared) const {
@@ -302,16 +443,31 @@ void Mesh::setMeshLODs(const std::vector<MeshLOD> &meshLODs) {
 }
 
 void Mesh::addMeshLOD(const MeshLOD &meshLOD) {
+	ensureLOD();
+	meshLODs_.push_back(meshLOD);
+	if (meshLOD.impostorMesh.get()) {
+		if(cullShape_.get()) {
+			meshLOD.impostorMesh->setCullShape(cullShape_);
+		}
+		if(instanceBuffer_.get()) {
+			meshLOD.impostorMesh->setInstanceBuffer(instanceBuffer_);
+		}
+		if(indirectDrawBuffer_.get()) {
+			meshLOD.impostorMesh->setIndirectDrawBuffer(
+				indirectDrawBuffer_,
+				baseDrawIdx_,
+				numDrawLayers_);
+		}
+	}
+}
+
+void Mesh::ensureLOD() {
 	if (meshLODs_.empty()) {
 		meshLODs_.emplace_back(
-			inputContainer_->numVertices(),
-			inputContainer_->vertexOffset(),
-			inputContainer_->numIndices(),
-			inputContainer_->indexOffset());
-	}
-	meshLODs_.push_back(meshLOD);
-	if (meshLOD.impostorMesh.get() && cullShape_.get()) {
-		meshLOD.impostorMesh->setCullShape(cullShape_);
+			numVertices(),
+			vertexOffset(),
+			numIndices(),
+			indexOffset());
 	}
 }
 
@@ -321,7 +477,7 @@ void Mesh::updateLOD(float cameraDistance) {
 
 void Mesh::activateLOD(uint32_t lodLevel) {
 	resetVisibility(true);
-	updateVisibility(lodLevel, inputContainer()->numInstances(), 0);
+	updateVisibility(lodLevel, numInstances(), 0);
 }
 
 void Mesh::activateLOD_(uint32_t lodLevel) {
@@ -336,19 +492,19 @@ void Mesh::activateLOD_(uint32_t lodLevel) {
 	*lodLevel_.get() = lodLevel;
 	// select the input container (some LODs may use impostor meshes with different
 	// input containers).
-	InputContainer *inputContainer;
+	Mesh *targetMesh;
 	if (lod.impostorMesh.get()) {
-		inputContainer = lod.impostorMesh->inputContainer().get();
+		targetMesh = lod.impostorMesh.get();
 	} else {
-		inputContainer = this->inputContainer_.get();
+		targetMesh = this;
 	}
 	// finally, configure the input container with the LOD data.
-	if (inputContainer->indexBuffer() > 0) {
-		inputContainer->set_numIndices(lod.d->numIndices);
-		inputContainer->set_indexOffset(lod.d->indexOffset);
+	if (targetMesh->indexBuffer() > 0) {
+		targetMesh->set_numIndices(lod.d->numIndices);
+		targetMesh->set_indexOffset(lod.d->indexOffset);
 	} else {
-		inputContainer->set_numVertices(lod.d->numVertices);
-		inputContainer->set_vertexOffset(lod.d->vertexOffset);
+		targetMesh->set_numVertices(lod.d->numVertices);
+		targetMesh->set_vertexOffset(lod.d->vertexOffset);
 	}
 }
 
@@ -364,16 +520,16 @@ void Mesh::resetVisibility(bool resetToInvisible) {
 	}
 	if (!resetToInvisible) {
 		auto &firstLOD = meshLODs_[0];
-		firstLOD.d->numVisibleInstances = inputContainer()->numInstances();
+		firstLOD.d->numVisibleInstances = numInstances();
 		firstLOD.d->instanceOffset = 0;
 		if (firstLOD.impostorMesh.get()) {
-			firstLOD.impostorMesh->updateVisibility(0, inputContainer()->numInstances(), 0);
+			firstLOD.impostorMesh->updateVisibility(0, numInstances(), 0);
 		}
 	}
 }
 
 void Mesh::updateVisibility(uint32_t lodLevel, uint32_t numInstances, uint32_t instanceOffset) {
-	auto n = numLODs();
+	const uint32_t n = numLODs();
 	if (n <= lodLevel) {
 		REGEN_WARN("LOD level " << lodLevel << " not available num LODs: " << n);
 		return;
@@ -387,30 +543,73 @@ void Mesh::updateVisibility(uint32_t lodLevel, uint32_t numInstances, uint32_t i
 	}
 }
 
-void Mesh::setIndirectDrawBuffer(const ref_ptr<SSBO> &indirectDrawBuffer, uint32_t baseDrawIdx) {
-	inputContainer_->setIndirectDrawBuffer(indirectDrawBuffer, baseDrawIdx);
-	// group together LODs that can be drawn with multi draw calls,
-	// i.e. those that do not have impostor meshes.
-	indirectDrawGroups_.clear();
-	if (meshLODs_.size()>1) {
-		uint32_t drawGroupIdx = 0;
-		for (auto & lod : meshLODs_) {
-			if (indirectDrawGroups_.size() <= drawGroupIdx) {
-				indirectDrawGroups_.emplace_back(0);
-			}
-			if (lod.impostorMesh.get()) {
-				indirectDrawGroups_.emplace_back(1);
-				// note: for now do not use multi draw calls for impostor meshes
-				drawGroupIdx += 2;
+void Mesh::setIndirectDrawBuffer(
+			const ref_ptr<SSBO> &indirectDrawBuffer,
+			uint32_t baseDrawIdx,
+			uint32_t numDrawLayers) {
+	indirectDrawBuffer_ = indirectDrawBuffer;
+	baseDrawIdx_ = baseDrawIdx;
+	numDrawLayers_ = numDrawLayers;
+	if (indirectDrawBuffer_.get()) {
+		indirectOffset_ = indirectDrawBuffer_->offset() + baseDrawIdx_ * sizeof(DrawCommand);
+	} else {
+		indirectOffset_ = 0u;
+	}
+	updateDrawFunction();
+}
+
+void Mesh::createIndirectDrawBuffer(uint32_t numDrawLayers) {
+	auto &partLODs = meshLODs();
+	std::vector<DrawCommand> drawData(4 * numDrawLayers);
+	ensureLOD();
+
+	// Create the indirect draw data for this part and the first layer.
+	// DrawID order: LOD0_layer0, LOD0_layer1, LOD0_layer2, ...
+	// 				 LOD1_layer0, LOD1_layer1, LOD1_layer2, ...
+	for (uint32_t lodIdx = 0; lodIdx < 4; ++lodIdx) {
+		const uint32_t lodStartIdx = lodIdx * numDrawLayers;
+		DrawCommand &drawParams = drawData[lodStartIdx];
+		if (lodIdx < numLODs()) {
+			auto &lodData = partLODs[lodIdx];
+			Mesh *m = lodData.impostorMesh.get() ? lodData.impostorMesh.get() : this;
+			if (m->indices().get()) {
+				drawParams.mode = 1u; // 1=elements, 2=arrays
+				drawParams.setCount(lodData.d->numIndices);
+				drawParams.setFirstElement(lodData.d->indexOffset / sizeof(uint32_t));
+				drawParams.data[3] = 0; // base vertex
 			} else {
-				indirectDrawGroups_[drawGroupIdx] += 1;
+				drawParams.mode = 2u; // 1=elements, 2=arrays
+				drawParams.setCount(lodData.d->numVertices);
+				drawParams.setFirstElement(lodData.d->vertexOffset);
 			}
+		} else {
+			// no LOD data available, use the base mesh
+			drawParams.mode = indices().get() ? 1u : 2u; // 1=elements, 2=arrays
+			drawParams.setCount(0);
+			drawParams.setFirstElement(0);
+		}
+		drawParams.setInstanceCount(lodIdx==0 ? numInstances() : 0);
+		drawParams.setBaseInstance(0);
+
+		// Copy over the data for the remaining layers.
+		for (uint32_t layerIdx = 1; layerIdx < numDrawLayers; ++layerIdx) {
+			const uint32_t lodLayerIdx = lodStartIdx + layerIdx;
+			std::memcpy(
+				&drawData[lodLayerIdx],
+				&drawData[lodStartIdx],
+				sizeof(DrawCommand));
 		}
 	}
-	if (indirectDrawGroups_.size() == meshLODs_.size()) {
-		// seems nothing was joined...
-		indirectDrawGroups_.clear();
-	}
+
+	// finally create the indirect draw buffer for this part
+	indirectDrawBuffer_ = ref_ptr<DrawIndirectBuffer>::alloc(
+			"IndirectDrawBuffer", BufferUpdateFlags::FULL_RARELY);
+	auto input = ref_ptr<ShaderInputStruct<DrawCommand>>::alloc(
+			"DrawCommand", "drawParams", 4 * numDrawLayers);
+	input->setInstanceData(1, 1, (byte*)drawData.data());
+	indirectDrawBuffer_->addStagedInput(input);
+	indirectDrawBuffer_->update();
+	numDrawLayers_ = numDrawLayers;
 	updateDrawFunction();
 }
 
@@ -453,11 +652,33 @@ void Mesh::setCullShape(const ref_ptr<State> &cullShape) {
 	cullShape_ = cullShape;
 	if (cullShape_.get()) {
 		auto *cs = dynamic_cast<CullShape *>(cullShape_.get());
-		joinShaderInput(cs->instanceIDBuffer());
+		if (cs->hasInstanceBuffer()) {
+			setInstanceBuffer(cs->instanceBuffer());
+		}
 	}
 	for (auto & lod : meshLODs_) {
 		if (lod.impostorMesh.get()) {
 			lod.impostorMesh->setCullShape(cullShape_);
+		}
+	}
+}
+
+void Mesh::setInstanceBuffer(const ref_ptr<SSBO> &instanceBuffer) {
+	if (instanceBuffer_.get()) {
+		if (instanceBuffer_.get() == instanceBuffer.get()) {
+			// nothing to do, same buffer
+			return;
+		}
+		removeInput(instanceBuffer_);
+	}
+	instanceBuffer_ = instanceBuffer;
+	if (instanceBuffer_.get()) {
+		// join the instance buffer state
+		setInput(instanceBuffer_);
+	}
+	for (auto & lod : meshLODs_) {
+		if (lod.impostorMesh.get()) {
+			lod.impostorMesh->setInstanceBuffer(instanceBuffer);
 		}
 	}
 }
@@ -471,27 +692,27 @@ void Mesh::draw(RenderState *rs) {
 	disable(rs);
 }
 
-void Mesh::drawMeshLOD(RenderState *rs, uint32_t lodLevel, int32_t multiDrawCount) {
+void Mesh::drawMeshLOD(RenderState *rs, uint32_t lodLevel, uint32_t drawIdx, int32_t multiDrawCount) {
 	auto &lod = meshLODs_[lodLevel];
-	if (!inputContainer_->hasIndirectDrawBuffer() && lod.d->numVisibleInstances == 0) {
+	if (!hasIndirectDrawBuffer() && lod.d->numVisibleInstances == 0) {
 		// no instances to draw, skip
-		// note: we do not know number of visible instances in case of indirect draw buffers.
+		// Note: In case of indirect draw buffers, these could be updated GPU-side
+		//   then we wouldn't know the instance count here.
+		//   Also for the other case we currently skip setting the instance count
+		//   on the LOD object, and only write to the buffer -- but we could skip
+		//   the raw for this case too.
 		return;
 	}
 	// set the LOD level vertex meta data
 	activateLOD_(lodLevel);
 
-	// set number of instances to draw
-	auto c = activeInputContainer();
-
 	if (lod.impostorMesh.get()) {
 		// let the LOD mesh do the draw call.
 		// NOTE: assuming here the impostor does not itself have LODs!
-		if (inputContainer_->hasIndirectDrawBuffer()) {
-			c->setIndirectDrawBuffer(
-					inputContainer_->indirectDrawBuffer(),
-					inputContainer_->baseDrawIndex() + lodLevel);
-			lod.impostorMesh->updateDrawFunction();
+		if (hasIndirectDrawBuffer()) {
+			lod.impostorMesh->setIndirectDrawBuffer(
+					indirectDrawBuffer_,
+					drawIdx, numDrawLayers_);
 		} else {
 			lod.impostorMesh->resetVisibility(true);
 			lod.impostorMesh->updateVisibility(0,
@@ -500,21 +721,20 @@ void Mesh::drawMeshLOD(RenderState *rs, uint32_t lodLevel, int32_t multiDrawCoun
 		}
 		lod.impostorMesh->draw(rs);
 	}
-	else {
-		c->set_numVisibleInstances(lod.d->numVisibleInstances);
-		c->set_baseInstance(lod.d->instanceOffset);
-		if (c->hasIndirectDrawBuffer()) {
-			c->set_indirectOffset(
-				c->indirectDrawBuffer()->blockReference()->address() +
-				// each segment in the indirect draw buffer takes sizeof(DrawCommand)=32byte space
-				(c->baseDrawIndex() + lodLevel) * sizeof(DrawCommand));
-			c->set_multiDrawCount(multiDrawCount);
-		}
+	else if (hasIndirectDrawBuffer()) {
+		set_indirectOffset(
+			indirectDrawBuffer_->drawBufferRef()->address() +
+			drawIdx * sizeof(DrawCommand));
+		set_multiDrawCount(multiDrawCount);
 		drawMesh(rs);
-		c->set_numVisibleInstances(c->numInstances());
-		c->set_baseInstance(0);
-		c->set_indirectOffset(0);
-		c->set_multiDrawCount(1);
+		set_indirectOffset(0);
+		set_multiDrawCount(1);
+	} else {
+		set_numVisibleInstances(lod.d->numVisibleInstances);
+		set_baseInstance(lod.d->instanceOffset);
+		drawMesh(rs);
+		set_numVisibleInstances(numInstances());
+		set_baseInstance(0);
 	}
 }
 
@@ -528,10 +748,10 @@ void Mesh::drawMesh(RenderState *rs) {
 	}
 
 	rs->vao().apply(vao_->id());
-	if (inputContainer_->hasIndirectDrawBuffer()) {
-		rs->drawIndirectBuffer().apply(inputContainer_->indirectDrawBuffer()->blockReference()->bufferID());
+	if (hasIndirectDrawBuffer()) {
+		rs->drawIndirectBuffer().apply(indirectDrawBuffer()->drawBufferRef()->bufferID());
 	}
-	(inputContainer_.get()->*draw_)(primitive_);
+	(this->*draw_)(primitive_);
 
 	if (feedbackRange_.get()) {
 		rs->endTransformFeedback();
@@ -543,25 +763,33 @@ void Mesh::enable(RenderState *rs) {
 	State::enable(rs);
 
 	if (meshLODs_.empty()) {
+		set_multiDrawCount(numDrawLayers_);
 		drawMesh(rs);
+		set_multiDrawCount(1);
 	}
-	else if (indirectDrawGroups_.empty()) {
+	else if (!indirectDrawBuffer_.get() || indirectDrawGroups_.empty()) {
+		uint32_t drawIdx = baseDrawIdx_;
 		if (lodSortMode_ == SortMode::BACK_TO_FRONT) {
 			for (uint32_t lodLevel = meshLODs_.size(); lodLevel > 0; --lodLevel) {
-				drawMeshLOD(rs, lodLevel - 1, 1);
+				drawMeshLOD(rs, lodLevel - 1, drawIdx, numDrawLayers_);
+				drawIdx += numDrawLayers_;
 			}
 		}
 		else {
 			for (uint32_t lodLevel = 0; lodLevel < meshLODs_.size(); ++lodLevel) {
-				drawMeshLOD(rs, lodLevel, 1);
+				drawMeshLOD(rs, lodLevel, drawIdx, numDrawLayers_);
+				drawIdx += numDrawLayers_;
 			}
 		}
 		activateLOD_(0);
 	} else {
 		uint32_t lodLevel = 0u;
+		uint32_t drawIdx = baseDrawIdx_;
 		for (int32_t groupSize : indirectDrawGroups_) {
-			drawMeshLOD(rs, lodLevel, groupSize);
+			const uint32_t numDraws = groupSize * numDrawLayers_;
+			drawMeshLOD(rs, lodLevel, drawIdx, numDraws);
 			lodLevel += groupSize;
+			drawIdx += numDraws;
 		}
 	}
 }
@@ -571,23 +799,23 @@ void Mesh::disable(RenderState *rs) {
 }
 
 ref_ptr<ShaderInput> Mesh::positions() const {
-	return inputContainer_->getInput(ATTRIBUTE_NAME_POS);
+	return getInput(ATTRIBUTE_NAME_POS);
 }
 
 ref_ptr<ShaderInput> Mesh::normals() const {
-	return inputContainer_->getInput(ATTRIBUTE_NAME_NOR);
+	return getInput(ATTRIBUTE_NAME_NOR);
 }
 
 ref_ptr<ShaderInput> Mesh::colors() const {
-	return inputContainer_->getInput(ATTRIBUTE_NAME_COL0);
+	return getInput(ATTRIBUTE_NAME_COL0);
 }
 
 ref_ptr<ShaderInput> Mesh::boneWeights() const {
-	return inputContainer_->getInput("boneWeights");
+	return getInput("boneWeights");
 }
 
 ref_ptr<ShaderInput> Mesh::boneIndices() const {
-	return inputContainer_->getInput("boneIndices");
+	return getInput("boneIndices");
 }
 
 Vec3f Mesh::centerPosition() const {
@@ -598,6 +826,84 @@ void Mesh::set_bounds(const Vec3f &min, const Vec3f &max) {
 	minPosition_ = min;
 	maxPosition_ = max;
 	geometryStamp_++;
+}
+
+void Mesh::draw(GLenum primitive) const {
+	glDrawArrays(primitive, shared_->vertexOffset_, numVertices());
+}
+
+void Mesh::drawIndexed(GLenum primitive) const {
+	glDrawElements(
+			primitive,
+			shared_->numIndices_,
+			shared_->indices_->baseType(),
+			REGEN_BUFFER_OFFSET(shared_->indices_->offset()));
+}
+
+void Mesh::drawInstances(GLenum primitive) const {
+	glDrawArraysInstancedEXT(
+			primitive,
+			shared_->vertexOffset_,
+			numVertices(),
+			shared_->numVisibleInstances_);
+}
+
+void Mesh::drawInstancesIndexed(GLenum primitive) const {
+	glDrawElementsInstancedEXT(
+			primitive,
+			shared_->numIndices_,
+			shared_->indices_->baseType(),
+			REGEN_BUFFER_OFFSET(shared_->indices_->offset()),
+			shared_->numVisibleInstances_);
+}
+
+void Mesh::drawBaseInstances(GLenum primitive) const {
+	glDrawArraysInstancedBaseInstance(
+			primitive,
+			shared_->vertexOffset_,
+			numVertices(),
+			shared_->numVisibleInstances_,
+			shared_->baseInstance_);
+}
+
+void Mesh::drawBaseInstancesIndexed(GLenum primitive) const {
+	glDrawElementsInstancedBaseInstance(
+			primitive,
+			shared_->numIndices_,
+			shared_->indices_->baseType(),
+			REGEN_BUFFER_OFFSET(shared_->indices_->offset()),
+			shared_->numVisibleInstances_,
+			shared_->baseInstance_);
+}
+
+void Mesh::drawIndirect(GLenum primitive) const {
+	glDrawArraysIndirect(
+		primitive,
+		REGEN_BUFFER_OFFSET(indirectOffset_));
+}
+
+void Mesh::drawIndirectIndexed(GLenum primitive) const {
+	glDrawElementsIndirect(
+			primitive,
+			shared_->indices_->baseType(),
+			REGEN_BUFFER_OFFSET(indirectOffset_));
+}
+
+void Mesh::drawMultiIndirect(GLenum primitive) const {
+	glMultiDrawArraysIndirect(
+		primitive,
+		REGEN_BUFFER_OFFSET(indirectOffset_),
+		multiDrawCount_,
+		sizeof(DrawCommand));
+}
+
+void Mesh::drawMultiIndirectIndexed(GLenum primitive) const {
+	glMultiDrawElementsIndirect(
+		primitive,
+		shared_->indices_->baseType(),
+		REGEN_BUFFER_OFFSET(indirectOffset_),
+		multiDrawCount_,
+		sizeof(DrawCommand));
 }
 
 void Mesh::loadShaderConfig(LoadingContext &ctx, scene::SceneInputNode &input) {

@@ -6,13 +6,12 @@ BulletDebugDrawer::BulletDebugDrawer(const ref_ptr<BulletPhysics> &physics)
 		: btIDebugDraw(),
 		  StateNode(),
 		  HasShader("regen.models.lines"),
-		  HasInput(ARRAY_BUFFER, BUFFER_USAGE_DYNAMIC_DRAW),
 		  physics_(physics),
 		  vbo_(0),
 		  m_debugMode(DBG_DrawContactPoints | DBG_DrawWireframe){
 	lineColor_ = ref_ptr<ShaderInput3f>::alloc("lineColor");
 	lineColor_->setUniformData(Vec3f(1.0f));
-	state()->joinShaderInput(lineColor_);
+	state()->setInput(lineColor_);
 	state()->joinStates(shaderState_);
 	lineVertices_ = ref_ptr<ShaderInput3f>::alloc("lineVertices");
 	lineVertices_->setVertexData(2);
@@ -29,7 +28,7 @@ void BulletDebugDrawer::drawLine(const btVector3 &from, const btVector3 &to, con
 	lineVertices_->setVertex(0, Vec3f(from.getX(), from.getY(), from.getZ()));
 	lineVertices_->setVertex(1, Vec3f(to.getX(), to.getY(), to.getZ()));
 	// update gpu-side vertex data
-	auto mappedClientData = lineVertices_->mapClientDataRaw(ShaderData::READ);
+	auto mappedClientData = lineVertices_->mapClientDataRaw(BUFFER_GPU_READ);
 	glBufferData(GL_ARRAY_BUFFER, bufferSize_, mappedClientData.r, GL_DYNAMIC_DRAW);
 	mappedClientData.unmap();
 	// draw the line
@@ -56,7 +55,7 @@ BulletDebugDrawer::drawContactPoint(
     lineVertices_->setVertex(1,
     	Vec3f(to.getX(), to.getY(), to.getZ()));
     // Update GPU-side vertex data
-	auto mappedClientData = lineVertices_->mapClientDataRaw(ShaderData::READ);
+	auto mappedClientData = lineVertices_->mapClientDataRaw(BUFFER_GPU_READ);
 	glBufferData(GL_ARRAY_BUFFER,
 			bufferSize_,
 			mappedClientData.r,
@@ -91,5 +90,4 @@ void BulletDebugDrawer::traverse(regen::RenderState *rs) {
 	physics_->dynamicsWorld()->debugDrawWorld();
 	state()->disable(rs);
 	renderState_ = nullptr;
-	GL_ERROR_LOG();
 }

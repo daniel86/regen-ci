@@ -16,12 +16,12 @@ bool IndexedShape::hasVisibleInstances() const {
 	return instanceCount_ > 0;
 }
 
-ShaderData_rw<unsigned int> IndexedShape::mapInstanceIDs(int mapMode) {
+ClientData_rw<unsigned int> IndexedShape::mapInstanceIDs(int mapMode) {
 	return visibleVec_->mapClientData<unsigned int>(mapMode);
 }
 
 IndexedShape::MappedData::MappedData(const ref_ptr <ShaderInput1ui> &visibleVec) :
-		mapped(visibleVec->mapClientData<unsigned int>(ShaderData::WRITE)) {
+		mapped(visibleVec->mapClientData<unsigned int>(BUFFER_GPU_WRITE)) {
 }
 
 void IndexedShape::mapInstanceIDs_internal() {
@@ -33,5 +33,5 @@ void IndexedShape::unmapInstanceIDs_internal() {
 }
 
 unsigned int *IndexedShape::mappedInstanceIDs() {
-	return mappedInstanceIDs_->mapped.w;
+	return mappedInstanceIDs_->mapped.w.data();
 }

@@ -9,6 +9,7 @@
 #include <regen/animations/animation-manager.h>
 
 #include "state-node.h"
+#include "regen/textures/fbo-state.h"
 
 using namespace regen;
 
@@ -91,6 +92,27 @@ ref_ptr<State> StateNode::getParentCamera() {
 	return out;
 }
 
+static void getFrameBufferState(const ref_ptr<State> &state, ref_ptr<FBOState> *out) {
+	if (dynamic_cast<FBOState *>(state.get()))
+		*out = ref_ptr<FBOState>::dynamicCast(state);
+	auto it = state->joined().begin();
+
+	while (out->get() == nullptr && it != state->joined().end()) {
+		getFrameBufferState(*it, out);
+		++it;
+	}
+}
+
+ref_ptr<State> StateNode::getParentFrameBuffer() {
+	ref_ptr<FBOState> out;
+	if (hasParent()) {
+		getFrameBufferState(parent_->state(), &out);
+		if (out.get() == nullptr)
+			return parent_->getParentFrameBuffer();
+	}
+	return out;
+}
+
 StateNode *StateNode::findNodeWithName(const std::string &name) {
 	std::stack<StateNode *> stack;
 	stack.push(this);
@@ -120,21 +142,16 @@ RootNode::RootNode() : StateNode() {
 void RootNode::init() {
 }
 
-void RootNode::render(GLdouble dt) {
-	GL_ERROR_LOG();
-	traverse(RenderState::get());
-	GL_ERROR_LOG();
+void RootNode::render(float /* dt */) {
+	auto rs = RenderState::get();
+	traverse(rs);
 }
 
 void RootNode::postRender(GLdouble dt) {
-	GL_ERROR_LOG();
 	//AnimationManager::get().nextFrame();
 	// some animations modify the vertex data,
 	// updating the vbo needs a context so we do it here in the main thread..
 	AnimationManager::get().updateGraphics(RenderState::get(), dt);
-	// invoke event handler of queued events
-	EventObject::emitQueued();
-	GL_ERROR_LOG();
 }
 
 //////////////

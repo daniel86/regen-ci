@@ -41,7 +41,6 @@ ref_ptr<Torus> Torus::getUnitTorus() {
 		cfg.texcoMode = TEXCO_MODE_NONE;
 		cfg.isNormalRequired = GL_FALSE;
 		cfg.isTangentRequired = GL_FALSE;
-		cfg.usage = BUFFER_USAGE_STATIC_DRAW;
 		mesh = ref_ptr<Torus>::alloc(cfg);
 		return mesh;
 	} else {
@@ -50,24 +49,22 @@ ref_ptr<Torus> Torus::getUnitTorus() {
 }
 
 Torus::Torus(const Config &cfg)
-		: Mesh(GL_TRIANGLES, cfg.usage) {
+		: Mesh(GL_TRIANGLES, cfg.updateHints) {
 	pos_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	nor_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_NOR);
 	tan_ = ref_ptr<ShaderInput4f>::alloc(ATTRIBUTE_NAME_TAN);
 	indices_ = ref_ptr<ShaderInput1ui>::alloc("i");
+	setBufferMapMode(cfg.mapMode);
+	setClientAccessMode(cfg.accessMode);
 	updateAttributes(cfg);
 }
 
 Torus::Torus(const ref_ptr<Torus> &other)
 		: Mesh(other) {
-	pos_ = ref_ptr<ShaderInput3f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_POS));
-	nor_ = ref_ptr<ShaderInput3f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_NOR));
-	tan_ = ref_ptr<ShaderInput4f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_TAN));
-	indices_ = ref_ptr<ShaderInput1ui>::dynamicCast(
-			inputContainer_->getInput("i"));
+	pos_ = ref_ptr<ShaderInput3f>::dynamicCast(getInput(ATTRIBUTE_NAME_POS));
+	nor_ = ref_ptr<ShaderInput3f>::dynamicCast(getInput(ATTRIBUTE_NAME_NOR));
+	tan_ = ref_ptr<ShaderInput4f>::dynamicCast(getInput(ATTRIBUTE_NAME_TAN));
+	indices_ = ref_ptr<ShaderInput1ui>::dynamicCast(getInput("i"));
 }
 
 Torus::Config::Config()
@@ -78,7 +75,6 @@ Torus::Config::Config()
 		  texcoMode(TEXCO_MODE_UV),
 		  isNormalRequired(GL_TRUE),
 		  isTangentRequired(GL_FALSE),
-		  usage(BUFFER_USAGE_DYNAMIC_DRAW),
 		  ringRadius(1.0f),
 		  tubeRadius(0.5f) {
 }
@@ -88,17 +84,14 @@ void Torus::generateLODLevel(const Config &cfg,
 							 GLuint vertexOffset,
 							 GLuint indexOffset) {
 	// map client data for writing
-	auto indices = indices_->mapClientData<GLuint>(ShaderData::WRITE);
-	auto v_pos = pos_->mapClientData<Vec3f>(ShaderData::WRITE);
+	auto indices = (GLuint*)indices_->clientBuffer()->clientData(0);
+	auto v_pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
 	auto v_nor = (cfg.isNormalRequired ?
-		nor_->mapClientData<Vec3f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec3f>::nullData());
+				  (Vec3f*) nor_->clientBuffer()->clientData(0) : nullptr);
 	auto v_tan = (cfg.isTangentRequired ?
-		tan_->mapClientData<Vec4f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec4f>::nullData());
+				  (Vec4f*) tan_->clientBuffer()->clientData(0) : nullptr);
 	auto v_texco = (texco_.get() ?
-		texco_->mapClientData<float>(ShaderData::WRITE) :
-		ShaderData_rw<float>::nullData());
+					(float*) texco_->clientBuffer()->clientData(0) : nullptr);
 
 	GLuint vertexIndex = vertexOffset;
 	const float ringStep = 2.0f * M_PI / lodLevel;
@@ -121,10 +114,10 @@ void Torus::generateLODLevel(const Config &cfg,
 			);
 
 			pos = cfg.posScale * pos;
-			v_pos.w[vertexIndex] = pos;
+			v_pos[vertexIndex] = pos;
 
 			if (cfg.isNormalRequired) {
-				v_nor.w[vertexIndex] = Vec3f(
+				v_nor[vertexIndex] = Vec3f(
 						cosPhi * cosTheta,
 						sinPhi,
 						cosPhi * sinTheta);
@@ -132,15 +125,15 @@ void Torus::generateLODLevel(const Config &cfg,
 
 			if (cfg.texcoMode == TEXCO_MODE_UV) {
 				Vec2f texco((float) i / lodLevel, (float) j / lodLevel);
-				((Vec2f*)v_texco.w)[vertexIndex] = texco * cfg.texcoScale;
+				((Vec2f*)v_texco)[vertexIndex] = texco * cfg.texcoScale;
 			} else if (cfg.texcoMode == TEXCO_MODE_CUBE_MAP) {
 				Vec3f texco = pos;
 				texco.normalize();
-				((Vec3f*)v_texco.w)[vertexIndex] = texco;
+				((Vec3f*)v_texco)[vertexIndex] = texco;
 			}
 
 			if (cfg.isTangentRequired) {
-				v_tan.w[vertexIndex] = Vec4f(
+				v_tan[vertexIndex] = Vec4f(
 						-sinTheta,
 						0.0f,
 						cosTheta, 1.0f);
@@ -157,13 +150,13 @@ void Torus::generateLODLevel(const Config &cfg,
 			GLuint second = vertexOffset + first + lodLevel + 1;
 			first += vertexOffset;
 
-			indices.w[iOffset++] = first;
-			indices.w[iOffset++] = first + 1;
-			indices.w[iOffset++] = second;
+			indices[iOffset++] = first;
+			indices[iOffset++] = first + 1;
+			indices[iOffset++] = second;
 
-			indices.w[iOffset++] = second;
-			indices.w[iOffset++] = first + 1;
-			indices.w[iOffset++] = second + 1;
+			indices[iOffset++] = second;
+			indices[iOffset++] = first + 1;
+			indices[iOffset++] = second + 1;
 		}
 	}
 }
@@ -211,7 +204,7 @@ void Torus::updateAttributes(const Config &cfg) {
 	}
 
 	// Set up the vertex attributes
-	begin(InputContainer::INTERLEAVED);
+	begin(INTERLEAVED);
 	auto indexRef = setIndices(indices_, numVertices);
 	setInput(pos_);
 	if (cfg.isNormalRequired) {

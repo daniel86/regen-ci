@@ -15,36 +15,40 @@ using namespace osgHimmel;
 
 Moon::Moon(const ref_ptr<Sky> &sky, const std::string &moonMapFile)
 		: SkyLayer(sky) {
+	state()->joinStates(ref_ptr<BlendFuncState>::alloc(
+			GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+			GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+
 	setupMoonTextureCube(moonMapFile);
 
 	moonOrientation_ = ref_ptr<ShaderInputMat4>::alloc("moonOrientationMatrix");
 	moonOrientation_->setUniformData(Mat4f::identity());
-	state()->joinShaderInput(moonOrientation_);
+	state()->setInput(moonOrientation_);
 
 	sunShine_ = ref_ptr<ShaderInput4f>::alloc("sunShine");
 	sunShine_->setUniformData(Vec4f(defaultSunShineColor(), defaultSunShineIntensity()));
-	state()->joinShaderInput(sunShine_);
+	state()->setInput(sunShine_);
 
 	earthShine_ = ref_ptr<ShaderInput3f>::alloc("earthShine");
 	earthShine_->setUniformData(Vec3f(0.0));
-	state()->joinShaderInput(earthShine_);
+	state()->setInput(earthShine_);
 	earthShineColor_ = defaultEarthShineColor();
 	earthShineIntensity_ = defaultEarthShineIntensity();
 
 	scale_ = ref_ptr<ShaderInput1f>::alloc("scale");
 	scale_->setUniformData(defaultScale());
-	state()->joinShaderInput(scale_);
+	state()->setInput(scale_);
 
 	scattering_ = ref_ptr<ShaderInput1f>::alloc("scattering");
 	scattering_->setUniformData(defaultScattering());
-	state()->joinShaderInput(scattering_);
+	state()->setInput(scattering_);
 
 	shaderState_ = ref_ptr<HasShader>::alloc("regen.weather.moon");
 	meshState_ = ref_ptr<Rectangle>::alloc(sky->skyQuad());
 }
 
 void Moon::setupMoonTextureCube(const std::string &moonMapFile) {
-	ref_ptr<TextureCube> texture = textures::loadCube(moonMapFile);
+	ref_ptr<TextureCube> texture = textures::loadCube(moonMapFile, false, true);
 	state()->joinStates(ref_ptr<TextureState>::alloc(texture, "moonmapCube"));
 }
 
@@ -270,12 +274,12 @@ float Moon::meanRadius() {
 }
 
 void Moon::set_sunShineColor(const Vec3f &color) {
-	auto v_sunShine = sunShine_->mapClientVertex<Vec4f>(ShaderData::READ | ShaderData::WRITE, 0);
+	auto v_sunShine = sunShine_->mapClientVertex<Vec4f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 	v_sunShine.w = Vec4f(color, v_sunShine.r.w);
 }
 
 void Moon::set_sunShineIntensity(float intensity) {
-	auto v_color = sunShine_->mapClientVertex<Vec4f>(ShaderData::READ | ShaderData::WRITE, 0);
+	auto v_color = sunShine_->mapClientVertex<Vec4f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 	v_color.w = Vec4f(v_color.r.xyz_(), intensity);
 }
 

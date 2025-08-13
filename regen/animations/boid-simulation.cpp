@@ -7,12 +7,18 @@ using namespace regen;
 BoidSimulation::BoidSimulation(const ref_ptr<ModelTransformation> &tf) : tf_(tf) {
 	boidsScale_ = ref_ptr<ShaderInput3f>::alloc("scaleFactor");
 	if (tf->hasModelMat()) {
-		auto tfData = tf_->modelMat()->mapClientData<Mat4f>(ShaderData::READ);
-		boidsScale_->setUniformData(tfData.r[0].scaling());
+		boidsScale_->setUniformData(tf_->modelMat()->getVertex(0).r.scaling());
 	} else {
 		boidsScale_->setUniformData(Vec3f(1.0f));
 	}
 	numBoids_ = tf->numInstances();
+	initBoidSimulation0();
+}
+
+BoidSimulation::BoidSimulation(const ref_ptr<ShaderInput4f> &modelOffset) : modelOffset_(modelOffset) {
+	boidsScale_ = ref_ptr<ShaderInput3f>::alloc("scaleFactor");
+	boidsScale_->setUniformData(Vec3f(1.0f));
+	numBoids_ = modelOffset->numInstances();
 	initBoidSimulation0();
 }
 
@@ -30,7 +36,7 @@ void BoidSimulation::initBoidSimulation0() {
 	maxBoidSpeed_ = createUniform<ShaderInput1f,float>("maxBoidSpeed", 1.0f);
 	maxAngularSpeed_ = createUniform<ShaderInput1f,float>("maxAngularSpeed", 0.05f);
 	gridSize_ = createUniform<ShaderInput3ui,Vec3ui>("gridSize", Vec3ui(0));
-	cellSize_ = createUniform<ShaderInput1f,float>("cellSize", 0.0f);
+	cellSize_ = createUniform<ShaderInput1f,float>("cellSize", 3.2f);
 	simulationBoundsMin_ = createUniform<ShaderInput3f,Vec3f>("simulationBoundsMin", Vec3f(-10.0f));
 	simulationBoundsMax_ = createUniform<ShaderInput3f,Vec3f>("simulationBoundsMax", Vec3f(10.0f));
 }
@@ -253,6 +259,7 @@ void BoidSimulation::loadSettings(LoadingContext &ctx, scene::SceneInputNode &in
 			auto transformID = objectNode->getValue("tf");
 			auto transform = ctx.scene()->getResource<ModelTransformation>(transformID);
 			if (transform.get() != nullptr) {
+				// TODO: Use ModelTransformation instead of ShaderInputMat4 below.
 				entityTF = transform->modelMat();
 			}
 		} else if (objectNode->hasAttribute("point")) {

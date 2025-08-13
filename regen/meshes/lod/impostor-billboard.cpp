@@ -7,7 +7,7 @@ using namespace regen;
 #undef DEBUG_SNAPSHOT_VIEWS
 
 ImpostorBillboard::ImpostorBillboard()
-		: Mesh(GL_POINTS, BUFFER_USAGE_STATIC_DRAW),
+		: Mesh(GL_POINTS, BufferUpdateFlags::NEVER),
 		  snapshotState_(ref_ptr<State>::alloc()) {
 	depthOffset_ = createUniform<ShaderInput1f>("depthOffset", 0.5f);
 	modelOrigin_ = createUniform<ShaderInput3f>("modelOrigin", Vec3f::zero());
@@ -47,12 +47,9 @@ void ImpostorBillboard::createShader(const ref_ptr<StateNode> &parentNode) {
 				}
 			}
 			else {
-				auto *hasInput = dynamic_cast<HasInput*>(state.get());
-				if (hasInput) {
-					for (auto &input: hasInput->inputContainer()->inputs()) {
-						if (!input.in_->isVertexAttribute()) {
-							joinShaderInput(input.in_, input.name_);
-						}
+				for (auto &input: state->inputs()) {
+					if (!input.in_->isVertexAttribute()) {
+						setInput(input.in_, input.name_);
 					}
 				}
 			}
@@ -62,7 +59,7 @@ void ImpostorBillboard::createShader(const ref_ptr<StateNode> &parentNode) {
 		}
 	}
 
-	shaderConfigurer.addState(sharedState_.get());
+	shaderConfigurer.addState(sharedState().get());
 	shaderConfigurer.addState(this);
 	Mesh::createShader(parentNode, shaderConfigurer.cfg());
 }
@@ -73,7 +70,7 @@ void ImpostorBillboard::updateAttributes() {
 	Vec3f posData[1] = {Vec3f(0.0f, 0.0f, 0.0f)};
 	positionIn->setVertexData(1, (byte *) posData);
 
-	begin(InputContainer::INTERLEAVED);
+	begin(INTERLEAVED);
 	setInput(positionIn);
 	end();
 	hasAttributes_ = true;
@@ -134,29 +131,30 @@ void ImpostorBillboard::createResources() {
 	hasInitializedResources_ = true;
 	updateNumberOfViews();
 	// create camera for the update pass
-	snapshotCamera_ = ref_ptr<ArrayCamera>::alloc(numSnapshotViews_);
+	snapshotCamera_ = ref_ptr<ArrayCamera>::alloc(numSnapshotViews_, BufferUpdateFlags::NEVER);
 
 	{ // create parameters for the shader
-		joinShaderInput(depthOffset_);
-		joinShaderInput(modelOrigin_);
+		setInput(depthOffset_);
+		setInput(modelOrigin_);
 	}
 
 	{ // create view data arrays
-		impostorBuffer_ = ref_ptr<SSBO>::alloc("ImpostorBuffer", BUFFER_USAGE_STATIC_DRAW);
+		impostorBuffer_ = ref_ptr<SSBO>::alloc("ImpostorBuffer", BufferUpdateFlags::NEVER);
+		// TODO: could use GPU-only storage here, but then need to use setBufferData() instead of setUniformData()
 		snapshotDirs_ = ref_ptr<ShaderInput4f>::alloc("snapshotDirs", numSnapshotViews_);
 		snapshotDirs_->setUniformUntyped();
-		impostorBuffer_->addBlockInput(snapshotDirs_);
+		impostorBuffer_->addStagedInput(snapshotDirs_);
 
 		snapshotOrthoBounds_ = ref_ptr<ShaderInput4f>::alloc("snapshotOrthoBounds", numSnapshotViews_);
 		snapshotOrthoBounds_->setUniformUntyped();
-		impostorBuffer_->addBlockInput(snapshotOrthoBounds_);
+		impostorBuffer_->addStagedInput(snapshotOrthoBounds_);
 
 		snapshotDepthRanges_ = ref_ptr<ShaderInput2f>::alloc("snapshotDepthRanges", numSnapshotViews_);
 		snapshotDepthRanges_->setUniformUntyped();
-		impostorBuffer_->addBlockInput(snapshotDepthRanges_);
+		impostorBuffer_->addStagedInput(snapshotDepthRanges_);
 
-		snapshotState_->joinShaderInput(impostorBuffer_);
-		joinShaderInput(impostorBuffer_);
+		snapshotState_->setInput(impostorBuffer_);
+		setInput(impostorBuffer_);
 	}
 
 	{ // create the snapshot FBO
@@ -195,8 +193,6 @@ void ImpostorBillboard::createResources() {
 		snapshotFBO_->setClearColor({
 			Vec4f(0.0, 0.0, 0.0, 0.0),
 			drawAttachments });
-
-		GL_ERROR_LOG();
 	}
 
 	for (auto &viewMesh : meshes_) {
@@ -210,6 +206,7 @@ void ImpostorBillboard::createResources() {
 		meshConfigurer.addState(viewMesh.meshOrig.get());
 		meshConfigurer.addState(viewMesh.meshCopy.get());
 		meshConfigurer.define("NUM_IMPOSTOR_VIEWS", REGEN_STRING(numSnapshotViews_));
+		meshConfigurer.define("USE_GS_LAYERED_RENDERING", "TRUE");
 		viewMesh.shaderState->createShader(meshConfigurer.cfg(), snapshotShaderKey_);
 
 		viewMesh.meshCopy->joinStates(viewMesh.shaderState);
@@ -241,26 +238,16 @@ void ImpostorBillboard::createResources() {
 			//joinStates(depth);
 		}
 	}
+	GL_ERROR_LOG();
 }
 
 void ImpostorBillboard::addSnapshotView(uint32_t viewIdx, const Vec3f &dir, const Vec3f &up) {
-	// map data pointers
-	auto *camView    = (Mat4f*)snapshotCamera_->view()->clientData();
-	auto *camViewInv = (Mat4f*)snapshotCamera_->viewInverse()->clientData();
-	auto *camProj    = (Mat4f*)snapshotCamera_->projection()->clientData();
-	auto *camProjInv = (Mat4f*)snapshotCamera_->projectionInverse()->clientData();
-	auto *projParams = (ProjectionParams*)snapshotCamera_->projParams()->clientData();
-	auto *camPos     = (Vec3f*)snapshotCamera_->position()->clientData();
-	auto *viewDir    = (Vec4f*)snapshotDirs_->clientData();
-	auto *viewBounds = (Vec4f*)snapshotOrthoBounds_->clientData();
-	auto *viewDepth  = (Vec2f*)snapshotDepthRanges_->clientData();
-
 	// this is an offset of the mesh that translates it to origin.
 	// in many cases this will be (0,0,0).
 	auto eye = meshCenterPoint_ - dir * meshBoundsRadius_ * 1.5f;
-	camView[viewIdx] = Mat4f::lookAtMatrix(eye, dir, up);
-	camViewInv[viewIdx] = camView[viewIdx].lookAtInverse();
-	auto &view = camView[viewIdx];
+	snapshotCamera_->setView(viewIdx, Mat4f::lookAtMatrix(eye, dir, up));
+	auto &view = snapshotCamera_->view(viewIdx);
+	snapshotCamera_->setViewInverse(viewIdx, view.lookAtInverse());
 
 	float minX = +FLT_MAX, maxX = -FLT_MAX;
 	float minY = +FLT_MAX, maxY = -FLT_MAX;
@@ -279,10 +266,10 @@ void ImpostorBillboard::addSnapshotView(uint32_t viewIdx, const Vec3f &dir, cons
 	minZ -= zPadding;
 	maxZ += zPadding;
 
-	viewDir[viewIdx].xyz_() = -dir;
-	viewDir[viewIdx].w = 0.0f; // no w-component, this is a direction vector
-	viewBounds[viewIdx] = Vec4f(minX, maxX, minY, maxY);
-	viewDepth[viewIdx] = Vec2f(minZ, maxZ);
+	m_viewDir_[viewIdx].xyz_() = -dir;
+	m_viewDir_[viewIdx].w = 0.0f; // no w-component, this is a direction vector
+	m_viewBounds_[viewIdx] = Vec4f(minX, maxX, minY, maxY);
+	m_viewDepth_[viewIdx] = Vec2f(minZ, maxZ);
 #ifdef DEBUG_SNAPSHOT_VIEWS
 	REGEN_INFO("Snapshot view " << viewIdx << ":"
 									<< "\n\tmesh-origin=" << meshCenterPoint_
@@ -292,13 +279,17 @@ void ImpostorBillboard::addSnapshotView(uint32_t viewIdx, const Vec3f &dir, cons
 									<< "\n\tdepth=" << viewDepth[viewIdx]);
 #endif
 
-	camProj[viewIdx] = Mat4f::orthogonalMatrix(minX, maxX, minY, maxY, minZ, maxZ);
-	camProjInv[viewIdx] = camProj[viewIdx].orthogonalInverse();
-	projParams[viewIdx].near = minZ;
-	projParams[viewIdx].far = maxZ;
-	projParams[viewIdx].aspect = abs((maxX - minX) / (maxY - minY));
-	projParams[viewIdx].fov = 0.0f; // orthographic projection, no fov
-	camPos[viewIdx] = eye;
+	snapshotCamera_->setProjection(viewIdx,
+			Mat4f::orthogonalMatrix(minX, maxX, minY, maxY, minZ, maxZ));
+	snapshotCamera_->setProjectionInverse(viewIdx,
+			snapshotCamera_->projection(viewIdx).orthogonalInverse());
+	ProjectionParams params = snapshotCamera_->projParams(viewIdx);
+	params.near = minZ;
+	params.far = maxZ;
+	params.aspect = abs((maxX - minX) / (maxY - minY));
+	params.fov = 0.0f; // orthographic projection, no fov
+	snapshotCamera_->setProjParams(viewIdx, params);
+	snapshotCamera_->setPosition(viewIdx, eye);
 }
 
 void ImpostorBillboard::updateSnapshotViews() {
@@ -319,6 +310,14 @@ void ImpostorBillboard::updateSnapshotViews() {
 			}
 		}
 	}
+
+	// map data pointers
+	auto mappedBuffer1 = snapshotDirs_->mapClientData<Vec4f>(BUFFER_GPU_WRITE);
+	auto mappedBuffer2 = snapshotOrthoBounds_->mapClientData<Vec4f>(BUFFER_GPU_WRITE);
+	auto mappedBuffer3 = snapshotDepthRanges_->mapClientData<Vec2f>(BUFFER_GPU_WRITE);
+	m_viewDir_ = mappedBuffer1.w.data();
+	m_viewBounds_ = mappedBuffer2.w.data();
+	m_viewDepth_ = mappedBuffer3.w.data();
 
 	for (float lat: latAngles) {
 		float y = sin(lat);
@@ -347,17 +346,14 @@ void ImpostorBillboard::updateSnapshotViews() {
 		addSnapshotView(viewIdx++, Vec3f::down(), Vec3f::right());
 	}
 
-	snapshotDirs_->nextStamp();
-	snapshotOrthoBounds_->nextStamp();
-	snapshotDepthRanges_->nextStamp();
+	mappedBuffer1.unmap();
+	mappedBuffer2.unmap();
+	mappedBuffer3.unmap();
+	impostorBuffer_->clientBuffer()->swapData();
+
 	impostorBuffer_->update();
-	snapshotCamera_->view()->nextStamp();
-	snapshotCamera_->viewInverse()->nextStamp();
-	snapshotCamera_->projection()->nextStamp();
-	snapshotCamera_->projectionInverse()->nextStamp();
-	snapshotCamera_->position()->nextStamp();
-	snapshotCamera_->direction()->nextStamp();
 	snapshotCamera_->updateViewProjection1();
+	snapshotCamera_->updateShaderData(0.0f);
 }
 
 void ImpostorBillboard::createSnapshot() {
@@ -367,13 +363,13 @@ void ImpostorBillboard::createSnapshot() {
 	snapshotFBO_->enable(rs);
 	// render all meshes into the snapshot FBO
 	for (auto &view: meshes_) {
-		auto oldNumInstances = view.meshCopy->inputContainer()->numVisibleInstances();
+		auto oldNumInstances = view.meshCopy->numVisibleInstances();
 		// make sure only one instance is rendered
-		view.meshCopy->inputContainer()->set_numVisibleInstances(1);
+		view.meshCopy->set_numVisibleInstances(1);
 		view.shaderState->enable(rs);
 		view.meshCopy->draw(rs);
 		view.shaderState->disable(rs);
-		view.meshCopy->inputContainer()->set_numVisibleInstances(oldNumInstances);
+		view.meshCopy->set_numVisibleInstances(oldNumInstances);
 	}
 	snapshotFBO_->disable(rs);
 	snapshotAlbedo_->updateMipmaps();

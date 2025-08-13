@@ -1,12 +1,5 @@
-/*
- * frustum.h
- *
- *  Created on: Dec 15, 2013
- *      Author: daniel
- */
-
-#ifndef FRUSTUM_H_
-#define FRUSTUM_H_
+#ifndef REGEN_FRUSTUM_H_
+#define REGEN_FRUSTUM_H_
 
 #include <vector>
 #include <regen/math/vector.h>
@@ -22,13 +15,13 @@ namespace regen {
 	class Frustum : public BoundingShape {
 	public:
 		/** The field of view angle. */
-		double fov;
+		double fov = 60.0;
 		/** The aspect ratio. */
-		double aspect;
+		double aspect = 8.0 / 6.0;
 		/** The near plane distance. */
-		double near;
+		double near = 0.1;
 		/** The far plane distance. */
-		double far;
+		double far = 100.0;
 		/** Near plane size. */
 		Vec2f nearPlaneHalfSize;
 		/** Far plane size. */
@@ -113,4 +106,4 @@ namespace regen {
 	};
 } // namespace
 
-#endif /* FRUSTUM_H_ */
+#endif /* REGEN_FRUSTUM_H_ */

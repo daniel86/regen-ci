@@ -1,16 +1,9 @@
-/*
- * bones.h
- *
- *  Created on: 05.08.2012
- *      Author: daniel
- */
-
 #ifndef REGEN_BONES_H
 #define REGEN_BONES_H
 
 #include <regen/states/state.h>
 #include <regen/animations/animation-node.h>
-#include <regen/gl-types/vbo.h>
+#include <regen/buffer/vbo.h>
 #include <regen/textures/texture-state.h>
 #include <regen/textures/texture-buffer.h>
 
@@ -20,7 +13,7 @@ namespace regen {
 	 *
 	 * The data is provided to Shader's using a TextureBuffer.
 	 */
-	class Bones : public HasInputState, public Animation {
+	class Bones : public State, public Animation {
 	public:
 		/**
 		 * @param numBoneWeights maximum number of bone weights.
@@ -40,9 +33,6 @@ namespace regen {
 
 		// override
 		void animate(GLdouble dt) override;
-
-		// override
-		void glAnimate(RenderState *rs, GLdouble dt) override;
 
 	protected:
 		std::list<ref_ptr<AnimationNode> > bones_;

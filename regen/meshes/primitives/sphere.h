@@ -8,7 +8,7 @@
 #ifndef SPHERE_H_
 #define SPHERE_H_
 
-#include <regen/states/shader-state.h>
+#include "regen/glsl/shader-state.h"
 #include <regen/meshes/mesh-state.h>
 #include <regen/math/vector.h>
 
@@ -50,8 +50,10 @@ namespace regen {
 			GLboolean isTangentRequired;
 			/** If true only bottom half sphere is used. */
 			GLboolean isHalfSphere;
-			/** VBO usage hint. */
-			BufferUsage usage;
+			/** Buffer usage hints. */
+			ClientAccessMode accessMode = BUFFER_CPU_WRITE;
+			BufferUpdateFlags updateHint = BufferUpdateFlags::NEVER;
+			BufferMapMode mapMode = BUFFER_MAP_DISABLED;
 
 			Config();
 		};
@@ -112,8 +114,10 @@ namespace regen {
 			Vec3f *position;
 			/** number of spheres. */
 			GLuint sphereCount;
-			/** VBO usage hint. */
-			BufferUsage usage;
+			/** Buffer usage hints. */
+			ClientAccessMode accessMode = BUFFER_CPU_WRITE;
+			BufferUpdateFlags updateHint = BufferUpdateFlags::NEVER;
+			BufferMapMode mapMode = BUFFER_MAP_DISABLED;
 
 			Config();
 		};

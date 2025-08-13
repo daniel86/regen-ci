@@ -7,8 +7,6 @@ using namespace regen;
 Frustum::Frustum() :
 		BoundingShape(BoundingShapeType::FRUSTUM),
 		orthoBounds(Vec2f(0), Vec2f(0)) {
-	transform_ = ref_ptr<ModelTransformation>::alloc(
-		createUniform<ShaderInput4f>("frustumCenter", Vec4f(0)));
 	direction_ = ref_ptr<ShaderInput3f>::alloc("frustumDirection");
 	direction_->setUniformData(Vec3f::front());
 }
@@ -58,7 +56,7 @@ Vec3f Frustum::direction() const {
 
 unsigned int Frustum::directionStamp() const {
 	if (direction_.get()) {
-		return direction_->stamp();
+		return direction_->stampOfReadData();
 	} else {
 		return 0;
 	}
@@ -67,7 +65,7 @@ unsigned int Frustum::directionStamp() const {
 void Frustum::update(const Vec3f &pos, const Vec3f &dir) {
 	Vec3f d = dir;
 	d.normalize();
-	transform_->modelOffset()->setVertex3(0, pos);
+	localTransform_.setPosition(pos);
 	direction_->setVertex(0, d);
 	shapeOrigin_ = pos;
 
@@ -220,7 +218,7 @@ bool Frustum::hasIntersectionWithBox(const Vec3f &center, const Vec3f *point) co
 }
 
 bool Frustum::hasIntersectionWithFrustum(const BoundingSphere &sphere) const {
-	return hasIntersectionWithSphere(sphere.translation().r, sphere.radius());
+	return hasIntersectionWithSphere(sphere.translation(), sphere.radius());
 }
 
 bool Frustum::hasIntersectionWithFrustum(const BoundingBox &box) const {

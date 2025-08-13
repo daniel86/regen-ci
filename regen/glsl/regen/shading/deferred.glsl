@@ -91,7 +91,6 @@ void main() {
     out_color.a = 0.0;
 }
 
-
 --------------------------------------
 --------------------------------------
 ---- Material Emission Light. Input mesh should be a unit-quad.
@@ -176,12 +175,19 @@ void main() {
     vec3 P = transformTexcoToWorld(texco_2D, depth, in_layer);
     vec4 spec = texture(in_gSpecularTexture, texco);
     vec4 diff = texture(in_gDiffuseTexture, texco);
-
+#ifdef USE_AMBIENT_LIGHT
+    vec3 lightColor = in_lightAmbient * diff.rgb;
+#else
+    vec3 lightColor = vec3(0.0);
+#endif
     vec3 L = normalize(in_lightDirection.xyz);
     float nDotL = dot( N, L );
+#ifdef USE_AMBIENT_LIGHT
+    if(nDotL>0.0) {
+#else
     if(nDotL<=0.0) discard;
-    out_color = vec4(0.0);
-    
+#endif
+
 #ifdef USE_SKY_COLOR
     vec3 lightDiffuse = texture(in_skyColorTexture, N ).rgb;
 #else
@@ -219,13 +225,13 @@ void main() {
     spec.rgb *= in_lightSpecular;
     // add diffuse and specular light (ambient is already added)
 #if SHADING_MODEL == PHONG
-    out_color.rgb += attenuation *
+    lightColor.rgb += attenuation *
             phong(diff.rgb, spec.rgb, nDotL, sf, shininess);
 #elif SHADING_MODEL == TOON
-    out_color.rgb += attenuation *
+    lightColor.rgb += attenuation *
             toon(diff.rgb, spec.rgb, nDotL, sf, shininess);
 #endif
-    
+
 #ifdef USE_SHADOW_MAP
 #ifdef DEBUG_SHADOW_SLICES
     vec3 color[8] = vec3[8](
@@ -237,9 +243,15 @@ void main() {
         vec3(0.7, 1.0, 1.0),
         vec3(1.0, 1.0, 1.0),
         vec3(0.7, 0.7, 0.7));
-    out_color.rgb *= color[shadowLayer];
+    lightColor.rgb *= color[shadowLayer];
 #endif
 #endif
+#ifdef USE_AMBIENT_LIGHT
+    }
+#endif
+
+    // set output color
+    out_color = vec4(lightColor, 1.0);
 }
 
 --------------------------------------
@@ -248,42 +260,8 @@ void main() {
 --------------------------------------
 
 -- local.gs
-#include regen.states.camera.defines
-#if RENDER_LAYER > 1
-#define2 REGEN_MAX_VERTICES_ ${${RENDER_LAYER}*3}
-
-layout(triangles) in;
-layout(triangle_strip, max_vertices=${REGEN_MAX_VERTICES_}) out;
-
-flat out int out_layer;
-out vec4 out_posEye;
-
-#include regen.states.camera.input
-#include regen.states.camera.transformWorldToEye
-#include regen.states.camera.transformEyeToScreen
-
-#define HANDLE_IO(i)
-
-void emitVertex(vec4 posWorld, int index, int layer) {
-    out_posEye = transformWorldToEye(posWorld,layer);
-    gl_Position = transformEyeToScreen(out_posEye,layer);
-    HANDLE_IO(index);
-    EmitVertex();
-}
-
-void main() {
-#for LAYER to ${RENDER_LAYER}
-#ifndef SKIP_LAYER${LAYER}
-    gl_Layer = ${LAYER};
-    out_layer = ${LAYER};
-    emitVertex(gl_in[0].gl_Position, 0, ${LAYER});
-    emitVertex(gl_in[1].gl_Position, 1, ${LAYER});
-    emitVertex(gl_in[2].gl_Position, 2, ${LAYER});
-    EndPrimitive();
-#endif
-#endfor
-}
-#endif
+// pass-through geometry shader if needed (e.g. for layer selection)
+#include regen.models.mesh.gs
 
 -- local.fs
 #include regen.shading.light.defines
@@ -357,6 +335,11 @@ void main() {
     vec4 diff = texture(in_gDiffuseTexture, texco);
     vec3 lightVec = in_lightPosition.xyz - P;
     vec3 L = normalize(lightVec);
+#ifdef USE_AMBIENT_LIGHT
+    vec3 lightColor = in_lightAmbient * diff.rgb;
+#else
+    vec3 lightColor = vec3(0.0);
+#endif
     
     // calculate attenuation
     float attenuation = radiusAttenuation(
@@ -365,10 +348,14 @@ void main() {
     attenuation *= spotConeAttenuation(L,in_lightDirection.xyz,in_lightConeAngles);
 #endif
     float nDotL = dot( N, L );
+
+#ifdef USE_AMBIENT_LIGHT
+    if(attenuation*nDotL >= 0.0) {
+#else
     // discard if facing away
     // TODO: better don't discard and just multiply in the end?
-    if(attenuation*nDotL<0.0) discard;
-    out_color = vec4(0.0);
+    if(attenuation*nDotL < 0.0) discard;
+#endif
 
 #ifdef USE_SHADOW_MAP
     float lightNear = in_lightProjParams.x;
@@ -449,12 +436,18 @@ void main() {
     spec.rgb *= in_lightSpecular;
     // add diffuse and specular light (ambient is already added)
 #if SHADING_MODEL == PHONG
-    out_color.rgb += attenuation *
+    lightColor.rgb += attenuation *
             phong(diff.rgb, spec.rgb, nDotL, sf, shininess);
 #elif SHADING_MODEL == TOON
-    out_color.rgb += attenuation *
+    lightColor.rgb += attenuation *
             toon(diff.rgb, spec.rgb, nDotL, sf, shininess);
 #endif
+#ifdef USE_AMBIENT_LIGHT
+    }
+#endif
+
+    // set output color
+    out_color = vec4(lightColor, 1.0);
 }
 
 --------------------------------------
@@ -465,29 +458,30 @@ void main() {
 -- point.vs
 #define IS_POINT_LIGHT
 #include regen.states.camera.defines
+#include regen.defines.all
+
 in vec3 in_pos;
 #ifdef HAS_INSTANCES
 flat out int out_instanceID;
+#endif
+#ifdef VS_LAYER_SELECTION
+flat out int out_layer;
 #endif
 
 uniform vec2 in_lightRadius;
 uniform vec4 in_lightPosition;
 
-#if RENDER_LAYER == 1
+#include regen.layered.VS_SelectLayer
 #include regen.states.camera.input
 #include regen.states.camera.transformWorldToScreen
-#endif
 
 void main() {
     vec3 posWorld = in_lightPosition.xyz + in_pos*in_lightRadius.y;
-#if RENDER_LAYER > 1
-    gl_Position = vec4(posWorld,1.0);
-#else
     gl_Position = transformWorldToScreen(vec4(posWorld,1.0),0);
-#endif
 #ifdef HAS_INSTANCES
     out_instanceID = gl_InstanceID + gl_BaseInstance;
 #endif // HAS_INSTANCES
+    VS_SelectLayer(regen_RenderLayer());
 }
 
 -- point.gs
@@ -524,33 +518,66 @@ void main() {
 --------------------------------------
 -- spot.vs
 #include regen.states.camera.defines
+#include regen.defines.all
 
 in vec3 in_pos;
 out vec3 out_intersection;
 #ifdef HAS_INSTANCES
 flat out int out_instanceID;
 #endif
-
-uniform mat4 in_modelMatrix;
-
-#if RENDER_LAYER == 1
-#include regen.states.camera.input
-#include regen.states.camera.transformWorldToScreen
+#ifdef VS_LAYER_SELECTION
+flat out int out_layer;
 #endif
 
+uniform mat4 in_lightConeMatrix;
+
+#include regen.layered.VS_SelectLayer
+#include regen.states.camera.input
+#include regen.states.camera.transformWorldToScreen
+
 void main() {
-    out_intersection = (in_modelMatrix * vec4(in_pos,1.0)).xyz;
+    out_intersection = (in_lightConeMatrix * vec4(in_pos,1.0)).xyz;
 #ifdef HAS_INSTANCES
     out_instanceID = gl_InstanceID + gl_BaseInstance;
 #endif // HAS_INSTANCES
-#if RENDER_LAYER > 1
-    gl_Position = vec4(out_intersection,1.0);
-#else
+    VS_SelectLayer(regen_RenderLayer());
     gl_Position = transformWorldToScreen(vec4(out_intersection,1.0),0);
-#endif
 }
+
 -- spot.gs
 #include regen.shading.deferred.local.gs
 -- spot.fs
 #define IS_SPOT_LIGHT
 #include regen.shading.deferred.local.fs
+
+--------------------------------------
+--------------------------------------
+---- Ambient Light Shading. Input mesh should be a unit-quad.
+--------------------------------------
+--------------------------------------
+-- ambient.vs
+#include regen.filter.sampling.vs
+-- ambient.gs
+#include regen.filter.sampling.gs
+-- ambient.fs
+#include regen.states.camera.defines
+
+out vec4 out_color;
+
+uniform sampler2D in_gDepthTexture;
+uniform sampler2D in_gNorWorldTexture;
+uniform sampler2D in_gDiffuseTexture;
+
+uniform vec3 in_lightAmbient;
+
+#include regen.filter.sampling.computeTexco
+#include regen.shading.deferred.fetchNormal
+
+void main() {
+    vec2 texco_2D = gl_FragCoord.xy*in_inverseViewport;
+    vecTexco texco = computeTexco(texco_2D);
+
+    vec3 N = fetchNormal(in_gNorWorldTexture,texco);
+    vec4 diff = texture(in_gDiffuseTexture,texco);
+    out_color.rgb = diff.rgb*in_lightAmbient + diff.rgb;
+}

@@ -4,61 +4,70 @@
 
 using namespace regen;
 
-CullShape::CullShape(const ref_ptr<SpatialIndex> &spatialIndex, std::string_view shapeName)
+CullShape::CullShape(
+		const ref_ptr<SpatialIndex> &spatialIndex,
+		std::string_view shapeName,
+		bool useSharedInstanceBuffer)
 		: State(),
 		  shapeName_(shapeName),
 		  spatialIndex_(spatialIndex) {
 	auto indexedShape = spatialIndex_->getShape(shapeName);
-	initCullShape(indexedShape, true);
+	initCullShape(indexedShape, true, useSharedInstanceBuffer);
 }
 
-CullShape::CullShape(const ref_ptr<BoundingShape> &boundingShape, std::string_view shapeName)
+CullShape::CullShape(
+		const ref_ptr<BoundingShape> &boundingShape,
+		std::string_view shapeName,
+		bool useSharedInstanceBuffer)
 		: State(),
 		  shapeName_(shapeName) {
-	initCullShape(boundingShape, false);
+	initCullShape(boundingShape, false, useSharedInstanceBuffer);
 }
 
-void CullShape::initCullShape(const ref_ptr<BoundingShape> &boundingShape, bool isIndexShape) {
+void CullShape::initCullShape(
+		const ref_ptr<BoundingShape> &boundingShape,
+		bool isIndexShape,
+		bool useSharedInstanceBuffer) {
 	auto mesh = boundingShape->mesh();
-	bool isMeshPart = false;
-	for (const auto &part : boundingShape->parts()) {
-		if (part.get() != nullptr) {
-			parts_.push_back(part);
-		}
-		if (part.get() == mesh.get()) {
-			isMeshPart = true;
-		}
-	}
-	if (!isMeshPart && mesh.get() != nullptr) {
+	if (mesh.get() != nullptr) {
 		// add mesh as part if not already added
 		parts_.push_back(mesh);
 	}
-	tf_ = boundingShape->transform();
+	for (const auto &part : boundingShape->parts()) {
+		if (part.get() != nullptr && part.get() != mesh.get()) {
+			parts_.push_back(part);
+		}
+	}
+	boundingShape_ = boundingShape;
 	numInstances_ = boundingShape->numInstances();
-	// create instanceIDMap_ and instanceIDBuffer_, these are used to store the instance IDs
-	createBuffers();
+	if (useSharedInstanceBuffer) {
+		// create instanceIDMap_ and instanceIDBuffer_, these are used to store the instance IDs
+		createBuffers();
+	}
 }
 
 void CullShape::createBuffers() {
-	numInstances_ = tf_->numInstances();
-	auto numIndices = numInstances_;
+	auto numIndices = boundingShape_->numInstances();
+	if (numIndices <= 1) { return; }
+
+	std::vector<uint32_t> clearData(numInstances_);
+	for (uint32_t i = 0; i < numInstances_; ++i) { clearData[i] = i; }
+
+	// NOTE: cull shape is potentially used in multiple passes, and the InstanceIDs are usually
+	//       updated for each draw call, so we use FULL_PER_DRAW to ensure the data is updated.
+	//       if per-frame is desired, the ssbo could be moved into the cull state.
+	instanceData_ = ref_ptr<ShaderInput1ui>::alloc("instanceIDMap", numIndices);
+	instanceBuffer_ = ref_ptr<SSBO>::alloc("InstanceIDs", BufferUpdateFlags::FULL_PER_DRAW);
+	if (isIndexShape()) {
+		// Note: do not set CPU-side data in case of GPU shape (we rather use setBufferData below).
+		instanceData_->setInstanceData(1, 1, (byte*)clearData.data());
+	}
+	instanceBuffer_->addStagedInput(instanceData_);
+	instanceBuffer_->update();
 	if (!isIndexShape()) {
-		numIndices *= 2;
+		// clear segment to [0, 1, 2, ..., numInstances_-1]
+		instanceBuffer_->setBufferSubData(0, numInstances_, clearData.data());
 	}
 
-	// Create array with numInstances_ elements.
-	// The instance ids will be added each frame 1. in LOD-groups and 2. in view-dependent order
-	instanceIDMap_ = ref_ptr<ShaderInput1ui>::alloc("instanceIDMap", numIndices);
-	//instanceIDMap_->set_forceArray(true);
-	instanceIDMap_->setInstanceData(1, 1, nullptr);
-	auto instanceData = instanceIDMap_->mapClientData<GLuint>(ShaderData::WRITE);
-	for (GLuint i = 0; i < numInstances_; ++i) {
-		instanceData.w[i] = i;
-	}
-	instanceData.unmap();
-	// use SSBO for instanceIDMap_
-	instanceIDBuffer_ = ref_ptr<SSBO>::alloc("InstanceIDs", BUFFER_USAGE_STREAM_DRAW);
-	instanceIDBuffer_->addBlockInput(instanceIDMap_);
-	instanceIDBuffer_->update();
-	joinShaderInput(instanceIDBuffer_);
+	setInput(instanceBuffer_);
 }

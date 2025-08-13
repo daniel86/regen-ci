@@ -9,6 +9,8 @@
 #include "regen/states/pick-data.h"
 #include "regen/scene/scene-interaction.h"
 #include "regen/animations/animation.h"
+#include "regen/buffer/staging-system.h"
+#include "screen.h"
 
 // Defeat evil windows defines...
 #ifdef KEY_EVENT
@@ -47,6 +49,7 @@ namespace regen {
 		/** keyboard event data. */
 		class KeyEvent : public EventData {
 		public:
+			~KeyEvent() override = default;
 			/** key up or down ?. */
 			GLboolean isUp;
 			/** mouse x position. */
@@ -63,6 +66,7 @@ namespace regen {
 		/** mouse button event data. */
 		class ButtonEvent : public EventData {
 		public:
+			~ButtonEvent() override = default;
 			/** pressed or released? */
 			GLboolean pressed;
 			/** is it a double click event? */
@@ -81,6 +85,7 @@ namespace regen {
 		/** mouse motion event data. */
 		class MouseMotionEvent : public EventData {
 		public:
+			~MouseMotionEvent() override = default;
 			/** time difference to last motion event. */
 			GLdouble dt;
 			/** mouse x position difference */
@@ -95,6 +100,7 @@ namespace regen {
 		/** mouse left/entered the window. */
 		class MouseLeaveEvent : public EventData {
 		public:
+			~MouseLeaveEvent() override = default;
 			/** mouse left/entered the window. */
 			GLboolean entered;
 		};
@@ -107,6 +113,16 @@ namespace regen {
 		 * @param argv array of arguments.
 		 */
 		Scene(const int &argc, const char **argv);
+
+		/**
+		 * Initialize the scene after the render tree is loaded.
+		 */
+		void initializeScene();
+
+		/**
+		 * Clears application render tree to be empty.
+		 */
+		void clear();
 
 		/**
 		 * @return true if GL context is ready to be used.
@@ -154,7 +170,7 @@ namespace regen {
 		/**
 		 * @return the window size.
 		 */
-		auto &windowViewport() const { return windowViewport_; }
+		const ref_ptr<Screen> &screen() const { return screen_; }
 
 		/**
 		 * @return the current mouse position relative to GL window.
@@ -277,11 +293,6 @@ namespace regen {
 		ref_ptr<SceneInteraction> getInteraction(const std::string &name);
 
 		/**
-		 * Clears application render tree to be empty.
-		 */
-		void clear();
-
-		/**
 		 * Updates the time.
 		 */
 		void updateTime();
@@ -359,8 +370,7 @@ namespace regen {
 		std::list<std::string> optionalExt_;
 		std::vector<ref_ptr<Animation>> glCalls_;
 
-		ref_ptr<ShaderInput2i> windowViewport_;
-
+		ref_ptr<Screen> screen_;
 		ref_ptr<ShaderInput1i> isMouseEntered_;
 		ref_ptr<ShaderInput2f> mousePosition_;
 		ref_ptr<ShaderInput2f> mouseTexco_;
@@ -382,6 +392,8 @@ namespace regen {
 		void setTime();
 
 		void updateMousePosition();
+
+		void updateBOs();
 	};
 
 } // namespace

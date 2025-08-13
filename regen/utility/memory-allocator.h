@@ -49,6 +49,7 @@ namespace regen {
 			ActualAllocatorRef allocatorRef; //!< the allocator actual reference
 			Node *prev;                        //!< allocator with bigger maxSpace
 			Node *next;                        //!< allocator with smaller maxSpace
+			void *mapped = nullptr; //!< pointer to mapped memory, if any
 		};
 
 		/**
@@ -57,6 +58,7 @@ namespace regen {
 		struct Reference {
 			Node *allocatorNode;               //!< the allocator
 			VirtualAllocatorRef allocatorRef;  //!< the allocator virtual reference
+			uint32_t size;
 		};
 
 		AllocatorPool()
@@ -73,6 +75,10 @@ namespace regen {
 				buf->prev = nullptr;
 				buf->pool = nullptr;
 				// free actual memory
+				if (buf->mapped) {
+					ActualAllocatorType::unmapAllocator(index_, buf->allocatorRef);
+					buf->mapped = nullptr;
+				}
 				ActualAllocatorType::deleteAllocator(index_, buf->allocatorRef);
 				delete buf;
 			}
@@ -131,6 +137,7 @@ namespace regen {
 			x->next = allocators_;
 			// allocate actual memory
 			x->allocatorRef = ActualAllocatorType::createAllocator(index_, actualSize);
+			x->mapped = ActualAllocatorType::mapAllocator(index_, actualSize, x->allocatorRef);
 			if (allocators_) allocators_->prev = x;
 			allocators_ = x;
 			sortInForward(x);
@@ -185,6 +192,7 @@ namespace regen {
 			} else {
 				ref.allocatorNode = nullptr;
 			}
+			ref.size = size;
 			return ref;
 		}
 
@@ -205,6 +213,7 @@ namespace regen {
 			} else {
 				ref.allocatorNode = nullptr;
 			}
+			ref.size = size;
 			return ref;
 		}
 
@@ -214,6 +223,14 @@ namespace regen {
 		 */
 		void free(Reference &ref) {
 			if (ref.allocatorNode) {
+				// orphan the actual memory range
+				ActualAllocatorType::orphanAllocatorRange(
+					// buffer id
+					ref.allocatorNode->allocatorRef,
+					// virtual reference: the allocated range offset in the buffer
+					ref.allocatorRef,
+					ref.size);
+
 				ref.allocatorNode->allocator.free(ref.allocatorRef);
 				sortInBackward(ref.allocatorNode);
 				ref.allocatorNode = nullptr;

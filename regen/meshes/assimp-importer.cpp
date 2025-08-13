@@ -131,7 +131,7 @@ static void setLightRadius(aiLight *aiLight, ref_ptr<Light> &light) {
 	GLfloat inner = -z + sqrt(z * z - (ax / start - 1.0f / (start * az)));
 	GLfloat outer = -z + sqrt(z * z - (ax / stop - 1.0f / (stop * az)));
 
-	light->radius()->setVertex(0, Vec2f(inner, outer));
+	light->setRadius(0, Vec2f(inner, outer));
 }
 
 vector<ref_ptr<Light> > AssetImporter::loadLights() {
@@ -147,22 +147,21 @@ vector<ref_ptr<Light> > AssetImporter::loadLights() {
 		switch (assimpLight->mType) {
 			case aiLightSource_DIRECTIONAL: {
 				light = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
-				light->direction()->setVertex(0, *((Vec3f *) &lightPos.x));
+				light->setDirection(0, *((Vec3f *) &lightPos.x));
 				break;
 			}
 			case aiLightSource_POINT: {
 				light = ref_ptr<Light>::alloc(Light::POINT);
-				light->position()->setVertex3(0, *((Vec3f *) &lightPos.x));
+				light->setPosition(0, *((Vec3f *) &lightPos.x));
 				setLightRadius(assimpLight, light);
 				break;
 			}
 			case aiLightSource_SPOT: {
 				light = ref_ptr<Light>::alloc(Light::SPOT);
-				light->position()->setVertex3(0, *((Vec3f *) &lightPos.x));
-				light->direction()->setVertex(0, *((Vec3f *) &assimpLight->mDirection.x));
-				light->set_outerConeAngle(
-						acos(assimpLight->mAngleOuterCone) * 360.0f / (2.0f * M_PI));
-				light->set_innerConeAngle(
+				light->setPosition(0, *((Vec3f *) &lightPos.x));
+				light->setDirection(0, *((Vec3f *) &assimpLight->mDirection.x));
+				light->setConeAngles(
+						acos(assimpLight->mAngleOuterCone) * 360.0f / (2.0f * M_PI),
 						acos(assimpLight->mAngleInnerCone) * 360.0f / (2.0f * M_PI));
 				setLightRadius(assimpLight, light);
 				break;
@@ -179,8 +178,8 @@ vector<ref_ptr<Light> > AssetImporter::loadLights() {
 
 		lightToAiLight_[light.get()] = assimpLight;
 		//light->set_ambient( aiToOgle(&assimpLight->mColorAmbient) );
-		light->diffuse()->setVertex(0, aiToOgle(&assimpLight->mColorDiffuse));
-		light->specular()->setVertex(0, aiToOgle(&assimpLight->mColorSpecular));
+		light->setDiffuse(0, aiToOgle(&assimpLight->mColorDiffuse));
+		light->setSpecular(0, aiToOgle(&assimpLight->mColorSpecular));
 
 		ret[i] = light;
 	}
@@ -565,7 +564,6 @@ static void loadTexture(
 		tex->updateMipmaps();
 	}
 	mat->joinStates(texState);
-
 	GL_ERROR_LOG();
 }
 
@@ -580,7 +578,6 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 	GLuint maxElements;
 	GLuint l, k;
 
-	GL_ERROR_LOG();
 	for (GLuint n = 0; n < scene_->mNumMaterials; ++n) {
 		ref_ptr<Material> mat = ref_ptr<Material>::alloc();
 		materials[n] = mat;
@@ -740,21 +737,21 @@ static GLuint getMeshCount(const struct aiNode *node) {
 }
 
 vector<ref_ptr<Mesh> > AssetImporter::loadAllMeshes(
-		const Mat4f &transform, BufferUsage usage) {
+		const Mat4f &transform, const BufferFlags &bufferFlags) {
 	GLuint meshCount = getMeshCount(scene_->mRootNode);
 
 	vector<GLuint> meshIndices(meshCount);
 	for (GLuint n = 0; n < meshCount; ++n) { meshIndices[n] = n; }
 
-	return loadMeshes(transform, usage, meshIndices);
+	return loadMeshes(transform, bufferFlags, meshIndices);
 }
 
 vector<ref_ptr<Mesh> > AssetImporter::loadMeshes(
-		const Mat4f &transform, BufferUsage usage, const vector<GLuint> &meshIndices) {
+		const Mat4f &transform, const BufferFlags &bufferFlags, const vector<GLuint> &meshIndices) {
 	vector<ref_ptr<Mesh> > out(meshIndices.size());
 	GLuint currentIndex = 0;
 
-	loadMeshes(*scene_->mRootNode, transform, usage, meshIndices, currentIndex, out);
+	loadMeshes(*scene_->mRootNode, transform, bufferFlags, meshIndices, currentIndex, out);
 
 	return out;
 }
@@ -762,7 +759,7 @@ vector<ref_ptr<Mesh> > AssetImporter::loadMeshes(
 void AssetImporter::loadMeshes(
 		const struct aiNode &node,
 		const Mat4f &transform,
-		BufferUsage usage,
+		const BufferFlags &bufferFlags,
 		const vector<GLuint> &meshIndices,
 		GLuint &currentIndex,
 		vector<ref_ptr<Mesh> > &out) {
@@ -782,7 +779,7 @@ void AssetImporter::loadMeshes(
 		if (mesh == nullptr) { continue; }
 
 		aiMatrix4x4 meshTransform = (*aiTransform) * node.mTransformation;
-		ref_ptr<Mesh> meshState = loadMesh(*mesh, *((const Mat4f *) &meshTransform.a1), usage);
+		ref_ptr<Mesh> meshState = loadMesh(*mesh, *((const Mat4f *) &meshTransform.a1),  bufferFlags);
 		// remember mesh material
 		meshMaterials_[meshState.get()] = materials_[mesh->mMaterialIndex];
 		meshToAiMesh_[meshState.get()] = mesh;
@@ -793,13 +790,20 @@ void AssetImporter::loadMeshes(
 	for (GLuint n = 0; n < node.mNumChildren; ++n) {
 		const struct aiNode *child = node.mChildren[n];
 		if (child == nullptr) { continue; }
-		loadMeshes(*child, transform, usage, meshIndices, currentIndex, out);
+		loadMeshes(*child, transform, bufferFlags, meshIndices, currentIndex, out);
 	}
 }
 
-ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &transform, BufferUsage usage) {
-	ref_ptr<Mesh> meshState = ref_ptr<Mesh>::alloc(GL_TRIANGLES, usage);
-	stringstream s;
+ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &transform, const BufferFlags &bufferFlags) {
+	ref_ptr<Mesh> meshState = ref_ptr<Mesh>::alloc(GL_TRIANGLES, bufferFlags.updateHints);
+	if (bufferFlags.accessMode == BUFFER_GPU_ONLY) {
+		meshState->setClientAccessMode(BUFFER_CPU_WRITE);
+	} else if (bufferFlags.accessMode == BUFFER_CPU_READ) {
+		meshState->setClientAccessMode(BUFFER_CPU_READ);
+	} else {
+		meshState->setClientAccessMode(bufferFlags.accessMode);
+	}
+	meshState->setBufferMapMode(bufferFlags.mapMode);
 
 	ref_ptr<ShaderInput3f> pos = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	ref_ptr<ShaderInput3f> nor = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_NOR);
@@ -829,23 +833,22 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 			break;
 	}
 
-	meshState->begin(InputContainer::INTERLEAVED);
+	meshState->begin(Mesh::INTERLEAVED);
 
 	{
 		ref_ptr<ShaderInput1ui> indices = ref_ptr<ShaderInput1ui>::alloc("i");
 		indices->setVertexData(numIndices);
-		auto faceIndices = indices->mapClientData<GLuint>(ShaderData::WRITE);
+		auto faceIndices = (GLuint*)indices->clientBuffer()->clientData(0);
 		GLuint index = 0, maxIndex = 0;
 		for (GLuint t = 0u; t < mesh.mNumFaces; ++t) {
 			const struct aiFace *face = &mesh.mFaces[t];
 			if (face->mNumIndices != numFaceIndices) { continue; }
 			for (GLuint n = 0; n < face->mNumIndices; ++n) {
-				faceIndices.w[index] = face->mIndices[n];
+				faceIndices[index] = face->mIndices[n];
 				if (face->mIndices[n] > maxIndex) { maxIndex = face->mIndices[n]; }
 				index += 1;
 			}
 		}
-		faceIndices.unmap();
 		meshState->setIndices(indices, maxIndex);
 	}
 
@@ -856,15 +859,14 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 	GLuint numVertices = mesh.mNumVertices;
 	{
 		pos->setVertexData(numVertices);
-		auto v_pos = pos->mapClientData<Vec3f>(ShaderData::WRITE);
+		auto v_pos = (Vec3f*) pos->clientBuffer()->clientData(0);
 		for (GLuint n = 0; n < numVertices; ++n) {
 			aiVector3D aiv = (*aiTransform) * mesh.mVertices[n];
 			Vec3f &v = *((Vec3f *) &aiv.x);
-			v_pos.w[n] = v;
+			v_pos[n] = v;
 			min_.setMin(v);
 			max_.setMax(v);
 		}
-		v_pos.unmap();
 		meshState->setInput(pos);
 	}
 	meshState->set_bounds(min_, max_);
@@ -872,12 +874,11 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 	// per vertex normals
 	if (mesh.HasNormals()) {
 		nor->setVertexData(numVertices);
-		auto v_nor = nor->mapClientData<Vec3f>(ShaderData::WRITE);
+		auto v_nor = (Vec3f*) nor->clientBuffer()->clientData(0);
 		for (GLuint n = 0; n < numVertices; ++n) {
 			Vec3f &v = *((Vec3f *) &mesh.mNormals[n].x);
-			v_nor.w[n] = v;
+			v_nor[n] = v;
 		}
-		v_nor.unmap();
 		meshState->setInput(nor);
 	}
 
@@ -887,15 +888,14 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 
 		ref_ptr<ShaderInput4f> col = ref_ptr<ShaderInput4f>::alloc(REGEN_STRING("col" << t));
 		col->setVertexData(numVertices);
-		auto v_col = col->mapClientData<Vec4f>(ShaderData::WRITE);
+		auto v_col = (Vec4f*) col->clientBuffer()->clientData(0);
 		for (GLuint n = 0; n < numVertices; ++n) {
-			v_col.w[n] = Vec4f(
+			v_col[n] = Vec4f(
 					mesh.mColors[t][n].r,
 					mesh.mColors[t][n].g,
 					mesh.mColors[t][n].b,
 					mesh.mColors[t][n].a);
 		}
-		v_col.unmap();
 		meshState->setInput(col);
 	}
 
@@ -917,21 +917,19 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 			texco = ref_ptr<ShaderInput2f>::alloc(texcoName);
 		}
 		texco->setVertexData(numVertices);
-		auto v_texco = texco->mapClientData<float>(ShaderData::WRITE);
-
+		auto v_texco = (float*) texco->clientBuffer()->clientData(0);
 		for (GLuint n = 0; n < numVertices; ++n) {
 			GLfloat *aiTexcoData = &(aiTexcos[n].x);
-			for (GLuint x = 0; x < texcoComponents; ++x) v_texco.w[x] = aiTexcoData[x];
-			v_texco.w += texcoComponents;
+			for (GLuint x = 0; x < texcoComponents; ++x) v_texco[x] = aiTexcoData[x];
+			v_texco += texcoComponents;
 		}
-		v_texco.unmap();
 		meshState->setInput(texco);
 	}
 
 	// load tangents
 	if (mesh.HasTangentsAndBitangents()) {
 		tan->setVertexData(numVertices);
-		auto v_tan = tan->mapClientData<Vec4f>(ShaderData::WRITE);
+		auto v_tan = (Vec4f*) tan->clientBuffer()->clientData(0);
 		for (GLuint i = 0; i < numVertices; ++i) {
 			Vec3f &t = *((Vec3f *) &mesh.mTangents[i].x);
 			Vec3f &b = *((Vec3f *) &mesh.mBitangents[i].x);
@@ -943,12 +941,10 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 			} else {
 				handeness = 1.0;
 			}
-			v_tan.w[i] = Vec4f(t.x, t.y, t.z, handeness);
+			v_tan[i] = Vec4f(t.x, t.y, t.z, handeness);
 		}
-		v_tan.unmap();
 		meshState->setInput(tan);
 	}
-	GL_ERROR_LOG();
 
 	// A mesh may have a set of bones in the form of aiBone structures..
 	// Bones are a means to deform a mesh according to the movement of a skeleton.
@@ -980,29 +976,26 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 			auto boneIndices = ref_ptr<ShaderInput1ui>::alloc("boneIndices", maxNumWeights);
 			boneWeights->setVertexData(numVertices);
 			boneIndices->setVertexData(numVertices);
-			auto v_weights = boneWeights->mapClientData<GLfloat>(ShaderData::WRITE);
-			auto v_indices = boneIndices->mapClientData<GLuint>(ShaderData::WRITE);
+			auto v_weights = (GLfloat*) boneWeights->clientBuffer()->clientData(0);
+			auto v_indices = (GLuint*) boneIndices->clientBuffer()->clientData(0);
 
 			for (GLuint j = 0; j < numVertices; j++) {
 				WeightList &vWeights = vertexToWeights[j];
 
 				GLuint k = 0;
 				for (auto & vWeight : vWeights) {
-					v_weights.w[k] = vWeight.first;
-					v_indices.w[k] = vWeight.second;
+					v_weights[k] = vWeight.first;
+					v_indices[k] = vWeight.second;
 					++k;
 				}
 				for (; k < maxNumWeights; ++k) {
-					v_weights.w[k] = 0.0f;
-					v_indices.w[k] = 0u;
+					v_weights[k] = 0.0f;
+					v_indices[k] = 0u;
 				}
 
-				v_weights.w += maxNumWeights;
-				v_indices.w += maxNumWeights;
+				v_weights += maxNumWeights;
+				v_indices += maxNumWeights;
 			}
-
-			v_weights.unmap();
-			v_indices.unmap();
 
 			if (maxNumWeights > 1) {
 				meshState->setInput(boneWeights);
@@ -1040,11 +1033,10 @@ list<ref_ptr<AnimationNode> > AssetImporter::loadMeshBones(
 GLuint AssetImporter::numBoneWeights(Mesh *meshState) {
 	const struct aiMesh *mesh = meshToAiMesh_[meshState];
 	if (mesh->mNumBones == 0) { return 0; }
-	const ref_ptr<InputContainer> container = meshState->inputContainer();
 
-	auto *counter = new GLuint[container->numVertices()];
+	auto *counter = new GLuint[meshState->numVertices()];
 	GLuint numWeights = 1;
-	for (GLint i = 0; i < container->numVertices(); ++i) counter[i] = 0u;
+	for (GLint i = 0; i < meshState->numVertices(); ++i) counter[i] = 0u;
 	for (GLuint boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex) {
 		aiBone *assimpBone = mesh->mBones[boneIndex];
 		for (GLuint t = 0; t < assimpBone->mNumWeights; ++t) {

@@ -25,10 +25,11 @@ namespace regen {
 	 */
 	class EventData {
 	public:
+		virtual ~EventData() = default;
 		/**
 		 * The event identification number.
 		 */
-		unsigned int eventID;
+		unsigned int eventID = 0u;
 	};
 } // namespace
 
@@ -82,6 +83,12 @@ namespace regen {
 		 * Disconnect an event handler.
 		 */
 		void disconnect(const ref_ptr<EventHandler> &c);
+
+		/**
+		 * Disconnect all event handlers.
+		 * This will disconnect all handlers registered on this object.
+		 */
+		void disconnectAll();
 
 		/**
 		 * Emit an event, call all handlers.
@@ -194,6 +201,8 @@ namespace regen {
 		 * @param f the lambda function to call.
 		 */
 		explicit LambdaEventHandler(std::function<void(EventObject *, EventData *)> f) : f_(std::move(f)) {}
+
+		~LambdaEventHandler() override = default;
 
 		void call(EventObject *emitter, EventData *data) override {
 			f_(emitter, data);

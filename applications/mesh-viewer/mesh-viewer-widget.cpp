@@ -8,10 +8,9 @@
 #include <boost/filesystem/path.hpp>
 #include <assimp/postprocess.h>
 
-#include <regen/states/shader-state.h>
-#include <regen/states/fbo-state.h>
+#include "regen/glsl/shader-state.h"
+#include "regen/textures/fbo-state.h"
 #include <regen/states/blit-state.h>
-#include <regen/states/state-configurer.h>
 #include <regen/utility/filesystem.h>
 #include <regen/animations/animation-manager.h>
 #include <regen/meshes/lod/mesh-simplifier.h>
@@ -27,9 +26,12 @@ using namespace std;
 class FBOResizer : public EventHandler {
 public:
 	explicit FBOResizer(const ref_ptr<FBOState> &fbo) : EventHandler(), fboState_(fbo) {}
+
+	~FBOResizer() override = default;
+
 	void call(EventObject *evObject, EventData *) override {
 		auto *app = (Scene *) evObject;
-		auto winSize = app->windowViewport()->getVertex(0);
+		auto winSize = app->screen()->viewport();
 		fboState_->resize(winSize.r.x, winSize.r.y);
 	}
 protected:
@@ -40,6 +42,9 @@ class RotateAnimation : public Animation {
 public:
 	explicit RotateAnimation(MeshViewerWidget *widget)
 			: Animation(false, true), widget_(widget) {}
+
+	~RotateAnimation() override = default;
+
 	void animate(GLdouble dt) override { widget_->transformMesh(dt); }
 	MeshViewerWidget *widget_;
 };
@@ -218,7 +223,7 @@ void MeshViewerWidget::updateLoDButtons() {
 }
 
 void MeshViewerWidget::loadMeshes_GL(const std::string &assetPath) {
-	static const BufferUsage vboUsage = BUFFER_USAGE_STATIC_DRAW;
+	static const BufferFlags bufferCfg(ARRAY_BUFFER, BufferUpdateFlags::NEVER);
 	auto p = resourcePath(assetPath);
 	meshRoot_->clear();
 	lodMeshRoot_->clear();
@@ -236,7 +241,7 @@ void MeshViewerWidget::loadMeshes_GL(const std::string &assetPath) {
 	}
 	setAssImpFlags();
 	asset_->importAsset();
-	meshes_ = asset_->loadAllMeshes(transform, vboUsage);
+	meshes_ = asset_->loadAllMeshes(transform, bufferCfg);
 	if (meshes_.empty()) {
 		REGEN_WARN("No meshes loaded from " << p);
 		// remove all elements from the mesh index combo box and disable it
@@ -377,10 +382,11 @@ static ref_ptr<Camera> createUserCamera(const Vec2i &viewport) {
 	auto cam = ref_ptr<Camera>::alloc(1);
 	float aspect = (GLfloat) viewport.x / (GLfloat) viewport.y;
 	cam->set_isAudioListener(false);
-	cam->position()->setVertex3(0, Vec3f(0.0f, 0.0f, -3.0f));
-	cam->direction()->setVertex3(0, Vec3f(0.0f, 0.0f, 1.0f));
+	cam->setPosition(0, Vec3f(0.0f, 0.0f, -3.0f));
+	cam->setDirection(0, Vec3f(0.0f, 0.0f, 1.0f));
 	cam->setPerspective(aspect, 45.0f, 0.1f, 100.0f);
 	cam->updateCamera();
+	cam->updateShaderData(0.0f);
 	return cam;
 }
 
@@ -432,7 +438,7 @@ void MeshViewerWidget::gl_loadScene() {
 	app_->renderTree()->addChild(sceneRoot_);
 
 	// enable user camera
-	userCamera_ = createUserCamera(app_->windowViewport()->getVertex(0).r);
+	userCamera_ = createUserCamera(app_->screen()->viewport().r);
 	sceneRoot_->state()->joinStates(userCamera_);
 
 	// enable model transformation
@@ -452,18 +458,22 @@ void MeshViewerWidget::gl_loadScene() {
 	// TODO: better use deferred shading, and also allow to display the normals
 	auto shadingState = ref_ptr<DirectShading>::alloc();
 	shadingState->ambientLight()->setVertex(0, Vec3f(0.3f));
+
 	sceneLight_[0] = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
-	sceneLight_[0]->direction()->setVertex(0, Vec3f(0.0f, 1.0f, 0.0f).normalize());
-	sceneLight_[0]->diffuse()->setVertex(0, Vec3f(0.3f, 0.3f, 0.3f));
-	sceneLight_[0]->specular()->setVertex(0, Vec3f(0.0f));
+	sceneLight_[0]->setDirection(0, Vec3f(0.0f, 1.0f, 0.0f).normalize());
+	sceneLight_[0]->setDiffuse(0, Vec3f(0.3f, 0.3f, 0.3f));
+	sceneLight_[0]->setSpecular(0, Vec3f(0.0f));
+
 	sceneLight_[1] = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
-	sceneLight_[1]->direction()->setVertex(0, Vec3f(-1.0f, 0.0f, 0.0f).normalize());
-	sceneLight_[1]->diffuse()->setVertex(0, Vec3f(0.4f, 0.4f, 0.4f));
-	sceneLight_[1]->specular()->setVertex(0, Vec3f(0.0f));
+	sceneLight_[1]->setDirection(0, Vec3f(-1.0f, 0.0f, 0.0f).normalize());
+	sceneLight_[1]->setDiffuse(0, Vec3f(0.4f, 0.4f, 0.4f));
+	sceneLight_[1]->setSpecular(0, Vec3f(0.0f));
+
 	sceneLight_[2] = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
-	sceneLight_[2]->direction()->setVertex(0, Vec3f(1.0f, 1.0f, 0.0f).normalize());
-	sceneLight_[2]->diffuse()->setVertex(0, Vec3f(0.4f, 0.4f, 0.4f));
-	sceneLight_[2]->specular()->setVertex(0, Vec3f(0.0f));
+	sceneLight_[2]->setDirection(0, Vec3f(1.0f, 1.0f, 0.0f).normalize());
+	sceneLight_[2]->setDiffuse(0, Vec3f(0.4f, 0.4f, 0.4f));
+	sceneLight_[2]->setSpecular(0, Vec3f(0.0f));
+
 	shadingState->addLight(sceneLight_[0]);
 	shadingState->addLight(sceneLight_[1]);
 	shadingState->addLight(sceneLight_[2]);
@@ -471,7 +481,7 @@ void MeshViewerWidget::gl_loadScene() {
 
 	// finally, enable a blit state to copy the framebuffer to the screen
 	auto blit = ref_ptr<BlitToScreen>::alloc(
-			fbo, app_->windowViewport(), GL_COLOR_ATTACHMENT0);
+			fbo, app_->screen(), GL_COLOR_ATTACHMENT0);
 	// NOTE: must use nearest with MSAA
 	blit->set_filterMode(GL_NEAREST);
 	sceneRoot_->state()->joinStates(blit);
@@ -481,7 +491,7 @@ void MeshViewerWidget::gl_loadScene() {
 	app_->connect(Scene::RESIZE_EVENT, ref_ptr<FBOResizer>::alloc(fboState));
 	// Update frustum when window size changes
 	app_->connect(Scene::RESIZE_EVENT,
-				  ref_ptr<ProjectionUpdater>::alloc(userCamera_, app_->windowViewport()));
+				  ref_ptr<ProjectionUpdater>::alloc(userCamera_, app_->screen()));
 
 	AnimationManager::get().resume();
 	REGEN_INFO("Scene Loaded.");
@@ -489,7 +499,6 @@ void MeshViewerWidget::gl_loadScene() {
 }
 
 void MeshViewerWidget::transformMesh(GLdouble dt) {
-	auto &tf = modelTransform_->modelMat();
 	// rotate the mesh around the Y axis
 	meshOrientation_ += dt * 0.001f;
 	if (meshOrientation_ > M_PI * 2.0f) {
@@ -499,7 +508,7 @@ void MeshViewerWidget::transformMesh(GLdouble dt) {
 	auto mat = meshQuaternion_.calculateMatrix();
 	mat.translate(meshOrigin_);
 	mat.scale(Vec3f(meshScale_));
-	tf->setVertex(0, mat);
+	modelTransform_->setModelMat(0, mat);
 }
 
 void MeshViewerWidget::toggleInputsDialog() {

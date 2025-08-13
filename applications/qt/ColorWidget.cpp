@@ -21,7 +21,7 @@ ColorWidget::ColorWidget(const RegenWidgetData &data, QWidget *parent)
 }
 
 QColor ColorWidget::initializeColor() {
-	auto mapped = input_->mapClientDataRaw(ShaderData::READ);
+	auto mapped = input_->mapClientDataRaw(BUFFER_GPU_READ);
 	const byte *value = mapped.r;
 	GLuint count = input_->valsPerElement();
 	QColor color;
@@ -30,6 +30,7 @@ QColor ColorWidget::initializeColor() {
 		GLfloat g = ((GLfloat *) value)[1];
 		GLfloat b = ((GLfloat *) value)[2];
 		GLfloat a = (count == 4) ? ((GLfloat *) value)[3] : 1.0f;
+		mapped.unmap();
 		color.setRgbF(r, g, b, a);
 	} else {
 		REGEN_WARN("Unsupported data type for color input.");
@@ -77,7 +78,7 @@ void ColorWidget::pickColor() {
 	}
 
 	// Get the current color from the shader input
-	auto mapped = input_->mapClientDataRaw(ShaderData::READ);
+	auto mapped = input_->mapClientDataRaw(BUFFER_GPU_READ);
 	const byte *value = mapped.r;
 	QColor initialColor;
 	if (input_->baseType() == GL_FLOAT) {
@@ -85,12 +86,12 @@ void ColorWidget::pickColor() {
 		GLfloat g = ((GLfloat *) value)[1];
 		GLfloat b = ((GLfloat *) value)[2];
 		GLfloat a = (count == 4) ? ((GLfloat *) value)[3] : 1.0f;
+		mapped.unmap();
 		initialColor.setRgbF(r, g, b, a);
 	} else {
 		REGEN_WARN("Unsupported data type for color input.");
 		return;
 	}
-	mapped.unmap();
 
 	// Show the color dialog
 	QColor color = QColorDialog::getColor(initialColor, this, "Select Color");
@@ -121,7 +122,7 @@ void ColorWidget::alphaChanged() {
 	auto sliderValue = ui_.alphaValue->value();
 
 	// Update the alpha value in the shader input
-	auto mapped = input_->mapClientDataRaw(ShaderData::READ);
+	auto mapped = input_->mapClientDataRaw(BUFFER_GPU_READ);
 	const byte *value = mapped.r;
 	if (input_->baseType() == GL_FLOAT) {
 		((GLfloat *) value)[3] = static_cast<GLfloat>(sliderValue) / 1000.0f;
@@ -129,6 +130,7 @@ void ColorWidget::alphaChanged() {
 		REGEN_WARN("Unsupported data type for color input.");
 		return;
 	}
+	mapped.unmap();
 	input_->writeVertex(0, value);
 }
 

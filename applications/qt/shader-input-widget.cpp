@@ -3,8 +3,8 @@
 
 #include <regen/utility/string-util.h>
 #include <regen/utility/logging.h>
-#include <regen/states/fbo-state.h>
-#include <regen/states/shader-state.h>
+#include "regen/textures/fbo-state.h"
+#include "regen/glsl/shader-state.h"
 #include <regen/states/light-pass.h>
 #include <stack>
 #include <QPropertyAnimation>
@@ -37,12 +37,12 @@ ShaderInputWidget::~ShaderInputWidget() {
 }
 
 void ShaderInputWidget::updateInitialValue(ShaderInput *x) {
-	GLuint stamp = x->stamp();
+	GLuint stamp = x->stampOfReadData();
 	if (stamp != valueStamp_[x] &&
 		stamp != initialValueStamp_[x]) {
 		// last time value was not changed from widget
 		// update initial data
-		auto clientData = x->mapClientDataRaw(ShaderData::READ);
+		auto clientData = x->mapClientDataRaw(BUFFER_GPU_READ);
 		byte *initialValue = new byte[x->elementSize()];
 		memcpy(initialValue, clientData.r, x->elementSize());
 
@@ -124,6 +124,10 @@ bool ShaderInputWidget::handleNode(
 		const ref_ptr<StateNode> &node,
 		QTreeWidgetItem *parent) {
 	bool isEmpty = !isValidState(node->state().get());
+	if (node->isHidden()) {
+		// do not show hidden nodes
+		return false;
+	}
 
 	QTreeWidgetItem *x = parent;
 	GLuint level = 0u;
@@ -187,11 +191,8 @@ bool ShaderInputWidget::handleState(
 		return false;
 	}
 
-	auto *hasInput = dynamic_cast<HasInput *>(state.get());
-	if (hasInput != nullptr) {
-		ref_ptr<InputContainer> container = hasInput->inputContainer();
-		const ShaderInputList &inputs = container->inputs();
-		for (const auto &namedInput: inputs) {
+	{
+		for (const auto &namedInput: state->inputs()) {
 			if (namedInput.in_->numVertices() > 1) continue;
 			if (addParameter(node, namedInput, parent)) isEmpty = false;
 		}
@@ -218,7 +219,9 @@ bool ShaderInputWidget::handleState(
 		}
 	}
 
-	for (const auto &it: state->joined()) {
+	// Note: create a copy of joined states to avoid iterator invalidation
+	auto joined = state->joined();
+	for (const auto &it: joined) {
 		if (handleState(node, it, parent)) {
 			isEmpty = false;
 		}
@@ -267,11 +270,8 @@ bool ShaderInputWidget::isValidState(const State *rootState) {
 			dynamic_cast<const Camera *>(state)) {
 			continue;
 		}
-		auto *hasInput = dynamic_cast<const HasInput *>(state);
-		if (hasInput != nullptr) {
-			ref_ptr<InputContainer> container = hasInput->inputContainer();
-			const ShaderInputList &inputs = container->inputs();
-			for (const auto &namedInput: inputs) {
+		{
+			for (const auto &namedInput: state->inputs()) {
 				if (namedInput.in_->numVertices() > 1) continue;
 				if (isValidParameter(namedInput.in_.get())) return true;
 			}
@@ -305,7 +305,7 @@ bool ShaderInputWidget::isValidParameter(const ShaderInput *input) {
 		}
 		bool hasInputs = false;
 		if (block) {
-			for (auto &uniform: block->blockInputs()) {
+			for (auto &uniform: block->stagedInputs()) {
 				hasInputs = isValidParameter(uniform.in_.get()) || hasInputs;
 			}
 		}
@@ -315,6 +315,7 @@ bool ShaderInputWidget::isValidParameter(const ShaderInput *input) {
 	// TODO: maybe rather use "editable" flag?
 	if (input->name() == "viewport") return false;
 	if (input->name() == "inverseViewport") return false;
+	if (input->name() == "windowViewport") return false;
 
 	return true;
 }
@@ -333,7 +334,7 @@ bool ShaderInputWidget::addParameter(
 		}
 		bool hasInputs = false;
 		if (block) {
-			for (auto &uniform: block->blockInputs()) {
+			for (auto &uniform: block->stagedInputs()) {
 				hasInputs = addParameter(node, uniform, parent) || hasInputs;
 			}
 		}
@@ -343,17 +344,18 @@ bool ShaderInputWidget::addParameter(
 	// TODO: maybe rather use "editable" flag?
 	if (in->name() == "viewport") return false;
 	if (in->name() == "inverseViewport") return false;
+	if (in->name() == "windowViewport") return false;
 
 	if (initialValue_.count(in.get()) > 0) {
 		byte *lastValue = initialValue_[in.get()];
 		delete[]lastValue;
 	}
-	auto clientData = in->mapClientDataRaw(ShaderData::READ);
+	auto clientData = in->mapClientDataRaw(BUFFER_GPU_READ);
 	byte *initialValue = new byte[in->elementSize()];
 	memcpy(initialValue, clientData.r, in->elementSize());
 	clientData.unmap();
 	initialValue_[in.get()] = initialValue;
-	initialValueStamp_[in.get()] = in->stamp();
+	initialValueStamp_[in.get()] = in->stampOfReadData();
 	valueStamp_[in.get()] = 0;
 
     QWidget *parameterWidget = nullptr;

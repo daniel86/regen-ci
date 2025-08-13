@@ -364,7 +364,7 @@ ref_ptr<TextureCube> textures::loadCube(
 		faceHeight = height / 3;
 		GLint faces_[12] = {
 				-1, TextureCube::TOP, -1, -1,
-				TextureCube::RIGHT, TextureCube::FRONT, TextureCube::LEFT, TextureCube::BACK,
+				TextureCube::LEFT, TextureCube::FRONT, TextureCube::RIGHT, TextureCube::BACK,
 				-1, TextureCube::BOTTOM, -1, -1
 		};
 		for (ILint i = 0; i < 12; ++i) faces[i] = faces_[i];
@@ -373,7 +373,7 @@ ref_ptr<TextureCube> textures::loadCube(
 		faceHeight = height / 4;
 		GLint faces_[12] = {
 				-1, TextureCube::TOP, -1,
-				TextureCube::RIGHT, TextureCube::FRONT, TextureCube::LEFT,
+				TextureCube::LEFT, TextureCube::FRONT, TextureCube::RIGHT,
 				-1, TextureCube::BOTTOM, -1,
 				-1, TextureCube::BACK, -1
 		};
@@ -421,9 +421,10 @@ ref_ptr<TextureCube> textures::loadCube(
 						}
 					}
 					tex->updateSubImage(nextFace, (GLubyte *) flippedFace);
+					delete[] flippedFace;
+					glPixelStorei(GL_UNPACK_ROW_LENGTH, faceWidth * numCols);
 				} else {
 					tex->updateSubImage(nextFace, (GLubyte *) colData);
-					glPixelStorei(GL_UNPACK_ROW_LENGTH, 4);
 				}
 			}
 			index += 1;
@@ -501,7 +502,7 @@ ref_ptr<Texture> textures::loadSpectrum(
 	tex->set_format(GL_RGBA);
 	tex->set_internalFormat(GL_RGBA8);
 	tex->allocTexture();
-	tex->set_wrapping(GL_CLAMP);
+	tex->set_wrapping(GL_CLAMP_TO_EDGE);
 	tex->set_filter(GL_LINEAR);
 	tex->updateImage((GLubyte *) data);
 	if (mipmapFlag != GL_NONE) {

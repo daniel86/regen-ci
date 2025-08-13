@@ -17,7 +17,7 @@ MotionBlur::MotionBlur(const ref_ptr<Camera> &camera)
 
 	lastViewProjectionMat_ = ref_ptr<ShaderInputMat4>::alloc("lastViewProjectionMatrix");
 	lastViewProjectionMat_->setUniformData(Mat4f::identity());
-	joinShaderInput(lastViewProjectionMat_);
+	setInput(lastViewProjectionMat_);
 }
 
 void MotionBlur::enable(RenderState *rs) {
@@ -28,8 +28,8 @@ void MotionBlur::disable(RenderState *rs) {
 	State::disable(rs);
 
 	// remember last view projection
-	auto m = camera_->viewProjection()->getVertex(0);
-	lastViewProjectionMat_->setVertex(0, m.r);
+	auto &m = camera_->viewProjection()[0];
+	lastViewProjectionMat_->setVertex(0, m);
 }
 
 ref_ptr<MotionBlur> MotionBlur::load(LoadingContext &ctx, scene::SceneInputNode &input) {

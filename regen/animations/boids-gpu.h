@@ -3,9 +3,9 @@
 
 #include "boid-simulation.h"
 #include "animation.h"
-#include "regen/gl-types/bbox-buffer.h"
+#include "regen/buffer/bbox-buffer.h"
 #include "regen/states/compute-pass.h"
-#include "regen/gl-types/queries/time-elapsed-query.h"
+#include "regen/gl-types/queries/elapsed-time.h"
 
 namespace regen {
 	/**
@@ -54,7 +54,7 @@ namespace regen {
 		ref_ptr<ComputePass> bboxPass_;
 
 		double time_ = 1.0;
-		double bbox_time_ = 1.0;
+		double bbox_time_ = 0.0;
 		unsigned int vrStamp_ = 0;
 		int32_t simulationTimeLoc_ = -1;
 		ref_ptr<TimeElapsedQuery> timeElapsedQuery_;

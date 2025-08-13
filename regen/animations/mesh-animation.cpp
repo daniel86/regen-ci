@@ -56,8 +56,6 @@ MeshAnimation::MeshAnimation(
 		  tickRange_(0.0, 0.0),
 		  lastFramePosition_(0u),
 		  startFramePosition_(0u) {
-	const ref_ptr<InputContainer> &inputContainer = mesh->inputContainer();
-	const ShaderInputList &inputs = inputContainer->inputs();
 	std::map<GLenum, std::string> shaderNames;
 	std::map<std::string, std::string> shaderConfig;
 	std::map<std::string, std::string> functions;
@@ -68,12 +66,13 @@ MeshAnimation::MeshAnimation(
 	// find buffer size
 	bufferSize_ = 0u;
 	GLuint i = 0u;
-	for (auto it = inputs.begin(); it != inputs.end(); ++it) {
+	for (auto it = mesh->inputs().begin(); it != mesh->inputs().end(); ++it) {
 		const ref_ptr<ShaderInput> &in = it->in_;
 		if (!in->isVertexAttribute()) continue;
 		bufferSize_ += in->inputSize();
 		transformFeedback.push_back(in->name());
 
+		// TODO revise vertex memory layout
 		if(in->stride()==0) {
 			hasMeshInterleavedAttributes_ = GL_FALSE;
 		} else {
@@ -102,9 +101,11 @@ MeshAnimation::MeshAnimation(
 	shaderConfig["NUM_ATTRIBUTES"] = REGEN_STRING(i);
 
 	// used to save two frames
-	animationBuffer_ = ref_ptr<VBO>::alloc(ARRAY_BUFFER, BUFFER_USAGE_STREAM_DRAW);
-	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, BUFFER_USAGE_STREAM_DRAW);
-	feedbackRef_ = feedbackBuffer_->allocBytes(bufferSize_);
+	animationBuffer_ = ref_ptr<VBO>::alloc(ARRAY_BUFFER, BufferUpdateFlags::NEVER);
+	animationBuffer_->setClientAccessMode(BUFFER_GPU_ONLY);
+	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, BufferUpdateFlags::NEVER);
+	feedbackBuffer_->setClientAccessMode(BUFFER_GPU_ONLY);
+	feedbackRef_ = feedbackBuffer_->adoptBufferRange(bufferSize_);
 	if (!feedbackRef_.get()) {
 		REGEN_WARN("Unable to allocate VBO for animation. Animation will not work.");
 		return;
@@ -145,13 +146,13 @@ MeshAnimation::MeshAnimation(
 		frictionUniform_ = (ShaderInput1f *) in.get();
 		frictionUniform_->setUniformData(8.0f);
 		interpolationShader_->setInput(in);
-		meshAnimState_->joinShaderInput(in, in->name());
+		meshAnimState_->setInput(in, in->name());
 
 		in = interpolationShader_->createUniform("frequency");
 		frequencyUniform_ = (ShaderInput1f *) in.get();
 		frequencyUniform_->setUniformData(5.0f);
 		interpolationShader_->setInput(in);
-		meshAnimState_->joinShaderInput(in, in->name());
+		meshAnimState_->setInput(in, in->name());
 
 		joinAnimationState(meshAnimState_);
 	} else {
@@ -204,7 +205,7 @@ void MeshAnimation::loadFrame(GLuint frameIndex, GLboolean isPongFrame) {
 	}
 
 	if (isPongFrame) {
-		if (pongFrame_ != -1) { BufferObject::free(pongIt_.get()); }
+		if (pongFrame_ != -1) { BufferObject::orphanBufferRange(pongIt_.get()); }
 		pongFrame_ = frameIndex;
 		if (hasMeshInterleavedAttributes_) {
 			pongIt_ = animationBuffer_->allocInterleaved(atts);
@@ -213,7 +214,7 @@ void MeshAnimation::loadFrame(GLuint frameIndex, GLboolean isPongFrame) {
 		}
 		frame.ref = pongIt_;
 	} else {
-		if (pingFrame_ != -1) { BufferObject::free(pingIt_.get()); }
+		if (pingFrame_ != -1) { BufferObject::orphanBufferRange(pingIt_.get()); }
 		pingFrame_ = frameIndex;
 		if (hasMeshInterleavedAttributes_) {
 			pingIt_ = animationBuffer_->allocInterleaved(atts);
@@ -235,8 +236,7 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 	// find offst in the mesh vbo.
 	// in the constructor data may not be set or data moved in vbo
 	// so we lookup the offset here.
-	const ref_ptr<InputContainer> &inputContainer = mesh_->inputContainer();
-	const ShaderInputList &inputs = inputContainer->inputs();
+	const auto &inputs = mesh_->inputs();
 	std::list<ContiguousBlock> blocks;
 
 	if (hasMeshInterleavedAttributes_) {
@@ -367,7 +367,7 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 		rs->beginTransformFeedback(GL_POINTS);
 
 		// finally the draw call
-		glDrawArrays(GL_POINTS, 0, inputContainer->numVertices());
+		glDrawArrays(GL_POINTS, 0, mesh_->numVertices());
 
 		rs->endTransformFeedback();
 		if (hasMeshInterleavedAttributes_) {
@@ -407,7 +407,6 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 	}
 
 	lastTime_ = tickRange_.x + timeInTicks;
-	GL_ERROR_LOG();
 }
 
 ////////
@@ -415,9 +414,6 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 void MeshAnimation::addFrame(
 		const std::list<ref_ptr<ShaderInput> > &attributes,
 		GLdouble timeInTicks) {
-	const ref_ptr<InputContainer> &inputContainer = mesh_->inputContainer();
-	const ShaderInputList &inputs = inputContainer->inputs();
-
 	MeshAnimation::KeyFrame frame;
 
 	frame.timeInTicks = timeInTicks;
@@ -431,7 +427,7 @@ void MeshAnimation::addFrame(
 	REGEN_DEBUG("Adding frame at tick " << frame.startTick << " (duration: " << frame.timeInTicks << ")");
 
 	// add attributes
-	for (const auto & input : inputs) {
+	for (const auto & input : mesh_->inputs()) {
 		const ref_ptr<ShaderInput> &in0 = input.in_;
 		if (!in0->isVertexAttribute()) continue;
 		ref_ptr<ShaderInput> att;
@@ -457,13 +453,10 @@ void MeshAnimation::addFrame(
 }
 
 void MeshAnimation::addMeshFrame(GLdouble timeInTicks) {
-	const ref_ptr<InputContainer> &inputContainer = mesh_->inputContainer();
-	const ShaderInputList &inputs = inputContainer->inputs();
-
 	std::list<ref_ptr<ShaderInput> > meshAttributes;
-	for (auto it = inputs.begin(); it != inputs.end(); ++it) {
-		if (!it->in_->isVertexAttribute()) continue;
-		meshAttributes.push_back(ShaderInput::copy(it->in_, GL_TRUE));
+	for (auto &it : mesh_->inputs()) {
+		if (!it.in_->isVertexAttribute()) continue;
+		meshAttributes.push_back(ShaderInput::copy(it.in_, GL_TRUE));
 	}
 	addFrame(meshAttributes, timeInTicks);
 }
@@ -486,13 +479,11 @@ void MeshAnimation::addSphereAttributes(
 		GLfloat verticalRadius,
 		GLdouble timeInTicks,
 		const Vec3f &offset) {
-	const ref_ptr<InputContainer> &inputContainer = mesh_->inputContainer();
-
-	if (!inputContainer->hasInput(ATTRIBUTE_NAME_POS)) {
+	if (!mesh_->hasInput(ATTRIBUTE_NAME_POS)) {
 		REGEN_WARN("mesh has no input named '" << ATTRIBUTE_NAME_POS << "'");
 		return;
 	}
-	if (!inputContainer->hasInput(ATTRIBUTE_NAME_NOR)) {
+	if (!mesh_->hasInput(ATTRIBUTE_NAME_NOR)) {
 		REGEN_WARN("mesh has no input named '" << ATTRIBUTE_NAME_NOR << "'");
 		return;
 	}
@@ -673,13 +664,11 @@ void MeshAnimation::addBoxAttributes(
 		GLfloat depth,
 		GLdouble timeInTicks,
 		const Vec3f &offset) {
-	const ref_ptr<InputContainer> &inputContainer = mesh_->inputContainer();
-
-	if (!inputContainer->hasInput(ATTRIBUTE_NAME_POS)) {
+	if (!mesh_->hasInput(ATTRIBUTE_NAME_POS)) {
 		REGEN_WARN("mesh has no input named '" << ATTRIBUTE_NAME_POS << "'");
 		return;
 	}
-	if (!inputContainer->hasInput(ATTRIBUTE_NAME_NOR)) {
+	if (!mesh_->hasInput(ATTRIBUTE_NAME_NOR)) {
 		REGEN_WARN("mesh has no input named '" << ATTRIBUTE_NAME_NOR << "'");
 		return;
 	}

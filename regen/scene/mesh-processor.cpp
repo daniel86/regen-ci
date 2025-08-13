@@ -1,5 +1,5 @@
 #include "mesh-processor.h"
-#include "regen/states/lod-state.h"
+#include "regen/shapes/lod-state.h"
 
 using namespace regen::scene;
 using namespace regen;
@@ -55,17 +55,18 @@ void MeshNodeProvider::processInput(
 		REGEN_WARN("Unable to load Mesh for '" << input.getDescription() << "'.");
 		return;
 	}
-	std::queue<ref_ptr<Mesh>> meshQueue;
+	std::queue<std::pair<ref_ptr<Mesh>,uint32_t>> meshQueue;
 	MeshVector::loadIndexRange(input, meshes, meshQueue);
 
 	while (!meshQueue.empty()) {
-		auto meshOriginal = meshQueue.front();
+		auto [meshOriginal,partIdx] = meshQueue.front();
 		meshQueue.pop();
 		auto meshCopy = getMeshCopy(meshOriginal);
 		if (input.hasAttribute("primitive")) {
 			meshCopy->set_primitive(glenum::primitive(input.getValue("primitive")));
 		}
 		meshCopy->set_lodSortMode(SortMode::FRONT_TO_BACK);
+		meshCopy->ensureLOD();
 		StateConfigurer meshConfigurer;
 		auto meshNode = ref_ptr<StateNode>::alloc();
 		meshNode->set_name("base-mesh");
@@ -90,17 +91,51 @@ void MeshNodeProvider::processInput(
 		// load LOD state in case mesh has a cull shape + update-visibility="1"
 		if (meshCopy->hasCullShape()) {
 			auto updateVisibility = input.getValue<uint32_t>("update-visibility", 1u);
+			auto cullShape = ref_ptr<CullShape>::dynamicCast(meshCopy->cullShape());
 			if (updateVisibility) {
-				auto cullShape = ref_ptr<CullShape>::dynamicCast(meshCopy->cullShape());
 				if (cullShape.get()) {
 					auto lodState = createCullState(scene, input, parent, cullShape);
 					if (lodState.get()) {
 						meshNode->state()->joinStates(lodState);
+						if (!cullShape->hasInstanceBuffer()) {
+							meshCopy->setInstanceBuffer(lodState->instanceBuffer());
+							if (lodState->hasIndirectDrawBuffers()) {
+								meshCopy->setIndirectDrawBuffer(
+									lodState->indirectDrawBuffer(partIdx),
+									0u,
+									lodState->numDrawLayers());
+							}
+						}
 						// set sorting mode
 						meshCopy->set_lodSortMode(lodState->instanceSortMode());
 					}
 				} else {
 					REGEN_WARN("Mesh '" << input.getDescription() << "' has no cull shape.");
+				}
+			} else {
+				// try to get an instance buffer
+				// FIXME: This will work for GPU-based LODs!
+				//    So it might be that parts of meshes will not work yet on the GPU path!
+				auto cam = ref_ptr<Camera>::dynamicCast(parent->getParentCamera());
+				auto spatialIndex = cullShape->spatialIndex();
+				if (cam.get()
+						&& spatialIndex.get()
+						&& cullShape.get()
+						&& spatialIndex->hasCamera(*cam.get())) {
+					auto shapeIndex = spatialIndex->getIndexedShape(
+							cam, cullShape->shapeName());
+					if (shapeIndex.get()) {
+						if (shapeIndex->hasInstanceBuffer()) {
+							meshCopy->setInstanceBuffer(shapeIndex->instanceBuffer());
+						}
+						if (shapeIndex->hasIndirectDrawBuffers()) {
+							auto dibo = shapeIndex->indirectDrawBuffer(partIdx);
+							meshCopy->setIndirectDrawBuffer(
+									dibo, 0u,
+									cam->numLayer());
+						}
+						meshCopy->set_lodSortMode(shapeIndex->instanceSortMode());
+					}
 				}
 			}
 		} else if (input.hasAttribute("update-visibility")) {

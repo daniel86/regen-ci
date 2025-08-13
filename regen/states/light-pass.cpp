@@ -1,7 +1,6 @@
 #include <regen/states/state-configurer.h>
 #include <regen/meshes/primitives/box.h>
 #include <regen/meshes/primitives/rectangle.h>
-#include <regen/textures/texture.h>
 
 #include "light-pass.h"
 #include "regen/scene/shader-input-processor.h"
@@ -50,6 +49,14 @@ static std::string shadowFilterMode(ShadowFilterMode f) {
 void LightPass::setShadowFiltering(ShadowFilterMode mode) {
 	shadowFiltering_ = mode;
 	shaderDefine("SHADOW_MAP_FILTER", shadowFilterMode(mode));
+}
+
+void LightPass::setUseAmbient(bool useAmbient) {
+	if (useAmbient) {
+		shaderDefine("USE_AMBIENT_LIGHT", "TRUE");
+	} else {
+		shaderDefine("USE_AMBIENT_LIGHT", "FALSE");
+	}
 }
 
 void LightPass::addLight(
@@ -105,11 +112,11 @@ void LightPass::createShader(const StateConfig &cfg) {
 	if (!lights_.empty()) {
 		// add first light to shader to set up shader defines and also instance count
 		auto &firstLight = lights_.front();
-		for (auto &in: firstLight.light->inputContainer()->inputs()) {
+		for (auto &in: firstLight.light->inputs()) {
 			if (in.in_->isBufferBlock()) {
 				auto *block = dynamic_cast<BufferBlock *>(in.in_.get());
 				_cfg.addInput(in.in_->name(), in.in_);
-				for (auto &blockUniform: block->blockInputs()) {
+				for (auto &blockUniform: block->stagedInputs()) {
 					numInstances_ = std::max(numInstances_, blockUniform.in_->numInstances());
 				}
 			} else {
@@ -117,12 +124,24 @@ void LightPass::createShader(const StateConfig &cfg) {
 				numInstances_ = std::max(numInstances_, in.in_->numInstances());
 			}
 		}
+		if (firstLight.camera.get()) {
+			auto &shadowBuffer = firstLight.camera->shadowBuffer();
+			_cfg.addInput(shadowBuffer->name(), shadowBuffer);
+		}
 	}
 	if (numInstances_ > 1) {
 		_cfg.define("HAS_INSTANCES", "TRUE");
 		_cfg.cfg().numInstances_ = std::max(_cfg.cfg().numInstances_, numInstances_);
 	}
 	_cfg.define("NUM_SHADOW_LAYER", REGEN_STRING(numShadowLayer_));
+
+	// replicate each mesh LOD numLayer times for indirect multi-layer rendering
+	const uint32_t numRenderLayer = _cfg.cfg().numRenderLayer();
+	if (numRenderLayer > 1) {
+		REGEN_INFO("Using indirect multi-layer light-pass with " << numRenderLayer << " layers.");
+		mesh_->createIndirectDrawBuffer(numRenderLayer);
+	}
+
 	shader_->createShader(_cfg.cfg(), shaderKey_);
 	mesh_->updateVAO(_cfg.cfg(), shader_->shader());
 
@@ -142,8 +161,8 @@ void LightPass::addLightInput(LightPassLight &light) {
 
 	// add shadow uniforms
 	if (light.camera.get()) {
-		addInputLocation(light, light.camera->lightCamera()->projParams(), "lightProjParams");
-		addInputLocation(light, light.camera->lightMatrix(), "lightMatrix");
+		addInputLocation(light, light.camera->lightCamera()->sh_projParams(), "lightProjParams");
+		addInputLocation(light, light.camera->shadowBuffer(), "Shadow");
 	}
 	if (light.shadow.get()) {
 		auto shadowSizeInv = createUniform<ShaderInput2f>(
@@ -156,9 +175,9 @@ void LightPass::addLightInput(LightPassLight &light) {
 
 	// add light UBO, and special light type uniforms
 	addInputLocation(light, light.light->lightUBO(), "Light");
-	if (lightType_ == Light::SPOT) {
-		addInputLocation(light, light.light->coneMatrix(), "modelMatrix");
-	}
+	//if (lightType_ == Light::SPOT) {
+	//	addInputLocation(light, light.light->coneMatrix(), "modelMatrix");
+	//}
 }
 
 void LightPass::addInputLocation(LightPassLight &l,
@@ -186,9 +205,9 @@ void LightPass::enable(RenderState *rs) {
 		}
 		// enable light pass uniforms
 		for (auto &inputLocation: l.inputLocations) {
-			if (lights_.size() > 1 || inputLocation.uploadStamp != inputLocation.input->stamp()) {
+			if (lights_.size() > 1 || inputLocation.uploadStamp != inputLocation.input->stampOfReadData()) {
 				inputLocation.input->enableUniform(inputLocation.location);
-				inputLocation.uploadStamp = inputLocation.input->stamp();
+				inputLocation.uploadStamp = inputLocation.input->stampOfReadData();
 			}
 		}
 
@@ -208,6 +227,7 @@ ref_ptr<LightPass> LightPass::load(LoadingContext &ctx, scene::SceneInputNode &i
 			input.getValue<Light::Type>("type", Light::SPOT),
 			input.getValue("shader"));
 
+	x->setUseAmbient(input.getValue<bool>("ambient", false));
 	x->setShadowFiltering(input.getValue<ShadowFilterMode>(
 			"shadow-filter", SHADOW_FILTERING_NONE));
 	bool useShadows = false, toggle = true;

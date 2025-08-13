@@ -1,10 +1,3 @@
-/*
- * texture-mapped-text.cpp
- *
- *  Created on: 23.03.2011
- *      Author: daniel
- */
-
 #include <GL/glew.h>
 
 #include <boost/algorithm/string.hpp>
@@ -15,7 +8,7 @@
 using namespace regen;
 
 TextureMappedText::TextureMappedText(const ref_ptr<Font> &font, const GLfloat &height)
-		: Mesh(GL_TRIANGLES, BUFFER_USAGE_DYNAMIC_DRAW),
+		: Mesh(GL_TRIANGLES, BufferUpdateFlags::NEVER ),
 		  font_(font),
 		  value_(),
 		  height_(height),
@@ -24,7 +17,7 @@ TextureMappedText::TextureMappedText(const ref_ptr<Font> &font, const GLfloat &h
 	textColor_ = ref_ptr<ShaderInput4f>::alloc("textColor");
 	textColor_->setUniformData(Vec4f(1.0));
 	textColor_->setSchema(InputSchema::color());
-	joinShaderInput(textColor_);
+	setInput(textColor_);
 
 	ref_ptr<Texture> tex = font_->texture();
 	ref_ptr<TextureState> texState = ref_ptr<TextureState>::alloc(tex, "fontTexture");
@@ -75,11 +68,11 @@ void TextureMappedText::updateAttributes(Alignment alignment, GLfloat maxLineWid
 	posAttribute_->setVertexData(numCharacters_ * 6);
 	texcoAttribute_->setVertexData(numCharacters_ * 6);
 	norAttribute_->setVertexData(numCharacters_ * 6);
-	inputContainer_->set_numVertices(numCharacters_ * 6);
+	set_numVertices(numCharacters_ * 6);
 	// map client data for writing
-	auto v_pos = posAttribute_->mapClientData<Vec3f>(ShaderData::WRITE);
-	auto v_texco = texcoAttribute_->mapClientData<Vec3f>(ShaderData::WRITE);
-	auto v_nor = norAttribute_->mapClientData<Vec3f>(ShaderData::WRITE);
+	auto v_pos = posAttribute_->mapClientData<Vec3f>(BUFFER_GPU_WRITE);
+	auto v_texco = texcoAttribute_->mapClientData<Vec3f>(BUFFER_GPU_WRITE);
+	auto v_nor = norAttribute_->mapClientData<Vec3f>(BUFFER_GPU_WRITE);
 
 	translation = Vec3f(0.0, 0.0, 0.0);
 	glyphTranslation = Vec3f(0.0, 0.0, 0.0);
@@ -173,7 +166,7 @@ void TextureMappedText::updateAttributes(Alignment alignment, GLfloat maxLineWid
 	v_nor.unmap();
 	v_texco.unmap();
 
-	begin(InputContainer::INTERLEAVED);
+	begin(INTERLEAVED);
 	setInput(posAttribute_);
 	setInput(norAttribute_);
 	setInput(texcoAttribute_);
@@ -193,9 +186,9 @@ void TextureMappedText::makeGlyphGeometry(
 		const Font::FaceData &data,
 		const Vec3f &translation,
 		GLfloat layer,
-		ShaderData_rw<Vec3f> &posAttribute,
-		ShaderData_rw<Vec3f> &norAttribute,
-		ShaderData_rw<Vec3f> &texcoAttribute,
+		ClientData_rw<Vec3f> &posAttribute,
+		ClientData_rw<Vec3f> &norAttribute,
+		ClientData_rw<Vec3f> &texcoAttribute,
 		GLuint *vertexCounter) {
 	GLuint &i = *vertexCounter;
 	Vec3f p0 = translation + Vec3f(0.0, data.height * height_, 0.0);

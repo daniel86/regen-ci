@@ -69,6 +69,9 @@ CharacterController::CharacterController(
 		btMaxSlope_(0.8f),
 		btIsMoving_(GL_FALSE),
 		btPlatform_(nullptr) {
+	if (!physics.get()) {
+		REGEN_ERROR("No BulletPhysics instance set for CharacterController.");
+	}
 }
 
 CharacterController::~CharacterController() {
@@ -102,7 +105,7 @@ void CharacterController::setMaxSlope(GLfloat maxSlope) {
 }
 
 bool CharacterController::initializePhysics() {
-	if (!attachedToTransform_.get()) {
+	if (!attachedToTransform_.get() || !bt_.get()) {
 		return false;
 	}
 
@@ -137,9 +140,11 @@ bool CharacterController::initializePhysics() {
 	btQuaternion rotation;
 	rotation.setRotation(btVector3(0, 1, 0), meshHorizontalOrientation_);
 	btTransform initialTransform;
-	auto attachedTFData = attachedToTransform_->mapClientData<btScalar>(ShaderData::READ);
-	initialTransform.setFromOpenGLMatrix(attachedTFData.r);
-	attachedTFData.unmap();
+	if (attachedToTransform_->hasModelMat()) {
+		auto m = attachedToTransform_->modelMat()->getVertex(0);
+		initialTransform.setFromOpenGLMatrix(
+				(const btScalar *) &m.r.x);
+	}
 	initialTransform.setRotation(rotation);
 	ghostObject->setWorldTransform(initialTransform);
 

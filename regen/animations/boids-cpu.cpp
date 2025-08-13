@@ -40,7 +40,7 @@ struct BoidsCPU::Private {
 	AlignedArray<float>   boidOrientZ_;   // size = numBoids_
 
 	// Configuration parameters
-	float visualRange_ = 0.0f;
+	float visualRange_ = 1.6f;
 	float visualRangeSq_ = 0.0f;
 	float avoidanceDistance_ = 0.0f;
 	float avoidanceDistanceHalf_ = 0.0f;
@@ -52,10 +52,11 @@ struct BoidsCPU::Private {
 	float maxBoidSpeed_ = 0.0f;
 	float maxAngularSpeed_ = 0.0f;
 	float baseOrientation_ = 0.0f;
-	float cellSize_ = 0.0f;
+	float cellSize_ = 3.2f;
 	Vec3i gridSize_ = Vec3i::zero();
 	uint32_t gridStamp_ = 0u;
 	Vec3f boidsScale_ = Vec3f::zero();
+	Mat4f tmpMat_ = Mat4f::identity();
 	Quaternion yawAdjust_;
 	unsigned int maxNumNeighbors_ = 0;
 	Bounds<Vec3f> simBounds_ = Bounds<Vec3f>(-10.0f, 10.0f);
@@ -95,17 +96,25 @@ BoidsCPU::BoidsCPU(const ref_ptr<ModelTransformation> &tf)
 #ifdef REGEN_BOID_USE_SORTED_GRID
 	priv_->sortedGridIndices_.setToZero();
 #endif
+	for (uint32_t i = 0; i < numBoids_; ++i) {
+		setBoidPosition(i, tf_->position(i).r);
+	}
+}
 
-	if (tf_->hasModelMat()) {
-		auto tfData = tf_->modelMat()->mapClientData<Mat4f>(ShaderData::READ);
-		for (uint32_t i = 0; i < numBoids_; ++i) {
-			setBoidPosition(i, tfData.r[i].position());
-		}
-	} else {
-		auto initialPositionData = tf_->modelOffset()->mapClientData<Vec3f>(ShaderData::READ);
-		for (uint32_t i = 0; i < numBoids_; ++i) {
-			setBoidPosition(i, initialPositionData.r[i]);
-		}
+BoidsCPU::BoidsCPU(const ref_ptr<ShaderInput4f> &modelOffset)
+		: BoidSimulation(modelOffset),
+		  Animation(false, true),
+		  priv_(new Private(numBoids_)) {
+	boidData_.resize(numBoids_);
+	priv_->boidVelocityX_.setToZero();
+	priv_->boidVelocityY_.setToZero();
+	priv_->boidVelocityZ_.setToZero();
+	priv_->boidGridIndex_.setToZero();
+#ifdef REGEN_BOID_USE_SORTED_GRID
+	priv_->sortedGridIndices_.setToZero();
+#endif
+	for (uint32_t i = 0; i < numBoids_; ++i) {
+		setBoidPosition(i, modelOffset->getVertex(i).r.xyz_());
 	}
 }
 
@@ -144,17 +153,17 @@ void BoidsCPU::initBoidSimulation() {
 		d.numNeighbors = 0;
 	}
 
-	animationState()->joinShaderInput(coherenceWeight_);
-	animationState()->joinShaderInput(alignmentWeight_);
-	animationState()->joinShaderInput(separationWeight_);
-	animationState()->joinShaderInput(avoidanceWeight_);
-	animationState()->joinShaderInput(avoidanceDistance_);
-	animationState()->joinShaderInput(visualRange_);
-	animationState()->joinShaderInput(lookAheadDistance_);
-	animationState()->joinShaderInput(repulsionFactor_);
-	animationState()->joinShaderInput(maxNumNeighbors_);
-	animationState()->joinShaderInput(maxBoidSpeed_);
-	animationState()->joinShaderInput(maxAngularSpeed_);
+	animationState()->setInput(coherenceWeight_);
+	animationState()->setInput(alignmentWeight_);
+	animationState()->setInput(separationWeight_);
+	animationState()->setInput(avoidanceWeight_);
+	animationState()->setInput(avoidanceDistance_);
+	animationState()->setInput(visualRange_);
+	animationState()->setInput(lookAheadDistance_);
+	animationState()->setInput(repulsionFactor_);
+	animationState()->setInput(maxNumNeighbors_);
+	animationState()->setInput(maxBoidSpeed_);
+	animationState()->setInput(maxAngularSpeed_);
 	REGEN_INFO("CPU Boids simulation with " << numBoids_ << " boids");
 }
 
@@ -297,30 +306,39 @@ void BoidsCPU::animate(double dt) {
 void BoidsCPU::updateTransforms() {
 	if (tf_.get()) {
 		if (tf_->hasModelMat()) {
-			auto &tfInput = tf_->modelMat();
-			auto tfData = tfInput->mapClientData<Mat4f>(ShaderData::WRITE);
-
+			auto m_matData = tf_->modelMat()->mapClientData<Mat4f>(BUFFER_GPU_WRITE);
 			for (uint32_t i = 0; i < numBoids_; ++i) {
 				Quaternion orientation(
 					priv_->boidOrientW_[i],
 					priv_->boidOrientX_[i],
 					priv_->boidOrientY_[i],
 					priv_->boidOrientZ_[i]);
-				auto &matrix = tfData.w[i];
-				matrix = (priv_->yawAdjust_ * orientation).calculateMatrix();
-				matrix.scale(priv_->boidsScale_);
-				matrix.x[12] += priv_->boidPositionsX_[i];
-				matrix.x[13] += priv_->boidPositionsY_[i];
-				matrix.x[14] += priv_->boidPositionsZ_[i];
+				m_matData.w[i] = (priv_->yawAdjust_ * orientation).calculateMatrix();
+				m_matData.w[i].scale(priv_->boidsScale_);
+				m_matData.w[i].x[12] += priv_->boidPositionsX_[i];
+				m_matData.w[i].x[13] += priv_->boidPositionsY_[i];
+				m_matData.w[i].x[14] += priv_->boidPositionsZ_[i];
 			}
 		} else if (tf_->hasModelOffset()) {
-			auto positionData = tf_->modelOffset()->mapClientData<Vec4f>(ShaderData::WRITE);
+			auto m_offsetData = tf_->modelOffset()->mapClientData<Vec4f>(BUFFER_GPU_WRITE);
 			for (uint32_t i = 0; i < numBoids_; ++i) {
-				auto &pos_w = positionData.w[i];
-				pos_w.x = priv_->boidPositionsX_[i];
-				pos_w.y = priv_->boidPositionsY_[i];
-				pos_w.z = priv_->boidPositionsZ_[i];
+				m_offsetData.w[i] = Vec4f(
+					priv_->boidPositionsX_[i],
+					priv_->boidPositionsY_[i],
+					priv_->boidPositionsZ_[i],
+					1.0f);
 			}
+		}
+	} else if (modelOffset_.get()) {
+		// update the model offset data
+		auto offsetData = modelOffset_->mapClientData<Vec4f>(
+				BUFFER_GPU_WRITE, 0, numBoids_ * sizeof(Vec4f));
+		for (uint32_t i = 0; i < numBoids_; ++i) {
+			offsetData.w[i] = Vec4f(
+					priv_->boidPositionsX_[i],
+					priv_->boidPositionsY_[i],
+					priv_->boidPositionsZ_[i],
+					1.0f);
 		}
 	}
 }
@@ -329,8 +347,8 @@ void BoidsCPU::clearGrid() {
 	// update the grid based on gridBounds_, creating a cell every `2.0*(visual range)` in all directions.
 	BoidSimulation::updateGridSize();
 
-	if (priv_->gridStamp_ != gridSize_->stamp()) {
-		priv_->gridStamp_ = gridSize_->stamp();
+	if (priv_->gridStamp_ != gridSize_->stampOfReadData()) {
+		priv_->gridStamp_ = gridSize_->stampOfReadData();
 		auto gridSize = gridSize_->getVertex(0).r;
 		priv_->gridSize_.x = static_cast<int>(gridSize.x);
 		priv_->gridSize_.y = static_cast<int>(gridSize.y);
@@ -430,8 +448,9 @@ void BoidsCPU::updateGrid() {
 
 	// Fallback to scalar loop for grid index computation
 	for (; startIdx < static_cast<int32_t>(numBoids_);  ++startIdx) {
-		Vec3f boidPos = getBoidPosition(startIdx);
-		priv_->boidGridIndex_[startIdx] = getGridIndex(getGridIndex3D(boidPos), priv_->gridSize_);
+		const Vec3f boidPos = getBoidPosition(startIdx);
+		const Vec3i idx3D = getGridIndex3D(boidPos);
+		priv_->boidGridIndex_[startIdx] = getGridIndex(idx3D, priv_->gridSize_);
 	}
 
 #ifdef REGEN_BOID_USE_SORTED_GRID
@@ -479,7 +498,8 @@ void BoidsCPU::updateGrid() {
 #else
 	for (int32_t boidIdx = 0; boidIdx < static_cast<int32_t>(numBoids_); ++boidIdx) {
 		auto &boid = boidData_[boidIdx];
-		auto &cell = priv_->grid_[priv_->boidGridIndex_[boidIdx]];
+		const uint32_t cellIndex = priv_->boidGridIndex_[boidIdx];
+		auto &cell = priv_->grid_[cellIndex];
 		auto boidPos = getBoidPosition(boidIdx);
 		updateNeighbours(boid, boidPos, boidIdx,
 			cell.elements.data(), cell.numElements);

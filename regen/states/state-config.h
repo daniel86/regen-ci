@@ -5,7 +5,7 @@
 #include <string>
 
 #include <regen/textures/texture.h>
-#include <regen/gl-types/shader-input.h>
+#include "regen/glsl/shader-input.h"
 
 namespace regen {
 	/**
@@ -89,6 +89,21 @@ namespace regen {
 		 * Number of object instances used in the shader.
 		 */
 		unsigned int numInstances_ = 1;
+
+		/**
+		 * Number of render layer for indirect multi-layer rendering.
+		 */
+		uint32_t numRenderLayer() const {
+			uint32_t numRenderLayer = 1;
+			auto numLayerDef = defines_.find("RENDER_LAYER");
+			if (numLayerDef != defines_.end()) {
+				auto &numLayerStr = numLayerDef->second;
+				// read integer value from string
+				std::stringstream is(numLayerStr);
+				is >> numRenderLayer;
+			}
+			return numRenderLayer;
+		}
 
 	protected:
 		GLuint version_;

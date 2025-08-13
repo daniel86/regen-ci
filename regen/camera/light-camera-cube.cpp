@@ -5,10 +5,11 @@ using namespace regen;
 LightCamera_Cube::LightCamera_Cube(const ref_ptr<Light> &light, int hiddenFacesMask)
 		: CubeCamera(hiddenFacesMask),
 		  LightCamera(light,this) {
-	lightMatrix_->set_numArrayElements(numLayer_);
-	lightMatrix_->set_forceArray(true);
-	lightMatrix_->setUniformUntyped();
-	setInput(lightMatrix_);
+	v_lightMatrix_.resize(numLayer_, Mat4f::identity());
+	sh_lightMatrix_->set_numArrayElements(numLayer_);
+	sh_lightMatrix_->set_forceArray(true);
+	sh_lightMatrix_->setUniformUntyped();
+	setInput(shadowBuffer_);
 	updateCubeLight();
 }
 
@@ -24,7 +25,7 @@ bool LightCamera_Cube::updateCubeLight() {
 		// Transforms world space coordinates to homogenous light space
 		for (auto i=0; i<6; ++i) {
 			if (isCubeFaceVisible(i)) {
-				lightMatrix_->setVertex(i, viewProj_->getVertex(i).r * Mat4f::bias());
+				v_lightMatrix_[i] = viewProjection(i) * Mat4f::bias();
 			}
 		}
 		camStamp_ += 1;
@@ -34,18 +35,17 @@ bool LightCamera_Cube::updateCubeLight() {
 }
 
 bool LightCamera_Cube::updateLightProjection() {
-	if (lightRadiusStamp_ == light_->radius()->stamp()) { return false; }
-	lightRadiusStamp_ = light_->radius()->stamp();
+	if (lightRadiusStamp_ == light_->radius()->stampOfReadData()) { return false; }
+	lightRadiusStamp_ = light_->radius()->stampOfReadData();
 
-	auto radius = light_->radius()->getVertex(0);
+	auto radius = light_->radiusStaged(0);
 	setPerspective(1.0f, 90.0f, lightNear_, radius.r.y);
 	return true;
 }
 
 bool LightCamera_Cube::updateLightView() {
-	if (lightPosStamp_ == light_->position()->stamp()) { return false; }
-	lightPosStamp_ = light_->position()->stamp();
-	position_->setVertex3(0,
-		light_->position()->getVertex(0).r.xyz_());
+	if (lightPosStamp_ == light_->position()->stampOfReadData()) { return false; }
+	lightPosStamp_ = light_->position()->stampOfReadData();
+	setPosition(0, light_->positionStaged(0).r.xyz_());
 	return updateView();
 }

@@ -1,10 +1,3 @@
-/*
- * material.cpp
- *
- *  Created on: 22.03.2011
- *      Author: daniel
- */
-
 #include <boost/filesystem.hpp>
 #include <regen/textures/texture-state.h>
 #include "atomic-states.h"
@@ -16,8 +9,8 @@
 
 using namespace regen;
 
-Material::Material()
-		: HasInputState(ARRAY_BUFFER),
+Material::Material(const BufferUpdateFlags &updateFlags)
+		: State(),
 		  fillMode_(GL_FILL),
 		  forcedInternalFormat_(GL_NONE),
 		  forcedFormat_(GL_NONE),
@@ -51,13 +44,13 @@ Material::Material()
 
 	shaderDefine("HAS_MATERIAL", "TRUE");
 
-	materialUniforms_ = ref_ptr<UBO>::alloc("Material");
-	materialUniforms_->addBlockInput(materialSpecular_);
-	materialUniforms_->addBlockInput(materialShininess_);
-	materialUniforms_->addBlockInput(materialDiffuse_);
-	materialUniforms_->addBlockInput(materialAlpha_);
-	materialUniforms_->addBlockInput(materialAmbient_);
-	materialUniforms_->addBlockInput(materialRefractionIndex_);
+	materialUniforms_ = ref_ptr<UBO>::alloc("Material", updateFlags);
+	materialUniforms_->addStagedInput(materialSpecular_);
+	materialUniforms_->addStagedInput(materialShininess_);
+	materialUniforms_->addStagedInput(materialDiffuse_);
+	materialUniforms_->addStagedInput(materialAlpha_);
+	materialUniforms_->addStagedInput(materialAmbient_);
+	materialUniforms_->addStagedInput(materialRefractionIndex_);
 	setInput(materialUniforms_);
 }
 
@@ -67,7 +60,7 @@ void Material::set_emission(const Vec3f &emission) {
 		materialEmission_->setUniformData(emission);
 		materialEmission_->setSchema(InputSchema::color());
 		// TODO: better always include emission term in material UBO?
-		materialUniforms_->addBlockInput(materialEmission_);
+		materialUniforms_->addStagedInput(materialEmission_);
 	} else {
 		materialEmission_->setUniformData(emission);
 	}
@@ -424,7 +417,12 @@ namespace regen {
 }
 
 ref_ptr<Material> Material::load(LoadingContext &ctx, scene::SceneInputNode &input) {
-	ref_ptr<Material> mat = ref_ptr<Material>::alloc();
+	BufferUpdateFlags updateFlags;
+	updateFlags.frequency = input.getValue<BufferUpdateFrequency>(
+		"update-frequency", BUFFER_UPDATE_PER_FRAME);
+	updateFlags.scope = input.getValue<BufferUpdateScope>(
+		"update-scope", BUFFER_UPDATE_FULLY);
+	ref_ptr<Material> mat = ref_ptr<Material>::alloc(updateFlags);
 
 	if (input.hasAttribute("max-offset")) {
 		mat->set_maxOffset(input.getValue<GLfloat>("max-offset", 0.1f));
@@ -439,7 +437,6 @@ ref_ptr<Material> Material::load(LoadingContext &ctx, scene::SceneInputNode &inp
 	if (input.hasAttribute("color-blend-factor")) {
 		mat->set_colorBlendFactor(input.getValue<GLfloat>("color-blending-factor", 1.0f));
 	}
-
 
 	if (input.hasAttribute("asset")) {
 		ref_ptr<AssetImporter> assetLoader =

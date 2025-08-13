@@ -40,14 +40,14 @@ namespace regen {
 }
 
 ProcTree::ProcTree() {
-	trunk.mesh = ref_ptr<Mesh>::alloc(GL_TRIANGLES, BUFFER_USAGE_STATIC_DRAW);
+	trunk.mesh = ref_ptr<Mesh>::alloc(GL_TRIANGLES, BufferUpdateFlags::NEVER);
 	trunk.indices = ref_ptr<ShaderInput1ui>::alloc("i");
 	trunk.pos = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	trunk.nor = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_NOR);
 	trunk.tan = ref_ptr<ShaderInput4f>::alloc(ATTRIBUTE_NAME_TAN);
 	trunk.texco = ref_ptr<ShaderInput2f>::alloc("texco0");
 
-	twig.mesh = ref_ptr<Mesh>::alloc(GL_TRIANGLES, BUFFER_USAGE_STATIC_DRAW);
+	twig.mesh = ref_ptr<Mesh>::alloc(GL_TRIANGLES, BufferUpdateFlags::NEVER);
 	twig.indices = ref_ptr<ShaderInput1ui>::alloc("i");
 	twig.pos = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	twig.nor = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_NOR);
@@ -322,8 +322,8 @@ void ProcTree::updateAttributes(TreeMesh &treeMesh, const std::vector<ProcMesh> 
 		treeMesh.texco->setVertexData(numVertices,
 									  reinterpret_cast<const unsigned char *>(&lod0.mUV[0].u));
 		treeMesh.tan->setVertexData(numVertices);
-		auto v_tan = treeMesh.tan->mapClientData<float>(ShaderData::WRITE);
-		computeTan(treeMesh, lod0, 0, (Vec4f*)v_tan.w);
+		auto v_tan = treeMesh.tan->mapClientData<float>(BUFFER_GPU_WRITE);
+		computeTan(treeMesh, lod0, 0, (Vec4f*)v_tan.w.data());
 	} else {
 		// allocate memory then copy each LOD into the vertex data array
 		treeMesh.indices->setVertexData(numIndices);
@@ -332,11 +332,15 @@ void ProcTree::updateAttributes(TreeMesh &treeMesh, const std::vector<ProcMesh> 
 		treeMesh.texco->setVertexData(numVertices);
 		treeMesh.tan->setVertexData(numVertices);
 		// map client data for writing
-		auto indices = treeMesh.indices->mapClientData<unsigned int>(ShaderData::WRITE);
-		auto v_pos = treeMesh.pos->mapClientData<float>(ShaderData::WRITE);
-		auto v_nor = treeMesh.nor->mapClientData<float>(ShaderData::WRITE);
-		auto v_tan = treeMesh.tan->mapClientData<float>(ShaderData::WRITE);
-		auto v_texco = treeMesh.texco->mapClientData<float>(ShaderData::WRITE);
+		auto indices = treeMesh.indices->mapClientData<unsigned int>(BUFFER_GPU_WRITE);
+		auto v_pos = treeMesh.pos->mapClientData<float>(BUFFER_GPU_WRITE);
+		auto v_nor = treeMesh.nor->mapClientData<float>(BUFFER_GPU_WRITE);
+		auto v_tan = treeMesh.tan->mapClientData<float>(BUFFER_GPU_WRITE);
+		auto v_texco = treeMesh.texco->mapClientData<float>(BUFFER_GPU_WRITE);
+		auto *ptr_indices = indices.w.data();
+		auto *ptr_pos = v_pos.w.data();
+		auto *ptr_nor = v_nor.w.data();
+		auto *ptr_texco = v_texco.w.data();
 		// copy data from Proctree to Mesh
 		// also create LOD descriptions on the way.
 		unsigned int vertexOffset = 0u, indexOffset = 0u;
@@ -349,26 +353,26 @@ void ProcTree::updateAttributes(TreeMesh &treeMesh, const std::vector<ProcMesh> 
 			lodLevel.d->indexOffset = indexOffset;
 			// copy data
 			for (int i = 0; i < lod.mFaceCount; i++) {
-				indices.w[i * 3 + 0] = lod.mFace[i].x + vertexOffset;
-				indices.w[i * 3 + 1] = lod.mFace[i].y + vertexOffset;
-				indices.w[i * 3 + 2] = lod.mFace[i].z + vertexOffset;
+				ptr_indices[i * 3 + 0] = lod.mFace[i].x + vertexOffset;
+				ptr_indices[i * 3 + 1] = lod.mFace[i].y + vertexOffset;
+				ptr_indices[i * 3 + 2] = lod.mFace[i].z + vertexOffset;
 			}
-			memcpy(v_pos.w, &lod.mVert[0].x, lod.mVertCount * 3 * sizeof(float));
-			memcpy(v_nor.w, &lod.mNormal[0].x, lod.mVertCount * 3 * sizeof(float));
-			memcpy(v_texco.w, &lod.mUV[0].u, lod.mVertCount * 2 * sizeof(float));
+			memcpy(ptr_pos, &lod.mVert[0].x, lod.mVertCount * 3 * sizeof(float));
+			memcpy(ptr_nor, &lod.mNormal[0].x, lod.mVertCount * 3 * sizeof(float));
+			memcpy(ptr_texco, &lod.mUV[0].u, lod.mVertCount * 2 * sizeof(float));
 			// compute tangents
-			computeTan(treeMesh, lod, vertexOffset, (Vec4f*)v_tan.w);
+			computeTan(treeMesh, lod, vertexOffset, (Vec4f*)v_tan.w.data());
 			// increase offsets
 			vertexOffset += lodLevel.d->numVertices;
 			indexOffset += lodLevel.d->numIndices;
-			indices.w += lodLevel.d->numIndices;
-			v_pos.w += lod.mVertCount * 3;
-			v_nor.w += lod.mVertCount * 3;
-			v_texco.w += lod.mVertCount * 2;
+			ptr_indices += lodLevel.d->numIndices;
+			ptr_pos += lod.mVertCount * 3;
+			ptr_nor += lod.mVertCount * 3;
+			ptr_texco += lod.mVertCount * 2;
 		}
 	}
 
-	treeMesh.mesh->begin(InputContainer::INTERLEAVED);
+	treeMesh.mesh->begin(Mesh::INTERLEAVED);
 	auto indexRef = treeMesh.mesh->setIndices(treeMesh.indices, numVertices);
 	treeMesh.mesh->setInput(treeMesh.pos);
 	treeMesh.mesh->setInput(treeMesh.nor);
@@ -431,6 +435,15 @@ void ProcTree::updateTrunkAttributes() {
 				trunkProcMesh(*lodMedium_.get()),
 				trunkProcMesh(*lodLow_.get())
 		});
+
+		// debug the LOD configuration
+		auto &trunkLODs = trunk.mesh->meshLODs();
+		for (size_t i = 0; i < trunkLODs.size(); i++) {
+			REGEN_INFO("Trunk LOD " << i << ": " << trunkLODs[i].d->numVertices << " vertices, "
+									 << trunkLODs[i].d->numIndices << " indices, "
+									 << "vertex offset: " << trunkLODs[i].d->vertexOffset
+									 << ", index offset: " << trunkLODs[i].d->indexOffset);
+		}
 	} else {
 		updateAttributes(trunk, {trunkProcMesh(handle)});
 	}

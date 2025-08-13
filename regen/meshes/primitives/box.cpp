@@ -1,10 +1,3 @@
-/*
- * box.cpp
- *
- *  Created on: 31.08.2011
- *      Author: daniel
- */
-
 #include "../lod/tessellation.h"
 #include "box.h"
 
@@ -47,36 +40,31 @@ ref_ptr<Box> Box::getUnitCube() {
 		cfg.texcoMode = TEXCO_MODE_NONE;
 		cfg.isNormalRequired = GL_FALSE;
 		cfg.isTangentRequired = GL_FALSE;
-		cfg.usage = BUFFER_USAGE_STATIC_DRAW;
 		cfg.levelOfDetails = {0};
 		mesh = ref_ptr<Box>::alloc(cfg);
-		return mesh;
-	} else {
-		return ref_ptr<Box>::alloc(mesh);
 	}
+	return ref_ptr<Box>::alloc(mesh);
 }
 
 Box::Box(const Config &cfg)
-		: Mesh(GL_TRIANGLES, cfg.usage),
+		: Mesh(GL_TRIANGLES, cfg.updateHint),
 		  texcoMode_(cfg.texcoMode) {
 	pos_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	nor_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_NOR);
 	tan_ = ref_ptr<ShaderInput4f>::alloc(ATTRIBUTE_NAME_TAN);
 	indices_ = ref_ptr<ShaderInput1ui>::alloc("i");
+	setBufferMapMode(cfg.mapMode);
+	setClientAccessMode(cfg.accessMode);
 	updateAttributes(cfg);
 }
 
 Box::Box(const ref_ptr<Box> &other)
 		: Mesh(other),
 		  texcoMode_(other->texcoMode_) {
-	pos_ = ref_ptr<ShaderInput3f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_POS));
-	nor_ = ref_ptr<ShaderInput3f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_NOR));
-	tan_ = ref_ptr<ShaderInput4f>::dynamicCast(
-			inputContainer_->getInput(ATTRIBUTE_NAME_TAN));
-	indices_ = ref_ptr<ShaderInput1ui>::dynamicCast(
-			inputContainer_->getInput("i"));
+	pos_ = ref_ptr<ShaderInput3f>::dynamicCast(getInput(ATTRIBUTE_NAME_POS));
+	nor_ = ref_ptr<ShaderInput3f>::dynamicCast(getInput(ATTRIBUTE_NAME_NOR));
+	tan_ = ref_ptr<ShaderInput4f>::dynamicCast(getInput(ATTRIBUTE_NAME_TAN));
+	indices_ = ref_ptr<ShaderInput1ui>::dynamicCast(getInput("i"));
 }
 
 Box::Config::Config()
@@ -86,8 +74,7 @@ Box::Config::Config()
 		  texcoScale(Vec2f(1.0f)),
 		  texcoMode(TEXCO_MODE_UV),
 		  isNormalRequired(GL_TRUE),
-		  isTangentRequired(GL_FALSE),
-		  usage(BUFFER_USAGE_DYNAMIC_DRAW) {
+		  isTangentRequired(GL_FALSE) {
 }
 
 void Box::generateLODLevel(
@@ -120,19 +107,17 @@ void Box::generateLODLevel(
 	GLuint nextIndex = indexOffset;
 
 	// map client data for writing
-	auto indices = indices_->mapClientData<GLuint>(ShaderData::WRITE);
-	auto pos = pos_->mapClientData<Vec3f>(ShaderData::WRITE);
+	auto indices = (GLuint*)indices_->clientBuffer()->clientData(0);
+	auto pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
 	auto nor = (cfg.isNormalRequired ?
-		nor_->mapClientData<Vec3f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec3f>::nullData());
+				  (Vec3f*) nor_->clientBuffer()->clientData(0) : nullptr);
 	auto tan = (cfg.isTangentRequired ?
-		tan_->mapClientData<Vec4f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec4f>::nullData());
+				  (Vec4f*) tan_->clientBuffer()->clientData(0) : nullptr);
 
 	for (const auto &tessFace: tessellation.outputFaces) {
-		indices.w[nextIndex++] = vertexOffset + tessFace.v1;
-		indices.w[nextIndex++] = vertexOffset + tessFace.v2;
-		indices.w[nextIndex++] = vertexOffset + tessFace.v3;
+		indices[nextIndex++] = vertexOffset + tessFace.v1;
+		indices[nextIndex++] = vertexOffset + tessFace.v2;
+		indices[nextIndex++] = vertexOffset + tessFace.v3;
 	}
 
 	GLuint triIndices[3];
@@ -150,17 +135,17 @@ void Box::generateLODLevel(
 
 			Vec3f faceVertex = faceRotMat.transformVector(vertex) + normal;
 			Vec3f transformedVertex = cfg.posScale * modelRotation_.transformVector(faceVertex);
-			pos.w[vertexIndex] = transformedVertex;
+			pos[vertexIndex] = transformedVertex;
 			minPosition_.setMin(transformedVertex);
 			maxPosition_.setMax(transformedVertex);
 			if (cfg.isNormalRequired) {
-				nor.w[vertexIndex] = normal;
+				nor[vertexIndex] = normal;
 			}
 			if (texcoMode_ == TEXCO_MODE_CUBE_MAP) {
-				auto texco = texco_->mapClientData<Vec3f>(ShaderData::WRITE);
+				auto texco = (Vec3f*) texco_->clientBuffer()->clientData(0);
 				Vec3f v = faceVertex;
 				v.normalize();
-				texco.w[vertexIndex] = v;
+				texco[vertexIndex] = v;
 				triTexco[faceVertIndex] = Vec2f(vertex.x, vertex.y) * 0.5f + Vec2f(0.5f);
 			} else if (texcoMode_ == TEXCO_MODE_UV) {
 				Vec2f uv;
@@ -199,12 +184,12 @@ void Box::generateLODLevel(
 						uv = Vec2f(0.0f);
 				}
 				uv *= cfg.texcoScale;
-				auto texco = texco_->mapClientData<Vec2f>(ShaderData::WRITE);
-				texco.w[vertexIndex] = uv;
+				auto texco = (Vec2f*) texco_->clientBuffer()->clientData(0);
+				texco[vertexIndex] = uv;
 				triTexco[faceVertIndex] = uv;
 			}
 			if (cfg.isTangentRequired) {
-				triVertices[faceVertIndex] = pos.w[vertexIndex];
+				triVertices[faceVertIndex] = pos[vertexIndex];
 			}
 			faceVertIndex += 1;
 		}
@@ -212,7 +197,7 @@ void Box::generateLODLevel(
 		if (cfg.isTangentRequired) {
 			Vec4f tangent = calculateTangent(triVertices, triTexco, normal);
 			for (GLuint i = 0; i < 3; ++i) {
-				tan.w[triIndices[i]] = tangent;
+				tan[triIndices[i]] = tangent;
 			}
 		}
 	}
@@ -281,7 +266,7 @@ void Box::updateAttributes(const Config &cfg) {
 		}
 	}
 
-	begin(InputContainer::INTERLEAVED);
+	begin(INTERLEAVED);
 	auto indexRef = setIndices(indices_, numVertices);
 	setInput(pos_);
 	if (cfg.isNormalRequired)

@@ -1,15 +1,14 @@
 #include "transform-animation.h"
-#include "regen/math/quaternion.h"
 
 using namespace regen;
 
-TransformAnimation::TransformAnimation(const ref_ptr<ShaderInputMat4> &in)
+TransformAnimation::TransformAnimation(const ref_ptr<ModelTransformation> &tf)
 		: Animation(false, true),
-		  in_(in) {
-	auto currentTransform = in_->getVertex(0);
+		  tf_(tf) {
+	auto currentTransform = tf_->modelMat()->getVertex(0);
 	it_ = frames_.end();
 	dt_ = 0.0;
-	setAnimationName(REGEN_STRING("animation-"<<in->name()));
+	setAnimationName(REGEN_STRING("animation-"<<tf->modelMat()->name()));
 	// initialize transform data
 	currentPos_ = currentTransform.r.position();
 	currentVal_ = currentTransform.r;
@@ -89,6 +88,6 @@ void TransformAnimation::animate(GLdouble dt) {
 			currentVal_.scale(initialScale_);
 			currentVal_.translate(currentPos_);
 		}
-		in_->setVertex(0, currentVal_);
+		tf_->setModelMat(0, currentVal_);
 	}
 }

@@ -12,8 +12,9 @@ Atmosphere::Atmosphere(
 		unsigned int levelOfDetail)
 		: SkyLayer(sky) {
 	updateMesh_ = Rectangle::getUnitQuad();
-
-	//state()->joinStates(ref_ptr<BlendState>::alloc(BLEND_MODE_ALPHA));
+	state()->joinStates(ref_ptr<BlendFuncState>::alloc(
+			GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+			GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
 
 	ref_ptr<TextureCube> cubeMap = ref_ptr<TextureCube>::alloc(1);
 	cubeMap->set_format(GL_RGBA);
@@ -70,15 +71,15 @@ Atmosphere::Atmosphere(
 	///////
 	/// Update State
 	///////
-	updateState_->joinShaderInput(sky->sun()->direction(), "sunDir");
-	updateState_->joinShaderInput(mie_);
-	updateState_->joinShaderInput(rayleigh_);
-	updateState_->joinShaderInput(spotBrightness_);
-	updateState_->joinShaderInput(skyAbsorption_);
-	updateState_->joinShaderInput(scatterStrength_);
+	updateState_->setInput(sky->sun()->lightUBO(), "SunLight", "_Sun");
+	updateState_->setInput(mie_);
+	updateState_->setInput(rayleigh_);
+	updateState_->setInput(spotBrightness_);
+	updateState_->setInput(skyAbsorption_);
+	updateState_->setInput(scatterStrength_);
 	updateShader_ = ref_ptr<ShaderState>::alloc();
 	updateState_->joinStates(updateShader_);
-	updateState_->joinShaderInput(sky_->worldTime()->in);
+	updateState_->setInput(sky_->worldTime()->in);
 }
 
 void Atmosphere::createUpdateShader() {
@@ -88,37 +89,37 @@ void Atmosphere::createUpdateShader() {
 }
 
 void Atmosphere::setRayleighBrightness(float v) {
-	auto v_rayleigh = rayleigh_->mapClientVertex<Vec3f>(ShaderData::READ | ShaderData::WRITE, 0);
+	auto v_rayleigh = rayleigh_->mapClientVertex<Vec3f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 	v_rayleigh.w = Vec3f(v / 10.0f, v_rayleigh.r.y, v_rayleigh.r.z);
 }
 
 void Atmosphere::setRayleighStrength(float v) {
-	auto v_rayleigh = rayleigh_->mapClientVertex<Vec3f>(ShaderData::READ | ShaderData::WRITE, 0);
+	auto v_rayleigh = rayleigh_->mapClientVertex<Vec3f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 	v_rayleigh.w = Vec3f(v_rayleigh.r.x, v / 1000.0f, v_rayleigh.r.z);
 }
 
 void Atmosphere::setRayleighCollect(float v) {
-	auto v_rayleigh = rayleigh_->mapClientVertex<Vec3f>(ShaderData::READ | ShaderData::WRITE, 0);
+	auto v_rayleigh = rayleigh_->mapClientVertex<Vec3f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 	v_rayleigh.w = Vec3f(v_rayleigh.r.x, v_rayleigh.r.y, v / 100.0f);
 }
 
 void Atmosphere::setMieBrightness(float v) {
-	auto v_mie = mie_->mapClientVertex<Vec4f>(ShaderData::READ | ShaderData::WRITE, 0);
+	auto v_mie = mie_->mapClientVertex<Vec4f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 	v_mie.w = Vec4f(v / 1000.0f, v_mie.r.y, v_mie.r.z, v_mie.r.w);
 }
 
 void Atmosphere::setMieStrength(float v) {
-	auto v_mie = mie_->mapClientVertex<Vec4f>(ShaderData::READ | ShaderData::WRITE, 0);
+	auto v_mie = mie_->mapClientVertex<Vec4f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 	v_mie.w = Vec4f(v_mie.r.x, v / 10000.0f, v_mie.r.z, v_mie.r.w);
 }
 
 void Atmosphere::setMieCollect(float v) {
-	auto v_mie = mie_->mapClientVertex<Vec4f>(ShaderData::READ | ShaderData::WRITE, 0);
+	auto v_mie = mie_->mapClientVertex<Vec4f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 	v_mie.w = Vec4f(v_mie.r.x, v_mie.r.y, v / 100.0f, v_mie.r.w);
 }
 
 void Atmosphere::setMieDistribution(float v) {
-	auto v_mie = mie_->mapClientVertex<Vec4f>(ShaderData::READ | ShaderData::WRITE, 0);
+	auto v_mie = mie_->mapClientVertex<Vec4f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 	v_mie.w = Vec4f(v_mie.r.x, v_mie.r.y, v_mie.r.z, v / 100.0f);
 }
 
@@ -205,13 +206,14 @@ const ref_ptr<TextureCube> &Atmosphere::cubeMap() const {
 }
 
 void Atmosphere::updateSkyLayer(RenderState *rs, GLdouble dt) {
-	rs->drawFrameBuffer().push(fbo_->id());
-	rs->viewport().push(fbo_->glViewport());
+	rs->drawFrameBuffer().apply(fbo_->id());
+	rs->viewport().apply(fbo_->glViewport());
 
+	// TODO: Avoid using GS for update!
+	//      - Alternative: Create indirect draw buffer, one for each layer
+	//        then select layer in vertex shader.
+	//      - Other alternative: make a loop with CPU, might still be better compared to GS.
 	updateState_->enable(rs);
 	updateMesh_->draw(rs);
 	updateState_->disable(rs);
-
-	rs->viewport().pop();
-	rs->drawFrameBuffer().pop();
 }

@@ -55,9 +55,8 @@ void BoidsGPU::createResource() {
 	std::vector<Vec3f> initialVelocities(numBoids_);
 #endif
 	if(tf_->hasModelMat()) {
-		auto tfData = tf_->modelMat()->mapClientData<Mat4f>(ShaderData::READ);
 		for (uint32_t i = 0; i < numBoids_; ++i) {
-			initialPositions[i] = tfData.r[i].position();
+			initialPositions[i] = tf_->modelMat()->getVertex(i).r.position();
 #ifdef BOID_USE_HALF_VELOCITY
 			initialVelocities[i] = Vec2ui::zero();
 #else
@@ -66,9 +65,8 @@ void BoidsGPU::createResource() {
 		}
 	}
 	else if(tf_->hasModelOffset()) {
-		auto initialPositionData = tf_->modelOffset()->mapClientData<Vec4f>(ShaderData::READ);
 		for (uint32_t i = 0; i < numBoids_; ++i) {
-			initialPositions[i] = initialPositionData.r[i].xyz_();
+			initialPositions[i] = tf_->modelOffset()->getVertex(i).r.xyz_();
 #ifdef BOID_USE_HALF_VELOCITY
 			initialVelocities[i] = Vec2ui::zero();
 #else
@@ -86,18 +84,20 @@ void BoidsGPU::createResource() {
 	u_numCells_->setUniformData(numCells_);
 
 	{ // UBO with grid parameters
-		gridUBO_ = ref_ptr<UBO>::alloc("BoidGrid");
+		gridUBO_ = ref_ptr<UBO>::alloc("BoidGrid", BufferUpdateFlags::PARTIAL_RARELY);
 		gridMin_ = ref_ptr<ShaderInput3f>::alloc("gridMin");
 		gridMin_->setUniformData(gridBounds_.min);
-		gridUBO_->addBlockInput(gridMin_);
-		gridUBO_->addBlockInput(cellSize_);
-		gridUBO_->addBlockInput(gridSize_);
+		gridUBO_->addStagedInput(gridMin_);
+		gridUBO_->addStagedInput(cellSize_);
+		gridUBO_->addStagedInput(gridSize_);
+		// create draw buffer and add to staging system
+		gridUBO_->update();
 	}
 
 	// SSBO for position, one per boid
 	if (tf_.get()) {
 		// bind UBO as SSBO for writing model matrix
-		auto bufferContainer = tf_->bufferContainer();
+		auto bufferContainer = tf_->tfBuffer();
 		bufferContainer->updateBuffer();
 		auto bufferObject = bufferContainer->getBufferObject(tf_->modelMat());
 		auto ssbo = ref_ptr<SSBO>::dynamicCast(bufferObject);
@@ -110,26 +110,26 @@ void BoidsGPU::createResource() {
 
 	// SSBO for velocity, one per boid
 	velBuffer_ = ref_ptr<SSBO>::alloc("VelocityBlock",
-			BUFFER_USAGE_DYNAMIC_DRAW, SSBO::RESTRICT);
+		BufferUpdateFlags::FULL_PER_FRAME,
+		SSBO::RESTRICT);
 #ifdef BOID_USE_HALF_VELOCITY
-	auto vel = ref_ptr<ShaderInput2ui>::alloc("vel", numBoids_);
+	velBuffer_->addStagedInput(ref_ptr<ShaderInput2ui>::alloc("vel", numBoids_));
 #else
-	auto vel = ref_ptr<ShaderInput1f>::alloc("vel", numBoids_ * 3);
+	velBuffer_->addBlockInput(ref_ptr<ShaderInput1f>::alloc("vel", numBoids_ * 3));
 #endif
-	vel->setInstanceData(1, 1, (byte*)initialVelocities.data());
-	velBuffer_->addBlockInput(vel);
 	velBuffer_->update();
+	velBuffer_->setBufferData(initialVelocities.data());
 
 	// bounding box SSBO as we read back bounding box to CPU
-	bboxBuffer_ = ref_ptr<BBoxBuffer>::alloc();
+	bboxBuffer_ = ref_ptr<BBoxBuffer>::alloc(boidBounds_);
 	{
 		bboxPass_ = ref_ptr<ComputePass>::alloc("regen.compute.bbox");
 		bboxPass_->computeState()->setNumWorkUnits(numBoids_, 1, 1);
 		bboxPass_->computeState()->setGroupSize(simulationGroupSize_, 1, 1);
 		if (tf_.get()) {
-			bboxPass_->joinShaderInput(tfBuffer_);
+			bboxPass_->setInput(tfBuffer_);
 		}
-		bboxPass_->joinShaderInput(bboxBuffer_);
+		bboxPass_->setInput(bboxBuffer_);
 		StateConfigurer shaderConfigurer;
 		shaderConfigurer.define("NUM_ELEMENTS", REGEN_STRING(numBoids_));
 		shaderConfigurer.addState(bboxPass_.get());
@@ -137,21 +137,25 @@ void BoidsGPU::createResource() {
 	}
 	{ // SSBO for grid offsets
 		gridOffsetBuffer_ = ref_ptr<SSBO>::alloc("GridOffsets",
-				BUFFER_USAGE_DYNAMIC_DRAW, SSBO::RESTRICT);
-		gridOffsetBuffer_->addBlockInput(ref_ptr<ShaderInput1ui>::alloc("globalHistogram", numCells_ + 1));
+			BufferUpdateFlags::FULL_PER_FRAME,
+			SSBO::RESTRICT);
+		gridOffsetBuffer_->addStagedInput(ref_ptr<ShaderInput1ui>::alloc(
+				"globalHistogram", numCells_ + 1));
 		gridOffsetBuffer_->update();
 	}
 
 	if (tf_.get()) {
-		animationState()->joinShaderInput(tfBuffer_);
+		animationState()->setInput(tfBuffer_);
 	}
 	// create a state that updates the boids grid
 	updateGridState_ = ref_ptr<StateSequence>::alloc();
 	#ifdef BOID_USE_SORTED_DATA
 	{
+		// NOTE: this might be a HUGE buffer. It stores boid
+		// positions and velocities.
 		boidDataBuffer_ = ref_ptr<SSBO>::alloc("BoidDataBuffer",
-				BUFFER_USAGE_DYNAMIC_DRAW, SSBO::RESTRICT);
-		boidDataBuffer_->addBlockInput(ref_ptr<ShaderInputStruct<BoidData>>::alloc("BoidData", "boidData", numBoids_));
+			BufferUpdateFlags::NEVER, SSBO::RESTRICT);
+		boidDataBuffer_->addStagedInput(ref_ptr<ShaderInputStruct<BoidData>>::alloc("BoidData", "boidData", numBoids_));
 		boidDataBuffer_->update();
 	}
 	#endif
@@ -167,11 +171,11 @@ void BoidsGPU::createResource() {
 	//    and reset the grid offset buffer to all zero.
 	{
 		auto updateState = ref_ptr<State>::alloc();
-		updateState->joinShaderInput(gridUBO_);
-		updateState->joinShaderInput(((RadixSort*)radixSort_.get())->keyBuffer());
-		updateState->joinShaderInput(((RadixSort*)radixSort_.get())->valueBuffer());
-		updateState->joinShaderInput(gridOffsetBuffer_);
-		updateState->joinShaderInput(u_numCells_);
+		updateState->setInput(gridUBO_);
+		updateState->setInput(((RadixSort*)radixSort_.get())->keyBuffer());
+		updateState->setInput(((RadixSort*)radixSort_.get())->valueBuffer());
+		updateState->setInput(gridOffsetBuffer_);
+		updateState->setInput(u_numCells_);
 		gridResetPass_ = ref_ptr<ComputePass>::alloc("regen.animation.boid.grid.reset");
 		gridResetPass_->computeState()->setNumWorkUnits(std::max(numBoids_, numCells_+1), 1, 1);
 		gridResetPass_->computeState()->setGroupSize(simulationGroupSize_, 1, 1);
@@ -187,16 +191,16 @@ void BoidsGPU::createResource() {
 	//    when reading boids data in the simulation shader.
 	{
 		auto updateState = ref_ptr<State>::alloc();
-		updateState->joinShaderInput(gridUBO_);
-		updateState->joinShaderInput(((RadixSort*)radixSort_.get())->keyBuffer());
-		updateState->joinShaderInput(((RadixSort*)radixSort_.get())->valueBuffer());
-		updateState->joinShaderInput(gridOffsetBuffer_);
+		updateState->setInput(gridUBO_);
+		updateState->setInput(((RadixSort*)radixSort_.get())->keyBuffer());
+		updateState->setInput(((RadixSort*)radixSort_.get())->valueBuffer());
+		updateState->setInput(gridOffsetBuffer_);
 		#ifdef BOID_USE_SORTED_DATA
-		updateState->joinShaderInput(velBuffer_);
+		updateState->setInput(velBuffer_);
 		if (tf_.get()) {
-			updateState->joinShaderInput(tfBuffer_);
+			updateState->setInput(tfBuffer_);
 		}
-		updateState->joinShaderInput(boidDataBuffer_);
+		updateState->setInput(boidDataBuffer_);
 		updateState->shaderDefine("USE_SORTED_DATA", "TRUE");
 		#endif
 		#ifdef BOID_USE_HALF_VELOCITY
@@ -216,39 +220,38 @@ void BoidsGPU::createResource() {
 	simulationState_->shaderDefine("USE_HALF_VELOCITY", "TRUE");
 #endif
 	{ // simulation parameters
-		simulationState_->joinShaderInput(simulationBoundsMin_);
-		simulationState_->joinShaderInput(visualRange_);
-		simulationState_->joinShaderInput(simulationBoundsMax_);
-		simulationState_->joinShaderInput(maxBoidSpeed_);
-		simulationState_->joinShaderInput(boidsScale_);
-		simulationState_->joinShaderInput(baseOrientation_);
-		simulationState_->joinShaderInput(maxAngularSpeed_);
-		simulationState_->joinShaderInput(coherenceWeight_);
-		simulationState_->joinShaderInput(alignmentWeight_);
-		simulationState_->joinShaderInput(separationWeight_);
-		simulationState_->joinShaderInput(avoidanceWeight_);
-		simulationState_->joinShaderInput(avoidanceDistance_);
-		simulationState_->joinShaderInput(lookAheadDistance_);
-		simulationState_->joinShaderInput(repulsionFactor_);
-		simulationState_->joinShaderInput(maxNumNeighbors_);
+		simulationState_->setInput(simulationBoundsMin_);
+		simulationState_->setInput(visualRange_);
+		simulationState_->setInput(simulationBoundsMax_);
+		simulationState_->setInput(maxBoidSpeed_);
+		simulationState_->setInput(boidsScale_);
+		simulationState_->setInput(baseOrientation_);
+		simulationState_->setInput(maxAngularSpeed_);
+		simulationState_->setInput(coherenceWeight_);
+		simulationState_->setInput(alignmentWeight_);
+		simulationState_->setInput(separationWeight_);
+		simulationState_->setInput(avoidanceWeight_);
+		simulationState_->setInput(avoidanceDistance_);
+		simulationState_->setInput(lookAheadDistance_);
+		simulationState_->setInput(repulsionFactor_);
+		simulationState_->setInput(maxNumNeighbors_);
 	}
-	simulationState_->joinShaderInput(gridUBO_);
-	simulationState_->joinShaderInput(velBuffer_);
-	simulationState_->joinShaderInput(gridOffsetBuffer_);
-	simulationState_->joinShaderInput(((RadixSort*)radixSort_.get())->valueBuffer());
-	simulationState_->joinShaderInput(bboxBuffer_);
+	simulationState_->setInput(gridUBO_);
+	simulationState_->setInput(velBuffer_);
+	simulationState_->setInput(gridOffsetBuffer_);
+	simulationState_->setInput(((RadixSort*)radixSort_.get())->valueBuffer());
 	if (tf_.get()) {
-		simulationState_->joinShaderInput(tfBuffer_);
+		simulationState_->setInput(tfBuffer_);
 	}
 #ifdef BOID_USE_SORTED_DATA
-	simulationState_->joinShaderInput(boidDataBuffer_);
+	simulationState_->setInput(boidDataBuffer_);
 #endif
 	if (heightMap_.get()) {
-		simulationState_->joinShaderInput(
+		simulationState_->setInput(
 			createUniform<ShaderInput3f,Vec3f>("mapCenter", mapCenter_));
-		simulationState_->joinShaderInput(
+		simulationState_->setInput(
 			createUniform<ShaderInput1f,float>("heightMapFactor", heightMapFactor_));
-		simulationState_->joinShaderInput(
+		simulationState_->setInput(
 			createUniform<ShaderInput2f,Vec2f>("mapSize", mapSize_));
 		simulationState_->joinStates(
 			ref_ptr<TextureState>::alloc(heightMap_, "heightMap"));
@@ -299,12 +302,12 @@ void BoidsGPU::glAnimate(RenderState *rs, GLdouble dt) {
 		bboxPass_->enable(rs);
 		bboxPass_->disable(rs);
 		// update the grid in case the bounding box around the boids changed.
-		if(bboxBuffer_->updateBoundingBox() || vrStamp_ != cellSize_->stamp()) {
+		if(bboxBuffer_->updateBoundingBox() || vrStamp_ != visualRange_->stampOfReadData()) {
 			auto &newBounds = bboxBuffer_->bbox();
 			if (newBounds.max != newBounds.min) {
 				boidBounds_ = newBounds;
 				updateGrid();
-				vrStamp_ = visualRange_->stamp();
+				vrStamp_ = visualRange_->stampOfReadData();
 			}
 		}
 #ifdef BOID_DEBUG_BBOX_TIME
@@ -338,20 +341,20 @@ void BoidsGPU::glAnimate(RenderState *rs, GLdouble dt) {
 #endif
 	}
 	time_ = 0.0;
-	GL_ERROR_LOG();
 }
 
 void BoidsGPU::updateGrid() {
 	auto lastNumCells = numCells_;
 	updateGridSize();
+	numCells_ = std::max(1u, numCells_);
 	gridMin_->setVertex(0, gridBounds_.min);
 	if (lastNumCells != numCells_) {
 		// acquire buffer space of the right size
 		gridResetPass_->computeState()->setNumWorkUnits(std::max(numBoids_, numCells_ + 1), 1, 1);
-		gridOffsetBuffer_->blockInputs().front().in_->set_numArrayElements(static_cast<int>(numCells_ + 1u));
+		gridOffsetBuffer_->stagedInputs().front().in_->set_numArrayElements(static_cast<int>(numCells_ + 1u));
 		gridOffsetBuffer_->update(true);
 		u_numCells_->setVertex(0, numCells_);
-		REGEN_DEBUG("Boid grid size changed to " << numCells_ << " cells.");
+		REGEN_INFO("Boid grid size changed to " << numCells_ << " cells.");
 	}
 }
 
@@ -363,9 +366,9 @@ void BoidsGPU::simulate(RenderState *rs, double boidTimeDelta) {
 
 void BoidsGPU::printOffsets(RenderState *rs) {
 	auto offsetData = (uint32_t *) glMapNamedBufferRange(
-			gridOffsetBuffer_->blockReference()->bufferID(),
-			gridOffsetBuffer_->blockReference()->address(),
-			gridOffsetBuffer_->blockReference()->allocatedSize(),
+			gridOffsetBuffer_->drawBufferRef()->bufferID(),
+			gridOffsetBuffer_->drawBufferRef()->address(),
+			gridOffsetBuffer_->drawBufferRef()->allocatedSize(),
 			GL_MAP_READ_BIT);
 	if (offsetData) {
 		std::stringstream sss;
@@ -374,16 +377,16 @@ void BoidsGPU::printOffsets(RenderState *rs) {
 			sss << offsetData[i] << " ";
 		}
 		REGEN_INFO(" " << sss.str());
-		glUnmapNamedBuffer(gridOffsetBuffer_->blockReference()->bufferID());
+		glUnmapNamedBuffer(gridOffsetBuffer_->drawBufferRef()->bufferID());
 	}
 }
 
 void BoidsGPU::debugVelocity(RenderState *rs) {
 #ifndef BOID_USE_HALF_VELOCITY
 	auto velData = (Vec3f *) glMapNamedBufferRange(
-			velBuffer_->blockReference()->bufferID(),
-			velBuffer_->blockReference()->address(),
-			velBuffer_->blockReference()->allocatedSize(),
+			velBuffer_->drawBufferRef()->bufferID(),
+			velBuffer_->drawBufferRef()->address(),
+			velBuffer_->drawBufferRef()->allocatedSize(),
 			GL_MAP_READ_BIT);
 	if (velData) {
 		std::stringstream sss;
@@ -392,7 +395,7 @@ void BoidsGPU::debugVelocity(RenderState *rs) {
 			sss << velData[i] << " ";
 		}
 		REGEN_INFO(" " << sss.str());
-		glUnmapNamedBuffer(velBuffer_->blockReference()->bufferID());
+		glUnmapNamedBuffer(velBuffer_->drawBufferRef()->bufferID());
 	}
 #endif
 }
@@ -400,11 +403,11 @@ void BoidsGPU::debugVelocity(RenderState *rs) {
 void BoidsGPU::debugGridSorting(RenderState *rs) {
 	// read the key buffer
 	std::vector<uint32_t> sortKeys(numBoids_);
-	uint32_t bufferID = ((RadixSort*)radixSort_.get())->keyBuffer()->blockReference()->bufferID();
+	uint32_t bufferID = ((RadixSort*)radixSort_.get())->keyBuffer()->drawBufferRef()->bufferID();
 	auto sortKeysData = (uint32_t *) glMapNamedBufferRange(
 			bufferID,
-			((RadixSort*)radixSort_.get())->keyBuffer()->blockReference()->address(),
-			((RadixSort*)radixSort_.get())->keyBuffer()->blockReference()->allocatedSize(),
+			((RadixSort*)radixSort_.get())->keyBuffer()->drawBufferRef()->address(),
+			((RadixSort*)radixSort_.get())->keyBuffer()->drawBufferRef()->allocatedSize(),
 			GL_MAP_READ_BIT);
 	if (sortKeysData) {
 		std::set<uint32_t> usedCells;
@@ -417,11 +420,11 @@ void BoidsGPU::debugGridSorting(RenderState *rs) {
 	}
 
 	// second map the index buffer and test if the indices are sorted correctly
-	bufferID = ((RadixSort*)radixSort_.get())->valueBuffer()->blockReference()->bufferID();
+	bufferID = ((RadixSort*)radixSort_.get())->valueBuffer()->drawBufferRef()->bufferID();
 	auto sortedIndexData = (uint32_t *) glMapNamedBufferRange(
 			bufferID,
-			((RadixSort*)radixSort_.get())->valueBuffer()->blockReference()->address(),
-			((RadixSort*)radixSort_.get())->valueBuffer()->blockReference()->allocatedSize(),
+			((RadixSort*)radixSort_.get())->valueBuffer()->drawBufferRef()->address(),
+			((RadixSort*)radixSort_.get())->valueBuffer()->drawBufferRef()->allocatedSize(),
 			GL_MAP_READ_BIT);
 	if (sortedIndexData) {
 		uint32_t lastCell = 0;

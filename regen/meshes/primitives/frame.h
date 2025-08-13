@@ -44,10 +44,12 @@ namespace regen {
 			GLboolean isNormalRequired;
 			/** generate tangent attribute ?. */
 			GLboolean isTangentRequired;
-			/** VBO usage hint. */
-			BufferUsage usage;
 			/** size of the frame border. */
 			GLfloat borderSize;
+			/** Buffer usage hints. */
+			ClientAccessMode accessMode = BUFFER_CPU_WRITE;
+			BufferUpdateFlags updateHint = BufferUpdateFlags::NEVER;
+			BufferMapMode mapMode = BUFFER_MAP_DISABLED;
 
 			Config();
 		};

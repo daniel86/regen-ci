@@ -2,7 +2,7 @@
 #define REGEN_BULLET_DEBUG_DRAWER_H
 
 #include <regen/states/state-node.h>
-#include <regen/states/shader-state.h>
+#include "regen/glsl/shader-state.h"
 #include "regen/states/state-configurer.h"
 #include "bullet-physics.h"
 #include <btBulletDynamicsCommon.h>
@@ -14,7 +14,7 @@ namespace regen {
 	 * It will draw the physics world using Bullet's debug drawing.
 	 * The physics world must be set using setDynamicsWorld().
 	 */
-	class BulletDebugDrawer : public btIDebugDraw, public StateNode, public HasShader, public HasInput {
+	class BulletDebugDrawer : public btIDebugDraw, public StateNode, public HasShader {
 	public:
 		explicit BulletDebugDrawer(const ref_ptr<BulletPhysics> &physics);
 

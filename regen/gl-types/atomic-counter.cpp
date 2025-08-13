@@ -4,7 +4,9 @@
 using namespace regen;
 
 AtomicCounter::AtomicCounter() :
-		BufferObjectT(BUFFER_USAGE_DYNAMIC_DRAW) {
+		BufferObjectT(BufferUpdateFlags::FULL_PER_FRAME) {
+	setClientAccessMode(BUFFER_CPU_READ);
+	setBufferMapMode(BUFFER_MAP_TEMPORARY);
 }
 
 BoundingBoxCounter::BoundingBoxCounter() :
@@ -19,8 +21,8 @@ BoundingBoxCounter::BoundingBoxCounter() :
 	initialData_[4] = min_float;
 	initialData_[5] = min_float;
 
-	ref_ = allocBytes(sizeof(initialData_));
-	setBufferData(ref_, initialData_);
+	ref_ = adoptBufferRange(sizeof(initialData_));
+	setBufferData(initialData_, ref_);
 }
 
 Bounds<Vec3f> &BoundingBoxCounter::updateBounds() {

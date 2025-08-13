@@ -1,10 +1,3 @@
-/*
- * input.h
- *
- *  Created on: Nov 3, 2013
- *      Author: daniel
- */
-
 #ifndef REGEN_SCENE_INPUT_H_
 #define REGEN_SCENE_INPUT_H_
 
@@ -37,7 +30,7 @@ namespace regen {
 
 		// Override
 		void animate(GLdouble dt) override {
-			auto mapped = mapClientVertex<float>(ShaderData::READ | ShaderData::WRITE, 0);
+			auto mapped = mapClientVertex<float>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 			mapped.w = mapped.r + static_cast<float>(dt) * timeScale_;
 		}
 
@@ -46,9 +39,9 @@ namespace regen {
 	};
 } // namespace
 
-#include <regen/gl-types/shader-input.h>
+#include "regen/glsl/shader-input.h"
 #include <stack>
-#include "regen/gl-types/ssbo.h"
+#include "regen/buffer/ssbo.h"
 
 namespace regen {
 	namespace scene {
@@ -59,7 +52,7 @@ namespace regen {
 		public:
 			template<class T>
 			static void setInput(SceneInputNode &input, ShaderInput *shaderInput, unsigned int count) {
-				auto v_values = shaderInput->mapClientData<T>(ShaderData::WRITE | ShaderData::READ);
+				auto v_values =  shaderInput->mapClientData<T>(BUFFER_GPU_WRITE);
 				auto default_value = input.getValue<T>("value", T(0));
 				for (unsigned int i = 0; i < count; ++i) {
 					v_values.w[i] = default_value;
@@ -70,16 +63,16 @@ namespace regen {
 						auto blendMode = child->getValue<BlendMode>("blend-mode", BLEND_MODE_SRC);
 						ValueGenerator<T> generator(child.get(), indices.size(),
 													child->getValue<T>("value", T(1)));
-						for (unsigned int & indice : indices) {
+						for (unsigned int & index : indices) {
 							switch (blendMode) {
 								case BLEND_MODE_ADD:
-									v_values.w[indice] = v_values.r[indice] + v_values.w[indice] + generator.next();
+									v_values.w[index] = v_values.r[index] + generator.next();
 									break;
 								case BLEND_MODE_MULTIPLY:
-									v_values.w[indice] = v_values.r[indice] * v_values.w[indice] * generator.next();
+									v_values.w[index] = v_values.r[index] * generator.next();
 									break;
 								default:
-									v_values.w[indice] = generator.next();
+									v_values.w[index] = generator.next();
 									break;
 							}
 						}
@@ -146,7 +139,7 @@ namespace regen {
 			}
 
 			static int getNumInstances(const ref_ptr<Mesh> &mesh) {
-				int num = mesh->inputContainer()->numInstances();
+				int num = mesh->numInstances();
 				std::stack<ref_ptr<State>> stack;
 				stack.emplace(mesh);
 				while (!stack.empty()) {
@@ -155,10 +148,7 @@ namespace regen {
 					for (auto &joined: state->joined()) {
 						stack.push(joined);
 					}
-					auto *hasInput = dynamic_cast<HasInput *>(state.get());
-					if (hasInput != nullptr) {
-						num = std::max(num, hasInput->inputContainer()->numInstances());
-					}
+					num = std::max(num, state->numInstances());
 				}
 				return num;
 			}
@@ -196,6 +186,8 @@ namespace regen {
 					if (in->isVertexAttribute()) {
 						in->setVertexData(in->numVertices(), nullptr);
 						setInput(input, in.get(), in->numVertices());
+					} else if (in->isBufferBlock()) {
+						setInput(input, in.get(), in->numInstances());
 					} else {
 						in->setInstanceData(in->numInstances(), 1, nullptr);
 						setInput(input, in.get(), in->numInstances());
@@ -223,7 +215,7 @@ namespace regen {
 				}
 				else if (input.hasAttribute("ubo")) {
 					auto block = scene->getResource<BufferBlock>(input.getValue("ubo"));
-					if (block.get() == nullptr || !block->isUniformBlock()) {
+					if (block.get() == nullptr || !block->isUBO()) {
 						REGEN_WARN("No UBO found for '" << input.getDescription() << "'.");
 						return {};
 					}
@@ -231,7 +223,7 @@ namespace regen {
 				}
 				else if (input.hasAttribute("ssbo")) {
 					auto block = scene->getResource<BufferBlock>(input.getValue("ubo"));
-					if (block.get() == nullptr || !block->isShaderStorageBlock()) {
+					if (block.get() == nullptr || !block->isSSBO()) {
 						REGEN_WARN("No SSBO found for '" << input.getDescription() << "'.");
 						return {};
 					}
@@ -294,12 +286,10 @@ namespace regen {
 					REGEN_WARN("Failed to create input for " << input.getDescription() << ".");
 					return;
 				}
-
 				ref_ptr<State> s = state;
-				while (!s->joined().empty()) {
-					s = *s->joined().rbegin();
+				if (parent.get()) {
+					parent->state();
 				}
-				auto *x = dynamic_cast<HasInput *>(s.get());
 
 				if (in->name() != input.getValue("name")) {
 					// TODO: there is a problem with renaming of inputs, as state configurer
@@ -309,13 +299,9 @@ namespace regen {
 				}
 
 				if (input.getValue<bool>("join", true)) {
-					if (x == nullptr) {
-						ref_ptr<HasInputState> inputState = ref_ptr<HasInputState>::alloc();
-						inputState->setInput(in, input.getValue("name"));
-						state->joinStates(inputState);
-					} else {
-						x->setInput(in, input.getValue("name"));
-					}
+					s->setInput(in,
+						input.getValue("name"),
+						input.getValue<std::string>("member-suffix", ""));
 				}
 			}
 
@@ -338,9 +324,9 @@ namespace regen {
 				GLuint count = 1;
 				// read the gpu-usage flag
 				if (input.getValue<std::string>("gpu-usage", "READ") == "WRITE") {
-					v->set_gpuUsage(ShaderData::WRITE);
+					v->setServerAccessMode(BUFFER_GPU_WRITE);
 				} else {
-					v->set_gpuUsage(ShaderData::READ);
+					v->setServerAccessMode(BUFFER_GPU_READ);
 				}
 
 				if (isInstanced) {
@@ -355,7 +341,7 @@ namespace regen {
 
 				// Handle Attribute values.
 				if (isInstanced || isAttribute) {
-					auto values = v->mapClientDataRaw(ShaderData::WRITE);
+					auto values = v->mapClientDataRaw(BUFFER_GPU_WRITE);
 					auto typedValues = (T *) values.w;
 					for (GLuint i = 0; i < count; i += 1) typedValues[i] = defaultValue;
 					values.unmap();

@@ -1,17 +1,10 @@
-/*
- * fullscreen-pass.h
- *
- *  Created on: 09.03.2013
- *      Author: daniel
- */
-
-#ifndef FULLSCREEN_PASS_H_
-#define FULLSCREEN_PASS_H_
+#ifndef REGEN_FULLSCREEN_PASS_H_
+#define REGEN_FULLSCREEN_PASS_H_
 
 #include <regen/states/state.h>
 #include <regen/states/state-node.h>
 #include <regen/states/state-configurer.h>
-#include <regen/states/shader-state.h>
+#include "regen/glsl/shader-state.h"
 #include <regen/meshes/primitives/rectangle.h>
 
 namespace regen {
@@ -29,10 +22,20 @@ namespace regen {
 			joinStates(fullscreenMesh_);
 		}
 
+		void setUseIndirectDraw(bool v) { useIndirectDraw_ = v; }
+
 		/**
 		 * @param cfg the shader configuration.
 		 */
 		void createShader(const StateConfig &cfg) override {
+			// replicate each mesh LOD numLayer times for indirect multi-layer rendering
+			if (useIndirectDraw_) {
+				const uint32_t numRenderLayer = cfg.numRenderLayer();
+				if (numRenderLayer > 1) {
+					REGEN_INFO("Using indirect multi-layer fullscreen-pass with " << numRenderLayer << " layers.");
+					fullscreenMesh_->createIndirectDrawBuffer(numRenderLayer);
+				}
+			}
 			shaderState_->createShader(cfg, shaderKey_);
 			fullscreenMesh_->updateVAO(cfg, shaderState_->shader());
 		}
@@ -50,8 +53,13 @@ namespace regen {
 			return fs;
 		}
 
+		const ref_ptr<Mesh>& fullscreenMesh() const {
+			return fullscreenMesh_;
+		}
+
 	protected:
 		ref_ptr<Mesh> fullscreenMesh_;
+		bool useIndirectDraw_ = true;
 	};
 } // namespace
-#endif /* FULLSCREEN_PASS_H_ */
+#endif /* REGEN_FULLSCREEN_PASS_H_ */

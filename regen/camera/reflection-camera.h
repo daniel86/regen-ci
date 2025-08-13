@@ -1,12 +1,5 @@
-/*
- * reflection-camera.h
- *
- *  Created on: Dec 15, 2013
- *      Author: daniel
- */
-
-#ifndef REFLECTION_CAMERA_H_
-#define REFLECTION_CAMERA_H_
+#ifndef REGEN_REFLECTION_CAMERA_H_
+#define REGEN_REFLECTION_CAMERA_H_
 
 #include <regen/camera/camera.h>
 #include <regen/meshes/mesh-state.h>
@@ -27,7 +20,7 @@ namespace regen {
 		ReflectionCamera(
 				const ref_ptr<Camera> &cam,
 				const ref_ptr<Mesh> &mesh,
-				GLuint vertexIndex = 0,
+				uint32_t vertexIndex = 0,
 				bool hasBackFace = GL_FALSE);
 
 		/**
@@ -45,25 +38,25 @@ namespace regen {
 		/**
 		 * Update reflection camera.
 		 */
-		void updateReflection();
+		bool updateReflection();
 
 	protected:
 		ref_ptr<Camera> userCamera_;
 		ref_ptr<ShaderInput> pos_;
 		ref_ptr<ShaderInput> nor_;
 		ref_ptr<ShaderInput> transform_;
-		ref_ptr<ShaderInput4f> clipPlane_;
+
 		ref_ptr<State> cullState_;
 		ref_ptr<Animation> reflectionUpdater_;
 		Vec3f posWorld_;
 		Vec3f norWorld_;
-		GLuint vertexIndex_;
-		GLuint projStamp_;
-		GLuint posStamp_;
-		GLuint norStamp_;
-		GLuint camPosStamp_;
-		GLuint camDirStamp_;
-		GLuint transformStamp_;
+		uint32_t vertexIndex_;
+		uint32_t projStamp_;
+		uint32_t posStamp_;
+		uint32_t norStamp_;
+		uint32_t camPosStamp_;
+		uint32_t camDirStamp_;
+		uint32_t transformStamp_;
 		bool cameraChanged_;
 		bool isReflectorValid_;
 		bool isFront_;
@@ -73,4 +66,4 @@ namespace regen {
 	};
 } // namespace
 
-#endif /* REFLECTION_CAMERA_H_ */
+#endif /* REGEN_REFLECTION_CAMERA_H_ */

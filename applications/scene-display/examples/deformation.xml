@@ -55,7 +55,8 @@
            diffuse="0.48,0.48,0.68"
            specular="0.8, 0.8, 0.8"
            radius="10.0,21.0"
-           cone-angles="11.5,25.5"/>
+           cone-angles="11.5,25.5"
+           update-frequency="NEVER"/>
     <!-- Cameras -->
     <camera id="main-camera" fov="45.0" near="0.1" far="200.0" position="0.25,0.5,-9.0" direction="-0.5,0.0,1.0"/>
     <camera id="spot-camera" light="spot-light" camera="main-camera"/>
@@ -67,9 +68,10 @@
     <!--**************************-->
     <!--**************************-->
 
-    <mesh id="bg-box" type="box" use-normal="1" use-tangent="0" lod="0" usage="STATIC_DRAW"
-          scaling="80.0,80.0,80.0">
-        <material preset="silver"/>
+    <mesh id="bg-box" type="box" use-normal="1" use-tangent="0" lod="0"
+          scaling="80.0,80.0,80.0"
+          update-frequency="NEVER">
+        <material preset="silver" update-frequency="NEVER"/>
     </mesh>
 
     <node id="Scene-Geometry">
@@ -83,19 +85,23 @@
     <!--**************************-->
     <!--**************************-->
 
-    <mesh id="platform" type="box" use-normal="1" use-tangent="0" usage="STATIC_DRAW" lod="0" scaling="1.0,60.0,1.0">
-        <material preset="copper" ambient="0.0, 0.0, 0.0" specular="0.0, 0.0, 0.0"/>
+    <mesh id="platform" type="box" use-normal="1" use-tangent="0" lod="0"
+          scaling="1.0,60.0,1.0"
+          update-frequency="NEVER">
+        <material preset="copper" ambient="0.0, 0.0, 0.0" specular="0.0, 0.0, 0.0" update-frequency="NEVER"/>
     </mesh>
 
     <mesh id="mesh-teapot" type="asset" asset="asset-teapot"
           asset-indices="*" asset-animation="0" asset-material="0"
-          scaling="0.06,0.06,0.06" rotation="0.0,0.0,0.0" translation="0.0,0.0,0.0">
-        <material preset="silver"/>
-        <transform>
+          scaling="0.06,0.06,0.06" rotation="0.0,0.0,0.0" translation="0.0,0.0,0.0"
+          update-frequency="NEVER">
+        <material preset="silver" update-frequency="NEVER"/>
+        <transform update-frequency="NEVER">
             <rotate value="3.14,0.0,0.0"/>
             <translate value="0.0,-0.1,2.25"/>
         </transform>
-        <animation type="deformation" id="teapot-deformation" mesh-id="mesh-teapot" friction="7.9" frequency="5.0" repeat="true">
+        <animation type="deformation" id="teapot-deformation" mesh-id="mesh-teapot" friction="7.9" frequency="5.0"
+                   repeat="true">
             <interpolations>
                 <interpolation target="pos" function="elastic"/>
                 <interpolation target="nor" function="elastic"/>
@@ -111,9 +117,10 @@
 
     <mesh id="mesh-venus" type="asset" asset="asset-venus"
           asset-indices="*" asset-animation="0" asset-material="0"
-          scaling="0.0005,0.0005,0.0005" rotation="0.0,0.0,0.0" translation="0.0,0.0,0.0">
-        <material preset="jade"/>
-        <transform>
+          scaling="0.0005,0.0005,0.0005" rotation="0.0,0.0,0.0" translation="0.0,0.0,0.0"
+          update-frequency="NEVER">
+        <material preset="jade" update-frequency="NEVER"/>
+        <transform update-frequency="NEVER">
             <rotate value="3.14,0.0,0.0"/>
             <translate value="1.75,-0.175,-0.3"/>
         </transform>
@@ -121,13 +128,15 @@
 
     <mesh id="mesh-dragon" type="asset" asset="asset-dragon"
           asset-indices="*" asset-animation="0" asset-material="0"
-          scaling="0.1,0.1,0.1" rotation="0.0,0.0,0.0" translation="0.0,0.0,0.0">
-        <material preset="ruby"/>
-        <transform>
+          scaling="0.1,0.1,0.1" rotation="0.0,0.0,0.0" translation="0.0,0.0,0.0"
+          update-frequency="NEVER">
+        <material preset="ruby" update-frequency="NEVER"/>
+        <transform update-frequency="NEVER">
             <rotate value="3.14,0.0,0.0"/>
             <translate value="-1.5,-0.6,0.0"/>
         </transform>
-        <animation type="deformation" id="dragon-deformation" mesh-id="mesh-dragon" friction="7.9" frequency="1.0" repeat="true">
+        <animation type="deformation" id="dragon-deformation" mesh-id="mesh-dragon" friction="7.9" frequency="1.0"
+                   repeat="true">
             <interpolations>
                 <interpolation target="pos" function="elastic"/>
                 <interpolation target="nor" function="elastic"/>
@@ -141,23 +150,23 @@
 
     <node id="Shadow-Caster">
         <node id="platforms">
-            <material preset="silver"/>
+            <material preset="silver" update-frequency="NEVER"/>
             <node id="platform0">
-                <transform>
+                <transform update-frequency="NEVER">
                     <rotate value="0.0,0.0,0.0"/>
                     <translate value="0.0,-60.6,2.5"/>
                 </transform>
                 <mesh id="platform" shader="regen.models.mesh"/>
             </node>
             <node id="platform1">
-                <transform>
+                <transform update-frequency="NEVER">
                     <rotate value="1.0,0.0,0.0"/>
                     <translate value="1.5,-60.6,0.0"/>
                 </transform>
                 <mesh id="platform" shader="regen.models.mesh"/>
             </node>
             <node id="platform2">
-                <transform>
+                <transform update-frequency="NEVER">
                     <rotate value="-1.0,0.0,0.0"/>
                     <translate value="-1.5,-60.6,0.0"/>
                 </transform>
@@ -186,9 +195,9 @@
     <!--**************************-->
 
     <node id="Shading-Pass">
-        <blend mode="add"/>
         <depth test="0" write="0"/>
         <input type="vec3" name="lightAmbient" value="0.01,0.01,0.01"/>
+        <blend mode="add"/>
 
         <node id="Ambient-Shading">
             <fullscreen-pass shader="regen.shading.deferred.ambient"/>
@@ -196,7 +205,7 @@
         <node id="Light-Shading">
             <input type="float" name="toonThreshold1" value="0.3"/>
             <input type="float" name="toonThreshold2" value="0.6"/>
-            <light-pass type="SPOT" shader="regen.shading.deferred.spot">
+            <light-pass type="SPOT" ambient="0" shader="regen.shading.deferred.spot">
                 <light id="spot-light"
                        shadow-buffer="spot-shadow"
                        shadow-attachment="depth"
@@ -211,7 +220,7 @@
         <input type="float" name="shadowSampleThreshold" value="0.075"/>
         <input type="vec2" name="fogDistance" value="0.0,100.0"/>
         <node>
-            <light-pass type="SPOT"
+            <light-pass type="SPOT" ambient="0"
                         shader="regen.weather.fog.volumetric.spot"
                         use-shadows="1"
                         shadow-filter="NONE">
@@ -235,7 +244,7 @@
         <input type="float" name="shadowSampleThreshold" value="0.075"/>
         <input type="vec2" name="fogDistance" value="0.0,100.0"/>
         <node>
-            <light-pass type="SPOT"
+            <light-pass type="SPOT" ambient="0"
                         shader="regen.weather.fog.volumetric.spot"
                         use-shadows="1"
                         shadow-filter="NONE">
@@ -248,12 +257,6 @@
                 </light>
             </light-pass>
         </node>
-    </node>
-
-    <!--**************************-->
-    <!--**************************-->
-
-    <node id="Background-Pass">
     </node>
 
     <!--**************************-->
@@ -330,22 +333,63 @@
         <define key="SHADING_MODEL" value="TOON"/>
         <node id="Pre-Render">
             <node import="Shadow-Pass"/>
+            <view id="Spot Shadow">
+                <fbo id="SCREEN"/>
+                <texture name="inputTexture" fbo="spot-shadow" attachment="depth"/>
+                <fullscreen-pass shader="regen.filter.sampling.shadow"/>
+            </view>
         </node>
 
         <node id="Render">
-            <fbo id="g-buffer"
-                 clear-buffers="0,1,2,3"
-                 clear-depth="1"/>
             <camera id="main-camera"/>
 
-            <node import="Default-Pipeline"/>
-            <node import="GUI-Pass">
-                <fbo id="g-buffer" draw-buffers="0"/>
+            <node id="Geometry-Pass">
+                <depth test="1" write="1"/>
+                <fbo id="g-buffer"
+                     clear-buffers="0,1,2,3"
+                     clear-depth="1"
+                     draw-buffers="0,1,2,3"/>
+
+                <node import="Shadow-Caster"/>
+                <node import="Scene-Geometry"/>
+                <view id="Scene  Diffuse">
+                    <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
+                </view>
+                <view id="Scene Ambient">
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </view>
+                <view id="Scene Specular">
+                    <blit src-fbo="g-buffer" src-attachment="2" dst-fbo="SCREEN"/>
+                </view>
+                <view id="Scene Normal">
+                    <blit src-fbo="g-buffer" src-attachment="3" dst-fbo="SCREEN"/>
+                </view>
             </node>
 
-            <view id="Scene -- Result">
-                <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
-            </view>
+            <node id="Shading">
+                <node id="Light-Pass">
+                    <fbo id="g-buffer" draw-buffers="1"/>
+                    <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
+                    <texture name="gDiffuseTexture" fbo="g-buffer" attachment="0"/>
+                    <texture name="gSpecularTexture" fbo="g-buffer" attachment="2"/>
+                    <texture name="gNorWorldTexture" fbo="g-buffer" attachment="3"/>
+
+                    <node import="Shading-Pass"/>
+                </node>
+
+                <view id="Scene Shading">
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </view>
+
+                <node import="Post-Pass"/>
+            </node>
         </node>
+        <node import="GUI-Pass">
+            <fbo id="g-buffer" draw-buffers="0"/>
+        </node>
+
+        <view id="Scene Result">
+            <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
+        </view>
     </node>
 </node>

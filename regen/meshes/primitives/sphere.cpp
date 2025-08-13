@@ -1,10 +1,3 @@
-/*
- * Cube.cpp
- *
- *  Created on: 31.08.2011
- *      Author: daniel
- */
-
 #include "../lod/tessellation.h"
 #include "sphere.h"
 
@@ -36,13 +29,15 @@ namespace regen {
 }
 
 Sphere::Sphere(const Config &cfg)
-		: Mesh(GL_TRIANGLES, cfg.usage) {
+		: Mesh(GL_TRIANGLES, cfg.updateHint) {
 	pos_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	nor_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_NOR);
 	texco_ = ref_ptr<ShaderInput2f>::alloc("texco0");
 	tan_ = ref_ptr<ShaderInput4f>::alloc(ATTRIBUTE_NAME_TAN);
 	indices_ = ref_ptr<ShaderInput1ui>::alloc("i");
 	radius_ = 0.5f * cfg.posScale.max();
+	setBufferMapMode(cfg.mapMode);
+	setClientAccessMode(cfg.accessMode);
 	updateAttributes(cfg);
 }
 
@@ -53,8 +48,7 @@ Sphere::Config::Config()
 		  texcoMode(TEXCO_MODE_UV),
 		  isNormalRequired(GL_TRUE),
 		  isTangentRequired(GL_FALSE),
-		  isHalfSphere(GL_FALSE),
-		  usage(BUFFER_USAGE_DYNAMIC_DRAW) {
+		  isHalfSphere(GL_FALSE) {
 }
 
 static Vec3f computeSphereTangent(const Vec3f &v) {
@@ -79,29 +73,29 @@ void pushVertex(
 		GLdouble u,
 		GLdouble v,
 		const Sphere::Config &cfg,
-		ShaderData_rw<Vec3f> &pos,
-		ShaderData_rw<Vec3f> &nor,
-		ShaderData_rw<Vec4f> &tan,
-		ShaderData_rw<Vec2f> &texco) {
+		Vec3f *pos,
+		Vec3f *nor,
+		Vec4f *tan,
+		Vec2f *texco) {
 	GLdouble r = std::sin(M_PI * v);
-	pos.w[vertexIndex] = Vec3f(
+	pos[vertexIndex] = Vec3f(
 			static_cast<float>(r * std::cos(2.0 * M_PI * u)),
 			static_cast<float>(r * std::sin(2.0 * M_PI * u)),
 			static_cast<float>(std::cos(M_PI * v))
 	);
 	if (cfg.isNormalRequired) {
-		nor.w[vertexIndex] = pos.w[vertexIndex];
+		nor[vertexIndex] = pos[vertexIndex];
 	}
 	if (cfg.isTangentRequired) {
-		Vec3f t = computeSphereTangent(pos.w[vertexIndex]);
-		tan.w[vertexIndex] = Vec4f(t.x, t.y, t.z, 1.0);
+		Vec3f t = computeSphereTangent(pos[vertexIndex]);
+		tan[vertexIndex] = Vec4f(t.x, t.y, t.z, 1.0);
 	}
-	if (texco.w) {
-		texco.w[vertexIndex] = Vec2f(
+	if (texco) {
+		texco[vertexIndex] = Vec2f(
 				static_cast<float>(u) * cfg.texcoScale.x,
 				static_cast<float>(v) * cfg.texcoScale.y);
 	}
-	pos.w[vertexIndex] *= cfg.posScale * 0.5;
+	pos[vertexIndex] *= cfg.posScale * 0.5;
 }
 
 void Sphere::generateLODLevel(const Config &cfg,
@@ -109,17 +103,14 @@ void Sphere::generateLODLevel(const Config &cfg,
 							  GLuint vertexOffset,
 							  GLuint indexOffset) {
 	// map client data for writing
-	auto indices = indices_->mapClientData<GLuint>(ShaderData::WRITE);
-	auto v_pos = pos_->mapClientData<Vec3f>(ShaderData::WRITE);
+	auto indices = (GLuint*)indices_->clientBuffer()->clientData(0);
+	auto v_pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
 	auto v_nor = (cfg.isNormalRequired ?
-		nor_->mapClientData<Vec3f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec3f>::nullData());
+				  (Vec3f*) nor_->clientBuffer()->clientData(0) : nullptr);
 	auto v_tan = (cfg.isTangentRequired ?
-		tan_->mapClientData<Vec4f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec4f>::nullData());
+				  (Vec4f*) tan_->clientBuffer()->clientData(0) : nullptr);
 	auto v_texco = (texco_.get() ?
-		texco_->mapClientData<Vec2f>(ShaderData::WRITE) :
-		ShaderData_rw<Vec2f>::nullData());
+					(Vec2f*) texco_->clientBuffer()->clientData(0) : nullptr);
 
 	GLdouble stepSizeInv = 1.0 / (GLdouble) lodLevel;
 	GLuint vertexIndex = vertexOffset, faceIndex = indexOffset / 6;
@@ -135,12 +126,12 @@ void Sphere::generateLODLevel(const Config &cfg,
 
 			// create two triangles for each quad
 			GLuint index = (faceIndex++) * 6;
-			indices.w[index + 0] = vertexIndex + 0;
-			indices.w[index + 1] = vertexIndex + 1;
-			indices.w[index + 2] = vertexIndex + 2;
-			indices.w[index + 3] = vertexIndex + 2;
-			indices.w[index + 4] = vertexIndex + 1;
-			indices.w[index + 5] = vertexIndex + 3;
+			indices[index + 0] = vertexIndex + 0;
+			indices[index + 1] = vertexIndex + 1;
+			indices[index + 2] = vertexIndex + 2;
+			indices[index + 3] = vertexIndex + 2;
+			indices[index + 4] = vertexIndex + 1;
+			indices[index + 5] = vertexIndex + 3;
 
 			// they are made of 4 vertices
 			pushVertex(vertexIndex++, u1, v1, cfg, v_pos, v_nor, v_tan, v_texco);
@@ -200,7 +191,7 @@ void Sphere::updateAttributes(const Config &cfg) {
 						 meshLODs_[i].d->indexOffset);
 	}
 
-	begin(InputContainer::INTERLEAVED);
+	begin(INTERLEAVED);
 	auto indexRef = setIndices(indices_, numVertices);
 	setInput(pos_);
 	if (cfg.isNormalRequired) {
@@ -229,12 +220,14 @@ void Sphere::updateAttributes(const Config &cfg) {
 SphereSprite::Config::Config()
 		: radius(nullptr),
 		  position(nullptr),
-		  sphereCount(0),
-		  usage(BUFFER_USAGE_DYNAMIC_DRAW) {
+		  sphereCount(0) {
 }
 
 SphereSprite::SphereSprite(const Config &cfg)
-		: Mesh(GL_POINTS, cfg.usage), HasShader("regen.models.sprite-sphere") {
+		: Mesh(GL_POINTS, cfg.updateHint),
+		  HasShader("regen.models.sprite-sphere") {
+	setBufferMapMode(cfg.mapMode);
+	setClientAccessMode(cfg.accessMode);
 	updateAttributes(cfg);
 	joinStates(shaderState());
 }
@@ -242,11 +235,11 @@ SphereSprite::SphereSprite(const Config &cfg)
 void SphereSprite::updateAttributes(const Config &cfg) {
 	ref_ptr<ShaderInput1f> radiusIn = ref_ptr<ShaderInput1f>::alloc("sphereRadius");
 	radiusIn->setVertexData(cfg.sphereCount);
-	auto mappedRadius = radiusIn->mapClientData<float>(ShaderData::WRITE);
+	auto mappedRadius = radiusIn->mapClientData<float>(BUFFER_GPU_WRITE);
 
 	ref_ptr<ShaderInput3f> positionIn = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	positionIn->setVertexData(cfg.sphereCount);
-	auto mappedPosition = positionIn->mapClientData<Vec3f>(ShaderData::WRITE);
+	auto mappedPosition = positionIn->mapClientData<Vec3f>(BUFFER_GPU_WRITE);
 
 	minPosition_ = Vec3f(999999.0f);
 	maxPosition_ = Vec3f(-999999.0f);
@@ -264,7 +257,7 @@ void SphereSprite::updateAttributes(const Config &cfg) {
 	mappedRadius.unmap();
 	mappedPosition.unmap();
 
-	begin(InputContainer::INTERLEAVED);
+	begin(INTERLEAVED);
 	setInput(radiusIn);
 	setInput(positionIn);
 	end();
