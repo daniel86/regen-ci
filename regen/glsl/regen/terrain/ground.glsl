@@ -248,9 +248,10 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
 #for MAT_I to NUM_MATERIALS
     weightSum += weights_${MAT_I};
 #endfor
+    weightSum = max(weightSum, 0.001); // avoid division by zero
     // normalize weights
 #for MAT_I to NUM_MATERIALS
-    weights_${MAT_I} /= max(weightSum, 0.001);
+    weights_${MAT_I} /= weightSum;
 #endfor
 
     // compute factors for triplanar blending
@@ -271,28 +272,38 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
     vec2 xz, yz, xy;
 #ifdef HAS_noiseTexture
     float noiseVal = texture(in_noiseTexture, worldPos.xz * in_noiseScale).r;
-    vec2 noiseOffset;
-    #for MAT_I to NUM_MATERIALS
-    #define2 MAT_K ${GROUND_MATERIAL_${MAT_I}}
-    #define2 UV_SCALE ${${MAT_K}_MATERIAL_UV_SCALE}
     // TODO: make this configurable
-    //noiseOffset = noiseOffset[matIndex];
-    noiseOffset = vec2(0.1, 0.15);
-    xz = (worldPos.xz + noiseVal * noiseOffset) * ${UV_SCALE};
-    yz = (worldPos.yz + noiseVal * noiseOffset) * ${UV_SCALE};
-    xy = (worldPos.xy + noiseVal * noiseOffset) * ${UV_SCALE};
-    color      += weights_${MAT_I} * materialAlbedo(${MAT_I}, blending, xz, yz, xy);
-    blendedNor += weights_${MAT_I} * materialNormal(${MAT_I}, blending, xz, yz, xy);
+    //vec2 noiseOffset = noiseOffset[matIndex];
+    vec2 noiseOffset = noiseVal * vec2(0.1, 0.15);
+    vec2 noiseOffsetXZ = (worldPos.xz + noiseOffset);
+    vec2 noiseOffsetYZ = (worldPos.yz + noiseOffset);
+    vec2 noiseOffsetXY = (worldPos.xy + noiseOffset);
+    #for MAT_I to NUM_MATERIALS
+        #define2 MAT_K ${GROUND_MATERIAL_${MAT_I}}
+        #define2 UV_SCALE ${${MAT_K}_MATERIAL_UV_SCALE}
+    xz = noiseOffsetXZ * ${UV_SCALE};
+    yz = noiseOffsetYZ * ${UV_SCALE};
+    xy = noiseOffsetXY * ${UV_SCALE};
+    color += weights_${MAT_I} * materialAlbedo(${MAT_I}, blending, xz, yz, xy);
+        #ifdef ${${MAT_K}_MATERIAL_HAS_NORMAL}
+    blendedNor += weights_${MAT_I} * materialNormal(${${MAT_K}_MATERIAL_NORMAL_IDX}, blending, xz, yz, xy);
+        #else
+    blendedNor += weights_${MAT_I} * vec3(0.0, 0.0, 1.0); // TBN up vector
+        #endif
     #endfor
 #else
     #for MAT_I to NUM_MATERIALS
-    #define2 MAT_K ${GROUND_MATERIAL_${MAT_I}}
-    #define2 UV_SCALE ${${MAT_K}_MATERIAL_UV_SCALE}
+        #define2 MAT_K ${GROUND_MATERIAL_${MAT_I}}
+        #define2 UV_SCALE ${${MAT_K}_MATERIAL_UV_SCALE}
     xz = worldPos.xz * ${UV_SCALE};
     yz = worldPos.yz * ${UV_SCALE};
     xy = worldPos.xy * ${UV_SCALE};
-    color      += weights_${MAT_I} * materialAlbedo(${MAT_I}, blending, xz, yz, xy);
-    blendedNor += weights_${MAT_I} * materialNormal(${MAT_I}, blending, xz, yz, xy);
+    color += weights_${MAT_I} * materialAlbedo(${MAT_I}, blending, xz, yz, xy);
+        #ifdef ${${MAT_K}_MATERIAL_HAS_NORMAL}
+    blendedNor += weights_${MAT_I} * materialNormal(${${MAT_K}_MATERIAL_NORMAL_IDX}, blending, xz, yz, xy);
+        #else
+    blendedNor += weights_${MAT_I} * vec3(0.0, 0.0, 1.0); // TBN up vector
+        #endif
     #endfor
 #endif
 
