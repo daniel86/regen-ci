@@ -317,7 +317,7 @@ void Ground::createWeightPass() {
 	auto fbo = ref_ptr<FBO>::alloc(weightMapSize_, weightMapSize_);
 	for (uint32_t i=0; i<numWeightMaps; ++i) {
 		auto tex = fbo->addTexture(1,
-				GL_TEXTURE_2D, GL_RGBA, GL_RGBA16F, GL_FLOAT);
+				GL_TEXTURE_2D, GL_RGBA, GL_RGBA8, GL_UNSIGNED_BYTE);
 		weightMaps_[i] = ref_ptr<Texture2D>::dynamicCast(tex);
 		attachments[i] = GL_COLOR_ATTACHMENT0 + i;
 		if (useWeightMapMips_) {
