@@ -393,27 +393,25 @@ namespace regen {
 		 */
 		template<class T>
 		T sampleLinear(const Vec2f &uv, const GLubyte *textureData) const {
-			auto w = static_cast<float>(width());
-			auto h = static_cast<float>(height());
-			float x = uv.x * w;
-			float y = uv.y * h;
-			float x0 = std::floor(x);
-			float y0 = std::floor(y);
-			auto i_x0 = static_cast<uint32_t>(x0);
-			auto i_y0 = static_cast<uint32_t>(y0);
-			uint32_t i_x1 = std::min(i_x0 + 1, width() - 1);
-			uint32_t i_y1 = std::min(i_y0 + 1, height() - 1);
+			const auto i_w = static_cast<int32_t>(width());
+			const auto i_h = static_cast<int32_t>(height());
+			const float f_x = uv.x * static_cast<float>(i_w);
+			const float f_y = uv.y * static_cast<float>(i_h);
+			const auto i_x0 = static_cast<int32_t>(f_x);
+			const auto i_y0 = static_cast<int32_t>(f_y);
+			const int32_t i_x1 = std::min(i_x0 + 1, i_w - 1);
+			const int32_t i_y1 = std::min(i_y0 + 1, i_h - 1);
 
-			T v00 = sampleNearest<T>(Vec2ui(i_x0, i_y0), textureData);
-			T v01 = sampleNearest<T>(Vec2ui(i_x0, i_y1), textureData);
-			T v10 = sampleNearest<T>(Vec2ui(i_x1, i_y0), textureData);
-			T v11 = sampleNearest<T>(Vec2ui(i_x1, i_y1), textureData);
+			const T v00 = sampleNearest<T>(Vec2ui(i_x0, i_y0), textureData);
+			const T v01 = sampleNearest<T>(Vec2ui(i_x0, i_y1), textureData);
+			const T v10 = sampleNearest<T>(Vec2ui(i_x1, i_y0), textureData);
+			const T v11 = sampleNearest<T>(Vec2ui(i_x1, i_y1), textureData);
 
-			auto dx = x - x0;
-			auto dy = y - y0;
-			T v0 = v00 * (1.0f - dx) + v10 * dx;
-			T v1 = v01 * (1.0f - dx) + v11 * dx;
-			return v0 * (1.0f - dy) + v1 * dy;
+			const float dx = f_x - static_cast<float>(i_x0);
+			const float dy = f_y - static_cast<float>(i_y0);
+			return
+				(v00 * (1.0f - dx) + v10 * dx) * (1.0f - dy) +
+				(v01 * (1.0f - dx) + v11 * dx) * dy;
 		}
 
 		static void configure(ref_ptr<Texture> &tex, scene::SceneInputNode &input);
