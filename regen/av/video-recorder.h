@@ -42,12 +42,12 @@ namespace regen {
 		 * \brief Sets the filename to save the video to.
 		 * @param filename the filename.
 		 */
-		void setFilename(const std::string &filename) { filename_ = filename; }
+		void setFilename(std::string_view filename) { filename_ = filename; }
 
 		/**
 		 * @return the filename to save the video to.
 		 */
-		auto &filename() const { return filename_; }
+		const std::string &filename() const { return filename_; }
 
 		/**
 		 * \brief Sets the frames per second for the video.

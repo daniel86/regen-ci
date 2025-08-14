@@ -502,9 +502,9 @@ int getHiddenFacesMask(scene::SceneInputNode &input) {
 		auto val = input.getValue<std::string>("hide-faces", "");
 		std::vector<std::string> faces;
 		boost::split(faces, val, boost::is_any_of(","));
-		for (auto it = faces.begin(); it != faces.end(); ++it) {
+		for (auto & it : faces) {
 			CubeCamera::Face face;
-			std::stringstream(*it) >> face;
+			std::stringstream(it) >> face;
 			hiddenFacesMask |= face;
 		}
 	}

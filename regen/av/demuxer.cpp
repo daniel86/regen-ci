@@ -11,7 +11,7 @@
 
 using namespace regen;
 
-GLboolean Demuxer::initialled_ = GL_FALSE;
+bool Demuxer::initialled_ = false;
 
 static void avLogCallback(void *, int level, const char *msg, va_list args) {
 	char buffer[256];
@@ -33,30 +33,30 @@ static void avLogCallback(void *, int level, const char *msg, va_list args) {
 void Demuxer::initAVLibrary() {
 	if (!initialled_) {
 		av_log_set_callback(avLogCallback);
-		initialled_ = GL_TRUE;
+		initialled_ = true;
 	}
 }
 
-Demuxer::Demuxer(const std::string &file)
+Demuxer::Demuxer(std::string_view file)
 		: formatCtx_(nullptr),
-		  pauseFlag_(GL_TRUE),
-		  repeatStream_(GL_FALSE) {
+		  pauseFlag_(true),
+		  repeatStream_(false) {
 	initAVLibrary();
 
-	seeked_ = GL_FALSE;
-	seek_.isRequired = GL_FALSE;
+	seeked_ = false;
+	seek_.isRequired = false;
 
 	set_file(file);
 }
 
 Demuxer::Demuxer()
 		: formatCtx_(nullptr),
-		  pauseFlag_(GL_TRUE),
-		  repeatStream_(GL_FALSE) {
+		  pauseFlag_(true),
+		  repeatStream_(false) {
 	initAVLibrary();
 
-	seeked_ = GL_FALSE;
-	seek_.isRequired = GL_FALSE;
+	seeked_ = false;
+	seek_.isRequired = false;
 }
 
 Demuxer::~Demuxer() {
@@ -68,29 +68,29 @@ void Demuxer::set_repeat(GLboolean repeat) {
 	repeatStream_ = repeat;
 }
 
-GLboolean Demuxer::repeat() const {
+bool Demuxer::repeat() const {
 	return repeatStream_;
 }
 
-GLfloat Demuxer::totalSeconds() const {
-	return formatCtx_ ? (formatCtx_->duration / (GLdouble) AV_TIME_BASE) : 0.0f;
+float Demuxer::totalSeconds() const {
+	return formatCtx_ ? (formatCtx_->duration / (double) AV_TIME_BASE) : 0.0f;
 }
 
-GLboolean Demuxer::isPlaying() const {
+bool Demuxer::isPlaying() const {
 	return !pauseFlag_;
 }
 
-GLboolean Demuxer::hasInput() const {
+bool Demuxer::hasInput() const {
 	return formatCtx_ != nullptr;
 }
 
-void Demuxer::set_file(const std::string &file) {
+void Demuxer::set_file(std::string_view file) {
 	// (re)open file
 	if (formatCtx_) {
 		avformat_close_input(&formatCtx_);
 		formatCtx_ = nullptr;
 	}
-	if (avformat_open_input(&formatCtx_, file.c_str(), nullptr, nullptr) != 0) {
+	if (avformat_open_input(&formatCtx_, file.data(), nullptr, nullptr) != 0) {
 		throw Error(REGEN_STRING("Couldn't open file " << file));
 	}
 
@@ -119,11 +119,11 @@ void Demuxer::set_file(const std::string &file) {
 }
 
 void Demuxer::play() {
-	pauseFlag_ = GL_FALSE;
+	pauseFlag_ = false;
 }
 
 void Demuxer::pause() {
-	pauseFlag_ = GL_TRUE;
+	pauseFlag_ = true;
 	if (audioStream_.get()) {
 		audioStream_->pause();
 	}
@@ -160,7 +160,7 @@ void Demuxer::setInactive() {
 void Demuxer::seekTo(GLdouble p) {
 	if (!formatCtx_) { return; }
 	p = std::max(0.0, std::min(1.0, p));
-	seek_.isRequired = GL_TRUE;
+	seek_.isRequired = true;
 	seek_.flags &= ~AVSEEK_FLAG_BYTE;
 	seek_.rel = 0;
 	seek_.pos = p * formatCtx_->duration;
@@ -169,11 +169,11 @@ void Demuxer::seekTo(GLdouble p) {
 	}
 }
 
-GLboolean Demuxer::decode() {
+bool Demuxer::decode() {
 	AVPacket packet;
 
 	SeekPosition seek = seek_;
-	seek_.isRequired = GL_FALSE;
+	seek_.isRequired = false;
 	if (seek.isRequired) {
 		int64_t seek_min = seek.rel > 0 ? seek.pos - seek.rel + 2 : INT64_MIN;
 		int64_t seek_max = seek.rel < 0 ? seek.pos - seek.rel - 2 : INT64_MAX;
@@ -184,10 +184,10 @@ GLboolean Demuxer::decode() {
 			REGEN_ERROR("seeking failed");
 		} else {
 			clearQueue();
-			seeked_ = GL_TRUE;
+			seeked_ = true;
 		}
 	} else if (pauseFlag_) {
-		return GL_TRUE;
+		return true;
 	}
 
 	if (av_read_frame(formatCtx_, &packet) < 0) {
@@ -195,10 +195,10 @@ GLboolean Demuxer::decode() {
 		if (repeatStream_) {
 			seekTo(0.0);
 			av_packet_unref(&packet);
-			return GL_FALSE;
+			return false;
 		} else {
 			stop();
-			return GL_TRUE;
+			return true;
 		}
 	}
 
@@ -212,5 +212,5 @@ GLboolean Demuxer::decode() {
 		av_packet_unref(&packet);
 	}
 
-	return GL_FALSE;
+	return false;
 }

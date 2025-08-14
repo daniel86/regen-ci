@@ -1,12 +1,5 @@
-/*
- * demuxer.h
- *
- *  Created on: 10.04.2012
- *      Author: daniel
- */
-
-#ifndef DEMUXER_H_
-#define DEMUXER_H_
+#ifndef REGEN_DEMUXER_H_
+#define REGEN_DEMUXER_H_
 
 #include <regen/av/audio.h>
 #include <regen/av/video-stream.h>
@@ -42,34 +35,34 @@ namespace regen {
 		/**
 		 * @param file Stream file at given path.
 		 */
-		explicit Demuxer(const std::string &file);
+		explicit Demuxer(std::string_view file);
 
 		~Demuxer();
 
 		/**
 		 * Stream file at given path.
 		 */
-		void set_file(const std::string &file);
+		void set_file(std::string_view file);
 
 		/**
 		 * Is the stream currently decoding ?
 		 */
-		GLboolean isPlaying() const;
+		bool isPlaying() const;
 
 		/**
 		 * @return true if the demuxer has an attached input file.
 		 */
-		GLboolean hasInput() const;
+		bool hasInput() const;
 
 		/**
 		 * Total number of seconds elapsed in the stream.
 		 */
-		GLfloat elapsedSeconds() const;
+		float elapsedSeconds() const;
 
 		/**
 		 * Total number of seconds of currently loaded stream.
 		 */
-		GLfloat totalSeconds() const;
+		float totalSeconds() const;
 
 		/**
 		 * Repeat video of end position reached ?
@@ -79,7 +72,7 @@ namespace regen {
 		/**
 		 * Repeat video of end position reached ?
 		 */
-		GLboolean repeat() const;
+		bool repeat() const;
 
 		/**
 		 * Toggles between play and pause.
@@ -112,7 +105,7 @@ namespace regen {
 		/**
 		 * Decodes a single av packet.
 		 */
-		GLboolean decode();
+		bool decode();
 
 		/**
 		 * Seek to given position [0,1]
@@ -135,13 +128,13 @@ namespace regen {
 		ref_ptr<VideoStream> videoStream_;
 		ref_ptr<AudioSource> audioStream_;
 
-		GLboolean pauseFlag_;
-		GLboolean repeatStream_;
+		bool pauseFlag_;
+		bool repeatStream_;
 
-		GLint videoStreamIndex_;
-		GLint audioStreamIndex_;
+		int videoStreamIndex_;
+		int audioStreamIndex_;
 
-		//GLfloat elapsedSeconds_;
+		//float elapsedSeconds_;
 
 		struct SeekPosition {
 			bool isRequired;
@@ -149,13 +142,13 @@ namespace regen {
 			int64_t pos;
 			int64_t rel;
 		} seek_;
-		GLboolean seeked_;
+		bool seeked_;
 
 		void clearQueue();
 
 	private:
-		static GLboolean initialled_;
+		static bool initialled_;
 	};
 } // namespace
 
-#endif /* DEMUXER_H_ */
+#endif /* REGEN_DEMUXER_H_ */

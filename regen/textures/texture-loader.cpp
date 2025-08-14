@@ -69,7 +69,7 @@ static GLenum convertImage(GLenum format, GLenum type) {
 	return dstFormat;
 }
 
-GLuint textures::loadImage(const std::string &file) {
+uint32_t textures::loadImage(std::string_view file) {
 	static GLboolean devilInitialized_ = GL_FALSE;
 	if (!devilInitialized_) {
 		ilInit();
@@ -84,7 +84,7 @@ GLuint textures::loadImage(const std::string &file) {
 	GLuint ilID;
 	ilGenImages(1, &ilID);
 	ilBindImage(ilID);
-	if (ilLoadImage(file.c_str()) == IL_FALSE) {
+	if (ilLoadImage(file.data()) == IL_FALSE) {
 		throw Error("ilLoadImage failed");
 	}
 
@@ -119,7 +119,7 @@ void unsetData(GLuint ilID, const ref_ptr<Texture> &tex, bool keepData) {
 	ilDeleteImages(1, &ilID);
 }
 
-void textures::reload(const ref_ptr<Texture> &tex, const std::string &file) {
+void textures::reload(const ref_ptr<Texture> &tex, std::string_view file) {
 	bool keepData = false;
 	unsigned int textureDepth = 1;
 	if (tex->textureBind().target_ == GL_TEXTURE_3D) {
@@ -166,7 +166,7 @@ void textures::reload(const ref_ptr<Texture> &tex, const std::string &file) {
 }
 
 ref_ptr<Texture> textures::load(
-		const std::string &file,
+		std::string_view file,
 		bool useMipmaps,
 		GLenum forcedInternalFormat,
 		GLenum forcedFormat,
@@ -344,7 +344,7 @@ ref_ptr<Texture2DArray> textures::loadArray(
 }
 
 ref_ptr<TextureCube> textures::loadCube(
-		const std::string &file,
+		std::string_view file,
 		bool flipBackFace,
 		bool useMipmaps,
 		GLenum forcedInternalFormat,

@@ -347,7 +347,7 @@ unsigned int Texture::texelIndex(const Vec2f &texco) const {
 	return (y * w + x);
 }
 
-void Texture::set_textureFile(const std::string &fileName) {
+void Texture::set_textureFile(std::string_view fileName) {
 	if (fileName.empty()) {
 		textureFile_.reset();
 	} else {
@@ -355,7 +355,7 @@ void Texture::set_textureFile(const std::string &fileName) {
 	}
 }
 
-void Texture::set_textureFile(const std::string &directory, const std::string &namePattern) {
+void Texture::set_textureFile(std::string_view directory, std::string_view namePattern) {
 	if (directory.empty() || namePattern.empty()) {
 		textureFile_.reset();
 	} else {

@@ -1,12 +1,5 @@
-/*
- * texture-loader.h
- *
- *  Created on: 21.12.2012
- *      Author: daniel
- */
-
-#ifndef TEXTURE_LOADER_H_
-#define TEXTURE_LOADER_H_
+#ifndef REGEN_TEXTURE_LOADER_H_
+#define REGEN_TEXTURE_LOADER_H_
 
 #include <stdexcept>
 
@@ -27,7 +20,7 @@ namespace regen {
 			explicit Error(const std::string &message) : std::runtime_error(message) {}
 		};
 
-		GLuint loadImage(const std::string &file);
+		uint32_t loadImage(std::string_view file);
 
 		/**
 		 * Load a Texture from file. Guess if it is a Texture2D or Texture3D.
@@ -36,7 +29,7 @@ namespace regen {
 		 * Setup mipmapping after loading the file.
 		 */
 		ref_ptr<Texture> load(
-				const std::string &file,
+				std::string_view file,
 				bool useMipmaps = false,
 				GLenum forcedInternalFormat = GL_NONE,
 				GLenum forcedFormat = GL_NONE,
@@ -48,7 +41,7 @@ namespace regen {
 		 * @param tex the Texture to update.
 		 * @param file the file to load.
 		 */
-		void reload(const ref_ptr<Texture> &tex, const std::string &file);
+		void reload(const ref_ptr<Texture> &tex, std::string_view file);
 
 		/**
 		 * Load a Texture from RAW data. Guess if it is a Texture2D or Texture3D.
@@ -57,8 +50,8 @@ namespace regen {
 		 * Setup mipmapping after loading the file.
 		 */
 		ref_ptr<Texture> load(
-				GLuint textureType,
-				GLuint numBytes,
+				uint32_t textureType,
+				uint32_t numBytes,
 				const void *rawData,
 				bool useMipmaps = false,
 				GLenum forcedInternalFormat = GL_NONE,
@@ -101,8 +94,8 @@ namespace regen {
 		 * Setup mipmapping after loading the file.
 		 */
 		ref_ptr<TextureCube> loadCube(
-				const std::string &file,
-				bool flipBackFace = GL_FALSE,
+				std::string_view file,
+				bool flipBackFace = false,
 				bool useMipmaps = false,
 				GLenum forcedInternalFormat = GL_NONE,
 				GLenum forcedFormat = GL_NONE,
@@ -114,18 +107,18 @@ namespace regen {
 		ref_ptr<Texture> loadRAW(
 				const std::string &path,
 				const Vec3ui &size,
-				GLuint numComponents,
-				GLuint bytesPerComponent);
+				uint32_t numComponents,
+				uint32_t bytesPerComponent);
 
 		/**
 		 * 1D texture that contains a color spectrum.
 		 */
 		ref_ptr<Texture> loadSpectrum(
-				GLdouble t1,
-				GLdouble t2,
-				GLint numTexels,
-				GLenum mimpmapFlag = GL_DONT_CARE);
-	};
+				double t1,
+				double t2,
+				int numTexels,
+				GLenum mipmapFlag = GL_DONT_CARE);
+	}
 } // namespace
 
-#endif /* TEXTURE_LOADER_H_ */
+#endif /* REGEN_TEXTURE_LOADER_H_ */
