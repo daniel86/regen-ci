@@ -70,7 +70,7 @@ namespace regen {
 		/**
 		 * @param shaderKey the shader include key
 		 */
-		explicit HasShader(const std::string &shaderKey)
+		explicit HasShader(std::string_view shaderKey)
 				: shaderKey_(shaderKey) { shaderState_ = ref_ptr<ShaderState>::alloc(); }
 
 		virtual ~HasShader() = default;

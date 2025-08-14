@@ -13,7 +13,7 @@
 using namespace regen;
 using namespace osgHimmel;
 
-Moon::Moon(const ref_ptr<Sky> &sky, const std::string &moonMapFile)
+Moon::Moon(const ref_ptr<Sky> &sky, std::string_view moonMapFile)
 		: SkyLayer(sky) {
 	state()->joinStates(ref_ptr<BlendFuncState>::alloc(
 			GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
@@ -47,7 +47,7 @@ Moon::Moon(const ref_ptr<Sky> &sky, const std::string &moonMapFile)
 	meshState_ = ref_ptr<Rectangle>::alloc(sky->skyQuad());
 }
 
-void Moon::setupMoonTextureCube(const std::string &moonMapFile) {
+void Moon::setupMoonTextureCube(std::string_view moonMapFile) {
 	ref_ptr<TextureCube> texture = textures::loadCube(moonMapFile, false, true);
 	state()->joinStates(ref_ptr<TextureState>::alloc(texture, "moonmapCube"));
 }

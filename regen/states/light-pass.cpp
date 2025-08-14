@@ -7,7 +7,7 @@
 
 using namespace regen;
 
-LightPass::LightPass(Light::Type type, const std::string &shaderKey)
+LightPass::LightPass(Light::Type type, std::string_view shaderKey)
 		: State(), lightType_(type), shaderKey_(shaderKey) {
 	switch (lightType_) {
 		case Light::DIRECTIONAL:
@@ -97,11 +97,11 @@ void LightPass::removeLight(Light *l) {
 	lights_.erase(lightIterators_[l]);
 }
 
-GLboolean LightPass::empty() const {
+bool LightPass::empty() const {
 	return lights_.empty();
 }
 
-GLboolean LightPass::hasLight(Light *l) const {
+bool LightPass::hasLight(Light *l) const {
 	return lightIterators_.count(l) > 0;
 }
 

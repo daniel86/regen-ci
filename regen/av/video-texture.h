@@ -1,12 +1,5 @@
-/*
- * video-texture.h
- *
- *  Created on: 08.04.2012
- *      Author: daniel
- */
-
-#ifndef VIDEO_TEXTURE_H_
-#define VIDEO_TEXTURE_H_
+#ifndef REGEN_VIDEO_TEXTURE_H_
+#define REGEN_VIDEO_TEXTURE_H_
 
 #include <boost/thread/thread.hpp>
 #include <boost/thread/mutex.hpp>
@@ -48,7 +41,7 @@ namespace regen {
 		/**
 		 * Stream file at given path.
 		 */
-		void set_file(const std::string &file);
+		void set_file(std::string_view file);
 
 		/**
 		 * Toggles between play and pause.
@@ -78,17 +71,17 @@ namespace regen {
 		/**
 		 * Seek to given position [0,1]
 		 */
-		void seekTo(GLdouble p);
+		void seekTo(double p);
 
 		/**
 		 * Seek forward given amount of seconds.
 		 */
-		void seekForward(GLdouble seconds);
+		void seekForward(double seconds);
 
 		/**
 		 * Seek backward given amount of seconds.
 		 */
-		void seekBackward(GLdouble seconds);
+		void seekBackward(double seconds);
 
 		/**
 		 * @return the demuxer used for decoding packets.
@@ -111,18 +104,18 @@ namespace regen {
 		boost::thread decodingThread_;
 		boost::mutex decodingLock_;
 		boost::mutex textureUpdateLock_;
-		GLboolean closeFlag_;
-		GLboolean seeked_;
-		GLboolean fileToLoaded_;
+		bool closeFlag_;
+		bool seeked_;
+		bool fileToLoaded_;
 
-		GLfloat elapsedSeconds_;
+		float elapsedSeconds_;
 
 		ref_ptr<VideoStream> vs_;
 		ref_ptr<AudioSource> as_;
-		GLdouble idleInterval_;
-		GLdouble interval_;
-		GLdouble dt_;
-		boost::int64_t intervalMili_;
+		double idleInterval_;
+		double interval_;
+		double dt_;
+		int64_t intervalMili_;
 		AVFrame *lastFrame_;
 
 		void decode();
@@ -131,4 +124,4 @@ namespace regen {
 	};
 } // namespace
 
-#endif /* VIDEO_TEXTURE_H_ */
+#endif /* REGEN_VIDEO_TEXTURE_H_ */

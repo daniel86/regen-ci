@@ -6,10 +6,10 @@
 
 namespace regen {
 	struct TextureFile {
-		TextureFile(std::string filePath, std::string fileName)
-				: filePath(std::move(filePath)), fileName(std::move(fileName)) {}
-		explicit TextureFile(std::string fileName)
-				: fileName(std::move(fileName)) {}
+		TextureFile(std::string_view filePath, std::string_view fileName)
+				: filePath(filePath), fileName(fileName) {}
+		explicit TextureFile(std::string_view fileName)
+				: fileName(fileName) {}
 		std::string filePath;
 		std::string fileName;
 	};

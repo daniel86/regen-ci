@@ -96,7 +96,7 @@ void VideoTexture::stopDecodingThread() {
 	decodingThread_.join();
 }
 
-void VideoTexture::set_file(const std::string &file) {
+void VideoTexture::set_file(std::string_view file) {
 	// exit decoding thread
 	stopDecodingThread();
 
@@ -109,10 +109,10 @@ void VideoTexture::set_file(const std::string &file) {
 		set_format(vs_->texFormat());
 		set_pixelType(vs_->texPixelType());
 	}
-	fileToLoaded_ = GL_TRUE;
+	fileToLoaded_ = true;
 
 	// start decoding
-	closeFlag_ = GL_FALSE;
+	closeFlag_ = false;
 	decodingThread_ = boost::thread(&VideoTexture::decode, this);
 }
 

@@ -13,9 +13,9 @@ namespace regen {
 	 */
 	class StarMap : public SkyLayer {
 	public:
-		explicit StarMap(const ref_ptr<Sky> &sky, GLint levelOfDetail = 4);
+		explicit StarMap(const ref_ptr<Sky> &sky, int levelOfDetail = 4);
 
-		void set_texture(const std::string &textureFile);
+		void set_texture(std::string_view textureFile);
 
 		void set_apparentMagnitude(float apparentMagnitude);
 
