@@ -30,6 +30,7 @@ void groundHeightBlend(in vec3 offset, inout vec3 P, float one) {
         //      - also I had the feeling that this still looks wrong in some cases, better to investigate again.
         // sample the normal map
         vec3 nor = normalize((texture(in_normalMap, groundUV(P)).xzy * 2.0) - 1.0);
+        //vec3 nor = vec3(0.0, 1.0, 0.0);
         // translate back to original vertex, and
         // offset the vertex position in opposite direction of the normal
         P += nor * in_skirtSize - vec3(0.0, in_skirtSize, 0.0);
@@ -78,9 +79,8 @@ void main() {
 
 -- weights.fs
 #include regen.defines.all
-#for W_I to NUM_WEIGHT_MAPS
-layout(location = ${W_I}) out vec4 out_weights_${W_I};
-#endfor
+layout(location = 0) out vec4 out_weights;
+layout(location = 1) out uvec4 out_indices;
 in vec2 in_groundUV;
 
 float material_weight0(float minVal, float maxVal, float smoothStep, float val) {
@@ -94,12 +94,56 @@ float material_weight2(float minVal, float maxVal, float smoothStep, float val) 
         (1.0 - smoothstep(maxVal-smoothStep, maxVal, val));
 }
 
+struct TopEntry {
+    float w;
+    uint idx;
+};
+TopEntry TopEntry_ctor(float w, uint idx) {
+    TopEntry t;
+    t.w=w;
+    t.idx=idx;
+    return t;
+}
+void insertTopN(in float w, in uint idx, inout TopEntry best[MAX_NUM_BLENDED_MATERIALS]) {
+    if (w > best[0].w) {
+#if ${MAX_NUM_BLENDED_MATERIALS} >= 4
+        best[3] = best[2];
+#endif
+#if ${MAX_NUM_BLENDED_MATERIALS} >= 3
+        best[2] = best[1];
+#endif
+        best[1] = best[0];
+        best[0] = TopEntry_ctor(w, idx);
+    }
+    else if (w > best[1].w) {
+#if ${MAX_NUM_BLENDED_MATERIALS} >= 4
+        best[3] = best[2];
+#endif
+#if ${MAX_NUM_BLENDED_MATERIALS} >= 3
+        best[2] = best[1];
+#endif
+        best[1] = TopEntry_ctor(w, idx);
+    }
+#if ${MAX_NUM_BLENDED_MATERIALS} >= 3
+    else if (w > best[2].w) {
+#if ${MAX_NUM_BLENDED_MATERIALS} >= 4
+        best[3] = best[2];
+#endif
+        best[2] = TopEntry_ctor(w, idx);
+    }
+#endif
+#if ${MAX_NUM_BLENDED_MATERIALS} >= 4
+    else if (w > best[3].w) {
+        best[3] = TopEntry_ctor(w, idx);
+    }
+#endif
+}
+
 void main() {
     float heightNorm = texture(in_heightMap, in_groundUV).r;
     // compute slope from normal map
     vec3 nor = normalize((texture(in_normalMap, in_groundUV).xzy * 2.0) - 1.0);
     float slope = acos(nor.y); // = acos(dot(normal, up))
-    float weightSum = 0.0;
 
 #for MAT_I to NUM_MATERIALS
     #define2 MAT_K ${GROUND_MATERIAL_${MAT_I}}
@@ -126,10 +170,13 @@ void main() {
     // multiply by a mask value
     weight_${MAT_I} *= texture(in_groundMaterialMask, vec3(in_groundUV, ${MASK_I}).r;
     #endif
-    weightSum += weight_${MAT_I};
 #endfor
 
     // normalize weights
+    float weightSum = 0.0;
+#for MAT_I to NUM_MATERIALS
+    weightSum += weight_${MAT_I};
+#endfor
     weightSum = max(weightSum, 0.001);
 #for MAT_I to NUM_MATERIALS
     weight_${MAT_I} /= weightSum;
@@ -146,24 +193,39 @@ void main() {
     #define2 FALLBACK_I ${fallback_MATERIAL_IDX}
     weight_${FALLBACK_I} += 0.66 * step(weightSum, 0.001);
 #endif
-    // write weights to output
-#if NUM_MATERIALS > 3
-    out_weights_0 = vec4(weight_0, weight_1, weight_2, weight_3);
-#elif NUM_MATERIALS > 2
-    out_weights_0 = vec4(weight_0, weight_1, weight_2, 0.0);
-#elif NUM_MATERIALS > 1
-    out_weights_0 = vec4(weight_0, weight_1, 0.0, 0.0);
+
+    TopEntry best[MAX_NUM_BLENDED_MATERIALS];
+#for TOP_I to MAX_NUM_BLENDED_MATERIALS
+    best[${TOP_I}] = TopEntry_ctor(-1e9, 0);
+#endfor
+#for MAT_I to NUM_MATERIALS
+    insertTopN(weight_${MAT_I}, ${MAT_I}, best);
+#endfor
+
+    // Normalize weights and clamp negatives
+    float topSum = 0.0;
+#for TOP_I to MAX_NUM_BLENDED_MATERIALS
+    topSum += best[${TOP_I}].w;
+#endfor
+    float invTopSum = topSum > 1e-5 ? 1.0/topSum : 0.0;
+
+#if MAX_NUM_BLENDED_MATERIALS > 3
+    out_weights = vec4(best[0].w, best[1].w, best[2].w, best[3].w) * invTopSum;
+#elif MAX_NUM_BLENDED_MATERIALS > 2
+    out_weights = vec4(vec3(best[0].w, best[1].w, best[2].w) * invTopSum, 0.0);
+#elif MAX_NUM_BLENDED_MATERIALS > 1
+    out_weights = vec4(vec2(best[0].w, best[1].w) * invTopSum, 0.0, 0.0);
 #else
-    out_weights_0 = vec4(weight_0, 0.0, 0.0, 0.0);
+    out_weights = vec4(1.0, 0.0, 0.0, 0.0);
 #endif
-#if NUM_MATERIALS > 7
-    out_weights_1 = vec4(weight_4, weight_5, weight_6, weight_7);
-#elif NUM_MATERIALS > 6
-    out_weights_1 = vec4(weight_4, weight_5, weight_6, 0.0);
-#elif NUM_MATERIALS > 5
-    out_weights_1 = vec4(weight_4, weight_5, 0.0, 0.0);
-#elif NUM_MATERIALS > 4
-    out_weights_1 = vec4(weight_4, 0.0, 0.0, 0.0);
+#if MAX_NUM_BLENDED_MATERIALS > 3
+    out_indices = uvec4(best[0].idx, best[1].idx, best[2].idx, best[3].idx);
+#elif MAX_NUM_BLENDED_MATERIALS > 2
+    out_indices = uvec4(best[0].idx, best[1].idx, best[2].idx, -1);
+#elif MAX_NUM_BLENDED_MATERIALS > 1
+    out_indices = uvec4(best[0].idx, best[1].idx, -1, -1);
+#else
+    out_indices = uvec4(best[0].idx, -1, -1, -1);
 #endif
 }
 
@@ -171,10 +233,42 @@ void main() {
 ----- Ground render pass.
 ------------
 -- vs
-// regular mesh vertex shader, can do vertex displacement when ground height texture is available.
+#define HAS_CUSTOM_HANDLE_IO
+#include regen.models.mesh.defines
+
+out vec2 out_groundUV;
+#ifdef HAS_noiseTexture
+    #ifdef USE_VERTEX_NOISE
+out vec2 out_offsetXZ;
+out vec2 out_offsetYZ;
+out vec2 out_offsetXY;
+out float out_noiseVal;
+    #endif
+#endif
+
+#include regen.terrain.ground.groundUV
+
+void customHandleIO(vec3 posWorld, vec3 norWorld) {
+    out_groundUV = groundUV(posWorld.xyz, norWorld);
+#ifdef HAS_noiseTexture
+    #ifdef USE_VERTEX_NOISE
+    float noiseVal = texture(in_noiseTexture, posWorld.xz * in_noiseScale).r;
+    vec2 noiseOffset = noiseVal * vec2(0.1, 0.15);
+    out_offsetXZ = (posWorld.xz + noiseOffset);
+    out_offsetYZ = (posWorld.yz + noiseOffset);
+    out_offsetXY = (posWorld.xy + noiseOffset);
+    out_noiseVal = noiseVal * 0.4;
+    #endif
+#endif
+}
+
 #include regen.models.mesh.vs
 
 -- fs
+// TODO: Add support for linear filtering of the material textures.
+//       But this is not trivial using the top-N approach!
+//       - ordering is not consistent (ordered by weight, not material index)
+//       - samples may have different set of indices
 // add custom fragment texture mapping to regular mesh fragment shader.
 #include regen.terrain.ground.customFragmentMapping
 #include regen.models.mesh.fs
@@ -183,8 +277,22 @@ void main() {
 #ifndef customFragmentMapping_included
 #define2 customFragmentMapping_included
 #define HAS_CUSTOM_FRAGMENT_MAPPING
-#include regen.terrain.ground.groundUV
 #include regen.terrain.ground.materialUV
+
+#define IDX_ID ${TEX_ID_groundMaterialIndices0}
+#define IDX_WIDTH ${TEX_WIDTH${IDX_ID}}
+#define IDX_HEIGHT ${TEX_HEIGHT${IDX_ID}}
+
+// computed in VS
+in vec2 in_groundUV;
+#ifdef HAS_noiseTexture
+    #ifdef USE_VERTEX_NOISE
+in vec2 in_offsetXZ;
+in vec2 in_offsetYZ;
+in vec2 in_offsetXY;
+in float in_noiseVal;
+    #endif
+#endif
 
 const float in_noiseScale = 0.005;
 
@@ -222,105 +330,60 @@ mat3 materialTBN(vec3 n) {
 }
 
 void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 outNormal) {
-    vec2 uv = groundUV(worldPos);
-    vec3 blendedNor = vec3(0.0);
-    vec3 color = vec3(0.0);
-
     // read normal map and compute TBN
-    vec3 baseNor = normalize((texture(in_normalMap, uv).xzy * 2.0) - 1.0);
+    vec3 baseNor = normalize((texture(in_normalMap, in_groundUV).xzy * 2.0) - 1.0);
     mat3 TBN = materialTBN(baseNor);
-
-    // read material weights
-    vec4 weights1 = texture(in_groundMaterialWeights0, uv);
-    #define weights_0 weights1.r
-    #define weights_1 weights1.g
-    #define weights_2 weights1.b
-    #define weights_3 weights1.a
-#if NUM_MATERIALS > 4
-    vec4 weights2 = texture(in_groundMaterialWeights1, uv);
-    #define weights_4 weights2.r
-    #define weights_5 weights2.g
-    #define weights_6 weights2.b
-    #define weights_7 weights2.a
-#endif
-    // Compute sum of weights
-    float weightSum = 0.0;
-#for MAT_I to NUM_MATERIALS
-    weightSum += weights_${MAT_I};
-#endfor
-    weightSum = max(weightSum, 0.001); // avoid division by zero
-    // normalize weights
-#for MAT_I to NUM_MATERIALS
-    weights_${MAT_I} /= weightSum;
-#endfor
-
     // compute factors for triplanar blending
     vec3 blending = abs(baseNor * baseNor); // sharper transitions
     blending /= (blending.x + blending.y + blending.z);
 
-    // accumulate color and normal from all materials
-    // TODO: Optimization: Experiment with thresholds and conditional computation
-    //        to avoid texture lookups.
-    //       - maybe best to use dynamic loop with continue?
-    //         Or branching in the unrolled code?
-    //       - another idea: compute n-best first, maybe with fixed n
-    //         then accumulate only these.
-    // TODO: Optimization: Pack normals into alpha component of albedo.
-    //       - reduces texture lookups 50%
-    //       - A = normal.x*0.5+0.5  // store only X, reconstruct Z in shader
-    //         vec2 normalXY = decodeNormal(sample.a); // e.g., reconstruct Z as sqrt(1-x²-y²)
-    vec2 xz, yz, xy;
 #ifdef HAS_noiseTexture
-    float noiseVal = texture(in_noiseTexture, worldPos.xz * in_noiseScale).r;
-    // TODO: make this configurable
-    //vec2 noiseOffset = noiseOffset[matIndex];
+    #ifndef USE_VERTEX_NOISE
+    float in_noiseVal = texture(in_noiseTexture, worldPos.xz * in_noiseScale).r;
     vec2 noiseOffset = noiseVal * vec2(0.1, 0.15);
-    vec2 noiseOffsetXZ = (worldPos.xz + noiseOffset);
-    vec2 noiseOffsetYZ = (worldPos.yz + noiseOffset);
-    vec2 noiseOffsetXY = (worldPos.xy + noiseOffset);
-    #for MAT_I to NUM_MATERIALS
-        #define2 MAT_K ${GROUND_MATERIAL_${MAT_I}}
-        #define2 UV_SCALE ${${MAT_K}_MATERIAL_UV_SCALE}
-    xz = noiseOffsetXZ * ${UV_SCALE};
-    yz = noiseOffsetYZ * ${UV_SCALE};
-    xy = noiseOffsetXY * ${UV_SCALE};
-    color += weights_${MAT_I} * materialAlbedo(${MAT_I}, blending, xz, yz, xy);
-        #ifdef ${${MAT_K}_MATERIAL_HAS_NORMAL}
-    blendedNor += weights_${MAT_I} * materialNormal(${${MAT_K}_MATERIAL_NORMAL_IDX}, blending, xz, yz, xy);
-        #else
-    blendedNor += weights_${MAT_I} * vec3(0.0, 0.0, 1.0); // TBN up vector
-        #endif
-    #endfor
+    vec2 in_offsetXZ = (worldPos.xz + noiseOffset);
+    vec2 in_offsetYZ = (worldPos.yz + noiseOffset);
+    vec2 in_offsetXY = (worldPos.xy + noiseOffset);
+    in_noiseVal *= 0.4;
+    #endif
 #else
-    #for MAT_I to NUM_MATERIALS
-        #define2 MAT_K ${GROUND_MATERIAL_${MAT_I}}
-        #define2 UV_SCALE ${${MAT_K}_MATERIAL_UV_SCALE}
-    xz = worldPos.xz * ${UV_SCALE};
-    yz = worldPos.yz * ${UV_SCALE};
-    xy = worldPos.xy * ${UV_SCALE};
-    color += weights_${MAT_I} * materialAlbedo(${MAT_I}, blending, xz, yz, xy);
-        #ifdef ${${MAT_K}_MATERIAL_HAS_NORMAL}
-    blendedNor += weights_${MAT_I} * materialNormal(${${MAT_K}_MATERIAL_NORMAL_IDX}, blending, xz, yz, xy);
-        #else
-    blendedNor += weights_${MAT_I} * vec3(0.0, 0.0, 1.0); // TBN up vector
-        #endif
-    #endfor
+    #define in_offsetXZ worldPos.xz
+    #define in_offsetYZ worldPos.yz
+    #define in_offsetXY worldPos.xy
 #endif
 
-    // apply bumped normal, or fallback to base normal
-    float blendedNorLength = length(blendedNor);
-    blendedNor /= max(blendedNorLength, 0.001);
-    blendedNor  = mix(baseNor,
-            normalize(TBN * blendedNor),
-            step(0.001, blendedNorLength));
+    vec4 weights1 = texture(in_groundMaterialWeights0, in_groundUV);
+    uvec4 indices1 = texelFetch(in_groundMaterialIndices0,
+        ivec2(floor(in_groundUV * vec2(${IDX_WIDTH}, ${IDX_HEIGHT}))), 0);
+
+    // Note: we do nearest sampling, so weights should add to 1 already.
+    // Accumulate color and normal from all materials
+    vec2 xz, yz, xy;
+    float matUVScale;
+    vec3 blendedNor = vec3(0.0);
+    vec3 color = vec3(0.0);
+#for TOP_I to MAX_NUM_BLENDED_MATERIALS
+    matUVScale = in_groundMaterialUVScale[indices1[${TOP_I}]];
+    xz = in_offsetXZ * matUVScale;
+    yz = in_offsetYZ * matUVScale;
+    xy = in_offsetXY * matUVScale;
+    color += weights1[${TOP_I}] * materialAlbedo(
+                indices1[${TOP_I}],
+                blending,
+                xz, yz, xy);
+    // Read the normal index for this material. This is not necessarily the same as material index
+    // because some materials may not have a normal map at all (indicated by -1)
+    blendedNor += weights1[${TOP_I}] * materialNormal(
+                in_groundMaterialNormalIdx[indices1[${TOP_I}]],
+                blending,
+                xz, yz, xy);
+#endfor
 #ifdef HAS_noiseTexture
     // adjust color based on noise
-    color *= mix(vec3(1.0), vec3(0.5), noiseVal * 0.4);
+    color *= mix(vec3(1.0), vec3(0.5), in_noiseVal);
 #endif
-
     // Finally, write the color and normal to the output
-    outNormal = blendedNor;
+    outNormal = normalize(TBN * blendedNor);
     outColor = vec4(color, 1.0);
-    //outColor = vec4(noiseVal,0,0, 1.0);
 }
-#endif // customFragmentMapping_included
+#endif

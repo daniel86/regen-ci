@@ -4,6 +4,7 @@
 #include <regen/states/state.h>
 #include <regen/textures/texture-state.h>
 #include "regen/glsl/shader-input.h"
+#include "regen/textures/texture-config.h"
 #include <regen/utility/ref-ptr.h>
 
 namespace regen {
@@ -126,7 +127,7 @@ namespace regen {
 		 * Sets whether to use mipmaps for textures.
 		 * @param useMipmap true to use mipmaps, false otherwise.
 		 */
-		void set_useMipmaps(bool useMipmap) { useMipmap_ = useMipmap; }
+		void set_useMipmaps(bool useMipmap) { texConfig_.useMipmaps = useMipmap; }
 
 		/**
 		 * Defines how faces are shaded (FILL/LINE/POINT).
@@ -267,10 +268,7 @@ namespace regen {
 		ref_ptr<ShaderInput1f> materialAlpha_;
 		ref_ptr<UBO> materialUniforms_;
 
-		bool useMipmap_ = true;
-		GLenum forcedInternalFormat_;
-		GLenum forcedFormat_;
-		Vec3ui forcedSize_;
+		TextureConfig texConfig_;
 		GLfloat maxOffset_;
 		HeightMapMode heightMapMode_;
 		BlendMode colorBlendMode_;

@@ -134,9 +134,11 @@ void main() {
 #ifdef HAS_TANGENT_SPACE
     vec4 tanw = transformModel( vec4(in_tan.xyz,0.0) );
     out_tangent = normalize( tanw.xyz );
-    out_binormal = normalize( cross(out_norWorld.xyz, out_tangent.xyz) * in_tan.w );
+    out_binormal = normalize( cross(norWorld.xyz, out_tangent.xyz) * in_tan.w );
 #endif
-
+#ifdef HAS_CUSTOM_HANDLE_IO
+    customHandleIO(posWorld.xyz, norWorld.xyz);
+#endif
 #ifdef HAS_INSTANCES
     out_instanceID = gl_InstanceID + gl_BaseInstance;
 #endif // HAS_INSTANCES

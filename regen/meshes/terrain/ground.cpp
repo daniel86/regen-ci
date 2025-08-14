@@ -5,6 +5,8 @@
 
 using namespace regen;
 
+uint32_t Ground::MAX_BLENDED_MATERIALS = 2;
+
 Ground::Ground() : SkirtQuad() {
 	rectangleConfig_.updateHint.frequency = BUFFER_UPDATE_NEVER;
 	rectangleConfig_.updateHint.scope = BUFFER_UPDATE_FULLY;
@@ -28,6 +30,12 @@ Ground::Ground() : SkirtQuad() {
 	u_skirtSize_ = ref_ptr<ShaderInput1f>::alloc("skirtSize");
 	u_skirtSize_->setUniformData(0.05f);
 	u_skirtSize_->setSchema(InputSchema::scale());
+
+	u_uvScale_ = ref_ptr<ShaderInput1f>::alloc("groundMaterialUVScale");
+	u_uvScale_->set_forceArray(true);
+	u_uvScale_->setSchema(InputSchema::scale());
+	u_normalIdx_ = ref_ptr<ShaderInput1i>::alloc("groundMaterialNormalIdx");
+	u_normalIdx_->set_forceArray(true);
 
 	groundMaterial_ = ref_ptr<Material>::alloc(BufferUpdateFlags::NEVER);
 	joinStates(groundMaterial_);
@@ -164,6 +172,26 @@ void Ground::createResources() {
 	setInput(u_mapSize_);
 
 	updateMaterialMaps();
+
+	// initialize UV scale and normal index for each material
+	std::vector<float_t> uvScales(materialConfigs_.size(), 1.0f);
+	std::vector<int32_t> normalIndices(materialConfigs_.size(), 0);
+	uint32_t normalIdx = 0;
+	for (uint32_t i = 0; i < materialConfigs_.size(); ++i) {
+		uvScales[i] = materialConfigs_[i].uvScale;
+		if (!materialConfigs_[i].normalFile.empty()) {
+			normalIndices[i] = normalIdx++;
+		} else {
+			normalIndices[i] = numNormalMaps_; // fallback to UP normal
+		}
+	}
+	u_uvScale_->set_numArrayElements(materialConfigs_.size());
+	u_uvScale_->setUniformUntyped((byte*)uvScales.data());
+	u_normalIdx_->set_numArrayElements(materialConfigs_.size());
+	u_normalIdx_->setUniformUntyped((byte*)normalIndices.data());
+	setInput(u_uvScale_);
+	setInput(u_normalIdx_);
+
 	createWeightPass();
 }
 
@@ -176,15 +204,17 @@ void Ground::updateMaterialMaps() {
 		REGEN_WARN("Ground::updateMaterialMaps() called without materials.");
 		return;
 	}
-	std::vector<std::string> albedoFiles;
-	std::vector<std::string> normalFiles;
-	std::vector<std::string> maskFiles;
+	std::vector<TextureDescription> albedoFiles;
+	std::vector<TextureDescription> normalFiles;
+	std::vector<TextureDescription> maskFiles;
 	uint32_t materialIdx = 0;
 	MaterialConfig *fallbackCfg = nullptr;
 	uint32_t fallbackIdx = 0;
 
 	groundShaderDefines_->shaderDefine(
 		"NUM_MATERIALS", REGEN_STRING(materialConfigs_.size()));
+	groundShaderDefines_->shaderDefine(
+		"MAX_NUM_BLENDED_MATERIALS", REGEN_STRING(MAX_BLENDED_MATERIALS));
 	for (auto &cfg: materialConfigs_) {
 		std::string materialType = REGEN_STRING(cfg.type);
 		if (cfg.isFallback) {
@@ -203,14 +233,14 @@ void Ground::updateMaterialMaps() {
 		groundShaderDefines_->shaderDefine(
 				REGEN_STRING(materialType << "_MATERIAL_UV_SCALE"),
 				REGEN_STRING(cfg.uvScale));
-		albedoFiles.push_back(cfg.colorFile);
+		albedoFiles.emplace_back(cfg.colorFile);
 		if (!cfg.normalFile.empty()) {
 			groundShaderDefines_->shaderDefine(
 				REGEN_STRING(materialType << "_MATERIAL_HAS_NORMAL"), "TRUE");
 			groundShaderDefines_->shaderDefine(
 				REGEN_STRING(materialType << "_MATERIAL_NORMAL_IDX"),
 				REGEN_STRING(normalFiles.size()));
-			normalFiles.push_back(cfg.normalFile);
+			normalFiles.emplace_back(cfg.normalFile);
 		}
 		if (!cfg.maskFile.empty()) {
 			groundShaderDefines_->shaderDefine(
@@ -218,7 +248,7 @@ void Ground::updateMaterialMaps() {
 			groundShaderDefines_->shaderDefine(
 				REGEN_STRING(materialType << "_MATERIAL_MASK_IDX"),
 				REGEN_STRING(normalFiles.size()));
-			maskFiles.push_back(cfg.maskFile);
+			maskFiles.emplace_back(cfg.maskFile);
 		}
 		// add defines for the weighting functions
 		groundShaderDefines_->shaderDefine(
@@ -283,21 +313,35 @@ void Ground::updateMaterialMaps() {
 			REGEN_STRING("fallback_MATERIAL_IDX"), REGEN_STRING(fallbackIdx));
 	}
 	{
-		materialAlbedoTex_ = textures::loadArray(albedoFiles, true);
+		TextureConfig texCfg;
+		texCfg.useMipmaps = true;
+		materialAlbedoTex_ = textures::loadArray(albedoFiles, texCfg);
 		materialAlbedoState_ = ref_ptr<TextureState>::alloc(materialAlbedoTex_, "groundMaterialAlbedo");
 		materialAlbedoState_->set_mapTo(TextureState::MAP_TO_CUSTOM);
 		materialAlbedoState_->set_mapping(TextureState::MAPPING_CUSTOM);
 		joinStates(materialAlbedoState_);
 	}
 	if (!normalFiles.empty()) {
-		materialNormalTex_ = textures::loadArray(normalFiles, true);
+		numNormalMaps_ = static_cast<uint32_t>(normalFiles.size());
+		TextureConfig texCfg;
+		texCfg.useMipmaps = true;
+		texCfg.forcedInternalFormat = GL_RGB8;
+		// Append a texture image for the "fallback" normal map which is used by all materials
+		// without a normal map. CLear value is set to UP vector in tangent space, normalized to [0,1]
+		uint8_t clearValue[4] = { 128u, 128u, 255u };
+		normalFiles.emplace_back((byte*)clearValue);
+		materialNormalTex_ = textures::loadArray(normalFiles, texCfg);
 		materialNormalState_ = ref_ptr<TextureState>::alloc(materialNormalTex_, "groundMaterialNormal");
 		materialNormalState_->set_mapTo(TextureState::MAP_TO_CUSTOM);
 		materialNormalState_->set_mapping(TextureState::MAPPING_CUSTOM);
 		joinStates(materialNormalState_);
+	} else {
+		numNormalMaps_ = 0u;
 	}
 	if (!maskFiles.empty()) {
-		materialMaskTex_ = textures::loadArray(maskFiles, true);
+		TextureConfig texCfg;
+		texCfg.useMipmaps = true;
+		materialMaskTex_ = textures::loadArray(maskFiles, texCfg);
 		materialMaskState_ = ref_ptr<TextureState>::alloc(materialMaskTex_, "groundMaterialMask");
 		materialMaskState_->set_mapTo(TextureState::MAP_TO_CUSTOM);
 		materialMaskState_->set_mapping(TextureState::MAPPING_CUSTOM);
@@ -306,28 +350,36 @@ void Ground::updateMaterialMaps() {
 }
 
 void Ground::createWeightPass() {
-	// we create weight maps that store weights for 4 materials each.
-	auto numWeightMaps = static_cast<uint32_t>(std::ceil(
-			static_cast<float>(materialConfigs_.size()) / 4.0f));
-	std::vector<GLenum> attachments(numWeightMaps);
-	weightMaps_.resize(numWeightMaps);
-	groundShaderDefines_->shaderDefine(
-		"NUM_WEIGHT_MAPS", REGEN_STRING(numWeightMaps));
-
 	auto fbo = ref_ptr<FBO>::alloc(weightMapSize_, weightMapSize_);
-	for (uint32_t i=0; i<numWeightMaps; ++i) {
-		auto tex = fbo->addTexture(1,
-				GL_TEXTURE_2D, GL_RGBA, GL_RGBA8, GL_UNSIGNED_BYTE);
-		weightMaps_[i] = ref_ptr<Texture2D>::dynamicCast(tex);
-		attachments[i] = GL_COLOR_ATTACHMENT0 + i;
-		if (useWeightMapMips_) {
-			tex->set_filter(TextureFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR));
-		}
+	std::vector<GLenum> attachments;
 
-		joinStates(ref_ptr<TextureState>::alloc(
-				weightMaps_[i],
-				"groundMaterialWeights" + REGEN_STRING(i)));
-	}
+	auto texFormat = glenum::textureFormat(MAX_BLENDED_MATERIALS);
+	groundShaderDefines_->shaderDefine("NUM_WEIGHT_MAPS", REGEN_STRING(1));
+	attachments.resize(2);
+
+	// A texture with top-N weights
+	auto weightsFormat = glenum::textureInternalFormat(
+		GL_UNSIGNED_BYTE, MAX_BLENDED_MATERIALS, 4);
+	auto weightsTex = fbo->addTexture(1, GL_TEXTURE_2D,
+		texFormat, weightsFormat, GL_UNSIGNED_BYTE);
+	weightsTex->set_wrapping(GL_REPEAT);
+	weightsTex->set_filter(GL_NEAREST);
+	weightMap_ = ref_ptr<Texture2D>::dynamicCast(weightsTex);
+	attachments[0] = GL_COLOR_ATTACHMENT0;
+	joinStates(ref_ptr<TextureState>::alloc(weightMap_, "groundMaterialWeights0"));
+
+	// A texture with top-N material indices
+	auto indicesFormat = glenum::textureInternalFormat(
+		GL_UNSIGNED_INT, MAX_BLENDED_MATERIALS, 4);
+	auto indicesTex = fbo->addTexture(1, GL_TEXTURE_2D,
+		texFormat, indicesFormat, GL_UNSIGNED_BYTE);
+	indicesTex->set_samplerType("usampler2D");
+	indicesTex->set_wrapping(GL_REPEAT);
+	indicesTex->set_filter(GL_NEAREST);
+	indexMap_ = ref_ptr<Texture2D>::dynamicCast(indicesTex);
+	attachments[1] = GL_COLOR_ATTACHMENT1;
+	joinStates(ref_ptr<TextureState>::alloc(indexMap_, "groundMaterialIndices0"));
+
 	weightFBO_ = ref_ptr<FBOState>::alloc(fbo);
 	weightFBO_->setDrawBuffers(attachments);
 	weightUpdateState_->joinStates(weightFBO_);
@@ -364,9 +416,8 @@ void Ground::updateWeightMaps() {
 	weightUpdateState_->enable(rs);
 	weightUpdateState_->disable(rs);
 	if(useWeightMapMips_) {
-		for (auto &tex : weightMaps_) {
-			tex->updateMipmaps();
-		}
+		// TODO: Support mipmap generation for weight maps.
+		//       However, this cannot be trivially done due to the index map!
 	}
 }
 

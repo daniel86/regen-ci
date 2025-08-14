@@ -12,13 +12,15 @@ using namespace regen;
 Material::Material(const BufferUpdateFlags &updateFlags)
 		: State(),
 		  fillMode_(GL_FILL),
-		  forcedInternalFormat_(GL_NONE),
-		  forcedFormat_(GL_NONE),
-		  forcedSize_(0u),
 		  maxOffset_(0.1f),
 		  heightMapMode_(HEIGHT_MAP_VERTEX),
 		  colorBlendMode_(BLEND_MODE_SRC),
 		  colorBlendFactor_(1.0f) {
+	texConfig_.useMipmaps = true;
+	texConfig_.forcedInternalFormat = GL_NONE;
+	texConfig_.forcedFormat = GL_NONE;
+	texConfig_.forcedSize = Vec3ui(0u);
+
 	materialSpecular_ = ref_ptr<ShaderInput3f>::alloc("matSpecular");
 	materialSpecular_->setUniformData(Vec3f(0.0f));
 	materialSpecular_->setSchema(InputSchema::color());
@@ -223,12 +225,7 @@ bool Material::set_textures(std::string_view materialName, std::string_view vari
 	// iterate over the texture files in the directory
 	for (auto &entry: materialDescr.textureFiles) {
 		for (auto &filePath: entry.second) {
-			auto tex = textures::load(
-					filePath,
-					useMipmap_,
-					forcedInternalFormat_,
-					forcedFormat_,
-					forcedSize_);
+			auto tex = textures::load(filePath, texConfig_);
 			if (tex.get() != nullptr) {
 				// extract file name without extension
 				auto fileName = boost::filesystem::path(filePath).stem().string();

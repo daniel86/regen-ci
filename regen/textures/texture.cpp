@@ -448,14 +448,15 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 	const std::string typeName = input.getValue("type");
 
 	if (input.hasAttribute("file")) {
-		auto forcedInternalFormat = glenum::textureInternalFormat(
+		TextureConfig texConfig;
+		texConfig.forcedInternalFormat = glenum::textureInternalFormat(
 				input.getValue<std::string>("forced-internal-format", "NONE"));
-		auto forcedFormat = glenum::textureFormat(
+		texConfig.forcedFormat = glenum::textureFormat(
 				input.getValue<std::string>("forced-format", "NONE"));
-		auto forcedSize =
+		texConfig.forcedSize =
 				input.getValue<Vec3ui>("forced-size", Vec3ui(0u));
-		auto keepData = input.getValue<bool>("keep-data", false);
-		auto useMipmap = input.getValue<bool>("mipmap", false);
+		texConfig.keepData = input.getValue<bool>("keep-data", false);
+		texConfig.useMipmaps = input.getValue<bool>("mipmap", false);
 		const std::string filePath =
 				resourcePath(input.getValue("file"));
 
@@ -464,18 +465,12 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 				tex = textures::loadCube(
 						filePath,
 						input.getValue<bool>("cube-flip-back", false),
-						useMipmap,
-						forcedInternalFormat,
-						forcedFormat,
-						forcedSize);
+						texConfig);
 			} else if (input.getValue<bool>("is-array", false)) {
 				tex = textures::loadArray(
 						filePath,
 						input.getValue<std::string>("name-pattern", ".*"),
-						useMipmap,
-						forcedInternalFormat,
-						forcedFormat,
-						forcedSize);
+						texConfig);
 			} else if (input.getValue<bool>("is-raw", false)) {
 				tex = textures::loadRAW(
 						filePath,
@@ -483,13 +478,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 						input.getValue<GLuint>("raw-components", 3u),
 						input.getValue<GLuint>("raw-bytes", 4u));
 			} else {
-				tex = textures::load(
-						filePath,
-						useMipmap,
-						forcedInternalFormat,
-						forcedFormat,
-						forcedSize,
-						keepData);
+				tex = textures::load(filePath, texConfig);
 			}
 		}
 		catch (textures::Error &ie) {

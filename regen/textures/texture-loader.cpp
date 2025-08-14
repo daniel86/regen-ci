@@ -165,16 +165,10 @@ void textures::reload(const ref_ptr<Texture> &tex, std::string_view file) {
 	unsetData(ilID, tex, keepData);
 }
 
-ref_ptr<Texture> textures::load(
-		std::string_view file,
-		bool useMipmaps,
-		GLenum forcedInternalFormat,
-		GLenum forcedFormat,
-		const Vec3ui &forcedSize,
-		bool keepData) {
+ref_ptr<Texture> textures::load(std::string_view file, const TextureConfig &texCfg) {
 	auto ilID = loadImage(file);
-	scaleImage(forcedSize.x, forcedSize.y, forcedSize.z);
-	convertImage(forcedFormat, GL_NONE);
+	scaleImage(texCfg.forcedSize.x, texCfg.forcedSize.y, texCfg.forcedSize.z);
+	convertImage(texCfg.forcedFormat, GL_NONE);
 	auto depth = ilGetInteger(IL_IMAGE_DEPTH);
 	auto numImages = ilGetInteger(IL_NUM_IMAGES);
 
@@ -195,15 +189,15 @@ ref_ptr<Texture> textures::load(
 	tex->set_rectangleSize(ilGetInteger(IL_IMAGE_WIDTH), ilGetInteger(IL_IMAGE_HEIGHT));
 	tex->set_pixelType(ilGetInteger(IL_IMAGE_TYPE));
 	tex->set_format(regenImageFormat());
-	if (forcedInternalFormat == GL_NONE) {
-		forcedInternalFormat = glenum::textureInternalFormat(tex->format());
+	if (texCfg.forcedInternalFormat == GL_NONE) {
+		tex->set_internalFormat(glenum::textureInternalFormat(tex->format()));
+	} else if (texCfg.forcedInternalFormat == GL_BGRA) {
+		tex->set_internalFormat(GL_RGBA8);
+	} else if (texCfg.forcedInternalFormat == GL_BGR) {
+		tex->set_internalFormat(GL_RGB8);
+	} else {
+		tex->set_internalFormat(texCfg.forcedInternalFormat);
 	}
-	if (forcedInternalFormat == GL_BGRA) {
-		forcedInternalFormat = GL_RGBA8;
-	} else if (forcedInternalFormat == GL_BGR) {
-		forcedInternalFormat = GL_RGB8;
-	}
-	tex->set_internalFormat(forcedInternalFormat);
 	tex->allocTexture();
 	tex->set_wrapping(GL_REPEAT);
 	tex->set_filter(GL_LINEAR);
@@ -217,10 +211,10 @@ ref_ptr<Texture> textures::load(
 	} else {
 		tex->updateImage((GLubyte *) ilGetData());
 	}
-	if (useMipmaps) {
+	if (texCfg.useMipmaps) {
 		tex->updateMipmaps();
 	}
-	unsetData(ilID, tex, keepData);
+	unsetData(ilID, tex, texCfg.keepData);
 	GL_ERROR_LOG();
 
 	return tex;
@@ -230,10 +224,7 @@ ref_ptr<Texture> textures::load(
 		GLuint textureType,
 		GLuint numBytes,
 		const void *rawData,
-		bool useMipmaps,
-		GLenum forcedInternalFormat,
-		GLenum forcedFormat,
-		const Vec3ui &forcedSize) {
+		const TextureConfig &texCfg) {
 	GLuint ilID;
 	ilGenImages(1, &ilID);
 	ilBindImage(ilID);
@@ -241,8 +232,8 @@ ref_ptr<Texture> textures::load(
 		throw Error("ilLoadL failed");
 	}
 
-	scaleImage(forcedSize.x, forcedSize.y, forcedSize.z);
-	convertImage(forcedFormat, GL_NONE);
+	scaleImage(texCfg.forcedSize.x, texCfg.forcedSize.y, texCfg.forcedSize.z);
+	convertImage(texCfg.forcedFormat, GL_NONE);
 	GLint depth = ilGetInteger(IL_IMAGE_DEPTH);
 
 	ref_ptr<Texture> tex;
@@ -256,14 +247,14 @@ ref_ptr<Texture> textures::load(
 	tex->set_rectangleSize(ilGetInteger(IL_IMAGE_WIDTH), ilGetInteger(IL_IMAGE_HEIGHT));
 	tex->set_pixelType(ilGetInteger(IL_IMAGE_TYPE));
 	tex->set_format(regenImageFormat());
-	tex->set_internalFormat(forcedInternalFormat == GL_NONE ?
+	tex->set_internalFormat(texCfg.forcedInternalFormat == GL_NONE ?
 		glenum::textureInternalFormat(tex->format()) :
-		forcedInternalFormat);
+		texCfg.forcedInternalFormat);
 	tex->allocTexture();
 	tex->set_wrapping(GL_REPEAT);
 	tex->set_filter(GL_LINEAR);
 	tex->updateImage((GLubyte *) ilGetData());
-	if (useMipmaps) {
+	if (texCfg.useMipmaps) {
 		tex->updateMipmaps();
 	}
 	ilDeleteImages(1, &ilID);
@@ -275,47 +266,40 @@ ref_ptr<Texture> textures::load(
 ref_ptr<Texture2DArray> textures::loadArray(
 		const std::string &textureDirectory,
 		const std::string &textureNamePattern,
-		bool useMipmaps,
-		GLenum forcedInternalFormat,
-		GLenum forcedFormat,
-		const Vec3ui &forcedSize) {
-	boost::filesystem::path texturedir(textureDirectory);
+		const TextureConfig &texCfg) {
+	boost::filesystem::path dir(textureDirectory);
 	boost::regex pattern(textureNamePattern);
 
-	std::vector<std::string> accumulator;
-	boost::filesystem::directory_iterator it(texturedir), eod;
+	std::vector<TextureDescription> accumulator;
+	boost::filesystem::directory_iterator it(dir), eod;
 	BOOST_FOREACH(const boost::filesystem::path &filePath, std::make_pair(it, eod)) {
 					std::string name = filePath.filename().string();
 					if (boost::regex_match(name, pattern)) {
-						accumulator.push_back(filePath.string());
+						accumulator.emplace_back(filePath.string());
 					}
 				}
 	std::sort(accumulator.begin(), accumulator.end());
 
-	return loadArray(
-			accumulator,
-			useMipmaps,
-			forcedInternalFormat,
-			forcedFormat,
-			forcedSize);
+	return loadArray(accumulator, texCfg);
 }
 
 ref_ptr<Texture2DArray> textures::loadArray(
-		const std::vector<std::string> &textureFiles,
-		bool useMipmaps,
-		GLenum forcedInternalFormat,
-		GLenum forcedFormat,
-		const Vec3ui &forcedSize) {
+		const std::vector<TextureDescription> &textureFiles,
+		const TextureConfig &texCfg) {
 	GLuint numTextures = textureFiles.size();
 	ref_ptr<Texture2DArray> tex = ref_ptr<Texture2DArray>::alloc();
 	tex->set_depth(numTextures);
 
-	Vec3ui forcedSize_ = forcedSize;
-	GLint arrayIndex = 0;
-	for (auto & textureFile : textureFiles) {
-		auto ilID = loadImage(textureFile);
-		scaleImage(forcedSize.x, forcedSize.y, 1);
-		forcedFormat = convertImage(forcedFormat, GL_NONE);
+	Vec3ui forcedSize_ = texCfg.forcedSize;
+	GLenum forcedFormat = texCfg.forcedFormat;
+	int arrayIndex = 0;
+	uint32_t ilID;
+	for (auto & descr : textureFiles) {
+		if (descr.isFile()) {
+			ilID = loadImage(descr.getFileName());
+			scaleImage(texCfg.forcedSize.x, texCfg.forcedSize.y, 1);
+			forcedFormat = convertImage(forcedFormat, GL_NONE);
+		}
 
 		if (arrayIndex == 0) {
 			forcedSize_.x = ilGetInteger(IL_IMAGE_WIDTH);
@@ -323,19 +307,28 @@ ref_ptr<Texture2DArray> textures::loadArray(
 			tex->set_rectangleSize(forcedSize_.x, forcedSize_.y);
 			tex->set_pixelType(ilGetInteger(IL_IMAGE_TYPE));
 			tex->set_format(regenImageFormat());
-			tex->set_internalFormat(forcedInternalFormat == GL_NONE ?
+			tex->set_internalFormat(texCfg.forcedInternalFormat == GL_NONE ?
 				glenum::textureInternalFormat(tex->format()) :
-				forcedInternalFormat);
+				texCfg.forcedInternalFormat);
 			tex->allocTexture();
 		}
 
-		tex->updateSubImage(arrayIndex, (GLubyte *) ilGetData());
-		ilDeleteImages(1, &ilID);
+		if (descr.isFile()) {
+			tex->updateSubImage(arrayIndex, (GLubyte *) ilGetData());
+			ilDeleteImages(1, &ilID);
+		} else if (descr.isClear()) {
+			glClearTexSubImage(tex->textureBind().id_,
+				0, 0, 0, arrayIndex, // level, x, y, z offset
+				static_cast<int>(forcedSize_.x),
+				static_cast<int>(forcedSize_.y), 1, // width, height, depth
+				tex->format(), tex->pixelType(),
+				descr.getClearData());
+		}
 		arrayIndex += 1;
 	}
 	tex->set_wrapping(GL_REPEAT);
 	tex->set_filter(GL_LINEAR);
-	if (useMipmaps) {
+	if (texCfg.useMipmaps) {
 		tex->updateMipmaps();
 	}
 	GL_ERROR_LOG();
@@ -346,13 +339,10 @@ ref_ptr<Texture2DArray> textures::loadArray(
 ref_ptr<TextureCube> textures::loadCube(
 		std::string_view file,
 		bool flipBackFace,
-		bool useMipmaps,
-		GLenum forcedInternalFormat,
-		GLenum forcedFormat,
-		const Vec3ui &forcedSize) {
+		const TextureConfig &texCfg) {
 	auto ilID = loadImage(file);
-	scaleImage(forcedSize.x, forcedSize.y, forcedSize.z);
-	convertImage(forcedFormat, GL_NONE);
+	scaleImage(texCfg.forcedSize.x, texCfg.forcedSize.y, texCfg.forcedSize.z);
+	convertImage(texCfg.forcedFormat, GL_NONE);
 
 	GLint faceWidth, faceHeight;
 	auto width = ilGetInteger(IL_IMAGE_WIDTH);
@@ -390,9 +380,9 @@ ref_ptr<TextureCube> textures::loadCube(
 	tex->set_rectangleSize(faceWidth, faceHeight);
 	tex->set_pixelType(ilGetInteger(IL_IMAGE_TYPE));
 	tex->set_format(regenImageFormat());
-	tex->set_internalFormat(forcedInternalFormat == GL_NONE ?
+	tex->set_internalFormat(texCfg.forcedInternalFormat == GL_NONE ?
 		glenum::textureInternalFormat(tex->format()) :
-		forcedInternalFormat);
+		texCfg.forcedInternalFormat);
 	tex->allocTexture();
 
 	tex->set_filter(GL_LINEAR);
@@ -433,7 +423,7 @@ ref_ptr<TextureCube> textures::loadCube(
 		imageData += rowBytes;
 	}
 
-	if (useMipmaps) {
+	if (texCfg.useMipmaps) {
 		tex->updateMipmaps();
 	}
 	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);

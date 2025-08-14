@@ -233,6 +233,7 @@
 
     <node id="Ground">
         <node id="Ground-quad">
+            <define key="USE_VERTEX_NOISE" value="TRUE"/>
             <input type="float" name="noiseScale" value="0.005"/>
             <texture name="noiseTexture" id="ground-noise"/>
             <mesh id="ground-mesh" shader="regen.terrain.ground"/>
