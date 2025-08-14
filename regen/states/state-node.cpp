@@ -1,10 +1,3 @@
-/*
- * state-node.cpp
- *
- *  Created on: 03.08.2012
- *      Author: daniel
- */
-
 #include <stack>
 #include <regen/animations/animation-manager.h>
 
@@ -16,18 +9,18 @@ using namespace regen;
 StateNode::StateNode()
 		: state_(ref_ptr<State>::alloc()),
 		  parent_(nullptr),
-		  isHidden_(GL_FALSE),
+		  isHidden_(false),
 		  name_("Node") {
 }
 
 StateNode::StateNode(const ref_ptr<State> &state)
 		: state_(state),
 		  parent_(nullptr),
-		  isHidden_(GL_FALSE),
+		  isHidden_(false),
 		  name_("Node") {
 }
 
-GLboolean StateNode::hasParent() const { return parent_ != nullptr; }
+bool StateNode::hasParent() const { return parent_ != nullptr; }
 
 void StateNode::clear() {
 	while (!childs_.empty()) {
@@ -113,7 +106,7 @@ ref_ptr<State> StateNode::getParentFrameBuffer() {
 	return out;
 }
 
-StateNode *StateNode::findNodeWithName(const std::string &name) {
+StateNode *StateNode::findNodeWithName(std::string_view name) {
 	std::stack<StateNode *> stack;
 	stack.push(this);
 
@@ -157,17 +150,17 @@ void RootNode::postRender(GLdouble dt) {
 //////////////
 //////////////
 
-LoopNode::LoopNode(GLuint numIterations)
+LoopNode::LoopNode(uint32_t numIterations)
 		: StateNode(),
 		  numIterations_(numIterations) {}
 
-LoopNode::LoopNode(const ref_ptr<State> &state, GLuint numIterations)
+LoopNode::LoopNode(const ref_ptr<State> &state, uint32_t numIterations)
 		: StateNode(state),
 		  numIterations_(numIterations) {}
 
-GLuint LoopNode::numIterations() const { return numIterations_; }
+uint32_t LoopNode::numIterations() const { return numIterations_; }
 
-void LoopNode::set_numIterations(GLuint numIterations) { numIterations_ = numIterations; }
+void LoopNode::set_numIterations(uint32_t numIterations) { numIterations_ = numIterations; }
 
 void LoopNode::traverse(RenderState *rs) {
 	for (auto i = 0u; i < numIterations_; ++i) { StateNode::traverse(rs); }

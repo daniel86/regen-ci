@@ -28,7 +28,7 @@ namespace regen {
 		/**
 		 * @param name Node name. Has no semantics.
 		 */
-		void set_name(const std::string &name) { name_ = name; }
+		void set_name(std::string_view name) { name_ = name; }
 
 		/**
 		 * Removes all children.
@@ -53,7 +53,7 @@ namespace regen {
 		/**
 		 * @return true if a parent is set.
 		 */
-		GLboolean hasParent() const;
+		bool hasParent() const;
 
 		/**
 		 * @return the parent node.
@@ -97,7 +97,7 @@ namespace regen {
 		/**
 		 * Find a node with a given name.
 		 */
-		StateNode *findNodeWithName(const std::string &name);
+		StateNode *findNodeWithName(std::string_view name);
 
 		template<typename StateType>
 		StateType *findStateWithType() {
@@ -166,7 +166,7 @@ namespace regen {
 		ref_ptr<State> state_;
 		StateNode *parent_;
 		std::list<ref_ptr<StateNode> > childs_;
-		GLboolean isHidden_;
+		bool isHidden_;
 		std::string name_;
 	};
 
@@ -229,7 +229,7 @@ namespace regen {
 		/**
 		 * @return The number of iterations.
 		 */
-		GLuint numIterations() const;
+		uint32_t numIterations() const;
 
 		/**
 		 * @param numIterations The number of iterations.
@@ -240,7 +240,7 @@ namespace regen {
 		void traverse(RenderState *rs) override;
 
 	protected:
-		GLuint numIterations_;
+		uint32_t numIterations_;
 	};
 } // namespace
 

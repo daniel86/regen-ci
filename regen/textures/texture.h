@@ -44,7 +44,7 @@ namespace regen {
 		/**
 		 * @param numTextures number of texture images.
 		 */
-		explicit Texture(GLenum textureTarget, GLuint numTextures = 1);
+		explicit Texture(GLenum textureTarget, uint32_t numTextures = 1);
 
 		~Texture() override;
 
@@ -245,7 +245,7 @@ namespace regen {
 		/**
 		 * GLSL sampler type used for this texture.
 		 */
-		void set_samplerType(const std::string &samplerType) { samplerType_ = samplerType; }
+		void set_samplerType(std::string_view samplerType) { samplerType_ = samplerType; }
 
 		/**
 		 * @return true if the texture has a file name.
@@ -255,12 +255,12 @@ namespace regen {
 		/**
 		 * @return the texture file name.
 		 */
-		void set_textureFile(const std::string &fileName);
+		void set_textureFile(std::string_view fileName);
 
 		/**
 		 * @return the texture file name.
 		 */
-		void set_textureFile(const std::string &directory, const std::string &namePattern);
+		void set_textureFile(std::string_view directory, std::string_view namePattern);
 
 		/**
 		 * @return the texture file name.
@@ -282,7 +282,7 @@ namespace regen {
 		 * Allocates the texture image.
 		 * This will allocate the texture data on the GPU.
 		 */
-		void updateSubImage(GLint layer, GLubyte *subData);
+		void updateSubImage(int32_t layer, GLubyte *subData);
 
 		/**
 		 * Sets the number of mipmaps.

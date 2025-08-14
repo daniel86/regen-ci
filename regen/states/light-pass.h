@@ -16,7 +16,7 @@ namespace regen {
 		 * @param type the light type.
 		 * @param shaderKey the shader key to include.
 		 */
-		LightPass(Light::Type type, const std::string &shaderKey);
+		LightPass(Light::Type type, std::string_view shaderKey);
 
 		static ref_ptr<LightPass> load(LoadingContext &ctx, scene::SceneInputNode &input);
 
@@ -48,13 +48,13 @@ namespace regen {
 		/**
 		 * @return true if no light was added yet.
 		 */
-		GLboolean empty() const;
+		bool empty() const;
 
 		/**
 		 * @param l a light.
 		 * @return true if the light was previously added.
 		 */
-		GLboolean hasLight(Light *l) const;
+		bool hasLight(Light *l) const;
 
 		/**
 		 * @return the lights.
@@ -94,10 +94,10 @@ namespace regen {
 		std::list<LightPassLight> lights_;
 		std::map<Light *, std::list<LightPassLight>::iterator> lightIterators_;
 
-		GLint shadowMapLoc_ = -1;
-		GLint shadowColorLoc_ = -1;
+		int shadowMapLoc_ = -1;
+		int shadowColorLoc_ = -1;
 		ShadowFilterMode shadowFiltering_ = SHADOW_FILTERING_NONE;
-		GLuint numShadowLayer_ = 1;
+		uint32_t numShadowLayer_ = 1;
 		uint32_t numInstances_ = 1;
 
 		void addInputLocation(LightPassLight &l,

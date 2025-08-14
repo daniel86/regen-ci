@@ -5,19 +5,19 @@
 
 using namespace regen;
 
-Filter::Filter(const std::string &shaderKey, GLfloat scaleFactor)
+Filter::Filter(std::string_view shaderKey, float scaleFactor)
 		: FullscreenPass(shaderKey), scaleFactor_(scaleFactor) {
 	format_ = GL_NONE;
 	internalFormat_ = GL_NONE;
 	pixelType_ = GL_NONE;
-	bindInput_ = GL_TRUE;
+	bindInput_ = true;
 
 	inputState_ = ref_ptr<TextureState>::alloc();
 	inputState_->set_name("inputTexture");
 	joinStatesFront(inputState_);
 }
 
-void Filter::set_bindInput(GLboolean v) {
+void Filter::set_bindInput(bool v) {
 	if (v == bindInput_) { return; }
 	bindInput_ = v;
 
@@ -212,7 +212,7 @@ ref_ptr<FilterSequence> FilterSequence::load(LoadingContext &ctx, scene::SceneIn
 }
 
 void FilterSequence::setClearColor(const Vec4f &clearColor) {
-	clearFirstFilter_ = GL_TRUE;
+	clearFirstFilter_ = true;
 	clearColor_ = clearColor;
 }
 

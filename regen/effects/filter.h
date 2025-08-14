@@ -1,12 +1,5 @@
-/*
- * filter.h
- *
- *  Created on: 23.02.2013
- *      Author: daniel
- */
-
-#ifndef FILTER_H_
-#define FILTER_H_
+#ifndef REGEN_FILTER_H_
+#define REGEN_FILTER_H_
 
 #include <regen/states/fullscreen-pass.h>
 #include <regen/textures/texture-state.h>
@@ -35,12 +28,12 @@ namespace regen {
 		 * \note You have to call setInput() once or add the filter to a
 		 * FilterSequence before using the filter.
 		 */
-		explicit Filter(const std::string &shaderKey, GLfloat scaleFactor = 1.0);
+		explicit Filter(std::string_view shaderKey, float scaleFactor = 1.0);
 
 		/**
 		 * @param v toggles binding the input texture before filter is executed.
 		 */
-		void set_bindInput(GLboolean v);
+		void set_bindInput(bool v);
 
 		/**
 		 * @param v target format.
@@ -61,7 +54,7 @@ namespace regen {
 		 * Scale factor that is applied to the input texture when
 		 * filtering.
 		 */
-		GLfloat scaleFactor() const { return scaleFactor_; }
+		float scaleFactor() const { return scaleFactor_; }
 
 		/**
 		 * Filter render target with ping-pong attachment points.
@@ -92,12 +85,12 @@ namespace regen {
 		ref_ptr<TextureState> inputState_;
 		ref_ptr<ShaderState> shader_;
 
-		GLfloat scaleFactor_;
+		float scaleFactor_;
 
 		GLenum format_;
 		GLenum internalFormat_;
 		GLenum pixelType_;
-		GLboolean bindInput_;
+		bool bindInput_;
 
 		void set_input(const ref_ptr<Texture> &input);
 
@@ -173,12 +166,12 @@ namespace regen {
 		ref_ptr<ShaderInput2f> viewport_;
 		ref_ptr<ShaderInput2f> inverseViewport_;
 
-		GLboolean clearFirstFilter_;
+		bool clearFirstFilter_;
 		Vec4f clearColor_;
-		GLuint lastWidth_;
-		GLuint lastHeight_;
+		uint32_t lastWidth_;
+		uint32_t lastHeight_;
 
-		GLboolean bindInput_;
+		bool bindInput_;
 		GLenum format_;
 		GLenum internalFormat_;
 		GLenum pixelType_;
@@ -187,4 +180,4 @@ namespace regen {
 	};
 } // end namespace
 
-#endif /* FILTER_H_ */
+#endif /* REGEN_FILTER_H_ */

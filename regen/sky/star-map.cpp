@@ -5,7 +5,7 @@
 
 using namespace regen;
 
-StarMap::StarMap(const ref_ptr<Sky> &sky, GLint levelOfDetail)
+StarMap::StarMap(const ref_ptr<Sky> &sky, int levelOfDetail)
 		: SkyLayer(sky) {
 	// Note: Assuming star map is first, we do not need blending.
 
@@ -26,7 +26,7 @@ float StarMap::defaultScattering() {
 	return 0.2;
 }
 
-void StarMap::set_texture(const std::string &textureFile) {
+void StarMap::set_texture(std::string_view textureFile) {
 	meshState_->setCubeMap(textures::loadCube(textureFile));
 }
 
