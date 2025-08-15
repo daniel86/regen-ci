@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include <regen/utility/logging.h>
+#include "threading.h"
 
 namespace regen {
 	/**
@@ -68,6 +69,7 @@ namespace regen {
 				  index_(0) {}
 
 		~AllocatorPool() {
+			poolLock_.lock();
 			for (Node *n = allocators_; n != nullptr;) {
 				Node *buf = n;
 				n = n->next;
@@ -83,6 +85,7 @@ namespace regen {
 				delete buf;
 			}
 			allocators_ = nullptr;
+			poolLock_.unlock();
 		}
 
 		/**
@@ -134,13 +137,16 @@ namespace regen {
 			unsigned int actualSize = align(size > minSize_ ? size : minSize_);
 			Node *x = new Node(this, actualSize);
 			x->prev = nullptr;
-			x->next = allocators_;
 			// allocate actual memory
 			x->allocatorRef = ActualAllocatorType::createAllocator(index_, actualSize);
 			x->mapped = ActualAllocatorType::mapAllocator(index_, actualSize, x->allocatorRef);
-			if (allocators_) allocators_->prev = x;
-			allocators_ = x;
-			sortInForward(x);
+			poolLock_.lock(); {
+				x->next = allocators_;
+				if (allocators_) allocators_->prev = x;
+				allocators_ = x;
+				sortInForward(x);
+			}
+			poolLock_.unlock();
 			return x;
 		}
 
@@ -163,6 +169,7 @@ namespace regen {
 		 * @param n an allocator.
 		 */
 		void clear(Node *n) {
+			poolLock_.lock();
 			n->allocator.clear();
 			if (n->next) n->next->prev = n->prev;
 			if (n->prev) n->prev->next = n->next;
@@ -172,6 +179,7 @@ namespace regen {
 			if (allocators_) allocators_->prev = n;
 			allocators_ = n;
 			sortInForward(n);
+			poolLock_.unlock();
 		}
 
 		/**
@@ -182,17 +190,17 @@ namespace regen {
 		Reference alloc(unsigned int _size) {
 			unsigned int size = align(_size);
 			AllocatorPool::Reference ref;
+			poolLock_.lock();
 			// find allocator with smallest maxSpace and maxSpace>size
 			Node *min = chooseAllocator(_size);
-			if (min == nullptr) {
-				ref.allocatorNode = nullptr;
-			} else if (min->allocator.alloc(size, &ref.allocatorRef)) {
+			if (min != nullptr && min->allocator.alloc(size, &ref.allocatorRef)) {
 				ref.allocatorNode = min;
 				sortInForward(min);
 			} else {
 				ref.allocatorNode = nullptr;
 			}
 			ref.size = size;
+			poolLock_.unlock();
 			return ref;
 		}
 
@@ -205,15 +213,15 @@ namespace regen {
 		Reference alloc(Node *n, unsigned int _size) {
 			unsigned int size = align(_size);
 			AllocatorPool::Reference ref;
-			if (n->allocator.maxSpace() < size) {
-				ref.allocatorNode = nullptr;
-			} else if (n->allocator.alloc(size, &ref.allocatorRef)) {
+			poolLock_.lock();
+			if (n->allocator.maxSpace() >= size && n->allocator.alloc(size, &ref.allocatorRef)) {
 				ref.allocatorNode = n;
 				sortInForward(n);
 			} else {
 				ref.allocatorNode = nullptr;
 			}
 			ref.size = size;
+			poolLock_.unlock();
 			return ref;
 		}
 
@@ -223,6 +231,7 @@ namespace regen {
 		 */
 		void free(Reference &ref) {
 			if (ref.allocatorNode) {
+				poolLock_.lock();
 				// orphan the actual memory range
 				ActualAllocatorType::orphanAllocatorRange(
 					// buffer id
@@ -234,6 +243,7 @@ namespace regen {
 				ref.allocatorNode->allocator.free(ref.allocatorRef);
 				sortInBackward(ref.allocatorNode);
 				ref.allocatorNode = nullptr;
+				poolLock_.unlock();
 			}
 		}
 
@@ -253,6 +263,7 @@ namespace regen {
 		unsigned int maxSize_ = 0;
 		unsigned int alignment_;
 		unsigned int index_;
+		mutable SpinLock poolLock_;
 
 		void sortInForward(Node *resizedNode) {
 			unsigned int space = resizedNode->allocator.maxSpace();
