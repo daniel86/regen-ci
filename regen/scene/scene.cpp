@@ -313,6 +313,7 @@ void Scene::clear() {
 	RenderState::reset();
 	BindingManager::clear();
 	TextureBinder::reset();
+	ClientBuffer::resetMemoryPool();
 }
 
 void Scene::registerInteraction(const std::string &name, const ref_ptr<SceneInteraction> &interaction) {

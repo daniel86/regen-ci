@@ -6,6 +6,8 @@
 
 using namespace regen;
 
+//#define USE_CLIENT_BUFFER_POOL
+
 ClientBuffer::ClientBuffer() {
 	// initially any data that will be allocated will be owned by this instance.
 	// this is until it is added as a segment to another ClientBuffer.
@@ -404,7 +406,11 @@ void ClientBuffer::deallocateClientData() {
 	if (isDataOwner()) {
 		for (int i = 0; i < 2; ++i) {
 			if (dataSlots_[i]) {
+#ifdef USE_CLIENT_BUFFER_POOL
+				getMemoryPool()->free(dataRefs_[i]);
+#else
 				delete[] dataSlots_[i];
+#endif
 				dataSlots_[i] = nullptr;
 			}
 		}
@@ -464,6 +470,37 @@ void ClientBuffer::updateBufferSize() {
 	}
 }
 
+ClientBufferPool *ClientBuffer::getMemoryPool(bool reset) {
+	static ClientBufferPool *memoryPool = nullptr;
+	if (reset && memoryPool != nullptr) {
+		delete memoryPool;
+		memoryPool = nullptr;
+	}
+	if (memoryPool == nullptr) {
+		memoryPool = new ClientBufferPool();
+		memoryPool->set_index(0);
+		memoryPool->set_alignment(1);
+		memoryPool->set_minSize(4u * 1024u * 1024u); // 4 MB blocks
+	}
+	return memoryPool;
+}
+
+ClientBufferPool::Node* ClientBuffer::getMemoryAllocator(uint32_t dataSize) {
+	ClientBufferPool::Node *n = getMemoryPool()->chooseAllocator(dataSize);
+	if (n == nullptr) {
+		n = getMemoryPool()->createAllocator(dataSize);
+	}
+	return n;
+}
+
+ClientBufferPool *ClientBuffer::getMemoryPool() {
+	return getMemoryPool(false);
+}
+
+ClientBufferPool *ClientBuffer::resetMemoryPool() {
+	return getMemoryPool(true);
+}
+
 void ClientBuffer::ownerResize() {
 	// keep a reference to the old data slots, for copying data over.
 	byte *oldData0 = dataSlots_[0];
@@ -474,24 +511,36 @@ void ClientBuffer::ownerResize() {
 	updateBufferSize();
 
 	// allocate new data slots.
-	// TODO: Better avoid reallocation, and make it faster if possible
-	// 		- using larger buffers
-	//      - using a pool allocator
-	//      - maybe fast re-allocation is possible?
-	dataSlots_[0] = new byte[dataSize_];
+#ifdef USE_CLIENT_BUFFER_POOL
+	auto oldDataRefs0 = dataRefs_[0];
+	auto oldDataRefs1 = dataRefs_[1];
+	auto memoryPool = ClientBuffer::getMemoryPool();
+	auto *allocator = ClientBuffer::getMemoryAllocator(dataSize_);
+	dataRefs_[0] = memoryPool->alloc(allocator, dataSize_);
+	dataSlots_[0] = dataRefs_[0].allocatorNode->allocatorRef;
 	if (clientBufferMode_ == SingleBuffer) {
-		// in single-buffered mode, we only need one data slot.
 		dataSlots_[1] = nullptr;
 	} else if (clientBufferMode_ == DoubleBuffer) {
-		// in double-buffered mode, we need two data slots.
+		dataRefs_[1] = memoryPool->alloc(allocator, dataSize_);
+		dataSlots_[1] = dataRefs_[1].allocatorNode->allocatorRef;
+	} else if (clientBufferMode_ == AdaptiveBuffer) {
+		if (dataSlots_[1]) {
+			dataRefs_[1] = memoryPool->alloc(allocator, dataSize_);
+			dataSlots_[1] = dataRefs_[1].allocatorNode->allocatorRef;
+		}
+	}
+#else
+	dataSlots_[0] = new byte[dataSize_];
+	if (clientBufferMode_ == SingleBuffer) {
+		dataSlots_[1] = nullptr;
+	} else if (clientBufferMode_ == DoubleBuffer) {
 		dataSlots_[1] = new byte[dataSize_];
 	} else if (clientBufferMode_ == AdaptiveBuffer) {
-		// in adaptive buffering mode, we start with a single slot,
-		// but can switch to double-buffering later.
 		if (dataSlots_[1]) {
 			dataSlots_[1] = new byte[dataSize_];
 		}
 	}
+#endif
 
 	if (dataSlots_[1]) {
 		resize_DoubleBuffer(
@@ -508,8 +557,13 @@ void ClientBuffer::ownerResize() {
 	}
 
 	// delete the old data slots.
+#ifdef USE_CLIENT_BUFFER_POOL
+	if (oldData0) memoryPool->free(oldDataRefs0);
+	if (oldData1) memoryPool->free(oldDataRefs1);
+#else
 	delete[] oldData0;
 	delete[] oldData1;
+#endif
 }
 
 void ClientBuffer::resize_SingleBuffer(ClientBuffer *owner, const byte *oldDataPtr, byte *newDataPtr) {
@@ -551,7 +605,11 @@ void ClientBuffer::resize_SingleBuffer(ClientBuffer *owner, const byte *oldDataP
 		readerCounts_[1].store(0, std::memory_order_release);
 		writerFlags_[0].clear(std::memory_order_release);
 		writerFlags_[1].clear(std::memory_order_release);
+#ifdef USE_CLIENT_BUFFER_POOL
+		getMemoryPool()->free(dataRefs_[0]);
+#else
 		delete[] localOldDataPtr;
+#endif
 	}
 }
 
@@ -611,10 +669,17 @@ void ClientBuffer::resize_DoubleBuffer(
 		readerCounts_[1].store(0, std::memory_order_release);
 		writerFlags_[0].clear(std::memory_order_release);
 		writerFlags_[1].clear(std::memory_order_release);
+#ifdef USE_CLIENT_BUFFER_POOL
+		getMemoryPool()->free(dataRefs_[0]);
+		if (localOldDataPtr1 != nullptr && localOldDataPtr1 != localOldDataPtr0) {
+			getMemoryPool()->free(dataRefs_[1]);
+		}
+#else
 		delete[] localOldDataPtr0;
-		if (localOldDataPtr1 != localOldDataPtr0) {
+		if (localOldDataPtr1 != nullptr && localOldDataPtr1 != localOldDataPtr0) {
 			delete[] localOldDataPtr1;
 		}
+#endif
 	}
 }
 
@@ -809,9 +874,15 @@ void ClientBuffer::setOwnerOfWriteLock(int dataSlot) const {
 }
 
 void ClientBuffer::createSecondSlot() {
-	auto data_w = new byte[dataSize_];
-	std::memcpy(data_w, dataSlots_[0], dataSize_);
-	dataSlots_[1] = data_w;
+#ifdef USE_CLIENT_BUFFER_POOL
+	auto *allocator = ClientBuffer::getMemoryAllocator(dataSize_);
+	dataRefs_[1] = ClientBuffer::getMemoryPool()->alloc(allocator, dataSize_);
+	dataSlots_[1] = dataRefs_[1].allocatorNode->allocatorRef;
+#else
+	dataSlots_[1] = new byte[dataSize_];
+#endif
+	std::memcpy(dataSlots_[1], dataSlots_[0], dataSize_);
+
 	// Initialize second slot stamp to the same value as the first slot.
 	dataStamps_[1].store(dataStamps_[0].load(std::memory_order_relaxed), std::memory_order_relaxed);
 	REGEN_INFO("Switch to double-buffered mode"
@@ -820,7 +891,7 @@ void ClientBuffer::createSecondSlot() {
 
 	// Assign second slot ptr's and offsets to all segments
 	for (auto &segment: bufferSegments_) {
-		segment->setDataPointer(this, data_w + segment->dataOffset_, 1);
+		segment->setDataPointer(this, dataSlots_[1] + segment->dataOffset_, 1);
 		segment->dataStamps_[1].store(
 			segment->dataStamps_[0].load(std::memory_order_relaxed), std::memory_order_relaxed);
 	}

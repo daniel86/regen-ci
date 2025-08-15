@@ -8,6 +8,7 @@
 #include <regen/regen.h>
 #include <regen/utility/ref-ptr.h>
 #include <regen/buffer/client-data-base.h>
+#include <regen/buffer/client-allocator.h>
 #include <regen/utility/dirty-list.h>
 #include "buffer-enums.h"
 
@@ -269,6 +270,19 @@ namespace regen {
 		 */
 		void writeUnlockAll(uint32_t writeOffset, uint32_t writeSize) const;
 
+		/**
+		 * Returns the memory pool used for client buffers.
+		 * @return the memory pool used for client buffers.
+		 */
+		static ClientBufferPool *getMemoryPool();
+
+		/**
+		 * Resets the memory pool used for client buffers.
+		 * This will deallocate all memory used by the pool and reset it to its initial state.
+		 * @return the memory pool used for client buffers.
+		 */
+		static ClientBufferPool *resetMemoryPool();
+
 	protected:
 		Mode clientBufferMode_ = AdaptiveBuffer;
 		uint32_t dataSize_ = 0u;
@@ -282,7 +296,8 @@ namespace regen {
 
 		// Note: marked as mutable because client data mapping must be allowed in const functions
 		//       for reading data.
-		mutable std::array<byte *, 2> dataSlots_ = {nullptr, nullptr};
+		mutable std::array<byte*, 2> dataSlots_ = {nullptr, nullptr};
+		mutable std::array<ClientBufferPool::Reference, 2> dataRefs_;
 		// the instance that owns the data slots, i.e. either this instance or a parent buffer.
 		mutable ClientBuffer* dataOwner_;
 
@@ -341,6 +356,10 @@ namespace regen {
 		void setDataPointer(ClientBuffer *owner, byte *dataPtr, uint32_t slotIdx) const;
 
 		void ownerResize();
+
+		static ClientBufferPool *getMemoryPool(bool reset);
+
+		static ClientBufferPool::Node* getMemoryAllocator(uint32_t dataSize);
 
 		void updateBufferSize();
 
