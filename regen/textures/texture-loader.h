@@ -6,6 +6,7 @@
 #include <regen/textures/texture.h>
 #include <regen/utility/ref-ptr.h>
 #include <regen/math/vector.h>
+#include "texture-config.h"
 
 namespace regen {
 	namespace textures {
@@ -28,13 +29,7 @@ namespace regen {
 		 * Scale to forced size (if forced size != 0).
 		 * Setup mipmapping after loading the file.
 		 */
-		ref_ptr<Texture> load(
-				std::string_view file,
-				bool useMipmaps = false,
-				GLenum forcedInternalFormat = GL_NONE,
-				GLenum forcedFormat = GL_NONE,
-				const Vec3ui &forcedSize = Vec3ui(0u),
-				bool keepData = false);
+		ref_ptr<Texture> load(std::string_view file, const TextureConfig &texCfg = TextureConfig::getDefault());
 
 		/**
 		 * Update a Texture from file.
@@ -53,10 +48,7 @@ namespace regen {
 				uint32_t textureType,
 				uint32_t numBytes,
 				const void *rawData,
-				bool useMipmaps = false,
-				GLenum forcedInternalFormat = GL_NONE,
-				GLenum forcedFormat = GL_NONE,
-				const Vec3ui &forcedSize = Vec3ui(0u));
+				const TextureConfig &texCfg = TextureConfig::getDefault());
 
 		/**
 		 * Load a Texture2DArray from file.
@@ -67,10 +59,7 @@ namespace regen {
 		ref_ptr<Texture2DArray> loadArray(
 				const std::string &textureDirectory,
 				const std::string &textureNamePattern,
-				bool useMipmaps = false,
-				GLenum forcedInternalFormat = GL_NONE,
-				GLenum forcedFormat = GL_NONE,
-				const Vec3ui &forcedSize = Vec3ui(0u));
+				const TextureConfig &texCfg = TextureConfig::getDefault());
 
 		/**
 		 * Load a Texture2DArray from file.
@@ -79,11 +68,8 @@ namespace regen {
 		 * Setup mipmapping after loading the file.
 		 */
 		ref_ptr<Texture2DArray> loadArray(
-				const std::vector<std::string> &textureFiles,
-				bool useMipmaps = false,
-				GLenum forcedInternalFormat = GL_NONE,
-				GLenum forcedFormat = GL_NONE,
-				const Vec3ui &forcedSize = Vec3ui(0u));
+				const std::vector<TextureDescription> &textureDescriptions,
+				const TextureConfig &texCfg = TextureConfig::getDefault());
 
 		/**
 		 * Load a TextureCube from file.
@@ -96,10 +82,7 @@ namespace regen {
 		ref_ptr<TextureCube> loadCube(
 				std::string_view file,
 				bool flipBackFace = false,
-				bool useMipmaps = false,
-				GLenum forcedInternalFormat = GL_NONE,
-				GLenum forcedFormat = GL_NONE,
-				const Vec3ui &forcedSize = Vec3ui(0u));
+				const TextureConfig &texCfg = TextureConfig::getDefault());
 
 		/**
 		 * Loads RAW Texture from file.

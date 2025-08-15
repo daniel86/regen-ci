@@ -20,6 +20,9 @@ namespace regen {
 	 */
 	class Ground : public SkirtQuad {
 	public:
+		// Maximum number of materials that can be blended.
+		static uint32_t MAX_BLENDED_MATERIALS;
+
 		/**
 		 * Defines the material types.
 		 */
@@ -134,6 +137,8 @@ namespace regen {
 		ref_ptr<ShaderInput3f> u_mapCenter_;
 		ref_ptr<ShaderInput3f> u_mapSize_;
 		ref_ptr<ShaderInput1f> u_skirtSize_;
+		ref_ptr<ShaderInput1f> u_uvScale_;
+		ref_ptr<ShaderInput1i> u_normalIdx_;
 
 		Vec2ui numPatches_ = Vec2ui(1);
 		uint32_t numPatchesPerRow_ = 1;
@@ -149,13 +154,15 @@ namespace regen {
 		ref_ptr<TextureState> materialAlbedoState_;
 		ref_ptr<TextureState> materialNormalState_;
 		ref_ptr<TextureState> materialMaskState_;
+		uint32_t numNormalMaps_ = 0u; // number of normal maps in the texture array
 
 		// maps that encode the weight of each material over the ground.
 		// must only be computed once in case the geometry has stable height values.
 		// the weight maps also reassemble ordering in the texture arrays, e.g.
 		// first weight map y coordinate maps to the second element in the texture array.
 		ref_ptr<FBOState> weightFBO_;
-		std::vector<ref_ptr<Texture2D>> weightMaps_;
+		ref_ptr<Texture2D> weightMap_;
+		ref_ptr<Texture2D> indexMap_;
 		ref_ptr<FullscreenPass> weightUpdatePass_;
 		ref_ptr<State> weightUpdateState_;
 		uint32_t weightMapSize_ = 2048;
