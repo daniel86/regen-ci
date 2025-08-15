@@ -113,7 +113,7 @@ namespace regen {
 		 * Be sure that no other thread is writing to the data at the same time.
 		 * @return the client data.
 		 */
-		byte *clientData() const { return dataSlots_[lastDataSlot()]; }
+		byte *clientData() const { return dataSlots_[currentReadSlot()]; }
 
 		/**
 		 * Obtains the client data for a specific slot without locking.
@@ -127,12 +127,12 @@ namespace regen {
 		/**
 		 * @return the stamp of the data that is currently being written to.
 		 */
-		inline uint32_t stampOfWriteData() const { return dataStamps_[1 - lastDataSlot()]; }
+		inline uint32_t stampOfWriteData() const { return dataStamps_[currentWriteSlot()]; }
 
 		/**
 		 * @return the stamp of the data that is currently being read.
 		 */
-		inline uint32_t stampOfReadData() const { return dataStamps_[lastDataSlot()]; }
+		inline uint32_t stampOfReadData() const { return dataStamps_[currentReadSlot()]; }
 
 		/**
 		 * Returns the current read slot index.
