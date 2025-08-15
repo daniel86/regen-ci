@@ -81,7 +81,7 @@ void ClientBuffer::removeSegment(const ref_ptr<ClientBuffer> &segment) {
 	}
 }
 
-uint32_t ClientBuffer::swapData(bool force) {
+uint32_t ClientBuffer::swapData() {
 	// NOTE: This function should be very fast as potentially both animation and rendering threads
 	//       are waiting for it to finish.
 	// flushing is only needed if the buffer is frame-locked.
@@ -113,6 +113,12 @@ uint32_t ClientBuffer::swapData(bool force) {
 		int32_t lastWriteSlot = 1 - lastReadSlot;
 		auto &dirtyThisFrame = dirtyLists_[lastWriteSlot];
 
+		// We need to avoid race conditions of another thread getting a read lock
+		// while we do the switching, then the thread may attempt (while holding read)
+		// to acquire a write lock which will fail because the readers are blocking.
+		// Also we need to avoid any writer adding stuff to the dirty list while we read it.
+		writeLockAll();
+
 		// Merge overlapping segments, and sort along offsets.
 		// TODO: Merging of dirty frames could safely be done across padded regions,
 		//       i.e. the regions that are not used to store actual data.
@@ -121,11 +127,6 @@ uint32_t ClientBuffer::swapData(bool force) {
 		// Delete all dirty ranges from the last read slot that have been written to this frame.
 		// It is certain that both dirty lists are coalesced, so calling subtract is safe.
 		dirtyLastFrame.subtract(dirtyThisFrame);
-
-		// We need to avoid race conditions of another thread getting a read lock
-		// while we do the switching, then the thread may attempt (while holding read)
-		// to acquire a write lock which will fail because the readers are blocking.
-		writeLockAll();
 
 		// Remaining are the ranges where data in the write slot is not up-to-date with the read slot,
 		// hence we copy it over.
@@ -141,12 +142,16 @@ uint32_t ClientBuffer::swapData(bool force) {
 
 		// For each write segment with stamp < read segment stamp: set the stamp to read segment stamp,
 		// as we have synced the data above.
+		dataStamps_[lastWriteSlot].store(
+			dataStamps_[lastReadSlot].load(std::memory_order_relaxed),
+			std::memory_order_relaxed);
 		for (auto &segment: bufferSegments_) {
-			if (segment->dataStamps_[lastWriteSlot] < segment->dataStamps_[lastReadSlot]) {
-				segment->dataStamps_[lastWriteSlot] = segment->dataStamps_[lastReadSlot];
+			auto writeStamp = segment->dataStamps_[lastWriteSlot].load(std::memory_order_relaxed);
+			auto readStamp = segment->dataStamps_[lastReadSlot].load(std::memory_order_relaxed);
+			if (writeStamp < readStamp) {
+				segment->dataStamps_[lastWriteSlot].store(readStamp, std::memory_order_relaxed);
 			}
 		}
-		dataStamps_[lastWriteSlot] = dataStamps_[lastReadSlot];
 
 		// Finally swap read and write idx, new read idx should have new data for reading next frame.
 		lastDataSlot_.store(lastWriteSlot, std::memory_order_relaxed);
@@ -163,25 +168,31 @@ uint32_t ClientBuffer::swapData(bool force) {
 }
 
 void ClientBuffer::nextStamp() const {
-	uint32_t stamp0 = std::max(dataStamps_[0], dataStamps_[1])+1;
-	dataStamps_[0] = stamp0;
-	dataStamps_[1] = stamp0;
+	uint32_t stamp = 1u + std::max(
+		dataStamps_[0].load(std::memory_order_relaxed),
+		dataStamps_[1].load(std::memory_order_relaxed));
+	dataStamps_[0].store(stamp, std::memory_order_relaxed);
+	dataStamps_[1].store(stamp, std::memory_order_relaxed);
 	auto *parent = parentBuffer_;
 	while (parent != nullptr) {
-		uint32_t stamp1 = std::max(parent->dataStamps_[0], parent->dataStamps_[1])+1;
-		parent->dataStamps_[0] = stamp1;
-		parent->dataStamps_[1] = stamp1;
+		stamp = 1u + std::max(
+			parent->dataStamps_[0].load(std::memory_order_relaxed),
+			parent->dataStamps_[1].load(std::memory_order_relaxed));
+		parent->dataStamps_[0].store(stamp, std::memory_order_relaxed);
+		parent->dataStamps_[1].store(stamp, std::memory_order_relaxed);
 		parent = parent->parentBuffer_;
 	}
 }
 
 void ClientBuffer::nextStamp(uint32_t dataSlot) const {
 	auto readSlot = (dataSlots_[1] ? (1 - dataSlot) : 0);
-	dataStamps_[dataSlot] = dataStamps_[readSlot] + 1;
+	auto stamp = dataStamps_[readSlot].load(std::memory_order_relaxed);
+	dataStamps_[dataSlot].store(stamp + 1, std::memory_order_relaxed);
 	// Increase the stamp for all parent buffer ranges as well.
 	auto *parent = parentBuffer_;
 	while (parent) {
-		parent->dataStamps_[dataSlot] = parent->dataStamps_[readSlot] + 1;
+		stamp = parent->dataStamps_[readSlot].load(std::memory_order_relaxed);
+		parent->dataStamps_[dataSlot].store(stamp + 1, std::memory_order_relaxed);
 		parent = parent->parentBuffer_;
 	}
 }
@@ -194,7 +205,9 @@ void ClientBuffer::nextSegmentStamp(uint32_t dataSlot, uint32_t writeBegin, uint
 		if (writeBegin < segment->dataOffset_ + segment->dataSize_ && writeEnd > segment->dataOffset_) {
 			// check if the segment overlaps with the updated range.
 			auto readSlot = (segment->dataSlots_[1] ? (1 - dataSlot) : 0);
-			segment->dataStamps_[dataSlot] = segment->dataStamps_[readSlot] + 1;
+			segment->dataStamps_[dataSlot].store(
+				segment->dataStamps_[readSlot].load(std::memory_order_relaxed) + 1,
+				std::memory_order_relaxed);
 		} else if (segment->dataOffset_ >= writeEnd) {
 			// drop out if segment is located after the updated range
 			break;
@@ -272,14 +285,14 @@ MappedClientData ClientBuffer::readRange_SingleBuffer(uint32_t offset, uint32_t 
 	if (readLock_SingleBuffer()) {
 		// got the read lock, return the data.
 		return {dataSlots_[0] + offset, 0};
-	} else if (isCurrentThreadOwnerOfWriteLock(0)) {
+	} else if (isOwnerOfWriteLock(0)) {
 		// Read lock failed, which means there is a write operation in progress. There are two cases:
 		// (1) This thread holds the write lock on slot 0. If we wait here, then
 		//     we would deadlock. But it is actually fine in this case to also
 		//     read-lock the very same slot! then we can stay single-buffered.
 		dataOwner_->readerCounts_[0].fetch_add(1, std::memory_order_relaxed);
 		// Verify that we are still the last owner of the write lock on slot 0.
-		if (!isCurrentThreadOwnerOfWriteLock(0)) {
+		if (!isOwnerOfWriteLock(0)) {
 			dataOwner_->readerCounts_[0].fetch_sub(1, std::memory_order_relaxed);
 			return mapRange(BUFFER_GPU_READ, offset, size); // retry the read operation
 		}
@@ -321,7 +334,7 @@ MappedClientData ClientBuffer::writeRange_SingleBuffer(uint32_t offset, uint32_t
 		// Another write operation is in progress on the first slot.
 		// Note: If the first slot is write-locked by this thread, then we would deadlock
 		// waiting here.
-		if (isCurrentThreadOwnerOfWriteLock(0)) {
+		if (isOwnerOfWriteLock(0)) {
 			// For now, we return the data pointer without doing any locking, hoping that the original
 			// write lock will be lifted after the write operation.
 			return {
@@ -787,7 +800,7 @@ void ClientBuffer::markWrittenTo(uint32_t slotIdx, uint32_t offset, uint32_t siz
 	dataOwner_->dirtyLists_[slotIdx].insert(dataOffset_+offset, size);
 }
 
-bool ClientBuffer::isCurrentThreadOwnerOfWriteLock(int dataSlot) const {
+bool ClientBuffer::isOwnerOfWriteLock(int dataSlot) const {
 	return dataOwner_->writerThreads_[dataSlot] == std::this_thread::get_id();
 }
 
@@ -795,16 +808,12 @@ void ClientBuffer::setOwnerOfWriteLock(int dataSlot) const {
 	dataOwner_->writerThreads_[dataSlot] = std::this_thread::get_id();
 }
 
-int ClientBuffer::lastDataSlot() const {
-	return lastDataSlot_.load(std::memory_order_acquire);
-}
-
 void ClientBuffer::createSecondSlot() {
 	auto data_w = new byte[dataSize_];
 	std::memcpy(data_w, dataSlots_[0], dataSize_);
 	dataSlots_[1] = data_w;
 	// Initialize second slot stamp to the same value as the first slot.
-	dataStamps_[1] = dataStamps_[0];
+	dataStamps_[1].store(dataStamps_[0].load(std::memory_order_relaxed), std::memory_order_relaxed);
 	REGEN_INFO("Switch to double-buffered mode"
 					   << " with " << dataSize_ / 1024.0f << " KiB "
 					   << " in " << bufferSegments_.size() << " segments.");
@@ -812,7 +821,8 @@ void ClientBuffer::createSecondSlot() {
 	// Assign second slot ptr's and offsets to all segments
 	for (auto &segment: bufferSegments_) {
 		segment->setDataPointer(this, data_w + segment->dataOffset_, 1);
-		segment->dataStamps_[1] = segment->dataStamps_[0];
+		segment->dataStamps_[1].store(
+			segment->dataStamps_[0].load(std::memory_order_relaxed), std::memory_order_relaxed);
 	}
 
 	markWrittenTo(currentWriteSlot(), 0, dataSize_);
