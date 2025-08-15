@@ -6,6 +6,8 @@
 
 using namespace regen;
 
+//#define USE_CLIENT_BUFFER_POOL
+
 ClientBuffer::ClientBuffer() {
 	// initially any data that will be allocated will be owned by this instance.
 	// this is until it is added as a segment to another ClientBuffer.
@@ -81,7 +83,7 @@ void ClientBuffer::removeSegment(const ref_ptr<ClientBuffer> &segment) {
 	}
 }
 
-uint32_t ClientBuffer::swapData(bool force) {
+uint32_t ClientBuffer::swapData() {
 	// NOTE: This function should be very fast as potentially both animation and rendering threads
 	//       are waiting for it to finish.
 	// flushing is only needed if the buffer is frame-locked.
@@ -113,6 +115,12 @@ uint32_t ClientBuffer::swapData(bool force) {
 		int32_t lastWriteSlot = 1 - lastReadSlot;
 		auto &dirtyThisFrame = dirtyLists_[lastWriteSlot];
 
+		// We need to avoid race conditions of another thread getting a read lock
+		// while we do the switching, then the thread may attempt (while holding read)
+		// to acquire a write lock which will fail because the readers are blocking.
+		// Also we need to avoid any writer adding stuff to the dirty list while we read it.
+		writeLockAll();
+
 		// Merge overlapping segments, and sort along offsets.
 		// TODO: Merging of dirty frames could safely be done across padded regions,
 		//       i.e. the regions that are not used to store actual data.
@@ -121,11 +129,6 @@ uint32_t ClientBuffer::swapData(bool force) {
 		// Delete all dirty ranges from the last read slot that have been written to this frame.
 		// It is certain that both dirty lists are coalesced, so calling subtract is safe.
 		dirtyLastFrame.subtract(dirtyThisFrame);
-
-		// We need to avoid race conditions of another thread getting a read lock
-		// while we do the switching, then the thread may attempt (while holding read)
-		// to acquire a write lock which will fail because the readers are blocking.
-		writeLockAll();
 
 		// Remaining are the ranges where data in the write slot is not up-to-date with the read slot,
 		// hence we copy it over.
@@ -141,12 +144,16 @@ uint32_t ClientBuffer::swapData(bool force) {
 
 		// For each write segment with stamp < read segment stamp: set the stamp to read segment stamp,
 		// as we have synced the data above.
+		dataStamps_[lastWriteSlot].store(
+			dataStamps_[lastReadSlot].load(std::memory_order_relaxed),
+			std::memory_order_relaxed);
 		for (auto &segment: bufferSegments_) {
-			if (segment->dataStamps_[lastWriteSlot] < segment->dataStamps_[lastReadSlot]) {
-				segment->dataStamps_[lastWriteSlot] = segment->dataStamps_[lastReadSlot];
+			auto writeStamp = segment->dataStamps_[lastWriteSlot].load(std::memory_order_relaxed);
+			auto readStamp = segment->dataStamps_[lastReadSlot].load(std::memory_order_relaxed);
+			if (writeStamp < readStamp) {
+				segment->dataStamps_[lastWriteSlot].store(readStamp, std::memory_order_relaxed);
 			}
 		}
-		dataStamps_[lastWriteSlot] = dataStamps_[lastReadSlot];
 
 		// Finally swap read and write idx, new read idx should have new data for reading next frame.
 		lastDataSlot_.store(lastWriteSlot, std::memory_order_relaxed);
@@ -163,25 +170,31 @@ uint32_t ClientBuffer::swapData(bool force) {
 }
 
 void ClientBuffer::nextStamp() const {
-	uint32_t stamp0 = std::max(dataStamps_[0], dataStamps_[1])+1;
-	dataStamps_[0] = stamp0;
-	dataStamps_[1] = stamp0;
+	uint32_t stamp = 1u + std::max(
+		dataStamps_[0].load(std::memory_order_relaxed),
+		dataStamps_[1].load(std::memory_order_relaxed));
+	dataStamps_[0].store(stamp, std::memory_order_relaxed);
+	dataStamps_[1].store(stamp, std::memory_order_relaxed);
 	auto *parent = parentBuffer_;
 	while (parent != nullptr) {
-		uint32_t stamp1 = std::max(parent->dataStamps_[0], parent->dataStamps_[1])+1;
-		parent->dataStamps_[0] = stamp1;
-		parent->dataStamps_[1] = stamp1;
+		stamp = 1u + std::max(
+			parent->dataStamps_[0].load(std::memory_order_relaxed),
+			parent->dataStamps_[1].load(std::memory_order_relaxed));
+		parent->dataStamps_[0].store(stamp, std::memory_order_relaxed);
+		parent->dataStamps_[1].store(stamp, std::memory_order_relaxed);
 		parent = parent->parentBuffer_;
 	}
 }
 
 void ClientBuffer::nextStamp(uint32_t dataSlot) const {
 	auto readSlot = (dataSlots_[1] ? (1 - dataSlot) : 0);
-	dataStamps_[dataSlot] = dataStamps_[readSlot] + 1;
+	auto stamp = dataStamps_[readSlot].load(std::memory_order_relaxed);
+	dataStamps_[dataSlot].store(stamp + 1, std::memory_order_relaxed);
 	// Increase the stamp for all parent buffer ranges as well.
 	auto *parent = parentBuffer_;
 	while (parent) {
-		parent->dataStamps_[dataSlot] = parent->dataStamps_[readSlot] + 1;
+		stamp = parent->dataStamps_[readSlot].load(std::memory_order_relaxed);
+		parent->dataStamps_[dataSlot].store(stamp + 1, std::memory_order_relaxed);
 		parent = parent->parentBuffer_;
 	}
 }
@@ -194,7 +207,9 @@ void ClientBuffer::nextSegmentStamp(uint32_t dataSlot, uint32_t writeBegin, uint
 		if (writeBegin < segment->dataOffset_ + segment->dataSize_ && writeEnd > segment->dataOffset_) {
 			// check if the segment overlaps with the updated range.
 			auto readSlot = (segment->dataSlots_[1] ? (1 - dataSlot) : 0);
-			segment->dataStamps_[dataSlot] = segment->dataStamps_[readSlot] + 1;
+			segment->dataStamps_[dataSlot].store(
+				segment->dataStamps_[readSlot].load(std::memory_order_relaxed) + 1,
+				std::memory_order_relaxed);
 		} else if (segment->dataOffset_ >= writeEnd) {
 			// drop out if segment is located after the updated range
 			break;
@@ -272,14 +287,14 @@ MappedClientData ClientBuffer::readRange_SingleBuffer(uint32_t offset, uint32_t 
 	if (readLock_SingleBuffer()) {
 		// got the read lock, return the data.
 		return {dataSlots_[0] + offset, 0};
-	} else if (isCurrentThreadOwnerOfWriteLock(0)) {
+	} else if (isOwnerOfWriteLock(0)) {
 		// Read lock failed, which means there is a write operation in progress. There are two cases:
 		// (1) This thread holds the write lock on slot 0. If we wait here, then
 		//     we would deadlock. But it is actually fine in this case to also
 		//     read-lock the very same slot! then we can stay single-buffered.
 		dataOwner_->readerCounts_[0].fetch_add(1, std::memory_order_relaxed);
 		// Verify that we are still the last owner of the write lock on slot 0.
-		if (!isCurrentThreadOwnerOfWriteLock(0)) {
+		if (!isOwnerOfWriteLock(0)) {
 			dataOwner_->readerCounts_[0].fetch_sub(1, std::memory_order_relaxed);
 			return mapRange(BUFFER_GPU_READ, offset, size); // retry the read operation
 		}
@@ -321,7 +336,7 @@ MappedClientData ClientBuffer::writeRange_SingleBuffer(uint32_t offset, uint32_t
 		// Another write operation is in progress on the first slot.
 		// Note: If the first slot is write-locked by this thread, then we would deadlock
 		// waiting here.
-		if (isCurrentThreadOwnerOfWriteLock(0)) {
+		if (isOwnerOfWriteLock(0)) {
 			// For now, we return the data pointer without doing any locking, hoping that the original
 			// write lock will be lifted after the write operation.
 			return {
@@ -391,7 +406,11 @@ void ClientBuffer::deallocateClientData() {
 	if (isDataOwner()) {
 		for (int i = 0; i < 2; ++i) {
 			if (dataSlots_[i]) {
+#ifdef USE_CLIENT_BUFFER_POOL
+				getMemoryPool()->free(dataRefs_[i]);
+#else
 				delete[] dataSlots_[i];
+#endif
 				dataSlots_[i] = nullptr;
 			}
 		}
@@ -451,6 +470,37 @@ void ClientBuffer::updateBufferSize() {
 	}
 }
 
+ClientBufferPool *ClientBuffer::getMemoryPool(bool reset) {
+	static ClientBufferPool *memoryPool = nullptr;
+	if (reset && memoryPool != nullptr) {
+		delete memoryPool;
+		memoryPool = nullptr;
+	}
+	if (memoryPool == nullptr) {
+		memoryPool = new ClientBufferPool();
+		memoryPool->set_index(0);
+		memoryPool->set_alignment(1);
+		memoryPool->set_minSize(4u * 1024u * 1024u); // 4 MB blocks
+	}
+	return memoryPool;
+}
+
+ClientBufferPool::Node* ClientBuffer::getMemoryAllocator(uint32_t dataSize) {
+	ClientBufferPool::Node *n = getMemoryPool()->chooseAllocator(dataSize);
+	if (n == nullptr) {
+		n = getMemoryPool()->createAllocator(dataSize);
+	}
+	return n;
+}
+
+ClientBufferPool *ClientBuffer::getMemoryPool() {
+	return getMemoryPool(false);
+}
+
+ClientBufferPool *ClientBuffer::resetMemoryPool() {
+	return getMemoryPool(true);
+}
+
 void ClientBuffer::ownerResize() {
 	// keep a reference to the old data slots, for copying data over.
 	byte *oldData0 = dataSlots_[0];
@@ -461,24 +511,36 @@ void ClientBuffer::ownerResize() {
 	updateBufferSize();
 
 	// allocate new data slots.
-	// TODO: Better avoid reallocation, and make it faster if possible
-	// 		- using larger buffers
-	//      - using a pool allocator
-	//      - maybe fast re-allocation is possible?
-	dataSlots_[0] = new byte[dataSize_];
+#ifdef USE_CLIENT_BUFFER_POOL
+	auto oldDataRefs0 = dataRefs_[0];
+	auto oldDataRefs1 = dataRefs_[1];
+	auto memoryPool = ClientBuffer::getMemoryPool();
+	auto *allocator = ClientBuffer::getMemoryAllocator(dataSize_);
+	dataRefs_[0] = memoryPool->alloc(allocator, dataSize_);
+	dataSlots_[0] = dataRefs_[0].allocatorNode->allocatorRef;
 	if (clientBufferMode_ == SingleBuffer) {
-		// in single-buffered mode, we only need one data slot.
 		dataSlots_[1] = nullptr;
 	} else if (clientBufferMode_ == DoubleBuffer) {
-		// in double-buffered mode, we need two data slots.
+		dataRefs_[1] = memoryPool->alloc(allocator, dataSize_);
+		dataSlots_[1] = dataRefs_[1].allocatorNode->allocatorRef;
+	} else if (clientBufferMode_ == AdaptiveBuffer) {
+		if (dataSlots_[1]) {
+			dataRefs_[1] = memoryPool->alloc(allocator, dataSize_);
+			dataSlots_[1] = dataRefs_[1].allocatorNode->allocatorRef;
+		}
+	}
+#else
+	dataSlots_[0] = new byte[dataSize_];
+	if (clientBufferMode_ == SingleBuffer) {
+		dataSlots_[1] = nullptr;
+	} else if (clientBufferMode_ == DoubleBuffer) {
 		dataSlots_[1] = new byte[dataSize_];
 	} else if (clientBufferMode_ == AdaptiveBuffer) {
-		// in adaptive buffering mode, we start with a single slot,
-		// but can switch to double-buffering later.
 		if (dataSlots_[1]) {
 			dataSlots_[1] = new byte[dataSize_];
 		}
 	}
+#endif
 
 	if (dataSlots_[1]) {
 		resize_DoubleBuffer(
@@ -495,8 +557,13 @@ void ClientBuffer::ownerResize() {
 	}
 
 	// delete the old data slots.
+#ifdef USE_CLIENT_BUFFER_POOL
+	if (oldData0) memoryPool->free(oldDataRefs0);
+	if (oldData1) memoryPool->free(oldDataRefs1);
+#else
 	delete[] oldData0;
 	delete[] oldData1;
+#endif
 }
 
 void ClientBuffer::resize_SingleBuffer(ClientBuffer *owner, const byte *oldDataPtr, byte *newDataPtr) {
@@ -538,7 +605,11 @@ void ClientBuffer::resize_SingleBuffer(ClientBuffer *owner, const byte *oldDataP
 		readerCounts_[1].store(0, std::memory_order_release);
 		writerFlags_[0].clear(std::memory_order_release);
 		writerFlags_[1].clear(std::memory_order_release);
+#ifdef USE_CLIENT_BUFFER_POOL
+		getMemoryPool()->free(dataRefs_[0]);
+#else
 		delete[] localOldDataPtr;
+#endif
 	}
 }
 
@@ -598,10 +669,17 @@ void ClientBuffer::resize_DoubleBuffer(
 		readerCounts_[1].store(0, std::memory_order_release);
 		writerFlags_[0].clear(std::memory_order_release);
 		writerFlags_[1].clear(std::memory_order_release);
+#ifdef USE_CLIENT_BUFFER_POOL
+		getMemoryPool()->free(dataRefs_[0]);
+		if (localOldDataPtr1 != nullptr && localOldDataPtr1 != localOldDataPtr0) {
+			getMemoryPool()->free(dataRefs_[1]);
+		}
+#else
 		delete[] localOldDataPtr0;
-		if (localOldDataPtr1 != localOldDataPtr0) {
+		if (localOldDataPtr1 != nullptr && localOldDataPtr1 != localOldDataPtr0) {
 			delete[] localOldDataPtr1;
 		}
+#endif
 	}
 }
 
@@ -787,7 +865,7 @@ void ClientBuffer::markWrittenTo(uint32_t slotIdx, uint32_t offset, uint32_t siz
 	dataOwner_->dirtyLists_[slotIdx].insert(dataOffset_+offset, size);
 }
 
-bool ClientBuffer::isCurrentThreadOwnerOfWriteLock(int dataSlot) const {
+bool ClientBuffer::isOwnerOfWriteLock(int dataSlot) const {
 	return dataOwner_->writerThreads_[dataSlot] == std::this_thread::get_id();
 }
 
@@ -795,24 +873,27 @@ void ClientBuffer::setOwnerOfWriteLock(int dataSlot) const {
 	dataOwner_->writerThreads_[dataSlot] = std::this_thread::get_id();
 }
 
-int ClientBuffer::lastDataSlot() const {
-	return lastDataSlot_.load(std::memory_order_acquire);
-}
-
 void ClientBuffer::createSecondSlot() {
-	auto data_w = new byte[dataSize_];
-	std::memcpy(data_w, dataSlots_[0], dataSize_);
-	dataSlots_[1] = data_w;
+#ifdef USE_CLIENT_BUFFER_POOL
+	auto *allocator = ClientBuffer::getMemoryAllocator(dataSize_);
+	dataRefs_[1] = ClientBuffer::getMemoryPool()->alloc(allocator, dataSize_);
+	dataSlots_[1] = dataRefs_[1].allocatorNode->allocatorRef;
+#else
+	dataSlots_[1] = new byte[dataSize_];
+#endif
+	std::memcpy(dataSlots_[1], dataSlots_[0], dataSize_);
+
 	// Initialize second slot stamp to the same value as the first slot.
-	dataStamps_[1] = dataStamps_[0];
+	dataStamps_[1].store(dataStamps_[0].load(std::memory_order_relaxed), std::memory_order_relaxed);
 	REGEN_INFO("Switch to double-buffered mode"
 					   << " with " << dataSize_ / 1024.0f << " KiB "
 					   << " in " << bufferSegments_.size() << " segments.");
 
 	// Assign second slot ptr's and offsets to all segments
 	for (auto &segment: bufferSegments_) {
-		segment->setDataPointer(this, data_w + segment->dataOffset_, 1);
-		segment->dataStamps_[1] = segment->dataStamps_[0];
+		segment->setDataPointer(this, dataSlots_[1] + segment->dataOffset_, 1);
+		segment->dataStamps_[1].store(
+			segment->dataStamps_[0].load(std::memory_order_relaxed), std::memory_order_relaxed);
 	}
 
 	markWrittenTo(currentWriteSlot(), 0, dataSize_);

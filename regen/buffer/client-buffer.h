@@ -8,6 +8,7 @@
 #include <regen/regen.h>
 #include <regen/utility/ref-ptr.h>
 #include <regen/buffer/client-data-base.h>
+#include <regen/buffer/client-allocator.h>
 #include <regen/utility/dirty-list.h>
 #include "buffer-enums.h"
 
@@ -68,7 +69,7 @@ namespace regen {
 		/**
 		 * @return true if client data is available in the second slot, i.e. double-buffering is used.
 		 */
-		bool hasTwoSlots() const { return dataSlots_[1] != nullptr; }
+		inline bool hasTwoSlots() const { return dataSlots_[1] != nullptr; }
 
 		/**
 		 * @return true if the buffer data is owned by this instance.
@@ -127,12 +128,16 @@ namespace regen {
 		/**
 		 * @return the stamp of the data that is currently being written to.
 		 */
-		inline uint32_t stampOfWriteData() const { return dataStamps_[currentWriteSlot()]; }
+		inline uint32_t stampOfWriteData() const {
+			return dataStamps_[currentWriteSlot()].load(std::memory_order_relaxed);
+		}
 
 		/**
 		 * @return the stamp of the data that is currently being read.
 		 */
-		inline uint32_t stampOfReadData() const { return dataStamps_[currentReadSlot()]; }
+		inline uint32_t stampOfReadData() const {
+			return dataStamps_[currentReadSlot()].load(std::memory_order_relaxed);
+		}
 
 		/**
 		 * Returns the current read slot index.
@@ -148,7 +153,7 @@ namespace regen {
 		 * @return the current write slot index (0 or 1).
 		 */
 		inline uint32_t currentWriteSlot() const {
-			return 1 - currentReadSlot();
+			return hasTwoSlots() ? 1u - currentReadSlot() : 0u;
 		}
 
 		/**
@@ -247,7 +252,7 @@ namespace regen {
 		 * This will first ensure that the current write slot has all the most recent data,
 		 * and secondly, it swaps the read and write slots.
 		 */
-		uint32_t swapData(bool force=false);
+		uint32_t swapData();
 
 		/**
 		 * Locks all data slots, effectively preventing any read or write access
@@ -265,6 +270,19 @@ namespace regen {
 		 */
 		void writeUnlockAll(uint32_t writeOffset, uint32_t writeSize) const;
 
+		/**
+		 * Returns the memory pool used for client buffers.
+		 * @return the memory pool used for client buffers.
+		 */
+		static ClientBufferPool *getMemoryPool();
+
+		/**
+		 * Resets the memory pool used for client buffers.
+		 * This will deallocate all memory used by the pool and reset it to its initial state.
+		 * @return the memory pool used for client buffers.
+		 */
+		static ClientBufferPool *resetMemoryPool();
+
 	protected:
 		Mode clientBufferMode_ = AdaptiveBuffer;
 		uint32_t dataSize_ = 0u;
@@ -277,21 +295,29 @@ namespace regen {
 		BufferMemoryLayout memoryLayout_ = BUFFER_MEMORY_PACKED;
 
 		// Note: marked as mutable because client data mapping must be allowed in const functions
-		//       for reading data, but mapping interacts with locks. Hence, locks must be mutable.
-		mutable std::array<byte *, 2> dataSlots_ = {nullptr, nullptr};
+		//       for reading data.
+		mutable std::array<byte*, 2> dataSlots_ = {nullptr, nullptr};
+		mutable std::array<ClientBufferPool::Reference, 2> dataRefs_;
 		// the instance that owns the data slots, i.e. either this instance or a parent buffer.
 		mutable ClientBuffer* dataOwner_;
 
-		// active slot for readers
+		// Active slot for readers.
+		// Threads might read this concurrently, so we need atomic operations.
 		mutable std::atomic<int> lastDataSlot_{0};
-		// per-slot reader/writer count
+		// Per-slot reader/writer count.
+		// Multiple readers are allowed, so we need atomic operations here.
+		// note: only the data owner manages the reader counts.
 		std::atomic<uint32_t> readerCounts_[2] = {0u, 0u};
 		// protects against simultaneous writers
+		// note: only the data owner manages the write flags.
 		std::atomic_flag writerFlags_[2] = {ATOMIC_FLAG_INIT, ATOMIC_FLAG_INIT};
 		std::thread::id writerThreads_[2] = {std::thread::id(), std::thread::id()};
-		// indicator to writes to the data slots
-		mutable uint32_t dataStamps_[2] = {0u,0u};
-		// stores the ranges written to in the current and last frame if frame-locked
+		// Indicates the last modification time for each data slot.
+		// This is exposed to the user, so it can be read from different threads hence we need atomic operations.
+		mutable std::atomic<uint32_t> dataStamps_[2] = {0u,0u};
+		// stores the ranges written to in the current and last frame if frame-locked.
+		// note: only the data owner maintains the dirty lists.
+		// note: is only written and read while holding the write lock, so we do not need atomic operations here.
 		DirtyList dirtyLists_[2] = {};
 
 		ClientBuffer* parentBuffer_ = nullptr;
@@ -317,11 +343,9 @@ namespace regen {
 
 		MappedClientData readRange_DoubleBuffer(uint32_t offset, uint32_t size) const;
 
-		int lastDataSlot() const;
-
 		void nextStamp() const;
 
-		bool isCurrentThreadOwnerOfWriteLock(int dataSlot) const;
+		bool isOwnerOfWriteLock(int dataSlot) const;
 
 		void setOwnerOfWriteLock(int dataSlot) const;
 
@@ -332,6 +356,10 @@ namespace regen {
 		void setDataPointer(ClientBuffer *owner, byte *dataPtr, uint32_t slotIdx) const;
 
 		void ownerResize();
+
+		static ClientBufferPool *getMemoryPool(bool reset);
+
+		static ClientBufferPool::Node* getMemoryAllocator(uint32_t dataSize);
 
 		void updateBufferSize();
 
