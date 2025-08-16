@@ -137,7 +137,7 @@ void main() {
     out_binormal = normalize( cross(norWorld.xyz, out_tangent.xyz) * in_tan.w );
 #endif
 #ifdef HAS_CUSTOM_HANDLE_IO
-    customHandleIO(posWorld.xyz, norWorld.xyz);
+    customHandleIO(posWorld.xyz, posEye.xyz, norWorld.xyz);
 #endif
 #ifdef HAS_INSTANCES
     out_instanceID = gl_InstanceID + gl_BaseInstance;
@@ -404,6 +404,7 @@ in float in_brightness;
 #define FS_NO_OUTPUT
 #include regen.models.mesh.fs-shading
     #else
+layout(early_fragment_tests) in;
 void main() {
     // enforce depth writing. This seems redundant, but is necessary
     // for some drivers (i.e. NVIDIA) that may prune the fragment shader entirely
