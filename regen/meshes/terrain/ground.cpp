@@ -5,7 +5,8 @@
 
 using namespace regen;
 
-uint32_t Ground::MAX_BLENDED_MATERIALS = 2;
+uint32_t Ground::MAX_BLENDED_MATERIALS = 3;
+float Ground::MIN_MATERIAL_WEIGHT = 0.1f;
 
 Ground::Ground() : SkirtQuad() {
 	rectangleConfig_.updateHint.frequency = BUFFER_UPDATE_NEVER;
@@ -215,6 +216,8 @@ void Ground::updateMaterialMaps() {
 		"NUM_MATERIALS", REGEN_STRING(materialConfigs_.size()));
 	groundShaderDefines_->shaderDefine(
 		"MAX_NUM_BLENDED_MATERIALS", REGEN_STRING(MAX_BLENDED_MATERIALS));
+	groundShaderDefines_->shaderDefine(
+		"MIN_MATERIAL_WEIGHT", REGEN_STRING(MIN_MATERIAL_WEIGHT));
 	for (auto &cfg: materialConfigs_) {
 		std::string materialType = REGEN_STRING(cfg.type);
 		if (cfg.isFallback) {
@@ -335,6 +338,8 @@ void Ground::updateMaterialMaps() {
 		materialNormalState_->set_mapTo(TextureState::MAP_TO_CUSTOM);
 		materialNormalState_->set_mapping(TextureState::MAPPING_CUSTOM);
 		joinStates(materialNormalState_);
+		groundShaderDefines_->shaderDefine(
+			REGEN_STRING("GROUND_NUM_NORMAL_MAPS"), REGEN_STRING(numNormalMaps_));
 	} else {
 		numNormalMaps_ = 0u;
 	}
@@ -353,32 +358,28 @@ void Ground::createWeightPass() {
 	auto fbo = ref_ptr<FBO>::alloc(weightMapSize_, weightMapSize_);
 	std::vector<GLenum> attachments;
 
-	auto texFormat = glenum::textureFormat(MAX_BLENDED_MATERIALS);
-	groundShaderDefines_->shaderDefine("NUM_WEIGHT_MAPS", REGEN_STRING(1));
-	attachments.resize(2);
+	// we create weight maps that store weights for 4 materials each.
+	auto numWeightMaps = static_cast<uint32_t>(std::ceil(
+			static_cast<float>(materialConfigs_.size()) / 4.0f));
+	attachments.resize(numWeightMaps);
+	weightMaps_.resize(numWeightMaps);
+	groundShaderDefines_->shaderDefine(
+		"NUM_WEIGHT_MAPS", REGEN_STRING(numWeightMaps));
 
-	// A texture with top-N weights
-	auto weightsFormat = glenum::textureInternalFormat(
-		GL_UNSIGNED_BYTE, MAX_BLENDED_MATERIALS, 4);
-	auto weightsTex = fbo->addTexture(1, GL_TEXTURE_2D,
-		texFormat, weightsFormat, GL_UNSIGNED_BYTE);
-	weightsTex->set_wrapping(GL_REPEAT);
-	weightsTex->set_filter(GL_NEAREST);
-	weightMap_ = ref_ptr<Texture2D>::dynamicCast(weightsTex);
-	attachments[0] = GL_COLOR_ATTACHMENT0;
-	joinStates(ref_ptr<TextureState>::alloc(weightMap_, "groundMaterialWeights0"));
-
-	// A texture with top-N material indices
-	auto indicesFormat = glenum::textureInternalFormat(
-		GL_UNSIGNED_INT, MAX_BLENDED_MATERIALS, 4);
-	auto indicesTex = fbo->addTexture(1, GL_TEXTURE_2D,
-		texFormat, indicesFormat, GL_UNSIGNED_BYTE);
-	indicesTex->set_samplerType("usampler2D");
-	indicesTex->set_wrapping(GL_REPEAT);
-	indicesTex->set_filter(GL_NEAREST);
-	indexMap_ = ref_ptr<Texture2D>::dynamicCast(indicesTex);
-	attachments[1] = GL_COLOR_ATTACHMENT1;
-	joinStates(ref_ptr<TextureState>::alloc(indexMap_, "groundMaterialIndices0"));
+	for (uint32_t i=0; i<numWeightMaps; ++i) {
+		auto tex = fbo->addTexture(1,
+				GL_TEXTURE_2D,
+				GL_RGBA,
+				GL_RGBA8,
+				GL_UNSIGNED_BYTE);
+		weightMaps_[i] = ref_ptr<Texture2D>::dynamicCast(tex);
+		attachments[i] = GL_COLOR_ATTACHMENT0 + i;
+		if (useWeightMapMips_) {
+			tex->set_filter(TextureFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR));
+		}
+		joinStates(ref_ptr<TextureState>::alloc(
+			weightMaps_[i], "groundMaterialWeights" + REGEN_STRING(i)));
+	}
 
 	weightFBO_ = ref_ptr<FBOState>::alloc(fbo);
 	weightFBO_->setDrawBuffers(attachments);
@@ -416,8 +417,9 @@ void Ground::updateWeightMaps() {
 	weightUpdateState_->enable(rs);
 	weightUpdateState_->disable(rs);
 	if(useWeightMapMips_) {
-		// TODO: Support mipmap generation for weight maps.
-		//       However, this cannot be trivially done due to the index map!
+		for (auto &tex : weightMaps_) {
+			tex->updateMipmaps();
+		}
 	}
 }
 
@@ -515,6 +517,12 @@ ref_ptr<Ground> Ground::load(LoadingContext &ctx, scene::SceneInputNode &input) 
 
 	ground->createResources();
 	ground->updateWeightMaps();
+
+	for (uint32_t mapIdx = 0; mapIdx < ground->weightMaps_.size(); ++mapIdx) {
+		scene->putResource<Texture>(
+			REGEN_STRING(input.getName() << "-weight-map-" << mapIdx),
+			ground->weightMaps_[mapIdx]);
+	}
 
 	return ground;
 }

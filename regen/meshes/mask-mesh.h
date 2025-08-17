@@ -32,8 +32,9 @@ namespace regen {
 		 * @param cfg the mesh configuration.
 		 */
 		explicit MaskMesh(
-				const ref_ptr<Texture2D> &maskTexture,
 				const ref_ptr<ModelTransformation> &tf,
+				const ref_ptr<Texture2D> &maskTexture,
+				uint32_t maskIndex,
 				const Config &cfg = Config());
 
 		/**
@@ -63,8 +64,9 @@ namespace regen {
 				const Rectangle::Config &quadCfg);
 
 	protected:
-		ref_ptr<Texture2D> maskTexture_;
 		ref_ptr<ModelTransformation> tf_;
+		ref_ptr<Texture2D> maskTexture_;
+		uint32_t maskIndex_;
 		Vec2f meshSize_;
 	};
 } // namespace

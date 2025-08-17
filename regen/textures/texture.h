@@ -361,6 +361,28 @@ namespace regen {
 		}
 
 		/**
+		 * Sample a region, and return the max value.
+		 * @param texco texture coordinates.
+		 * @param regionTS region size in texture space.
+		 * @param textureData texture data.
+		 * @param numComponents number of components per texel.
+		 * @return max value.
+		 */
+		template<class T>
+		float sampleMax(const Vec2f &texco, const Vec2f &regionTS, const GLubyte *textureData, uint32_t componentIdx) const {
+			auto bounds = getRegion(texco, regionTS);
+			float maxVal = 0.0f;
+			for (unsigned int y = bounds.min.y; y <= bounds.max.y; ++y) {
+				for (unsigned int x = bounds.min.x; x <= bounds.max.x; ++x) {
+					unsigned int index = (y * width() + x);
+					float v = sample<T>(index, textureData)[componentIdx];
+					maxVal = std::max(maxVal, v);
+				}
+			}
+			return maxVal;
+		}
+
+		/**
 		 * Sample the nearest texel.
 		 * @param uv texture coordinates.
 		 * @param textureData texture data.
@@ -413,6 +435,26 @@ namespace regen {
 				(v00 * (1.0f - dx) + v10 * dx) * (1.0f - dy) +
 				(v01 * (1.0f - dx) + v11 * dx) * dy;
 		}
+
+		/**
+		 * Sample a texel at the given index.
+		 * @param texelIndex index of the texel.
+		 * @param textureData texture data.
+		 * @param numComponents number of components per texel.
+		 * @return value.
+		 */
+		template<class T>
+		T sample(unsigned int texelIndex, const GLubyte *textureData) const {
+			auto *dataOffset = textureData + texelIndex * numComponents_;
+			T v(0.0f);
+			auto *typedData = (float *) &v;
+			for (unsigned int i = 0; i < numComponents_; ++i) {
+				typedData[i] = static_cast<float>(dataOffset[i]) / 255.0f;
+			}
+			return v;
+		}
+
+		Bounds<Vec2ui> getRegion(const Vec2f &texco, const Vec2f &regionTS) const;
 
 		static void configure(ref_ptr<Texture> &tex, scene::SceneInputNode &input);
 
@@ -482,20 +524,7 @@ namespace regen {
 
 		void updateSubImage_noop(GLint, GLubyte*) {}
 
-		Bounds<Vec2ui> getRegion(const Vec2f &texco, const Vec2f &regionTS) const;
-
 		unsigned int texelIndex(const Vec2f &texco) const;
-
-		template<class T>
-		T sample(unsigned int texelIndex, const GLubyte *textureData) const {
-			auto *dataOffset = textureData + texelIndex * numComponents_;
-			T v(0.0f);
-			auto *typedData = (float *) &v;
-			for (unsigned int i = 0; i < numComponents_; ++i) {
-				typedData[i] = static_cast<float>(dataOffset[i]) / 255.0f;
-			}
-			return v;
-		}
 	};
 
 	/**
