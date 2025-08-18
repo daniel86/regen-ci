@@ -22,6 +22,8 @@ namespace regen {
 	public:
 		// Maximum number of materials that can be blended.
 		static uint32_t MAX_BLENDED_MATERIALS;
+		// Minimum weight for a material to be considered.
+		static float MIN_MATERIAL_WEIGHT;
 
 		/**
 		 * Defines the material types.
@@ -52,7 +54,7 @@ namespace regen {
 		 */
 		void setModelTransform(const ref_ptr<ModelTransformation> &tf) {
 			tf_ = tf;
-			joinStates(tf);
+			joinSkirtStates(tf);
 		}
 
 		/**
@@ -161,8 +163,7 @@ namespace regen {
 		// the weight maps also reassemble ordering in the texture arrays, e.g.
 		// first weight map y coordinate maps to the second element in the texture array.
 		ref_ptr<FBOState> weightFBO_;
-		ref_ptr<Texture2D> weightMap_;
-		ref_ptr<Texture2D> indexMap_;
+		std::vector<ref_ptr<Texture2D>> weightMaps_;
 		ref_ptr<FullscreenPass> weightUpdatePass_;
 		ref_ptr<State> weightUpdateState_;
 		uint32_t weightMapSize_ = 2048;
@@ -177,6 +178,10 @@ namespace regen {
 		void updateGroundPatches();
 
 		void updatePatchSize();
+
+		void setSkirtInput(const ref_ptr<ShaderInput> &in);
+
+		void joinSkirtStates(const ref_ptr<State> &state);
 	};
 
 } // namespace

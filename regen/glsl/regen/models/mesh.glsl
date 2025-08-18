@@ -17,6 +17,11 @@
     #define USE_MATERIAL
     #endif
 #endif
+#ifdef VERTEX_MASK
+    #ifndef VERTEX_MASK_INDEX
+    #define VERTEX_MASK_INDEX 0
+    #endif
+#endif
 
 -- vs
 #include regen.models.mesh.defines
@@ -136,6 +141,13 @@ void main() {
     out_tangent = normalize( tanw.xyz );
     out_binormal = normalize( cross(norWorld.xyz, out_tangent.xyz) * in_tan.w );
 #endif
+/**
+#ifndef HAS_TESSELATION
+    #ifdef HAS_VERTEX_MASK_MAP
+    gl_ClipDistance[0] = out_mask - 0.2;
+    #endif
+#endif // HAS_TESSELATION
+**/
 #ifdef HAS_CUSTOM_HANDLE_IO
     customHandleIO(posWorld.xyz, posEye.xyz, norWorld.xyz);
 #endif

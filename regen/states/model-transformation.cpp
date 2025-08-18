@@ -182,17 +182,29 @@ struct InstancePlaneGenerator {
 	std::vector<Mat4f> instanceData;
 	ref_ptr<Texture2D> maskTexture;
 	ref_ptr<Texture2D> heightMap;
+	ref_ptr<Texture> matWeightMap;
 	const GLubyte *maskData = nullptr;
 	const GLubyte *heightData = nullptr;
+	const GLubyte *matWeightData = nullptr;
 	//
 	PlaneCell *cells = nullptr;
 	unsigned int cellCountX = 0;
 	unsigned int cellCountY = 0;
 	unsigned int numCells = 0;
+	int materialIdx = 0;
+
+	bool hasGroundMaterial() const {
+		return matWeightMap.get();
+	}
 };
 
-static void makeInstance(InstancePlaneGenerator &generator, const PlaneCell &cell) {
-	if (generator.maskData) {
+static void makeInstance(InstancePlaneGenerator &generator, PlaneCell &cell) {
+	if (generator.hasGroundMaterial()) {
+		auto density = generator.matWeightMap->sampleLinear<Vec4f>(
+				cell.uv, generator.matWeightData)[generator.materialIdx];
+		if (density < 0.5f) return;
+	}
+	else if (generator.maskData) {
 		auto density = generator.maskTexture->sampleLinear<float>(
 				cell.uv, generator.maskData);
 		if (density < 0.1f) return;
@@ -212,13 +224,22 @@ static void makeInstance(InstancePlaneGenerator &generator, const PlaneCell &cel
 	instanceMat *= q.calculateMatrix();
 
 	// translate to cell position
-	Vec3f pos = Vec3f(cell.position.x, 0.0f, cell.position.y) + generator.cellWorldOffset;
+	Vec3f pos = Vec3f(cell.position.x, 0.0f, cell.position.y);
+	Vec2f halfArea = generator.areaSize * 0.5f;
 	if (generator.objPosVariation > 0.0f) {
-		// TODO: randomize position within cell, but need to re-compute UV then!
-		//pos.x += generator.objPosVariation * (math::random<float>() - 0.5f) * 2.0f;
-		//pos.z += generator.objPosVariation * (math::random<float>() - 0.5f) * 2.0f;
-		//cell_uv = ...
+		float dx = generator.objPosVariation * (math::random<float>() - 0.5f) * 2.0f;
+		float dz = generator.objPosVariation * (math::random<float>() - 0.5f) * 2.0f;
+		pos.x += dx;
+		pos.z += dz;
+		// clamp to area size
+		pos.x = std::max(-halfArea.x, std::min(pos.x, halfArea.x));
+		pos.z = std::max(-halfArea.y, std::min(pos.z, halfArea.y));
+		cell.uv.x += dx / generator.areaSize.x;
+		cell.uv.y += dz / generator.areaSize.y;
+		cell.uv.x = std::max(0.0f, std::min(cell.uv.x, 1.0f));
+		cell.uv.y = std::max(0.0f, std::min(cell.uv.y, 1.0f));
 	}
+	pos += generator.cellWorldOffset;
 	instanceMat.x[12] += pos.x;
 	instanceMat.x[13] += pos.y;
 	instanceMat.x[14] += pos.z;
@@ -277,6 +298,15 @@ static void makeInstances(InstancePlaneGenerator &generator,
 			bottomRight.first.uv = cell.uv + Vec2f(0.25f, -0.25f) * uvOffset;
 			topRight.first.uv = cell.uv + Vec2f(0.25f, 0.25f) * uvOffset;
 			topLeft.first.uv = cell.uv - Vec2f(0.25f, -0.25f) * uvOffset;
+
+			bottomLeft.first.uv.x = std::max(0.0f, std::min(bottomLeft.first.uv.x, 1.0f));
+			bottomLeft.first.uv.y = std::max(0.0f, std::min(bottomLeft.first.uv.y, 1.0f));
+			bottomRight.first.uv.x = std::max(0.0f, std::min(bottomRight.first.uv.x, 1.0f));
+			bottomRight.first.uv.y = std::max(0.0f, std::min(bottomRight.first.uv.y, 1.0f));
+			topRight.first.uv.x = std::max(0.0f, std::min(topRight.first.uv.x, 1.0f));
+			topRight.first.uv.y = std::max(0.0f, std::min(topRight.first.uv.y, 1.0f));
+			topLeft.first.uv.x = std::max(0.0f, std::min(topLeft.first.uv.x, 1.0f));
+			topLeft.first.uv.y = std::max(0.0f, std::min(topLeft.first.uv.y, 1.0f));
 
 			// compute weights for subdivide cells
 			bottomLeft.second.left = 0.75f * weights.left + 0.25f * weights.bottom;
@@ -351,6 +381,21 @@ static GLuint transformMatrixPlane(
 			REGEN_WARN("Unable to load mask texture.");
 		}
 	}
+	if (input.hasAttribute("material-weight-map")) {
+		uint32_t materialIdx = input.getValue<uint32_t>("material-index", 0);
+		// each weight texture has 4 material channels.
+		uint32_t materialTextureIdx = materialIdx / 4;
+		auto materialTextureName = REGEN_STRING(
+			input.getValue("material-weight-map") << "-" << materialTextureIdx);
+		generator.matWeightMap = scene->getResource<Texture>(materialTextureName);
+		if (generator.matWeightMap.get()) {
+			generator.materialIdx = materialIdx % 4;
+			generator.matWeightMap->ensureTextureData();
+			generator.matWeightData = generator.matWeightMap->textureData();
+		} else {
+			REGEN_WARN("Unable to load material weight map texture for '" << input.getDescription() << "'.");
+		}
+	}
 	if (input.hasAttribute("area-height-texture")) {
 		generator.heightMap = scene->getResource<Texture2D>(input.getValue("area-height-texture"));
 		if (generator.heightMap.get()) {
@@ -401,8 +446,21 @@ static GLuint transformMatrixPlane(
 		cellUV.y += generator.ts_cellSize.y;
 	}
 
-	if (generator.maskData) {
-		// compute cell density based on mask texture
+	if (generator.hasGroundMaterial()) {
+		// Use material weight maps of the ground mesh to compute cell density.
+		// This requires to set the material index of the ground mesh, for the material
+		// where we want to spawn instances.
+		for (unsigned int i = 0; i < generator.numCells; i++) {
+			auto &cell = generator.cells[i];
+			cell.density = generator.matWeightMap->sampleMax<Vec4f>(
+					cell.uv,
+					generator.ts_cellSize,
+					generator.matWeightData,
+					generator.materialIdx);
+		}
+	}
+	else if (generator.maskData) {
+		// Compute cell density based on mask texture.
 		for (unsigned int i = 0; i < generator.numCells; i++) {
 			auto &cell = generator.cells[i];
 			cell.density = generator.maskTexture->sampleMax<float>(

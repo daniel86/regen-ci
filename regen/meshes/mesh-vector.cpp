@@ -291,6 +291,10 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 		auto groundMesh = Ground::load(ctx, input);
 		if (groundMesh.get() == nullptr) {
 			REGEN_WARN("Ignoring " << input.getDescription() << ", failed to load ground mesh.");
+		} else if (groundMesh->skirtMesh().get()) {
+			(*out) = MeshVector(2);
+			(*out)[0] = groundMesh;
+			(*out)[1] = groundMesh->skirtMesh();
 		} else {
 			(*out) = MeshVector(1);
 			(*out)[0] = groundMesh;

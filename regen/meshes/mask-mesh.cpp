@@ -4,13 +4,16 @@
 using namespace regen;
 
 MaskMesh::MaskMesh(
-			const ref_ptr<Texture2D> &maskTexture,
 			const ref_ptr<ModelTransformation> &tf,
+			const ref_ptr<Texture2D> &maskTexture,
+			uint32_t maskIndex,
 			const Config &cfg)
 		: Rectangle(cfg.quad),
-		  maskTexture_(maskTexture),
 		  tf_(tf),
+		  maskTexture_(maskTexture),
+		  maskIndex_(maskIndex),
 		  meshSize_(cfg.meshSize) {
+	shaderDefine("VERTEX_MASK_INDEX", REGEN_STRING(maskIndex_));
 	auto ts = ref_ptr<TextureState>::alloc(maskTexture_, "maskTexture");
 	ts->set_mapTo(TextureState::MAP_TO_VERTEX_MASK);
 	ts->set_mapping(TextureState::MAPPING_XZ_PLANE);
@@ -30,6 +33,9 @@ MaskMesh::MaskMesh(const ref_ptr<MaskMesh> &other)
 	ts->set_mapping(TextureState::MAPPING_XZ_PLANE);
 	joinStates(ts);
 	joinStates(other->tf_);
+	// mask value is used to write clip distance, avoiding fragment shader
+	// execution for masked fragments.
+	//joinStates(ref_ptr<ToggleState>::alloc(RenderState::CLIP_DISTANCE0, true));
 }
 
 MaskMesh::Config::Config()
@@ -119,11 +125,23 @@ ref_ptr<MaskMesh> MaskMesh::load(LoadingContext &ctx, scene::SceneInputNode &inp
 	}
 	meshCfg.height = input.getValue<float>("height", 0.0f);
 	meshCfg.meshSize = input.getValue<Vec2f>("ground-size", Vec2f(10.0f));
-	auto maskTexture = scene->getResource<Texture2D>(input.getValue("mask"));
+
+	ref_ptr<Texture2D> maskTexture;
+	uint32_t maskIndex = input.getValue<uint32_t >("mask-index", 0u);
+	if (input.hasAttribute("mask")) {
+		maskTexture = scene->getResource<Texture2D>(input.getValue("mask"));
+	} else if (input.hasAttribute("material-weights")) {
+		maskIndex = input.getValue<uint32_t >("material-index", maskIndex);
+		uint32_t materialTextureIdx = maskIndex / 4;
+		auto materialTextureName = REGEN_STRING(
+			input.getValue("material-weights") << "-" << materialTextureIdx);
+		maskTexture = scene->getResource<Texture2D>(materialTextureName);
+		maskIndex = maskIndex % 4;
+	}
 	if (maskTexture.get() == nullptr) {
 		REGEN_WARN("Ignoring " << input.getDescription() << ", failed to load mask texture.");
 		return {};
 	}
 
-	return ref_ptr<MaskMesh>::alloc(maskTexture, tf, meshCfg);
+	return ref_ptr<MaskMesh>::alloc(tf, maskTexture, maskIndex, meshCfg);
 }

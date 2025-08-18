@@ -20,24 +20,20 @@ namespace regen {
 		explicit SkirtQuad(const Config &cfg = Config());
 
 		/**
-		 * @param other Another Rectangle.
-		 */
-		explicit SkirtQuad(const ref_ptr<SkirtQuad> &other);
-
-		/**
 		 * Sets the skirt width.
 		 * @param skirtWidth The width of the skirt.
 		 */
-		void setSkirtSize(float skirtSize) {
-			skirtSize_ = skirtSize;
-		}
+		void setSkirtSize(float skirtSize);
+
+		const ref_ptr<Mesh>& skirtMesh() { return skirtMesh_; }
+
+		void updateAttributes() override;
 
 	protected:
+		ref_ptr<Mesh> skirtMesh_;
 		float skirtSize_ = 0.05f;
 
 		void tessellateRectangle(uint32_t lod, Tessellation &t) override;
-
-		void addSkirt(Tessellation &tessellation);
 	};
 } // namespace
 

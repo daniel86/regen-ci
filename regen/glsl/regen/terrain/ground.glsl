@@ -19,22 +19,22 @@ vec2 groundUV(vec3 posWorld, vec3 normal) {
 #define2 ground_heightBlend_included
 #include regen.terrain.ground.groundUV
 void groundHeightBlend(in vec3 offset, inout vec3 P, float one) {
-    P += offset;
-    // next do some special treatment for skirt vertices, we detect them by y position...
-    float zeroLevel = in_mapCenter.y - in_mapSize.y * 0.5f;
-    if (P.y < zeroLevel - 1e-6) {
-        // TODO: Reconsider the skirt handling.
-        //      - maybe we can avoid sampling the normal map here? we could just push downwards
-        //        which would be less expensive.
-        //      - avoiding the conditional would also be good.
-        //      - also I had the feeling that this still looks wrong in some cases, better to investigate again.
-        // sample the normal map
-        vec3 nor = normalize((texture(in_normalMap, groundUV(P)).xzy * 2.0) - 1.0);
-        //vec3 nor = vec3(0.0, 1.0, 0.0);
-        // translate back to original vertex, and
-        // offset the vertex position in opposite direction of the normal
-        P += nor * in_skirtSize - vec3(0.0, in_skirtSize, 0.0);
+#ifdef IS_SKIRT_MESH
+    // TODO: Reconsider the skirt handling.
+    //      - Push along normal instead?
+    //      - Scale model y position based on slope --> make skirt larger on sloped areas?
+    /**
+    vec3 nor = normalize((texture(in_normalMap, groundUV(P)).xzy * 2.0) - 1.0);
+    if (in_pos.y < -0.25) {
+        float slope = smoothstep(0.1, 0.6, 1.0 - nor.y);
+        P.y += in_skirtSize;
+        P.y -= mix(in_skirtSize, 4.0f*in_skirtSize, slope);
     }
+    **/
+    P += offset;
+#else
+    P += offset;
+#endif
 }
 #endif // ground_heightBlend_included
 
@@ -79,8 +79,9 @@ void main() {
 
 -- weights.fs
 #include regen.defines.all
-layout(location = 0) out vec4 out_weights;
-layout(location = 1) out uvec4 out_indices;
+#for W_I to NUM_WEIGHT_MAPS
+layout(location = ${W_I}) out vec4 out_weights_${W_I};
+#endfor
 in vec2 in_groundUV;
 
 float material_weight0(float minVal, float maxVal, float smoothStep, float val) {
@@ -92,51 +93,6 @@ float material_weight1(float minVal, float maxVal, float smoothStep, float val) 
 float material_weight2(float minVal, float maxVal, float smoothStep, float val) {
     return smoothstep(minVal, minVal+smoothStep, val) *
         (1.0 - smoothstep(maxVal-smoothStep, maxVal, val));
-}
-
-struct TopEntry {
-    float w;
-    uint idx;
-};
-TopEntry TopEntry_ctor(float w, uint idx) {
-    TopEntry t;
-    t.w=w;
-    t.idx=idx;
-    return t;
-}
-void insertTopN(in float w, in uint idx, inout TopEntry best[MAX_NUM_BLENDED_MATERIALS]) {
-    if (w > best[0].w) {
-#if ${MAX_NUM_BLENDED_MATERIALS} >= 4
-        best[3] = best[2];
-#endif
-#if ${MAX_NUM_BLENDED_MATERIALS} >= 3
-        best[2] = best[1];
-#endif
-        best[1] = best[0];
-        best[0] = TopEntry_ctor(w, idx);
-    }
-    else if (w > best[1].w) {
-#if ${MAX_NUM_BLENDED_MATERIALS} >= 4
-        best[3] = best[2];
-#endif
-#if ${MAX_NUM_BLENDED_MATERIALS} >= 3
-        best[2] = best[1];
-#endif
-        best[1] = TopEntry_ctor(w, idx);
-    }
-#if ${MAX_NUM_BLENDED_MATERIALS} >= 3
-    else if (w > best[2].w) {
-#if ${MAX_NUM_BLENDED_MATERIALS} >= 4
-        best[3] = best[2];
-#endif
-        best[2] = TopEntry_ctor(w, idx);
-    }
-#endif
-#if ${MAX_NUM_BLENDED_MATERIALS} >= 4
-    else if (w > best[3].w) {
-        best[3] = TopEntry_ctor(w, idx);
-    }
-#endif
 }
 
 void main() {
@@ -194,40 +150,30 @@ void main() {
     weight_${FALLBACK_I} += 0.66 * step(weightSum, 0.001);
 #endif
 
-    TopEntry best[MAX_NUM_BLENDED_MATERIALS];
-#for TOP_I to MAX_NUM_BLENDED_MATERIALS
-    best[${TOP_I}] = TopEntry_ctor(-1e9, 0);
-#endfor
-#for MAT_I to NUM_MATERIALS
-    insertTopN(weight_${MAT_I}, ${MAT_I}, best);
-#endfor
-
-    // Normalize weights and clamp negatives
-    float topSum = 0.0;
-#for TOP_I to MAX_NUM_BLENDED_MATERIALS
-    topSum += best[${TOP_I}].w;
-#endfor
-    float invTopSum = topSum > 1e-5 ? 1.0/topSum : 0.0;
-
-#if MAX_NUM_BLENDED_MATERIALS > 3
-    out_weights = vec4(best[0].w, best[1].w, best[2].w, best[3].w) * invTopSum;
-#elif MAX_NUM_BLENDED_MATERIALS > 2
-    out_weights = vec4(vec3(best[0].w, best[1].w, best[2].w) * invTopSum, 0.0);
-#elif MAX_NUM_BLENDED_MATERIALS > 1
-    out_weights = vec4(vec2(best[0].w, best[1].w) * invTopSum, 0.0, 0.0);
-#else
-    out_weights = vec4(1.0, 0.0, 0.0, 0.0);
-#endif
-#if MAX_NUM_BLENDED_MATERIALS > 3
-    out_indices = uvec4(best[0].idx, best[1].idx, best[2].idx, best[3].idx);
-#elif MAX_NUM_BLENDED_MATERIALS > 2
-    out_indices = uvec4(best[0].idx, best[1].idx, best[2].idx, -1);
-#elif MAX_NUM_BLENDED_MATERIALS > 1
-    out_indices = uvec4(best[0].idx, best[1].idx, -1, -1);
-#else
-    out_indices = uvec4(best[0].idx, -1, -1, -1);
-#endif
+    #if NUM_MATERIALS > 3
+    out_weights_0 = vec4(weight_0, weight_1, weight_2, weight_3);
+    #elif NUM_MATERIALS > 2
+    out_weights_0 = vec4(weight_0, weight_1, weight_2, 0.0);
+    #elif NUM_MATERIALS > 1
+    out_weights_0 = vec4(weight_0, weight_1, 0.0, 0.0);
+    #else
+    out_weights_0 = vec4(weight_0, 0.0, 0.0, 0.0);
+    #endif
+    #if NUM_MATERIALS > 7
+    out_weights_1 = vec4(weight_4, weight_5, weight_6, weight_7);
+    #elif NUM_MATERIALS > 6
+    out_weights_1 = vec4(weight_4, weight_5, weight_6, 0.0);
+    #elif NUM_MATERIALS > 5
+    out_weights_1 = vec4(weight_4, weight_5, 0.0, 0.0);
+    #elif NUM_MATERIALS > 4
+    out_weights_1 = vec4(weight_4, 0.0, 0.0, 0.0);
+    #endif
 }
+
+-- skirt.vs
+#include regen.terrain.ground.vs
+-- skirt.fs
+#include regen.terrain.ground.fs
 
 ------------
 ----- Ground render pass.
@@ -245,6 +191,9 @@ out vec2 out_offsetXY;
 out float out_noiseVal;
     #endif
 #endif
+#ifdef IS_SKIRT_MESH
+out vec3 out_posModel;
+#endif
 
 #include regen.terrain.ground.groundUV
 
@@ -260,15 +209,14 @@ void customHandleIO(vec3 posWorld, vec3 posEye, vec3 norWorld) {
     out_noiseVal = noiseVal * 0.4;
     #endif
 #endif
+#ifdef IS_SKIRT_MESH
+    out_posModel = in_pos.xyz;
+#endif
 }
 
 #include regen.models.mesh.vs
 
 -- fs
-// TODO: Add support for linear filtering of the material textures.
-//       But this is not trivial using the top-N approach!
-//       - ordering is not consistent (ordered by weight, not material index)
-//       - samples may have different set of indices
 // add custom fragment texture mapping to regular mesh fragment shader.
 #include regen.terrain.ground.customFragmentMapping
 #include regen.models.mesh.fs
@@ -277,7 +225,15 @@ void customHandleIO(vec3 posWorld, vec3 posEye, vec3 norWorld) {
 #ifndef customFragmentMapping_included
 #define2 customFragmentMapping_included
 #define HAS_CUSTOM_FRAGMENT_MAPPING
-#include regen.terrain.ground.materialUV
+#ifndef MAX_NUM_BLENDED_MATERIALS
+#define MAX_NUM_BLENDED_MATERIALS 3
+#endif
+#ifndef MIN_MATERIAL_WEIGHT
+#define MIN_MATERIAL_WEIGHT 0.1
+#endif
+// Avoid triplanar blending of normals in case material does not have a normal map.
+#define USE_NORMAL_STEPPING
+#define USE_UNROLLED_LOOP
 
 #define IDX_ID ${TEX_ID_groundMaterialIndices0}
 #define IDX_WIDTH ${TEX_WIDTH${IDX_ID}}
@@ -293,6 +249,9 @@ in vec2 in_offsetXY;
 in float in_noiseVal;
     #endif
 #endif
+#ifdef IS_SKIRT_MESH
+in vec3 in_posModel;
+#endif
 
 const float in_noiseScale = 0.005;
 
@@ -303,6 +262,7 @@ vec3 materialAlbedo(uint matIndex, vec3 blending, vec2 xz, vec2 yz, vec2 xy) {
         blending.z * texture(in_groundMaterialAlbedo, vec3(xy,matIndex)).rgb;
 }
 
+#ifdef HAS_groundMaterialNormal
 vec3 materialNormal(uint matIndex, vec3 blending, vec2 xz, vec2 yz, vec2 xy) {
     vec3 nx = texture(in_groundMaterialNormal, vec3(yz, matIndex)).xyz * 2.0 - 1.0;
     vec3 ny = texture(in_groundMaterialNormal, vec3(xz, matIndex)).xyz * 2.0 - 1.0;
@@ -310,6 +270,7 @@ vec3 materialNormal(uint matIndex, vec3 blending, vec2 xz, vec2 yz, vec2 xy) {
     // note: we normalize once globally
     return nx * blending.x + ny * blending.y + nz * blending.z;
 }
+#endif
 
 mat3 materialTBN(vec3 n) {
     // Build TBN from baseNor (world-space normal) and construct tangent + bitangent
@@ -329,13 +290,109 @@ mat3 materialTBN(vec3 n) {
     return mat3(t, cross(n, t), n);
 }
 
+struct TopMaterials {
+    float numTopMaterials; // integer count (0..MAX_NUM_BLENDED_MATERIALS)
+    float topWeightSum;
+    vec4 topWeights;
+    ivec4 topIndices;
+};
+
+TopMaterials findTopWeights(in vec4 in_w) {
+    TopMaterials tm;
+    tm.numTopMaterials = 0.0;
+    tm.topWeightSum = 0.0;
+    tm.topWeights = in_w;
+    tm.topIndices = ivec4(0,1,2,3);
+    float tmpf;
+    int tmpi;
+    // Sorting network for 4 inputs (descending)
+    // small helper inline: compare-exchange so that (x >= y) after
+    // swap if left < right -> put larger to left
+    #if 1 // CMP_SWAP without branches
+    #define CMP_SWAP(a, b, ia, ib) { \
+        tmpf = step((b), (a)); \
+        tmpi = int(c); \
+        (a) = mix(b,a,tmpf); \
+        (b) = mix(a,b,tmpf); \
+        (ia) = tmpi * (ia) + (1 - tmpi) * (ib); \
+        (ib) = tmpi * (ib) + (1 - tmpi) * (ia); }
+    #else
+    #define CMP_SWAP(x, y, ix, iy) \
+      if ((x) < (y)) { \
+        tmpf = (x); (x) = (y); (y) = tmpf; \
+        tmpi = (ix); (ix) = (iy); (iy) = tmpi; }
+    #endif
+    CMP_SWAP(tm.topWeights.x, tm.topWeights.y, tm.topIndices.x, tm.topIndices.y); // 0-1
+    CMP_SWAP(tm.topWeights.z, tm.topWeights.w, tm.topIndices.z, tm.topIndices.w); // 2-3
+    CMP_SWAP(tm.topWeights.x, tm.topWeights.z, tm.topIndices.x, tm.topIndices.z); // 0-2
+    #if MAX_NUM_BLENDED_MATERIALS > 1
+    CMP_SWAP(tm.topWeights.y, tm.topWeights.z, tm.topIndices.y, tm.topIndices.z); // 1-2
+    #endif
+    #if MAX_NUM_BLENDED_MATERIALS > 2
+    CMP_SWAP(tm.topWeights.z, tm.topWeights.w, tm.topIndices.z, tm.topIndices.w); // 2-3
+    #endif
+    #undef CMP_SWAP
+    // count how many exceed MIN_MATERIAL_WEIGHT
+    // step(MIN_MATERIAL_WEIGHT, v) => 1.0 when v >= MIN_MATERIAL_WEIGHT else 0.0
+#for TOP_I to MAX_NUM_BLENDED_MATERIALS
+    tmpf = step(MIN_MATERIAL_WEIGHT, tm.topWeights[${TOP_I}]);
+    tm.numTopMaterials += tmpf;
+    tm.topWeightSum    += tmpf * tm.topWeights[${TOP_I}];
+#endfor
+    return tm;
+}
+
+#if NUM_MATERIALS > 4
+TopMaterials findTopWeights(in vec4 in_w0, in vec4 in_w1) {
+    // compute top weights for each 4-material block
+    TopMaterials tm0 = findTopWeights(in_w0);
+    TopMaterials tm1 = findTopWeights(in_w1);
+    TopMaterials tm;
+    ivec4 aI = tm0.topIndices; // 0..3
+    ivec4 bI = tm1.topIndices + 4; // shift second block
+    int ia = 0, ib = 0;
+    // merge top-4 branchlessly
+    for (int i = 0; i < 4; i++) {
+        // clamp indices
+        int curA = min(ia, 3);
+        int curB = min(ib, 3);
+        // branchless selection mask
+        float useA = step(b[curB], a[curA]); // 1.0 if a >= b, else 0.0
+        // select weight
+        tm.topWeights[i] = mix(
+            tm1.topWeights[curB],
+            tm0.topWeights[curA], useA);
+        // select index
+        tm.topIndices[i] = ivec4(mix(
+            float(bI[curB]),
+            float(aI[curA]), useA))[0];
+        // increment counters
+        ia += int(useA);
+        ib += int(1.0 - useA);
+    }
+    // compute mask/count/sum using MIN_MATERIAL_WEIGHT
+    vec4 mask = step(vec4(MIN_MATERIAL_WEIGHT), tm.topWeights);
+    tm.numTopMaterials = mask.x + mask.y + mask.z + mask.w;
+    tm.topWeightSum    = dot(mask, tm.topWeights);
+    return tm;
+}
+#endif // NUM_MATERIALS > 4
+
 void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 outNormal) {
-    // read normal map and compute TBN
+#ifdef IS_SKIRT_MESH
+    vec3 baseNor = vec3(
+            step(SKIRT_PATCH_SIZE_HALF - 0.001, abs(in_posModel.x)) * sign(in_posModel.x),
+            0.0,
+            step(SKIRT_PATCH_SIZE_HALF - 0.001, abs(in_posModel.z)) * sign(in_posModel.z));
+#else
     vec3 baseNor = normalize((texture(in_normalMap, in_groundUV).xzy * 2.0) - 1.0);
-    mat3 TBN = materialTBN(baseNor);
-    // compute factors for triplanar blending
+#endif
     vec3 blending = abs(baseNor * baseNor); // sharper transitions
     blending /= (blending.x + blending.y + blending.z);
+#ifdef IS_SKIRT_MESH
+    baseNor = normalize((texture(in_normalMap, in_groundUV).xzy * 2.0) - 1.0);
+#endif
+    mat3 TBN = materialTBN(baseNor);
 
 #ifdef HAS_noiseTexture
     #ifndef USE_VERTEX_NOISE
@@ -352,38 +409,65 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
     #define in_offsetXY worldPos.xy
 #endif
 
-    vec4 weights1 = texture(in_groundMaterialWeights0, in_groundUV);
-    uvec4 indices1 = texelFetch(in_groundMaterialIndices0,
-        ivec2(floor(in_groundUV * vec2(${IDX_WIDTH}, ${IDX_HEIGHT}))), 0);
+    // Find the top N weights and indices
+    #if NUM_MATERIALS > 4
+    TopMaterials tm = findTopWeights(
+        texture(in_groundMaterialWeights0, in_groundUV),
+        texture(in_groundMaterialWeights1, in_groundUV));
+    #else
+    TopMaterials tm = findTopWeights(
+        texture(in_groundMaterialWeights0, in_groundUV));
+    #endif
+    float ww = 1.0 / tm.topWeightSum;
+    // normalize top weights
+    #for TOP_I to MAX_NUM_BLENDED_MATERIALS
+    tm.topWeights[${TOP_I}] *= ww;
+    #endfor
 
-    // Note: we do nearest sampling, so weights should add to 1 already.
-    // Accumulate color and normal from all materials
+    int topIdx, norIdx;
+    int count = int(tm.numTopMaterials);
+    vec3 color = vec3(0.0);
+#ifdef HAS_groundMaterialNormal
+    vec3 normal = vec3(0.0);
+#endif
     vec2 xz, yz, xy;
     float matUVScale;
-    vec3 blendedNor = vec3(0.0);
-    vec3 color = vec3(0.0);
-#for TOP_I to MAX_NUM_BLENDED_MATERIALS
-    matUVScale = in_groundMaterialUVScale[indices1[${TOP_I}]];
-    xz = in_offsetXZ * matUVScale;
-    yz = in_offsetYZ * matUVScale;
-    xy = in_offsetXY * matUVScale;
-    color += weights1[${TOP_I}] * materialAlbedo(
-                indices1[${TOP_I}],
-                blending,
-                xz, yz, xy);
-    // Read the normal index for this material. This is not necessarily the same as material index
-    // because some materials may not have a normal map at all (indicated by -1)
-    blendedNor += weights1[${TOP_I}] * materialNormal(
-                in_groundMaterialNormalIdx[indices1[${TOP_I}]],
-                blending,
-                xz, yz, xy);
-#endfor
+#ifdef USE_NORMAL_STEPPING
+    float norStep;
+#endif
+    // note: help GPU unrolling the loop by looping over MAX_NUM_BLENDED_MATERIALS.
+    //       this is faster in my tests than using a for-loop with count.
+    for (int i = 0; i < MAX_NUM_BLENDED_MATERIALS; ++i) {
+        if (i >= count) {  break; }
+        topIdx = tm.topIndices[i];
+        norIdx = in_groundMaterialNormalIdx[topIdx];
+        matUVScale = in_groundMaterialUVScale[topIdx];
+        ww = tm.topWeights[i];
+        xz = in_offsetXZ * matUVScale;
+        yz = in_offsetYZ * matUVScale;
+        xy = in_offsetXY * matUVScale;
+        color += ww * materialAlbedo(topIdx, blending, xz, yz, xy);
+#ifdef HAS_groundMaterialNormal
+    #ifdef USE_NORMAL_STEPPING
+        norStep = step(GROUND_NUM_NORMAL_MAPS, norIdx);
+        normal   += norStep * ww * materialNormal(norIdx, blending, xz, yz, xy);
+        normal.z += (1.0 - norStep) * ww; // TBN up vector vec3(0,0,1)
+    #else
+        normal += ww * materialNormal(norIdx, blending, xz, yz, xy);
+    #endif
+#endif
+    }
 #ifdef HAS_noiseTexture
     // adjust color based on noise
     color *= mix(vec3(1.0), vec3(0.5), in_noiseVal);
 #endif
+#ifdef HAS_groundMaterialNormal
     // Finally, write the color and normal to the output
-    outNormal = normalize(TBN * blendedNor);
+    // Note: normalization is done in the main().
+    outNormal = TBN * normal;
+#else
+    outNormal = TBN * vec3(0.0, 0.0, 1.0);
+#endif
     outColor = vec4(color, 1.0);
 }
 #endif

@@ -280,7 +280,7 @@ void textureMappingVertex(inout vec3 P, inout vec3 N, int vertexIndex)
   #elif _MAPTO == DISPLACEMENT
     ${_BLEND}( texel${INDEX}.xyz, P, ${TEX_BLEND_FACTOR${_ID}} );
   #elif _MAPTO == VERTEX_MASK
-    out_mask = texel${INDEX}.x;
+    out_mask = texel${INDEX}[${VERTEX_MASK_INDEX}];
   #endif
 #endfor
 }
