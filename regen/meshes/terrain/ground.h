@@ -54,7 +54,7 @@ namespace regen {
 		 */
 		void setModelTransform(const ref_ptr<ModelTransformation> &tf) {
 			tf_ = tf;
-			joinStates(tf);
+			joinSkirtStates(tf);
 		}
 
 		/**
@@ -178,6 +178,10 @@ namespace regen {
 		void updateGroundPatches();
 
 		void updatePatchSize();
+
+		void setSkirtInput(const ref_ptr<ShaderInput> &in);
+
+		void joinSkirtStates(const ref_ptr<State> &state);
 	};
 
 } // namespace

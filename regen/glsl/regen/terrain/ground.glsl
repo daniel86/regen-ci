@@ -19,22 +19,22 @@ vec2 groundUV(vec3 posWorld, vec3 normal) {
 #define2 ground_heightBlend_included
 #include regen.terrain.ground.groundUV
 void groundHeightBlend(in vec3 offset, inout vec3 P, float one) {
-    P += offset;
-    // next do some special treatment for skirt vertices, we detect them by y position...
-    float zeroLevel = in_mapCenter.y - in_mapSize.y * 0.5f;
-    if (P.y < zeroLevel - 1e-6) {
-        // TODO: Reconsider the skirt handling.
-        //      - maybe we can avoid sampling the normal map here? we could just push downwards
-        //        which would be less expensive.
-        //      - avoiding the conditional would also be good.
-        //      - also I had the feeling that this still looks wrong in some cases, better to investigate again.
-        // sample the normal map
-        vec3 nor = normalize((texture(in_normalMap, groundUV(P)).xzy * 2.0) - 1.0);
-        //vec3 nor = vec3(0.0, 1.0, 0.0);
-        // translate back to original vertex, and
-        // offset the vertex position in opposite direction of the normal
-        P += nor * in_skirtSize - vec3(0.0, in_skirtSize, 0.0);
+#ifdef IS_SKIRT_MESH
+    // TODO: Reconsider the skirt handling.
+    //      - Push along normal instead?
+    //      - Scale model y position based on slope --> make skirt larger on sloped areas?
+    /**
+    vec3 nor = normalize((texture(in_normalMap, groundUV(P)).xzy * 2.0) - 1.0);
+    if (in_pos.y < -0.25) {
+        float slope = smoothstep(0.1, 0.6, 1.0 - nor.y);
+        P.y += in_skirtSize;
+        P.y -= mix(in_skirtSize, 4.0f*in_skirtSize, slope);
     }
+    **/
+    P += offset;
+#else
+    P += offset;
+#endif
 }
 #endif // ground_heightBlend_included
 
@@ -170,6 +170,11 @@ void main() {
     #endif
 }
 
+-- skirt.vs
+#include regen.terrain.ground.vs
+-- skirt.fs
+#include regen.terrain.ground.fs
+
 ------------
 ----- Ground render pass.
 ------------
@@ -186,6 +191,9 @@ out vec2 out_offsetXY;
 out float out_noiseVal;
     #endif
 #endif
+#ifdef IS_SKIRT_MESH
+out vec3 out_posModel;
+#endif
 
 #include regen.terrain.ground.groundUV
 
@@ -201,6 +209,9 @@ void customHandleIO(vec3 posWorld, vec3 posEye, vec3 norWorld) {
     out_noiseVal = noiseVal * 0.4;
     #endif
 #endif
+#ifdef IS_SKIRT_MESH
+    out_posModel = in_pos.xyz;
+#endif
 }
 
 #include regen.models.mesh.vs
@@ -214,7 +225,6 @@ void customHandleIO(vec3 posWorld, vec3 posEye, vec3 norWorld) {
 #ifndef customFragmentMapping_included
 #define2 customFragmentMapping_included
 #define HAS_CUSTOM_FRAGMENT_MAPPING
-#include regen.terrain.ground.materialUV
 #ifndef MAX_NUM_BLENDED_MATERIALS
 #define MAX_NUM_BLENDED_MATERIALS 3
 #endif
@@ -239,6 +249,9 @@ in vec2 in_offsetXY;
 in float in_noiseVal;
     #endif
 #endif
+#ifdef IS_SKIRT_MESH
+in vec3 in_posModel;
+#endif
 
 const float in_noiseScale = 0.005;
 
@@ -249,6 +262,7 @@ vec3 materialAlbedo(uint matIndex, vec3 blending, vec2 xz, vec2 yz, vec2 xy) {
         blending.z * texture(in_groundMaterialAlbedo, vec3(xy,matIndex)).rgb;
 }
 
+#ifdef HAS_groundMaterialNormal
 vec3 materialNormal(uint matIndex, vec3 blending, vec2 xz, vec2 yz, vec2 xy) {
     vec3 nx = texture(in_groundMaterialNormal, vec3(yz, matIndex)).xyz * 2.0 - 1.0;
     vec3 ny = texture(in_groundMaterialNormal, vec3(xz, matIndex)).xyz * 2.0 - 1.0;
@@ -256,6 +270,7 @@ vec3 materialNormal(uint matIndex, vec3 blending, vec2 xz, vec2 yz, vec2 xy) {
     // note: we normalize once globally
     return nx * blending.x + ny * blending.y + nz * blending.z;
 }
+#endif
 
 mat3 materialTBN(vec3 n) {
     // Build TBN from baseNor (world-space normal) and construct tangent + bitangent
@@ -364,12 +379,20 @@ TopMaterials findTopWeights(in vec4 in_w0, in vec4 in_w1) {
 #endif // NUM_MATERIALS > 4
 
 void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 outNormal) {
-    // read normal map and compute TBN
+#ifdef IS_SKIRT_MESH
+    vec3 baseNor = vec3(
+            step(SKIRT_PATCH_SIZE_HALF - 0.001, abs(in_posModel.x)) * sign(in_posModel.x),
+            0.0,
+            step(SKIRT_PATCH_SIZE_HALF - 0.001, abs(in_posModel.z)) * sign(in_posModel.z));
+#else
     vec3 baseNor = normalize((texture(in_normalMap, in_groundUV).xzy * 2.0) - 1.0);
-    mat3 TBN = materialTBN(baseNor);
-    // compute factors for triplanar blending
+#endif
     vec3 blending = abs(baseNor * baseNor); // sharper transitions
     blending /= (blending.x + blending.y + blending.z);
+#ifdef IS_SKIRT_MESH
+    baseNor = normalize((texture(in_normalMap, in_groundUV).xzy * 2.0) - 1.0);
+#endif
+    mat3 TBN = materialTBN(baseNor);
 
 #ifdef HAS_noiseTexture
     #ifndef USE_VERTEX_NOISE
@@ -404,7 +427,9 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
     int topIdx, norIdx;
     int count = int(tm.numTopMaterials);
     vec3 color = vec3(0.0);
+#ifdef HAS_groundMaterialNormal
     vec3 normal = vec3(0.0);
+#endif
     vec2 xz, yz, xy;
     float matUVScale;
 #ifdef USE_NORMAL_STEPPING
@@ -422,21 +447,27 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
         yz = in_offsetYZ * matUVScale;
         xy = in_offsetXY * matUVScale;
         color += ww * materialAlbedo(topIdx, blending, xz, yz, xy);
-#ifdef USE_NORMAL_STEPPING
+#ifdef HAS_groundMaterialNormal
+    #ifdef USE_NORMAL_STEPPING
         norStep = step(GROUND_NUM_NORMAL_MAPS, norIdx);
         normal   += norStep * ww * materialNormal(norIdx, blending, xz, yz, xy);
         normal.z += (1.0 - norStep) * ww; // TBN up vector vec3(0,0,1)
-#else
+    #else
         normal += ww * materialNormal(norIdx, blending, xz, yz, xy);
+    #endif
 #endif
     }
 #ifdef HAS_noiseTexture
     // adjust color based on noise
     color *= mix(vec3(1.0), vec3(0.5), in_noiseVal);
 #endif
+#ifdef HAS_groundMaterialNormal
     // Finally, write the color and normal to the output
     // Note: normalization is done in the main().
     outNormal = TBN * normal;
+#else
+    outNormal = TBN * vec3(0.0, 0.0, 1.0);
+#endif
     outColor = vec4(color, 1.0);
 }
 #endif

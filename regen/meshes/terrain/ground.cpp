@@ -39,11 +39,11 @@ Ground::Ground() : SkirtQuad() {
 	u_normalIdx_->set_forceArray(true);
 
 	groundMaterial_ = ref_ptr<Material>::alloc(BufferUpdateFlags::NEVER);
-	joinStates(groundMaterial_);
 	groundShaderDefines_ = ref_ptr<State>::alloc();
-	joinStates(groundShaderDefines_);
 	weightUpdateState_ = ref_ptr<State>::alloc();
 	weightUpdateState_->joinStates(groundShaderDefines_);
+	joinSkirtStates(groundMaterial_);
+	joinSkirtStates(groundShaderDefines_);
 }
 
 void Ground::setLODConfig(uint32_t numPatchesPerRow,
@@ -151,7 +151,7 @@ void Ground::updateGroundPatches() {
 }
 
 void Ground::updateAttributes() {
-	Rectangle::updateAttributes();
+	SkirtQuad::updateAttributes();
 	updateGroundPatches();
 	// update bounding box
 	Vec3f minPos = rectangleConfig_.translation;
@@ -164,13 +164,30 @@ void Ground::updateAttributes() {
 	maxPos.y += mapSize_.y;
 	minPos.y -= skirtSize_;
 	set_bounds(minPos, maxPos);
+	if(skirtMesh_.get()) {
+		skirtMesh_->set_bounds(minPos, maxPos);
+	}
+}
+
+void Ground::setSkirtInput(const ref_ptr<ShaderInput> &in) {
+	setInput(in);
+	if(skirtMesh_.get()) {
+		skirtMesh_->setInput(in);
+	}
+}
+
+void Ground::joinSkirtStates(const ref_ptr<State> &state) {
+	joinStates(state);
+	if(skirtMesh_.get()) {
+		skirtMesh_->joinStates(state);
+	}
 }
 
 void Ground::createResources() {
 	u_skirtSize_->setVertex(0, skirtSize_);
-	setInput(u_mapCenter_);
-	setInput(u_skirtSize_);
-	setInput(u_mapSize_);
+	setSkirtInput(u_mapCenter_);
+	setSkirtInput(u_skirtSize_);
+	setSkirtInput(u_mapSize_);
 
 	updateMaterialMaps();
 
@@ -190,8 +207,8 @@ void Ground::createResources() {
 	u_uvScale_->setUniformUntyped((byte*)uvScales.data());
 	u_normalIdx_->set_numArrayElements(materialConfigs_.size());
 	u_normalIdx_->setUniformUntyped((byte*)normalIndices.data());
-	setInput(u_uvScale_);
-	setInput(u_normalIdx_);
+	setSkirtInput(u_uvScale_);
+	setSkirtInput(u_normalIdx_);
 
 	createWeightPass();
 }
@@ -322,7 +339,7 @@ void Ground::updateMaterialMaps() {
 		materialAlbedoState_ = ref_ptr<TextureState>::alloc(materialAlbedoTex_, "groundMaterialAlbedo");
 		materialAlbedoState_->set_mapTo(TextureState::MAP_TO_CUSTOM);
 		materialAlbedoState_->set_mapping(TextureState::MAPPING_CUSTOM);
-		joinStates(materialAlbedoState_);
+		joinSkirtStates(materialAlbedoState_);
 	}
 	if (!normalFiles.empty()) {
 		numNormalMaps_ = static_cast<uint32_t>(normalFiles.size());
@@ -337,7 +354,7 @@ void Ground::updateMaterialMaps() {
 		materialNormalState_ = ref_ptr<TextureState>::alloc(materialNormalTex_, "groundMaterialNormal");
 		materialNormalState_->set_mapTo(TextureState::MAP_TO_CUSTOM);
 		materialNormalState_->set_mapping(TextureState::MAPPING_CUSTOM);
-		joinStates(materialNormalState_);
+		joinSkirtStates(materialNormalState_);
 		groundShaderDefines_->shaderDefine(
 			REGEN_STRING("GROUND_NUM_NORMAL_MAPS"), REGEN_STRING(numNormalMaps_));
 	} else {
@@ -350,7 +367,7 @@ void Ground::updateMaterialMaps() {
 		materialMaskState_ = ref_ptr<TextureState>::alloc(materialMaskTex_, "groundMaterialMask");
 		materialMaskState_->set_mapTo(TextureState::MAP_TO_CUSTOM);
 		materialMaskState_->set_mapping(TextureState::MAPPING_CUSTOM);
-		joinStates(materialMaskState_);
+		joinSkirtStates(materialMaskState_);
 	}
 }
 
@@ -377,7 +394,7 @@ void Ground::createWeightPass() {
 		if (useWeightMapMips_) {
 			tex->set_filter(TextureFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR));
 		}
-		joinStates(ref_ptr<TextureState>::alloc(
+		joinSkirtStates(ref_ptr<TextureState>::alloc(
 			weightMaps_[i], "groundMaterialWeights" + REGEN_STRING(i)));
 	}
 
