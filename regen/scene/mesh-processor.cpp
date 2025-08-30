@@ -97,14 +97,12 @@ void MeshNodeProvider::processInput(
 					auto lodState = createCullState(scene, input, parent, cullShape);
 					if (lodState.get()) {
 						meshNode->state()->joinStates(lodState);
-						if (!cullShape->hasInstanceBuffer()) {
-							meshCopy->setInstanceBuffer(lodState->instanceBuffer());
-							if (lodState->hasIndirectDrawBuffers()) {
-								meshCopy->setIndirectDrawBuffer(
-									lodState->indirectDrawBuffer(partIdx),
-									0u,
-									lodState->numDrawLayers());
-							}
+						meshCopy->setInstanceBuffer(lodState->instanceBuffer());
+						if (lodState->hasIndirectDrawBuffers()) {
+							meshCopy->setIndirectDrawBuffer(
+								lodState->indirectDrawBuffer(partIdx),
+								0u,
+								lodState->numDrawLayers());
 						}
 						// set sorting mode
 						meshCopy->set_lodSortMode(lodState->instanceSortMode());
@@ -114,7 +112,7 @@ void MeshNodeProvider::processInput(
 				}
 			} else {
 				// try to get an instance buffer
-				// FIXME: This will work for GPU-based LODs!
+				// FIXME: This will not work for GPU-based LODs!
 				//    So it might be that parts of meshes will not work yet on the GPU path!
 				auto cam = ref_ptr<Camera>::dynamicCast(parent->getParentCamera());
 				auto spatialIndex = cullShape->spatialIndex();

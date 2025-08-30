@@ -136,18 +136,21 @@ void ImpostorBillboard::addMesh(const ref_ptr<Mesh> &mesh, const ref_ptr<State> 
 void ImpostorBillboard::updateNumberOfViews() {
 	// compute the number of snapshots.
 	numSnapshotViews_ = 0u;
-	if (latitudeSteps_ == 0) {
-		numSnapshotViews_ = longitudeSteps_;
+	if (numLatitudeSteps_ == 0) {
+		numSnapshotViews_ = numLongitudeSteps_;
 	} else {
 		if (isHemispherical_) {
-			numSnapshotViews_ = latitudeSteps_ * longitudeSteps_;
+			numSnapshotViews_ = numLatitudeSteps_ * numLongitudeSteps_;
 		} else {
-			numSnapshotViews_ = (latitudeSteps_ * 2 - 1) * longitudeSteps_;
+			numSnapshotViews_ = (numLatitudeSteps_ * 2 - 1) * numLongitudeSteps_;
 		}
 	}
 	if (hasTopView_) numSnapshotViews_++;
 	if (hasBottomView_ && !isHemispherical_) numSnapshotViews_++;
 	shaderDefine("NUM_IMPOSTOR_VIEWS", REGEN_STRING(numSnapshotViews_));
+	if (isHemispherical_) {
+		shaderDefine("IS_HEMISPHERICAL", "TRUE");
+	}
 
 	REGEN_DEBUG("impostor num snapshots: " << numSnapshotViews_);
 }
@@ -163,10 +166,22 @@ void ImpostorBillboard::createResources() {
 	updateNumberOfViews();
 	// create camera for the update pass
 	snapshotCamera_ = ref_ptr<ArrayCamera>::alloc(numSnapshotViews_, BufferUpdateFlags::NEVER);
+	defaultNormals_.resize(numSnapshotViews_);
+
+	longitudeStepSize_ = math::twoPi<float>() / static_cast<float>(numLongitudeSteps_);
+	latitudeStepSize_ = math::halfPi<float>() / static_cast<float>(std::max(1u,numLatitudeSteps_));
 
 	{ // create parameters for the shader
 		setInput(depthOffset_);
 		setInput(modelOrigin_);
+
+		setInput(createUniform<ShaderInput1i>("numLongitudeSteps", numLongitudeSteps_));
+		setInput(createUniform<ShaderInput1f>("longitudeStep", longitudeStepSize_));
+		setInput(createUniform<ShaderInput1f>("longitudeHalfStep", longitudeStepSize_*0.5f));
+
+		setInput(createUniform<ShaderInput1i>("numLatitudeSteps", std::max(1u,numLatitudeSteps_)));
+		setInput(createUniform<ShaderInput1f>("latitudeStep", latitudeStepSize_));
+		setInput(createUniform<ShaderInput1f>("latitudeHalfStep", latitudeStepSize_*0.5f));
 	}
 
 	{ // create view data arrays
@@ -279,6 +294,8 @@ void ImpostorBillboard::addSnapshotView(uint32_t viewIdx, const Vec3f &dir, cons
 	snapshotCamera_->setView(viewIdx, Mat4f::lookAtMatrix(eye, dir, up));
 	auto &view = snapshotCamera_->view(viewIdx);
 	snapshotCamera_->setViewInverse(viewIdx, view.lookAtInverse());
+	Vec4f defaultNormal = view ^ Vec4f(up, 0.0f);
+	defaultNormals_[viewIdx] = defaultNormal.xyz_() * 0.5f + Vec3f(0.5f);
 
 	float minX = +FLT_MAX, maxX = -FLT_MAX;
 	float minY = +FLT_MAX, maxY = -FLT_MAX;
@@ -323,6 +340,26 @@ void ImpostorBillboard::addSnapshotView(uint32_t viewIdx, const Vec3f &dir, cons
 	snapshotCamera_->setPosition(viewIdx, eye);
 }
 
+int ImpostorBillboard::getViewIdx(const Vec3f &dir) {
+	// Compute the longitude segment
+    float lonAngle = atan2(dir.z, dir.x); // returns [-π, π]
+    lonAngle = fmod((lonAngle + math::twoPi<float>()), math::twoPi<float>());
+    int lonIdx = int((lonAngle + 0.5 * longitudeStepSize_) / longitudeStepSize_);
+    lonIdx = math::clamp<int>(lonIdx, 0, numLongitudeSteps_ - 1);
+	// Compute the latitude segment
+    float latAngle = atan2(-dir.y, Vec2f(dir.x, dir.z).length());
+	auto latIdx = static_cast<int>(((latAngle + latitudeStepSize_ * 0.5f) / latitudeStepSize_));
+	if (isHemispherical_) {
+		// map southern hemisphere to the equator
+		latIdx = math::clamp<int>(latIdx, 0, static_cast<int>(numLatitudeSteps_)-1);
+	} else if (latIdx < 0) {
+		// southern hemisphere
+		latIdx = (numLatitudeSteps_-1) + std::min(-latIdx, static_cast<int>(numLatitudeSteps_-1));
+	}
+	// Finally compute view index
+	return latIdx * numLongitudeSteps_ + lonIdx;
+}
+
 void ImpostorBillboard::updateSnapshotViews() {
 	// make sure resources were created
 	ensureResourcesExist();
@@ -330,14 +367,19 @@ void ImpostorBillboard::updateSnapshotViews() {
 
 	// Latitude steps in radians
 	std::vector<float> latAngles;
-	if (latitudeSteps_ == 0) {
+	if (numLatitudeSteps_ == 0) {
 		latAngles.push_back(0.0f);
+		numLatitudeSteps_ = 1;
 	} else {
-		for (uint32_t i = 0; i < latitudeSteps_; ++i) {
-			float frac = static_cast<float>(i) / static_cast<float>(latitudeSteps_);
+		for (uint32_t i = 0; i < numLatitudeSteps_; ++i) {
+			float frac = static_cast<float>(i) / static_cast<float>(numLatitudeSteps_);
 			latAngles.push_back(-frac * math::halfPi<float>());
-			if (!isHemispherical_ && latAngles[i] < 0.0f) {
-				latAngles.push_back(-latAngles[i]);
+		}
+		if (!isHemispherical_) {
+			for (uint32_t i = 0; i < numLatitudeSteps_; ++i) {
+				if (latAngles[i] < 0.0f) {
+					latAngles.push_back(-latAngles[i]);
+				}
 			}
 		}
 	}
@@ -354,9 +396,9 @@ void ImpostorBillboard::updateSnapshotViews() {
 		float y = sin(lat);
 		float horizontalRadius = cos(lat); // radius on equator ring
 
-		for (uint32_t i = 0; i < longitudeSteps_; ++i) {
+		for (uint32_t i = 0; i < numLongitudeSteps_; ++i) {
 			float lon = static_cast<float>(i) /
-						static_cast<float>(longitudeSteps_) * math::twoPi<float>();
+						static_cast<float>(numLongitudeSteps_) * math::twoPi<float>();
 			Vec3f dir(
 					horizontalRadius * cos(lon),
 					y,
@@ -392,6 +434,21 @@ void ImpostorBillboard::createSnapshot() {
 	// make sure resources were created
 	ensureResourcesExist();
 	snapshotFBO_->enable(rs);
+
+	if(snapshotNormal_.get()) {
+		// Clear the normal textures individually, as each of them may have a different
+		// background color it requires for interpolation.
+		for (uint32_t arrayIndex = 0; arrayIndex < numSnapshotViews_; ++arrayIndex) {
+			Vec3f &f_clearNormal = defaultNormals_[arrayIndex];
+			glClearTexSubImage(snapshotNormal_->textureBind().id_,
+				0, 0, 0, arrayIndex, // level, x, y, z offset
+				snapshotNormal_->width(),
+				snapshotNormal_->height(), 1, // width, height, depth
+				GL_RGB, GL_FLOAT,
+				&f_clearNormal.x);
+		}
+	}
+
 	// render all meshes into the snapshot FBO
 	for (auto &view: meshes_) {
 		auto oldNumInstances = view.meshCopy->numVisibleInstances();
@@ -425,10 +482,10 @@ ref_ptr<ImpostorBillboard> ImpostorBillboard::load(LoadingContext &ctx, scene::S
 		impostor->setSnapshotTextureSize(textureSize.x, textureSize.y);
 	}
 	if (input.hasAttribute("longitude-steps")) {
-		impostor->longitudeSteps_ = input.getValue<uint32_t>("longitude-steps", 8u);
+		impostor->numLongitudeSteps_ = input.getValue<uint32_t>("longitude-steps", 8u);
 	}
 	if (input.hasAttribute("latitude-steps")) {
-		impostor->latitudeSteps_ = input.getValue<uint32_t>("latitude-steps", 0u);
+		impostor->numLatitudeSteps_ = input.getValue<uint32_t>("latitude-steps", 0u);
 	}
 	if (input.hasAttribute("hemispherical")) {
 		impostor->isHemispherical_ = input.getValue<bool>("hemispherical", true);

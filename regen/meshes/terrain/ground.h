@@ -25,6 +25,12 @@ namespace regen {
 		// Minimum weight for a material to be considered.
 		static float MIN_MATERIAL_WEIGHT;
 
+		struct SmoothRange {
+			Vec2f range;
+			float smooth;
+			explicit SmoothRange(const Vec3f &v) : range(v.x, v.y), smooth(v.z) {}
+		};
+
 		/**
 		 * Defines the material types.
 		 */
@@ -33,12 +39,20 @@ namespace regen {
 			std::string colorFile;
 			std::string normalFile;
 			std::string maskFile;
-			Vec2f heightRange = Vec2f(0.0f, 1.0f);
-			float heightSmoothStep = 0.1f;
-			Vec2f slopeRange = Vec2f(0.0f, 180.0f);
-			float slopeSmoothStep = 10.0f;
 			float uvScale = 1.0f;
 			bool isFallback = false;
+			SmoothRange height = SmoothRange(Vec3f(0.0f, 1.0f, 0.1f));
+			SmoothRange slope  = SmoothRange(Vec3f(0.0f, 180.0f, 10.0f));
+		};
+
+		struct BiomeDescription {
+			std::string name;
+			SmoothRange height      = SmoothRange(Vec3f(0.0f, 1.0f, 0.1f));
+			SmoothRange slope       = SmoothRange(Vec3f(0.0f, 180.0f, 10.0f));
+			SmoothRange temperature = SmoothRange(Vec3f(0.0f, 1.0f, 0.1f));
+			SmoothRange rockiness   = SmoothRange(Vec3f(0.0f, 1.0f, 0.1f));
+			SmoothRange humidity    = SmoothRange(Vec3f(0.0f, 1.0f, 0.1f));
+			SmoothRange concavity   = SmoothRange(Vec3f(0.0f, 1.0f, 0.1f));
 		};
 
 		Ground();
@@ -113,6 +127,17 @@ namespace regen {
 		 */
 		uint32_t numMaterials() const { return materialConfigs_.size(); }
 
+		/**
+		 * Add a biome description for this ground.
+		 * @param biome the biome description to add.
+		 */
+		void setBiome(const BiomeDescription &biome);
+
+		/**
+		 * @return the number of biomes used by this ground.
+		 */
+		uint32_t numBiomes() const { return biomeConfigs_.size(); }
+
 		// override
 		void updateAttributes() override;
 
@@ -148,6 +173,7 @@ namespace regen {
 
 		ref_ptr<Material> groundMaterial_;
 		std::vector<MaterialConfig> materialConfigs_;
+		std::vector<BiomeDescription> biomeConfigs_;
 		// Each material type has a color and normal texture, part
 		// of a texture array.
 		ref_ptr<Texture2DArray> materialAlbedoTex_;
@@ -164,6 +190,7 @@ namespace regen {
 		// first weight map y coordinate maps to the second element in the texture array.
 		ref_ptr<FBOState> weightFBO_;
 		std::vector<ref_ptr<Texture2D>> weightMaps_;
+		std::vector<ref_ptr<Texture2D>> biomeMaps_;
 		ref_ptr<FullscreenPass> weightUpdatePass_;
 		ref_ptr<State> weightUpdateState_;
 		uint32_t weightMapSize_ = 2048;

@@ -1,19 +1,10 @@
 
--- selectViewIdx
+-- selectViewIdx.maxDot
 #ifndef REGEN_selectViewIdx_defined_
 #define2 REGEN_selectViewIdx_defined_
 uint selectViewIdx(vec3 viewDirLocal) {
     float maxDot = 0, d;
     uint bestIndex = 0;
-    /**
-    #for VIEW_I to NUM_IMPOSTOR_VIEWS
-    d = dot(viewDirLocal, in_snapshotDirs[${VIEW_I}].xyz);
-    if (d > maxDot) {
-        maxDot = d;
-        bestIndex = ${VIEW_I};
-    }
-    #endfor
-    **/
     for (uint i = 0; i < NUM_IMPOSTOR_VIEWS; ++i) {
         d = dot(viewDirLocal, in_snapshotDirs[i].xyz);
         if (d > maxDot) {
@@ -25,10 +16,39 @@ uint selectViewIdx(vec3 viewDirLocal) {
 }
 #endif
 
+-- selectViewIdx.bin
+#ifndef REGEN_selectViewIdx_defined_
+#define2 REGEN_selectViewIdx_defined_
+uint selectViewIdx(vec3 dir) {
+    const float TWO_PI = 6.2831853;
+
+    // Longitude in [0, 2π)
+    float lonAngle = atan(-dir.z, -dir.x); // returns [-π, π]
+    lonAngle = mod(lonAngle + TWO_PI, TWO_PI);
+    // Compute the longitude segment index
+    int lonIdx = int((lonAngle + in_longitudeHalfStep) / in_longitudeStep);
+    lonIdx = (max(lonIdx, 0) % in_numLongitudeSteps);
+
+    // Latitude in [-π/2, π/2]
+    float angle_y = atan(dir.y, length(dir.xz));
+#ifdef IS_HEMISPHERICAL
+    int latIdx = int((angle_y + in_latitudeHalfStep) / in_latitudeStep);
+    latIdx = clamp(latIdx, 0, in_numLatitudeSteps - 1);
+#else
+    float f_latIdx = ((angle_y + in_latitudeHalfStep) / in_latitudeStep);
+    int neg = int(step(f_latIdx, 0.0)); // 1 if latIdx < 0
+    int mapped = (in_numLatitudeSteps - 1) + min(int(-f_latIdx)+1, in_numLatitudeSteps - 1);
+    int latIdx = int(f_latIdx) * (1 - neg) + mapped * neg;
+#endif
+
+    return uint(latIdx * in_numLongitudeSteps + lonIdx);
+}
+#endif
+
 -- getViewIdx
 #ifndef REGEN_getViewIdx_defined_
 #define2 REGEN_getViewIdx_defined_
-#include regen.models.impostor.selectViewIdx
+#include regen.models.impostor.selectViewIdx.bin
 uint getViewIdx(int layer, vec3 centerWorld) {
     // Find the best impostor view index based on the view direction.
 #ifdef HAS_modelMatrix
@@ -225,6 +245,7 @@ flat out uint out_impostorIdx;
 out vec3 out_texco0;
 out vec3 out_posEye;
 out vec3 out_posWorld;
+//out vec3 out_norWorld;
 
 buffer vec4 in_snapshotDirs[];
 buffer vec4 in_snapshotOrthoBounds[];
@@ -251,6 +272,7 @@ void emitVertex(vec4 posEye, vec3 texco, int layer) {
     out_texco0 = texco;
     out_posEye = posEye.xyz;
     out_posWorld = transformEyeToWorld(posEye,layer).xyz;
+    //out_norWorld = vec3(0.0, 1.0, 0.0);
     gl_Position = transformEyeToScreen(posEye,layer);
     HANDLE_IO(0);
     EmitVertex();
@@ -272,6 +294,9 @@ void emitLayer(int layer, float scale) {
 #ifdef HAS_windFlow
     vec3 bottomCenter = 0.5*(quadPos[0] + quadPos[2]);
     vec2 wind = windAtPosition(bottomCenter);
+    // cancel out wind along zAxis.xz to avoid artifacts.
+    wind -= dot(wind, zAxis.xz) * zAxis.xz;
+    // apply the wind force to the quad
     applyForce(quadPos, wind);
 #endif
 
@@ -322,4 +347,5 @@ void main() {
 #include regen.models.impostor.quad.gs
 #endif
 -- fs
+//#define HAS_nor
 #include regen.models.mesh.fs
