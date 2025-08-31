@@ -30,9 +30,8 @@ struct DrawCommand {
 ------ It also outputs the number of visible instances per workgroup.
 --------------
 -- radix.cull.cs
-#input regen.shapes.lod.DrawCommand
+#include regen.shapes.lod.DrawCommand
 #include regen.stages.compute.defines
-#include regen.stages.compute.readPosition
 #include regen.shapes.lod.defines
 
 // - [write] distance sort keys, computed by culling pass, per instance
@@ -50,6 +49,8 @@ shared uint sh_lodGroupSize[MAX_NUM_LOD_GROUPS];
 // - [20,40,60]               --> <(0-20),(20-40),(40-60),(60-)>
 //
 uniform vec3 in_lodThresholds;
+
+#include regen.stages.compute.readPosition
 
 int getLODGroup(float squaredDistance) {
     // Returns the LOD group for a given depth.
