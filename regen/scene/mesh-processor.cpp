@@ -41,6 +41,10 @@ static ref_ptr<LODState> createCullState(
 	if (input.hasAttribute("sort-mode")) {
 		lodState->setInstanceSortMode(input.getValue<SortMode>("sort-mode", SortMode::FRONT_TO_BACK));
 	}
+	if (input.hasAttribute("use-compaction")) {
+		lodState->setUseCompaction(input.getValue<bool>("use-compaction", true));
+	}
+
 	parser->putState(input.getName(), lodState);
 
 	return lodState;
@@ -112,28 +116,16 @@ void MeshNodeProvider::processInput(
 				}
 			} else {
 				// try to get an instance buffer
-				// FIXME: This will not work for GPU-based LODs!
-				//    So it might be that parts of meshes will not work yet on the GPU path!
 				auto cam = ref_ptr<Camera>::dynamicCast(parent->getParentCamera());
-				auto spatialIndex = cullShape->spatialIndex();
-				if (cam.get()
-						&& spatialIndex.get()
-						&& cullShape.get()
-						&& spatialIndex->hasCamera(*cam.get())) {
-					auto shapeIndex = spatialIndex->getIndexedShape(
-							cam, cullShape->shapeName());
-					if (shapeIndex.get()) {
-						if (shapeIndex->hasInstanceBuffer()) {
-							meshCopy->setInstanceBuffer(shapeIndex->instanceBuffer());
-						}
-						if (shapeIndex->hasIndirectDrawBuffers()) {
-							auto dibo = shapeIndex->indirectDrawBuffer(partIdx);
-							meshCopy->setIndirectDrawBuffer(
-									dibo, 0u,
-									cam->numLayer());
-						}
-						meshCopy->set_lodSortMode(shapeIndex->instanceSortMode());
+				if (cam.get() && cullShape.get()) {
+					if (cullShape->hasIndirectDrawBuffers()) {
+						auto dibo = cullShape->indirectDrawBuffer(partIdx);
+						meshCopy->setIndirectDrawBuffer(dibo, 0u, cam->numLayer());
 					}
+					if (cullShape->hasInstanceBuffer()) {
+						meshCopy->setInstanceBuffer(cullShape->instanceBuffer());
+					}
+					meshCopy->set_lodSortMode(cullShape->instanceSortMode());
 				}
 			}
 		} else if (input.hasAttribute("update-visibility")) {

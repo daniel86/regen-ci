@@ -81,10 +81,13 @@ void LODState::initLODState() {
 		if (shapeIndex_->shape()->mesh().get()) {
 			numLODs_ = std::max(shapeIndex_->shape()->mesh()->numLODs(), numLODs_);
 		}
+	}
+	if (cullShape_.get()) {
 		for (auto &part : cullShape_->parts()) {
 			numLODs_ = std::max(part->numLODs(), numLODs_);
 		}
-	} else if (mesh_.get()) {
+	}
+	if (mesh_.get()) {
 		numLODs_ = std::max(mesh_->numLODs(), numLODs_);
 	}
 
@@ -97,26 +100,22 @@ void LODState::initLODState() {
 		// we also need indirect draw buffers for multi-layer rendering
 		createIndirectDrawBuffers();
 	}
+	if (!indirectDrawBuffers_.empty()) {
+		cullShape_->setIndirectDrawBuffers(indirectDrawBuffers_);
+	}
+	if (instanceBuffer_.get()) {
+		// Make sure that all meshes that share the cull shape also have access to the instance buffer.
+		cullShape_->setInstanceBuffer(instanceBuffer_);
+		cullShape_->setInstanceSortMode(instanceSortMode_);
+	}
 
-	if (cullShape_->isIndexShape()) {
+	if (useCPUPath()) {
 		auto index = cullShape_->spatialIndex();
 		shapeIndex_ = index->getIndexedShape(camera_, cullShape_->shapeName());
 		if (!shapeIndex_.get()) {
 			REGEN_WARN("No indexed shape found for cull shape '" << cullShape_->shapeName() << "'.");
 		} else {
-			// FIXME: Below we assign the IBO and DIBO to the shape index, which will only be useful
-			//        for the CPU path! the GPU path currently won't work with multiple parts entirely
-			//        due to this. this is required in some cases in the scene loading.
-			//        We would need to attach these buffers to some other common state which is accessible
-			//        from both paths, and where we have individual buffers for each part+camera combination.
-			if (instanceBuffer_.get()) {
-				// Make sure that all meshes that share the index shape also have access to the instance buffer.
-				shapeIndex_->setInstanceBuffer(instanceBuffer_);
-				shapeIndex_->setSortMode(instanceSortMode_);
-			}
-			if (!indirectDrawBuffers_.empty()) {
-				shapeIndex_->setIndirectDrawBuffers(indirectDrawBuffers_);
-			}
+			shapeIndex_->setInstanceSortMode(instanceSortMode_);
 			// Note: we do not update in state enable, but rather use a separate animation for this.
 			//   This is done as the animations are dedicated place to write to client buffers,
 			//   and we avoid computations in between draw calls, however would still be ok
@@ -297,7 +296,7 @@ void LODState::resetVisibility() {
 void LODState::enable(RenderState *rs) {
 	State::enable(rs);
 
-	if (!cullShape_->isIndexShape()) {
+	if (useGPUPath()) {
 #ifdef LOD_DEBUG_TIME
 		static ElapsedTimeDebugger elapsedTime("GPU LOD", 300);
 		elapsedTime.beginFrame();
@@ -423,7 +422,7 @@ void LODState::traverseCPU() {
 
 			for (uint32_t layerIdx=0; layerIdx<numLayer; ++layerIdx) {
 			for (uint32_t lodLevel=0; lodLevel<numLODs_; ++lodLevel) {
-				const uint32_t binIdx =  IndexedShape::binIdx(lodLevel, layerIdx, numLayer);
+				const uint32_t binIdx =  CullShape::binIdx(lodLevel, layerIdx, numLayer);
 				if (count.r[binIdx] != 0) {
 					updateVisibility(layerIdx, fixedLOD_, count.r[binIdx], base.r[binIdx]);
 				}
@@ -436,7 +435,7 @@ void LODState::traverseCPU() {
 			// update local data of indirect draw buffers
 			for (uint32_t lodLevel=0; lodLevel<numLODs_; ++lodLevel) {
 				for (uint32_t layer=0; layer<numLayer; ++layer) {
-					const uint32_t binIdx = IndexedShape::binIdx(lodLevel, layer, numLayer);
+					const uint32_t binIdx = CullShape::binIdx(lodLevel, layer, numLayer);
 					if (count.r[binIdx] != 0) {
 						updateVisibility(layer, lodLevel, count.r[binIdx], base.r[binIdx]);
 					}
@@ -483,16 +482,10 @@ void LODState::traverseCPU() {
 ///////////////////////
 
 void LODState::createComputeShader() {
-	// TODO: support multi-layer rendering
-	//    - create draw commands for each layer
-	//    - support per-layer culling, and writing to per-layer instance buffers
-	//    - I guess run radix for each layer separately, or maybe let the same stage of different layers
-	//      run in parallel, and only barrier between the stages.
-
 	{	// Create a static indirect draw buffer, which is used for clearing the
 		// first indirect draw buffer each frame.
 		auto clearData = ref_ptr<ShaderInputStruct<DrawCommand>>::alloc(
-					"DrawCommand", "drawParams", 4);
+					"DrawCommand", "drawParams", numLODs_ * camera_->numLayer());
 		clearData->setUniformUntyped((byte*)indirectDrawData_[0].clear.data());
 		clearIndirectBuffer_ = ref_ptr<SSBO>::alloc(
 			"Clear_IndirectDrawBuffer",
@@ -501,9 +494,22 @@ void LODState::createComputeShader() {
 		clearIndirectBuffer_->addStagedInput(clearData);
 		clearIndirectBuffer_->update();
 	}
+	{	// Create a static buffer with zeroes for resetting the number of visible instances.
+		std::vector<uint32_t> clearData(camera_->numLayer(), 0);
+		clearNumVisibleBuffer_ = ref_ptr<SSBO>::alloc(
+			"Clear_NumVisibleBuffer",
+			BufferUpdateFlags::NEVER,
+			SSBO::RESTRICT);
+		auto clearInput = ref_ptr<ShaderInput1ui>::alloc(
+			"numVisibleKeys", camera_->numLayer());
+		clearInput->setUniformUntyped((byte*)clearData.data());
+		clearNumVisibleBuffer_->addStagedInput(clearInput);
+		clearNumVisibleBuffer_->update();
+	}
 
 	{ // radix sort
-		radixSort_ = ref_ptr<RadixSort>::alloc(cullShape_->numInstances());
+		radixSort_ = ref_ptr<RadixSort>::alloc(cullShape_->numInstances(), camera_->numLayer());
+		radixSort_->setUseCompaction(useCompaction_);
 		radixSort_->setOutputBuffer(instanceBuffer_, false);
 		radixSort_->setRadixBits(RADIX_BITS_PER_PASS);
 		radixSort_->setSortGroupSize(RADIX_GROUP_SIZE);
@@ -517,10 +523,17 @@ void LODState::createComputeShader() {
 		if (instanceSortMode_ == SortMode::BACK_TO_FRONT) {
 			shaderCfg.define("USE_REVERSE_SORT", "TRUE");
 		}
+		if (useCompaction_) {
+			shaderCfg.define("USE_COMPACTION", "TRUE");
+		}
 		cullPass_ = ref_ptr<ComputePass>::alloc("regen.shapes.lod.radix.cull");
 		cullPass_->computeState()->shaderDefine("LOD_NUM_INSTANCES", REGEN_STRING(cullShape_->numInstances()));
-		cullPass_->computeState()->shaderDefine("NUM_CAMERA_LAYERS", REGEN_STRING(camera_->frustum().size()));
-		cullPass_->computeState()->setNumWorkUnits(static_cast<int>(cullShape_->numInstances()), 1, 1);
+		cullPass_->computeState()->shaderDefine("NUM_LAYERS", REGEN_STRING(camera_->frustum().size()));
+		// X-direction: one work unit per instance
+		// Y-direction: one work unit per layer
+		cullPass_->computeState()->setNumWorkUnits(
+			static_cast<int>(cullShape_->numInstances()),
+			static_cast<int>(camera_->frustum().size()), 1);
 		cullPass_->computeState()->setGroupSize(RADIX_GROUP_SIZE, 1, 1);
 		cullPass_->setInput(mesh_->lodThresholds());
 		cullPass_->setInput(camera_->getFrustumBuffer());
@@ -563,10 +576,12 @@ void LODState::createComputeShader() {
 		copyIndirect_ = ref_ptr<ComputePass>::alloc("regen.shapes.lod.copy-indirect");
 		copyIndirect_->computeState()->setNumWorkUnits(1, 1, 1);
 		copyIndirect_->computeState()->setGroupSize(1, 1, 1);
-		for (uint32_t indirectIdx = 0; indirectIdx < indirectDrawBuffers_.size(); ++indirectIdx) {
+		copyIndirect_->setInput(indirectDrawBuffers_[0],
+					"IndirectDrawBuffer0", "Base");
+		for (uint32_t indirectIdx = 1; indirectIdx < indirectDrawBuffers_.size(); ++indirectIdx) {
 			copyIndirect_->setInput(indirectDrawBuffers_[indirectIdx],
 					REGEN_STRING("IndirectDrawBuffer" << indirectIdx),
-					REGEN_STRING(indirectIdx));
+					REGEN_STRING(indirectIdx-1));
 		}
 		StateConfigurer shaderCfg;
 		shaderCfg.addState(copyIndirect_.get());
@@ -593,6 +608,17 @@ void LODState::traverseGPU(RenderState *rs) {
 #endif
 	// copy the clear buffer to the indirect draw buffer
 	indirectDrawBuffers_[0]->setBufferData(*clearIndirectBuffer_.get());
+	if (useCompaction_) {
+		// clear the visibility count to zero
+		auto &keys = radixSort_->keyBuffer()->allocations()[0];
+		auto &clear = clearNumVisibleBuffer_->allocations()[0];
+		glCopyNamedBufferSubData(
+			clear->bufferID(),
+			keys->bufferID(),
+			clear->address(),
+			keys->address(),
+			clear->allocatedSize());
+	}
 #ifdef LOD_DEBUG_GPU_TIME
 	elapsedTime.push("clear indirect draw buffer");
 #endif

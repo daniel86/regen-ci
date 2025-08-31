@@ -17,9 +17,15 @@ namespace regen {
 		 * @brief Constructor for RadixSort
 		 * @param numKeys
 		 */
-		explicit RadixSort(uint32_t numKeys);
+		explicit RadixSort(uint32_t numKeys, uint32_t numLayers = 1);
 
 		~RadixSort() override = default;
+
+		/**
+		 * Set whether visible instances are compacted before sorting.
+		 * @param useCompaction True to use compaction, false otherwise.
+		 */
+		void setUseCompaction(bool useCompaction) { useCompaction_ = useCompaction; }
 
 		/**
 		 * Set the output buffer.
@@ -77,7 +83,8 @@ namespace regen {
 		void enable(RenderState *rs) override;
 
 	protected:
-		uint32_t numKeys_;
+		const uint32_t numKeys_;
+		const uint32_t numLayers_;
 		uint32_t outputIdx_ = 0u;
 		uint32_t radixBits_ = 4u;
 		uint32_t numBuckets_ = 1u << radixBits_;
@@ -89,6 +96,7 @@ namespace regen {
 		ref_ptr<SSBO> valueBuffer_[2];
 		ref_ptr<SSBO> userValueBuffer_;
 		bool useSingleValueBuffer_ = false;
+		bool useCompaction_ = true;
 
 		ref_ptr<ComputePass> radixHistogramPass_;
 		ref_ptr<ComputePass> radixScatterPass_;
