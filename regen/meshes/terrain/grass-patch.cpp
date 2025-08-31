@@ -12,10 +12,6 @@ GrassPatch::GrassPatch(const ref_ptr<ModelTransformation> &tf, const BufferUpdat
 	pos_ = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_POS);
 	basePos_ = ref_ptr<ShaderInput3f>::alloc("basePos");
 	joinStates(tf);
-
-	auto alpha = ref_ptr<AlphaState>::alloc();
-	alpha->setDiscardThreshold(0.25f);
-	joinStates(alpha);
 	joinStates(ref_ptr<ToggleState>::alloc(RenderState::CLIP_DISTANCE0, true));
 }
 

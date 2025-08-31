@@ -313,11 +313,14 @@ void main() {
     vec3 norWorld = vec3(0.0, 1.0, 0.0);
     vec4 color = vec4(1.0);
     textureMappingFragment(posWorld, color, norWorld);
+#ifdef HAS_alphaDiscardThreshold
     if (color.a < in_alphaDiscardThreshold) discard;
+#endif
+#if OUTPUT_TYPE != DEPTH
     color.rgb *= in_col * in_matDiffuse.rgb;
-
     out_normal = vec4(0.5, 1.0, 0.5, 1.0);
     out_color = color;
     out_ambient = vec4(in_matAmbient,0.0);
     out_specular = vec4(0.0, 0.0, 0.0, 0.0);
+#endif // OUTPUT_TYPE != DEPTH
 }

@@ -72,6 +72,12 @@
 #else
 #define SAMPLE(T,C) texture(T,C)
 #endif
+#if OUTPUT_TYPE == DEPTH
+    #ifndef DEPTH_FACE
+        #define DEPTH_FACE BACK
+    #endif
+#endif
+
 #ifndef PI
 #define PI 3.14159265
 #endif

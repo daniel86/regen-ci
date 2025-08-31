@@ -73,7 +73,7 @@ vec2 getSpriteSize(inout vec4 centerEye, vec3 zAxis, uint viewIdx, float scale) 
     vec2 spriteSize = vec2(orthoBounds.y - orthoBounds.x, orthoBounds.w - orthoBounds.z) * scale;
 #ifndef DEPTH_CORRECT
     float zCenter = centerEye.z;
-    #if OUTPUT_TYPE == DEPTH
+    #if OUTPUT_TYPE == DEPTH && DEPTH_FACE == BACK
     centerEye.xyz += zAxis * 0.5 * (depthRange.y - depthRange.x) * scale;
     #else
     centerEye.xyz -= zAxis * 0.5 * (depthRange.y - depthRange.x) * scale;

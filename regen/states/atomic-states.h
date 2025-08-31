@@ -501,6 +501,26 @@ namespace regen {
 		/** Current index. */
 		GLuint index_;
 	};
+
+	/**
+	 * \brief Specify whether the individual color components in the framebuffer
+	 * can or cannot be written.
+	 */
+	class ColorMaskState : public ServerSideState {
+	public:
+		explicit ColorMaskState(const ColorMask &mask)
+				: ServerSideState(), mask_(mask) {}
+
+		// override
+		void enable(RenderState *rs) override { rs->colorMask().push(mask_); }
+
+		void disable(RenderState *rs) override { rs->colorMask().pop(); }
+
+		static ref_ptr<State> load(LoadingContext &ctx, scene::SceneInputNode &input);
+
+	protected:
+		ColorMask mask_;
+	};
 } // namespace
 
 #endif /* ATOMIC_STATES_H_ */
