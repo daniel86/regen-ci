@@ -99,6 +99,9 @@ void BufferContainer::createTBO(const NamedShaderInput &namedInput) {
 	texState->shaderDefine(
 			 REGEN_STRING("fetch_" << namedInput.name_ << "(i)"),
 			 REGEN_STRING("tboRead_" << shaderType << "(tbo_" << namedInput.name_ << ", int(i))"));
+	if (namedInput.in_->numInstances() > 1) {
+		texState->shaderDefine("HAS_INSTANCES", "TRUE");
+	}
 	bufferObjectOfInput_[namedInput.in_.get()] = tbo;
 }
 

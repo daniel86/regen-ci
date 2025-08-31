@@ -477,16 +477,6 @@ bool IOProcessor::process(PreProcessorState &state, string &line) {
 	}
 	boost::sregex_iterator it;
 
-	// Insert declarations of specified inputs when the first
-	// code line occurs.
-	if (!isInputSpecified_) {
-		it = boost::sregex_iterator(line.begin(), line.end(), macroRegex_);
-		if (it == NO_REGEX_MATCH) {
-			declareSpecifiedInput(state);
-			isInputSpecified_ = GL_TRUE;
-		}
-	}
-
 	// Processing of HANLDE_IO macro.
 	it = boost::sregex_iterator(line.begin(), line.end(), handleIORegex_);
 	if (it != NO_REGEX_MATCH) {
@@ -513,6 +503,11 @@ bool IOProcessor::process(PreProcessorState &state, string &line) {
 	if (it == NO_REGEX_MATCH) {
 		lineQueue_.push_back(line);
 		return process(state, line);
+	}
+
+	if (!isInputSpecified_) {
+		declareSpecifiedInput(state);
+		isInputSpecified_ = GL_TRUE;
 	}
 
 	io.ioType = (*it)[2];
