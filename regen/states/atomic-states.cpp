@@ -49,3 +49,8 @@ ref_ptr<State> CullState::load(LoadingContext &ctx, scene::SceneInputNode &input
 ref_ptr<State> SampleShadingState::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 	return ref_ptr<SampleShadingState>::alloc(input.getValue<float>("min-samples", 4.0f));
 }
+
+ref_ptr<State> ColorMaskState::load(LoadingContext &ctx, scene::SceneInputNode &input) {
+	return ref_ptr<ColorMaskState>::alloc(ColorMask(
+			input.getValue<ColorMask>("mask", ColorMask(GL_TRUE))));
+}

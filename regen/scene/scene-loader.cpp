@@ -75,6 +75,7 @@ void SceneLoader::init() {
 	setStateProcessor(ref_ptr<LoadableState<TextureState>>::alloc("texture"));
 	setStateProcessor(ref_ptr<LoadableState<ToggleState>>::alloc("toggle"));
 	setStateProcessor(ref_ptr<LoadableState<PolygonState>>::alloc("polygon"));
+	setStateProcessor(ref_ptr<LoadableState<ColorMaskState>>::alloc("color-mask"));
 	setStateProcessor(ref_ptr<LoadableState<CullState>>::alloc("cull"));
 	setStateProcessor(ref_ptr<LoadableState<FullscreenPass>>::alloc("fullscreen-pass"));
 	setStateProcessor(ref_ptr<LoadableState<FilterSequence>>::alloc("filter-sequence"));
