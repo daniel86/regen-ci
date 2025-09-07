@@ -7,6 +7,9 @@
 #include "scene.h"
 #include "regen/animations/animation-manager.h"
 #include "regen/states/light-pass.h"
+#include "regen/textures/texture-loader.h"
+#include "regen/textures/devil-loader.h"
+#include "regen/textures/stb-loader.h"
 
 //#define REGEN_ENABLE_GL_DEBUG_OUTPUT
 
@@ -69,6 +72,11 @@ Scene::Scene(const int& /*argc*/, const char** /*argv*/)
 	optionalExt_.emplace_back("GL_ARB_tessellation_shader");
 	optionalExt_.emplace_back("GL_ARB_texture_buffer_range");
 	optionalExt_.emplace_back("GL_ARB_shader_viewport_layer_array");
+
+#ifdef HAS_STB
+	TextureLoaderRegistry::registerLoader(std::make_unique<STBLoader>());
+#endif
+	TextureLoaderRegistry::registerLoader(std::make_unique<DevilLoader>());
 }
 
 void Scene::addShaderPath(const std::string &path) {

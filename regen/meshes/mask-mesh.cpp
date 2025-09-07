@@ -38,7 +38,7 @@ void MaskMesh::updateMask() {
 	unsigned int numInstances = 0;
 
 	maskTexture_->ensureTextureData();
-	auto *maskTextureData = maskTexture_->textureData();
+	auto maskTextureData = maskTexture_->textureData();
 
 	Vec2f maskUV = quadSize_ts * 0.5f;
 

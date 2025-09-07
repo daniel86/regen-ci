@@ -183,9 +183,9 @@ struct InstancePlaneGenerator {
 	ref_ptr<Texture2D> maskTexture;
 	ref_ptr<Texture2D> heightMap;
 	ref_ptr<Texture> matWeightMap;
-	const GLubyte *maskData = nullptr;
-	const GLubyte *heightData = nullptr;
-	const GLubyte *matWeightData = nullptr;
+	ref_ptr<ImageData> maskData;
+	ref_ptr<ImageData> heightData;
+	ref_ptr<ImageData> matWeightData;
 	uint32_t maskIndex = 0u;
 	float maskThreshold = 0.1f; // threshold for mask texture
 	//
@@ -205,7 +205,7 @@ static void makeInstance(InstancePlaneGenerator &generator, PlaneCell &cell) {
 	ref_ptr<Texture> tex;
 	if (generator.hasGroundMaterial()) {
 		tex = generator.matWeightMap;
-	} else if (generator.maskData) {
+	} else if (generator.maskData.get()) {
 		tex = generator.maskTexture;
 	} else {
 		return; // no mask or material map, nothing to do
@@ -259,7 +259,7 @@ static void makeInstance(InstancePlaneGenerator &generator, PlaneCell &cell) {
 	instanceMat.x[13] += pos.y;
 	instanceMat.x[14] += pos.z;
 	// translate to height map position
-	if (generator.heightData) {
+	if (generator.heightData.get()) {
 		instanceMat.x[13] += generator.areaMaxHeight * generator.heightMap->sampleLinear<float>(
 				cell.uv, generator.heightData);
 	}
@@ -476,7 +476,7 @@ static GLuint transformMatrixPlane(
 					generator.materialIdx);
 		}
 	}
-	else if (generator.maskData) {
+	else if (generator.maskData.get()) {
 		// Compute cell density based on mask texture.
 		for (unsigned int i = 0; i < generator.numCells; i++) {
 			auto &cell = generator.cells[i];
