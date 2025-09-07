@@ -14,6 +14,7 @@
 #include "regen/physics/physical-object.h"
 #include "regen/states/state-node.h"
 #include "regen/camera/sorting.h"
+#include "regen/buffer/element-buffer.h"
 
 namespace regen {
 	// forward declaration
@@ -28,14 +29,6 @@ namespace regen {
 	class Mesh : public State {
 	public:
 		static constexpr const char *TYPE_NAME = "Mesh";
-
-		/**
-		 * \brief Vertex array data layout.
-		 */
-		enum DataLayout {
-			INTERLEAVED,
-			SEQUENTIAL
-		};
 
 		/**
 		 * \brief A mesh level of detail (LOD) description.
@@ -114,7 +107,9 @@ namespace regen {
 		 * @param primitive Specifies what kind of primitives to render.
 		 * @param usage VBO usage.
 		 */
-		Mesh(GLenum primitive, const BufferUpdateFlags &hints);
+		Mesh(GLenum primitive,
+				const BufferUpdateFlags &hints,
+				VertexLayout vertexLayout = VERTEX_LAYOUT_INTERLEAVED);
 
 		~Mesh() override;
 
@@ -138,13 +133,7 @@ namespace regen {
 		/**
 		 * @return VBO that manages the vertex array data.
 		 */
-		const ref_ptr<VBO> &meshBuffer() const { return meshBuffer_; }
-
-		/**
-		 * @param out Set of meshes using the ShaderInputcontainer of this mesh
-		 *          (meshes created by copy constructor).
-		 */
-		void getMeshViews(std::set<Mesh *> &out);
+		const ref_ptr<VBO> &vertexBuffer() const { return vertexBuffer_; }
 
 		/**
 		 * Assign a shader key to this mesh.
@@ -165,18 +154,6 @@ namespace regen {
 		 * @return true if this mesh has a shader key.
 		 */
 		bool hasShaderKey() const { return !shaderKey_.empty() || !shaderStageKeys_.empty(); }
-
-		/**
-		 * Begin recording ShaderInput's.
-		 * @param layout Start recording added inputs.
-		 */
-		void begin(DataLayout layout);
-
-		/**
-		 * Finish previous call to begin(). All recorded inputs are
-		 * uploaded to VBO memory.
-		 */
-		ref_ptr<BufferReference> end();
 
 		/**
 		 * @return Specifies the number of vertices to be rendered.
@@ -305,6 +282,13 @@ namespace regen {
 		virtual void createShader(const ref_ptr<StateNode> &parentNode);
 
 		/**
+		 * Update the vertex data in the GPU buffer.
+		 * This will copy all added vertex attributes into the VBO.
+		 * @return the buffer reference of the updated vertex buffer.
+		 */
+		ref_ptr<BufferReference> updateVertexData();
+
+		/**
 		 * Assign a shader state to this mesh.
 		 * Update VAO that is used to render from array data.
 		 * And setup uniforms and textures not handled in Shader class.
@@ -320,6 +304,12 @@ namespace regen {
 		 * Update VAO using last StateConfig.enable.
 		 */
 		void updateVAO();
+
+		/**
+		 * Update VAO using given buffer name.
+		 * @param bufferName the buffer name to bind to ARRAY_BUFFER.
+		 */
+		void updateVAO(uint32_t bufferName);
 
 		/**
 		 * Update the level of detail based on camera distance.
@@ -404,7 +394,7 @@ namespace regen {
 		 * is used, then low LOD levels are rendered first,
 		 * @param mode the sort mode to set.
 		 */
-		void set_lodSortMode(SortMode mode) { lodSortMode_ = mode; }
+		void setSortMode(SortMode mode) { lodSortMode_ = mode; }
 
 		/**
 		 * Sets the cull shape for this mesh.
@@ -647,8 +637,8 @@ namespace regen {
 
 	protected:
 		GLenum primitive_;
-		ref_ptr<VBO> meshBuffer_;
-		DataLayout uploadLayout_ = INTERLEAVED;
+		ref_ptr<VBO> vertexBuffer_;
+		ref_ptr<ElementBuffer> elementBuffer_;
 
 		ref_ptr<VAO> vao_;
 		std::list<InputLocation> vaoAttributes_;

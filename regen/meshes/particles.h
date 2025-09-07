@@ -159,9 +159,6 @@ namespace regen {
 		// override
 		void glAnimate(RenderState *rs, GLdouble dt) override;
 
-		/**
-		 * Begin recording ShaderInput's using interleaved layout.
-		 */
 		void begin();
 
 		ref_ptr<BufferReference> end();
@@ -169,8 +166,8 @@ namespace regen {
 	protected:
 		const std::string updateShaderKey_;
 		ref_ptr<VBO> feedbackBuffer_;
-		ref_ptr<BufferReference> feedbackRef_;
-		ref_ptr<BufferReference> particleRef_;
+		ref_ptr<BufferReference> vboRef_[2];
+		uint32_t updateIdx_ = 0;
 		BufferRange bufferRange_;
 		//ref_ptr<BoundingBoxCounter> boundingBoxCounter_;
 		std::list<InputLocation> particleAttributes_;
@@ -189,9 +186,6 @@ namespace regen {
 		};
 		std::map<std::string, Ramp> ramps_;
 		std::map<std::string, std::string> rampFunctions_;
-
-		// override
-		void begin(DataLayout layout);
 
 		void createUpdateShader();
 

@@ -1,11 +1,3 @@
-/*
- * mesh-animation-gpu.cpp
- *
- *  Created on: 29.10.2012
- *      Author: daniel
- */
-
-#include <limits.h>
 #include <regen/utility/string-util.h>
 #include <regen/gl-types/gl-util.h>
 #include <regen/gl-types/gl-enum.h>
@@ -101,9 +93,11 @@ MeshAnimation::MeshAnimation(
 	shaderConfig["NUM_ATTRIBUTES"] = REGEN_STRING(i);
 
 	// used to save two frames
-	animationBuffer_ = ref_ptr<VBO>::alloc(ARRAY_BUFFER, BufferUpdateFlags::NEVER);
+	auto vertexLayout = hasMeshInterleavedAttributes_ ?
+			VERTEX_LAYOUT_INTERLEAVED : VERTEX_LAYOUT_SEQUENTIAL;
+	animationBuffer_ = ref_ptr<VBO>::alloc(ARRAY_BUFFER, BufferUpdateFlags::NEVER, vertexLayout);
 	animationBuffer_->setClientAccessMode(BUFFER_GPU_ONLY);
-	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, BufferUpdateFlags::NEVER);
+	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, BufferUpdateFlags::NEVER, vertexLayout);
 	feedbackBuffer_->setClientAccessMode(BUFFER_GPU_ONLY);
 	feedbackRef_ = feedbackBuffer_->adoptBufferRange(bufferSize_);
 	if (!feedbackRef_.get()) {
@@ -207,20 +201,12 @@ void MeshAnimation::loadFrame(GLuint frameIndex, GLboolean isPongFrame) {
 	if (isPongFrame) {
 		if (pongFrame_ != -1) { BufferObject::orphanBufferRange(pongIt_.get()); }
 		pongFrame_ = frameIndex;
-		if (hasMeshInterleavedAttributes_) {
-			pongIt_ = animationBuffer_->allocInterleaved(atts);
-		} else {
-			pongIt_ = animationBuffer_->allocSequential(atts);
-		}
+		pongIt_ = animationBuffer_->alloc(atts);
 		frame.ref = pongIt_;
 	} else {
 		if (pingFrame_ != -1) { BufferObject::orphanBufferRange(pingIt_.get()); }
 		pingFrame_ = frameIndex;
-		if (hasMeshInterleavedAttributes_) {
-			pingIt_ = animationBuffer_->allocInterleaved(atts);
-		} else {
-			pingIt_ = animationBuffer_->allocSequential(atts);
-		}
+		pingIt_ = animationBuffer_->alloc(atts);
 		frame.ref = pingIt_;
 	}
 }
@@ -237,38 +223,13 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 	// in the constructor data may not be set or data moved in vbo
 	// so we lookup the offset here.
 	const auto &inputs = mesh_->inputs();
-	std::list<ContiguousBlock> blocks;
 
-	if (hasMeshInterleavedAttributes_) {
-		meshBufferOffset_ = (inputs.empty() ? 0 : (inputs.begin()->in_)->offset());
-		for (auto it = inputs.rbegin(); it != inputs.rend(); ++it) {
-			const ref_ptr<ShaderInput> &in = it->in_;
-			if (!in->isVertexAttribute()) continue;
-			if (in->offset() < meshBufferOffset_) {
-				meshBufferOffset_ = in->offset();
-			}
-		}
-	} else {
-		// find contiguous blocks of memory in the mesh buffers.
-		auto it = inputs.begin();
-		blocks.emplace_back(it->in_);
-
-		for (++it; it != inputs.end(); ++it) {
-			const ref_ptr<ShaderInput> &in = it->in_;
-			if (!in->isVertexAttribute()) continue;
-			ContiguousBlock &activeBlock = *blocks.rbegin();
-			if (activeBlock.buffer != in->buffer()) {
-				blocks.emplace_back(in);
-			} else if (in->offset() + in->inputSize() == activeBlock.offset) {
-				// join left
-				activeBlock.offset = in->offset();
-				activeBlock.size += in->inputSize();
-			} else if (activeBlock.offset + activeBlock.size == in->offset()) {
-				// join right
-				activeBlock.size += in->inputSize();
-			} else {
-				blocks.emplace_back(in);
-			}
+	meshBufferOffset_ = (inputs.empty() ? 0 : (inputs.begin()->in_)->offset());
+	for (auto it = inputs.rbegin(); it != inputs.rend(); ++it) {
+		const ref_ptr<ShaderInput> &in = it->in_;
+		if (!in->isVertexAttribute()) continue;
+		if (in->offset() < meshBufferOffset_) {
+			meshBufferOffset_ = in->offset();
 		}
 	}
 
@@ -386,25 +347,12 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 	}
 
 	// copy transform feedback buffer content to mesh buffer
-	if (hasMeshInterleavedAttributes_) {
-		BufferObject::copy(
-				feedbackRef_->bufferID(),
-				inputs.begin()->in_->buffer(),
-				bufferSize_,
-				0, // feedback buffer offset
-				meshBufferOffset_);
-	} else {
-		GLuint feedbackBufferOffset = 0;
-		for (auto & block : blocks) {
-			BufferObject::copy(
-					feedbackRef_->bufferID(),
-					block.buffer,
-					block.size,
-					feedbackBufferOffset,
-					block.offset);
-			feedbackBufferOffset += block.size;
-		}
-	}
+	BufferObject::copy(
+		feedbackRef_->bufferID(),
+		inputs.begin()->in_->buffer(),
+		bufferSize_,
+		0, // feedback buffer offset
+		meshBufferOffset_);
 
 	lastTime_ = tickRange_.x + timeInTicks;
 }
