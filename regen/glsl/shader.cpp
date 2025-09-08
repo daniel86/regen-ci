@@ -179,12 +179,12 @@ Shader::~Shader() {
 	for (auto &shader: shaders_) {
 		ref_ptr<uint32_t> &stage = shader.second;
 		glDetachShader(id(), *stage.get());
-		if (*stage.refCount() == 1) {
+		if (stage.refCount() == 1) {
 			glDeleteShader(*stage.get());
 		}
 	}
 
-	if (*id_.refCount() == 1) {
+	if (id_.refCount() == 1) {
 		glDeleteProgram(id());
 	}
 }

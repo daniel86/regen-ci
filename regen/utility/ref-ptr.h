@@ -1,13 +1,8 @@
-/*
- * ref-ptr.h
- *
- *  Created on: 22.03.2011
- *      Author: daniel
- */
+#ifndef REGEN_REF_PTR_H_
+#define REGEN_REF_PTR_H_
 
-#ifndef REF_PTR_H_
-#define REF_PTR_H_
-
+#include <atomic>
+#include <cstdint>
 #include <iostream>
 
 namespace regen {
@@ -27,8 +22,8 @@ namespace regen {
 		static ref_ptr<T> staticCast(ref_ptr<K> v) {
 			ref_ptr<T> casted;
 			casted.ptr_ = static_cast<T *>(v.get());
-			casted.refCount_ = v.refCount();
-			if (casted.ptr_ != NULL) {
+			casted.refCount_ = v.atomicCount();
+			if (casted.ptr_ != nullptr) {
 				casted.ref();
 			}
 			return casted;
@@ -44,8 +39,8 @@ namespace regen {
 		static ref_ptr<T> dynamicCast(ref_ptr<K> v) {
 			ref_ptr<T> casted;
 			casted.ptr_ = dynamic_cast<T *>(v.get());
-			casted.refCount_ = v.refCount();
-			if (casted.ptr_ != NULL) {
+			casted.refCount_ = v.atomicCount();
+			if (casted.ptr_ != nullptr) {
 				casted.ref();
 			}
 			return casted;
@@ -135,7 +130,7 @@ namespace regen {
 		 * Takes a reference on the data pointer of the other ref_ptr.
 		 */
 		template<typename K>
-		ref_ptr(ref_ptr<K> other) : ptr_(other.get()), refCount_(other.refCount()) { if (ptr_ != nullptr) { ref(); }}
+		ref_ptr(ref_ptr<K> other) : ptr_(other.get()), refCount_(other.atomicCount()) { if (ptr_ != nullptr) { ref(); }}
 
 		/**
 		 * Destructor unreferences if data pointer set.
@@ -154,12 +149,17 @@ namespace regen {
 		 * Old data gets unreferenced.
 		 */
 		ref_ptr &operator=(ref_ptr<T> other) {
-			if (ptr_ != NULL) { unref(); }
+			if (ptr_ != nullptr) { unref(); }
 			ptr_ = other.ptr_;
 			refCount_ = other.refCount_;
-			if (ptr_ != NULL) { ref(); }
+			if (ptr_ != nullptr) { ref(); }
 			return *this;
 		}
+
+		/**
+		 * Checks if data pointer is set.
+		 */
+		bool operator!() const { return ptr_ == nullptr; }
 
 		/**
 		 * Compares ref_ptr by data pointer.
@@ -183,21 +183,31 @@ namespace regen {
 		/**
 		 * Pointer to reference counter.
 		 */
-		unsigned int *refCount() const { return refCount_; }
+		uint32_t refCount() const {
+			return refCount_ ? refCount_->load(std::memory_order_relaxed) : 0;
+		}
+
+		std::atomic<uint32_t>* atomicCount() const { return refCount_; }
 
 	private:
 		T *ptr_;
-		unsigned int *refCount_;
+		std::atomic<uint32_t> *refCount_;
 
-		ref_ptr(T *ptr) : ptr_(ptr), refCount_(new unsigned int) { *refCount_ = 1; }
+		explicit ref_ptr(T *ptr)
+				: ptr_(ptr),
+		          refCount_(new std::atomic<uint32_t>()) {
+			std::atomic<uint32_t> &count = *refCount_;
+			count.store(1, std::memory_order_relaxed);
+		}
 
 		void ref() {
-			*refCount_ += 1;
+			std::atomic<uint32_t> &count = *refCount_;
+			count.fetch_add(1, std::memory_order_relaxed);
 		}
 
 		void unref() {
-			*refCount_ -= 1;
-			if (*refCount_ == 0) {
+			std::atomic<uint32_t> &count = *refCount_;
+			if (count.fetch_sub(1, std::memory_order_acq_rel) == 1) {
 				delete refCount_;
 				refCount_ = nullptr;
 
@@ -208,4 +218,4 @@ namespace regen {
 	};
 } // namespace
 
-#endif /* REF_PTR_H_ */
+#endif /* REGEN_REF_PTR_H_ */

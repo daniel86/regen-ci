@@ -2,17 +2,13 @@
 #define REGEN_TEXTURE_H_
 
 #include <string>
-#include <set>
-#include <map>
-#include <list>
-
 #include <regen/gl-types/gl-rectangle.h>
 #include <regen/gl-types/render-state.h>
 #include "regen/glsl/shader-input.h"
-#include <regen/buffer/vbo.h>
 #include "regen/shapes/bounds.h"
 #include "regen/scene/scene-input.h"
 #include "regen/textures/texture-file.h"
+#include "regen/textures/image-data.h"
 
 namespace regen {
 	class Texture;
@@ -156,18 +152,20 @@ namespace regen {
 		inline uint32_t depth() const { return imageDepth_; }
 
 		/**
-		 * Specifies a pointer to the image data in memory.
-		 * Initially NULL.
+		 * Sets the image data for the texture.
 		 * @param data the image data.
-		 * @param owned if true, the texture will take ownership of the data.
 		 */
-		void setTextureData(const GLubyte *data, bool owned = false);
+		void setTextureData(const ref_ptr<ImageData> &data);
 
 		/**
-		 * Specifies a pointer to the image data in memory.
-		 * Initially NULL.
+		 * Unsets the image data for the texture.
 		 */
-		inline auto *textureData() const { return textureData_; }
+		void unsetTextureData();
+
+		/**
+		 * @return image data for the texture, if any stored in RAM.
+		 */
+		const ref_ptr<ImageData> &textureData() const { return textureData_; }
 
 		/**
 		 * Reads the texture data from the server.
@@ -317,11 +315,10 @@ namespace regen {
 		 * @param texco texture coordinates.
 		 * @param regionTS region size in texture space.
 		 * @param textureData texture data.
-		 * @param numComponents number of components per texel.
 		 * @return average value.
 		 */
 		template<class T>
-		T sampleAverage(const Vec2f &texco, const Vec2f &regionTS, const GLubyte *textureData) const {
+		T sampleAverage(const Vec2f &texco, const Vec2f &regionTS, const ref_ptr<ImageData> &textureData) const {
 			auto bounds = getRegion(texco, regionTS);
 			T avg = T(0.0f);
 			int numSamples = 0;
@@ -344,11 +341,10 @@ namespace regen {
 		 * @param texco texture coordinates.
 		 * @param regionTS region size in texture space.
 		 * @param textureData texture data.
-		 * @param numComponents number of components per texel.
 		 * @return max value.
 		 */
 		template<class T>
-		T sampleMax(const Vec2f &texco, const Vec2f &regionTS, const GLubyte *textureData) const {
+		T sampleMax(const Vec2f &texco, const Vec2f &regionTS, const ref_ptr<ImageData> &textureData) const {
 			auto bounds = getRegion(texco, regionTS);
 			T maxVal = T(0.0f);
 			for (unsigned int y = bounds.min.y; y <= bounds.max.y; ++y) {
@@ -365,11 +361,10 @@ namespace regen {
 		 * @param texco texture coordinates.
 		 * @param regionTS region size in texture space.
 		 * @param textureData texture data.
-		 * @param numComponents number of components per texel.
 		 * @return max value.
 		 */
 		template<class T>
-		float sampleMax(const Vec2f &texco, const Vec2f &regionTS, const GLubyte *textureData, uint32_t componentIdx) const {
+		float sampleMax(const Vec2f &texco, const Vec2f &regionTS, const ref_ptr<ImageData> &textureData, uint32_t componentIdx) const {
 			auto bounds = getRegion(texco, regionTS);
 			float maxVal = 0.0f;
 			for (unsigned int y = bounds.min.y; y <= bounds.max.y; ++y) {
@@ -386,11 +381,10 @@ namespace regen {
 		 * Sample the nearest texel.
 		 * @param uv texture coordinates.
 		 * @param textureData texture data.
-		 * @param numComponents number of components per texel.
 		 * @return value.
 		 */
 		template<class T>
-		T sampleNearest(const Vec2f &uv, const GLubyte *textureData) const {
+		T sampleNearest(const Vec2f &uv, const ref_ptr<ImageData> &textureData) const {
 			return sample<T>(texelIndex(uv), textureData);
 		}
 
@@ -398,23 +392,21 @@ namespace regen {
 		 * Sample the nearest texel.
 		 * @param coordinate texture coordinates.
 		 * @param textureData texture data.
-		 * @param numComponents number of components per texel.
 		 * @return value.
 		 */
 		template<class T>
-		T sampleNearest(const Vec2ui &coordinate, const GLubyte *textureData) const {
+		T sampleNearest(const Vec2ui &coordinate, const ref_ptr<ImageData> &textureData) const {
 			return sample<T>(coordinate.y * width() + coordinate.x, textureData);
 		}
 
 		/**
 		 * Sample linearly between closest texels.
-		 * @param texco texture coordinates.
+		 * @param uv texture coordinates.
 		 * @param textureData texture data.
-		 * @param numComponents number of components per texel.
 		 * @return value.
 		 */
 		template<class T>
-		T sampleLinear(const Vec2f &uv, const GLubyte *textureData) const {
+		T sampleLinear(const Vec2f &uv, const ref_ptr<ImageData> &textureData) const {
 			const auto i_w = static_cast<int32_t>(width());
 			const auto i_h = static_cast<int32_t>(height());
 			const float f_x = uv.x * static_cast<float>(i_w);
@@ -440,16 +432,25 @@ namespace regen {
 		 * Sample a texel at the given index.
 		 * @param texelIndex index of the texel.
 		 * @param textureData texture data.
-		 * @param numComponents number of components per texel.
 		 * @return value.
 		 */
 		template<class T>
-		T sample(unsigned int texelIndex, const GLubyte *textureData) const {
-			auto *dataOffset = textureData + texelIndex * numComponents_;
+		T sample(unsigned int texelIndex, const ref_ptr<ImageData> &textureData) const {
+			auto *dataOffset = textureData->pixels + texelIndex * numComponents_;
 			T v(0.0f);
 			auto *typedData = (float *) &v;
-			for (unsigned int i = 0; i < numComponents_; ++i) {
-				typedData[i] = static_cast<float>(dataOffset[i]) / 255.0f;
+			if (pixelType_ == GL_UNSIGNED_BYTE) {
+				for (unsigned int i = 0; i < numComponents_; ++i) {
+					typedData[i] = static_cast<float>(dataOffset[i]) / 255.0f;
+				}
+			} else if (pixelType_ == GL_FLOAT) {
+				auto *floatData = (float *) dataOffset;
+				for (unsigned int i = 0; i < numComponents_; ++i) {
+					typedData[i] = floatData[i];
+				}
+			} else {
+				throw std::runtime_error(REGEN_STRING("Unsupported pixel type 0x" <<
+						std::hex << pixelType_ << std::dec << " in ImageData::sample"));
 			}
 			return v;
 		}
@@ -489,9 +490,8 @@ namespace regen {
 		std::optional<TextureAniso> texAniso_ = std::nullopt;
 
 		// client data, or null
-		const GLubyte *textureData_;
+		ref_ptr<ImageData> textureData_;
 		uint32_t numTexel_ = 0u;
-		bool isTextureDataOwned_;
 
 		void (Texture::*allocTexture_)();
 		void (Texture::*updateImage_)(GLubyte *subData);

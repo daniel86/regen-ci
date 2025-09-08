@@ -31,8 +31,6 @@ Texture::Texture(GLenum textureTarget, GLuint numTextures)
 		  internalFormat_(GL_RGBA8),
 		  pixelType_(GL_BYTE),
 		  texBind_(textureTarget, id()),
-		  textureData_(nullptr),
-		  isTextureDataOwned_(false),
 		  allocTexture_(&Texture::allocTexture_noop),
 		  updateImage_(&Texture::updateImage_noop),
 		  updateSubImage_(&Texture::updateSubImage_noop) {
@@ -45,10 +43,6 @@ Texture::Texture(GLenum textureTarget, GLuint numTextures)
 Texture::~Texture() {
 	if (textureChannel_ != -1) {
 		TextureBinder::release(this);
-	}
-	if (isTextureDataOwned_ && textureData_) {
-		delete[]textureData_;
-		textureData_ = nullptr;
 	}
 }
 
@@ -210,21 +204,29 @@ const TextureBind &Texture::textureBind() {
 	return texBind_;
 }
 
-void Texture::setTextureData(const GLubyte *textureData, bool owned) {
-	if (textureData_ && isTextureDataOwned_) {
-		delete[]textureData_;
-	}
+void Texture::setTextureData(const ref_ptr<ImageData> &textureData) {
 	textureData_ = textureData;
-	isTextureDataOwned_ = owned;
+}
+
+void Texture::unsetTextureData() {
+	textureData_ = {};
 }
 
 void Texture::updateTextureData() {
 	auto bufSize = static_cast<int32_t>(numTexel() * numComponents_);
-	auto *pixels = new GLubyte[bufSize];
+	auto *pixels = new byte[bufSize];
 	glGetTextureImage(id(), 0,
 					  format(), GL_UNSIGNED_BYTE,
 					  bufSize, pixels);
-	setTextureData(pixels, true);
+	auto imgData = ref_ptr<ImageData>::alloc();
+	imgData->width = width();
+	imgData->height = height();
+	imgData->depth = depth();
+	imgData->bpp = numComponents();
+	imgData->format = format();
+	imgData->pixelType = GL_UNSIGNED_BYTE;
+	imgData->pixels = pixels;
+	setTextureData(imgData);
 }
 
 void Texture::ensureTextureData() {

@@ -88,8 +88,13 @@ find_package(Boost ${Boost_MIN_VERSION}
 	COMPONENTS ${BOOST_COMPONENTS} REQUIRED)
 # threading libs
 find_package(Threads REQUIRED)
-# check for Image loading lib
+# check for Image loading libraries
 find_package(DevIL REQUIRED)
+if(STB_LIBRARIES)
+    set(HAS_STB 1)
+else()
+    message(STATUS "STB library not found.")
+endif()
 # check for Model loader library
 find_package(ASSIMP REQUIRED)
 # check for Font lib
@@ -119,6 +124,7 @@ message(STATUS "  alut:${ALUT_LIBRARIES};")
 message(STATUS "  FFmpeg:${FFMPEG_LIBRARIES};")
 message(STATUS "  Bullet:${BULLET_LIBRARIES};")
 message(STATUS "  PNG:${PNG_LIBRARIES};")
+message(STATUS "  STB:${STB_LIBRARIES};")
 if(UNIX)
   message(STATUS "  libz:${LIBZ_LIBRARIES};")
   message(STATUS "  libbz2:${LIBBZ2_LIBRARIES};")
@@ -152,6 +158,7 @@ set(REGEN_LIBRARIES
     ${GLEW_LIBRARIES}
     ${Boost_LIBRARIES}
     ${DEVIL_LIBRARIES}
+    ${STB_LIBRARIES}
     ${ASSIMP_LIBRARIES}
     ${FREETYPE_LIBRARIES} -lbrotlidec
     ${OPENAL_LIBRARIES}

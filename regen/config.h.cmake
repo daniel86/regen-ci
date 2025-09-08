@@ -30,6 +30,7 @@
 #cmakedefine HAS_ILUT
 #cmakedefine HAS_OPENAL
 #cmakedefine HAS_ALUT
+#cmakedefine HAS_STB
 /* assimp defines */
 #cmakedefine HAS_ASSIMP
 #cmakedefine HAS_OLD_ASSIMP_STRUCTURE

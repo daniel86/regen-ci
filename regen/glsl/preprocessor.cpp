@@ -1,10 +1,3 @@
-/*
- * preprocessor.cpp
- *
- *  Created on: 12.05.2013
- *      Author: daniel
- */
-
 #include <boost/algorithm/string.hpp>
 #include <boost/regex.hpp>
 
@@ -22,9 +15,6 @@
 
 using namespace regen;
 
-static const char *mainPattern =
-		".*void[ \n]+main\\([ \n]*|[ \n]*void[ \n]*\\)[ \n]*\\{.*\\}.*";
-
 PreProcessor::PreProcessor() {}
 
 void PreProcessor::addProcessor(const ref_ptr<GLSLProcessor> &processor) {
@@ -35,7 +25,7 @@ void PreProcessor::addProcessor(const ref_ptr<GLSLProcessor> &processor) {
 void PreProcessor::removeProcessor(GLSLProcessor *processor) {
 	ref_ptr<GLSLProcessor> child;
 	for (ref_ptr<GLSLProcessor> p = lastProcessor_;
-		 p.get() != NULL; p = p->getParent()) {
+		 p.get() != nullptr; p = p->getParent()) {
 		if (p.get() == processor) {
 			if (child.get()) {
 				child->setParent(p->getParent());
@@ -48,18 +38,17 @@ void PreProcessor::removeProcessor(GLSLProcessor *processor) {
 }
 
 std::map<GLenum, std::string> PreProcessor::processStages(const PreProcessorInput &in) {
-	static boost::regex mainRegex(mainPattern);
+	static boost::regex mainRegex(R"(\bvoid\s+main\s*\()");
 	std::map<GLenum, std::string> processed;
-	const std::string *currentCode = NULL;
+	const std::string *currentCode = nullptr;
 
 	// find effect names
 	std::set<std::string> effectNames;
-	for (std::map<GLenum, std::string>::const_iterator
-				 it = in.unprocessed.begin(); it != in.unprocessed.end(); ++it) {
-		if (it->second.empty()) { continue; }
-		if (Includer::get().isKeyValid(it->second)) {
+	for (const auto &it : in.unprocessed) {
+		if (it.second.empty()) { continue; }
+		if (Includer::get().isKeyValid(it.second)) {
 			std::list<std::string> path;
-			boost::split(path, it->second, boost::is_any_of("."));
+			boost::split(path, it.second, boost::is_any_of("."));
 			effectNames.insert(*path.begin());
 		}
 	}
@@ -76,15 +65,15 @@ std::map<GLenum, std::string> PreProcessor::processStages(const PreProcessorInpu
 		REGEN_DEBUG("[GLSL] Processing " << glenum::glslStageName(stage) << ".");
 #endif
 
-		std::map<GLenum, std::string>::const_iterator it = in.unprocessed.find(stage);
+		auto it = in.unprocessed.find(stage);
 		if (it != in.unprocessed.end() && !it->second.empty()) {
 			currentCode = &it->second;
 		} else {
 			if (stage == GL_VERTEX_SHADER) {
 				// no vertex shader specified. try to find one with
 				// specified effect keys.
-				for (std::set<std::string>::iterator it = effectNames.begin(); it != effectNames.end(); ++it) {
-					std::string defaultVSName = REGEN_STRING((*it) << ".vs");
+				for (const auto & effectName : effectNames) {
+					std::string defaultVSName = REGEN_STRING(effectName << ".vs");
 					const std::string &vsCode = Includer::get().include(defaultVSName);
 					if (!vsCode.empty()) {
 						currentCode = &vsCode;
@@ -92,7 +81,7 @@ std::map<GLenum, std::string> PreProcessor::processStages(const PreProcessorInpu
 					}
 				}
 			}
-			if (currentCode == NULL) continue;
+			if (currentCode == nullptr) continue;
 		}
 
 		state_.currStage = stage;
@@ -103,7 +92,7 @@ std::map<GLenum, std::string> PreProcessor::processStages(const PreProcessorInpu
 		state_.inStream << in.header << std::endl;
 		if (Includer::get().isKeyValid(*currentCode)) { state_.inStream << "#include " << (*currentCode) << std::endl; }
 		else { state_.inStream << (*currentCode) << std::endl; }
-		currentCode = NULL;
+		currentCode = nullptr;
 
 		// execute processor pipeline
 		std::stringstream out;
@@ -122,8 +111,7 @@ std::map<GLenum, std::string> PreProcessor::processStages(const PreProcessorInpu
 		it = processed.insert(make_pair(stage, postProcessed.str())).first;
 
 		// check if a main function is defined
-		boost::sregex_iterator regexIt(it->second.begin(), it->second.end(), mainRegex);
-		if (regexIt == NO_REGEX_MATCH) {
+		if (!boost::regex_search(it->second, mainRegex)) {
 			processed.erase(stage);
 			continue;
 		}
@@ -132,7 +120,7 @@ std::map<GLenum, std::string> PreProcessor::processStages(const PreProcessorInpu
 	}
 
 	for (ref_ptr<GLSLProcessor> p = lastProcessor_;
-		 p.get() != NULL; p = p->getParent()) { p->clear(); }
+		 p.get() != nullptr; p = p->getParent()) { p->clear(); }
 
 	return processed;
 }
