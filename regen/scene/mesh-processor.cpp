@@ -7,6 +7,7 @@ using namespace regen;
 ref_ptr<Mesh> MeshNodeProvider::getMeshCopy(const ref_ptr<Mesh> &originalMesh) {
 	if (originalMesh.get() == nullptr) { return originalMesh; }
 	ref_ptr<Mesh> meshCopy;
+#if 1
 	if (usedMeshes_.count(originalMesh.get()) == 0) {
 		// mesh not referenced yet. Take the reference we have to keep
 		// reference on special mesh types like Sky.
@@ -15,6 +16,13 @@ ref_ptr<Mesh> MeshNodeProvider::getMeshCopy(const ref_ptr<Mesh> &originalMesh) {
 	} else {
 		meshCopy = ref_ptr<Mesh>::alloc(originalMesh);
 	}
+#else
+	// TODO: Problem with impostor if original is not used.
+	if (usedMeshes_.count(originalMesh.get()) == 0) {
+		usedMeshes_.insert(originalMesh.get());
+	}
+	meshCopy = ref_ptr<Mesh>::alloc(originalMesh);
+#endif
 	return meshCopy;
 }
 
@@ -71,6 +79,7 @@ void MeshNodeProvider::processInput(
 		}
 		meshCopy->setSortMode(SortMode::FRONT_TO_BACK);
 		meshCopy->ensureLOD();
+		meshCopy->resetVisibility(false);
 		StateConfigurer meshConfigurer;
 		auto meshNode = ref_ptr<StateNode>::alloc();
 		meshNode->set_name("base-mesh");

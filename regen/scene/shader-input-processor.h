@@ -145,7 +145,7 @@ namespace regen {
 				while (!stack.empty()) {
 					auto state = stack.top();
 					stack.pop();
-					for (auto &joined: state->joined()) {
+					for (auto &joined: *state->joined().get()) {
 						stack.push(joined);
 					}
 					num = std::max(num, state->numInstances());

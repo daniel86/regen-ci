@@ -297,10 +297,9 @@
 
     <node id="Cube-Reflection-Update">
         <camera id="cube-camera"/>
-        <fbo id="cube-reflection-buffer" clear-buffers="0,1,2,3" clear-depth="1"/>
         <node id="Cube-Geometry-Pass">
             <depth test="1" write="1"/>
-            <fbo id="cube-reflection-buffer" draw-buffers="0,1,2,3"/>
+            <fbo id="cube-reflection-buffer" clear-buffers="0,1,2,3" clear-depth="1" draw-buffers="0,1,2,3"/>
             <node import="Shadow-Caster"/>
             <node import="Scene-Geometry"/>
         </node>
@@ -402,25 +401,26 @@
 
     <mesh id="lightning-mesh" type="lightning"
           update-frequency="PER_FRAME" update-scope="FULL">
-          <strike num-subdivisions="7" jitter-offset="12.0"
+        <shader mesh-index="0" key="regen.weather.lightning" />
+        <strike num-subdivisions="7" jitter-offset="12.0"
                 max-branches="12" branch-probability="0.9" branch-offset="16.0"
                 frequency="1.1f, 1.0f" lifetime="0.35f, 0.15f"
                 source-constant="10.0, 60.0, 30.0"
                 target-constant="0.0, -40.0, 30.0"/>
-          <strike num-subdivisions="7" jitter-offset="12.0"
+        <strike num-subdivisions="7" jitter-offset="12.0"
                 max-branches="12" branch-probability="0.9" branch-offset="16.0"
                 frequency="1.1f, 1.0f" lifetime="0.35f, 0.15f"
                 source-constant="-10.0, 60.0, -30.0"
                 target-constant="0.0, -40.0, -30.0"/>
-          <strike num-subdivisions="5" jitter-offset="2.0" width-factor="0.15"
+        <strike num-subdivisions="5" jitter-offset="2.0" width-factor="0.15"
                 max-branches="6" branch-probability="0.6" branch-offset="1.0"
                 frequency="0.0f, 0.0f" lifetime="0.7f, 0.3f"
                 ring-strength="4" ring-tf="stone-ring-tf"/>
-          <strike num-subdivisions="4" jitter-offset="1.0" width-factor="0.1"
+        <strike num-subdivisions="4" jitter-offset="1.0" width-factor="0.1"
                 max-branches="4" branch-probability="0.4" branch-offset="1.0"
                 frequency="0.0f, 0.0f" lifetime="0.2f, 0.1f"
                 ring-strength="2" ring-tf="sphere2-tf"/>
-          <strike num-subdivisions="6" jitter-offset="3.0" width-factor="0.2"
+        <strike num-subdivisions="6" jitter-offset="3.0" width-factor="0.2"
                 max-branches="11" branch-probability="0.7" branch-offset="4.0"
                 frequency="10.1f, 5.0f" lifetime="0.95f, 0.3f"
                 source-tf="stone-ring-tf"
@@ -433,7 +433,7 @@
         <node id="Lightning-Bolt0">
             <input type="float" name="lightningWidth" value="0.6"/>
             <input type="vec3" name="matDiffuse" value="0.8, 1.5, 20.0"/>
-            <mesh id="lightning-mesh" shader="regen.weather.lightning"/>
+            <mesh id="lightning-mesh"/>
         </node>
     </node>
 
@@ -483,7 +483,7 @@
         <depth test="1" write="0"/>
         <input type="float" name="lightningWidth" value="0.15"/>
         <input type="vec3" name="matDiffuse" value="1.0, 1.0, 1.0"/>
-        <mesh id="lightning-mesh" shader="regen.weather.lightning"/>
+        <mesh id="lightning-mesh"/>
     </node>
 
     <node id="Emission-Draw-Glow">
@@ -620,7 +620,12 @@
             <texture name="depthTexture" fbo="cube-reflection-buffer" attachment="depth"/>
         </node>
         -->
-        <!-- TODO: Add lightning to the reflection buffer.  -->
+        <!-- FIXME: Add lightning to the reflection buffer.
+                - For some reason the bolt does not render into cube map.
+                - Seems not the shader.
+                - Maybe something regarding the vertex data update? the vertex data is not really in place initially
+                  when copies are created.
+        -->
         <!--
         <node import="Cube-Emission-Update"/>
         <view id="Cube-Emission-Color">

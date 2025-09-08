@@ -630,11 +630,11 @@ void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
         mat.specular*shading.specular.rgb +
         mat.ambient*in_ambientLight;
 #endif
-#ifdef HAS_ALPHA_CLIP_COEFFICIENTS
-    #ifdef HAS_fogDistance
+#ifdef HAS_fogDistance
     shadedColor = applyFogToColor(shadedColor, gl_FragCoord.z, posWorld);
-    #endif
-	clipAlpha(color);
+#endif
+#ifdef HAS_ALPHA_CLIP_COEFFICIENTS
+	clipAlpha(shadedColor);
 #endif
 #ifdef USE_AVG_SUM_ALPHA
     out_color = vec4(shadedColor*color.a, color.a);

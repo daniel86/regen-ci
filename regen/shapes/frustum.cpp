@@ -231,14 +231,15 @@ bool Frustum::hasIntersectionWithFrustum(const BoundingBox &box) const {
 
 bool Frustum::hasIntersectionWithFrustum(const Frustum &other) const {
 	for (int i = 0; i < 6; ++i) {
-		if (other.planes[i].distance(points[0]) < 0 &&
-			other.planes[i].distance(points[1]) < 0 &&
-			other.planes[i].distance(points[2]) < 0 &&
-			other.planes[i].distance(points[3]) < 0 &&
-			other.planes[i].distance(points[4]) < 0 &&
-			other.planes[i].distance(points[5]) < 0 &&
-			other.planes[i].distance(points[6]) < 0 &&
-			other.planes[i].distance(points[7]) < 0) {
+		auto &plane = other.planes[i];
+		if (plane.distance(points[0]) < 0 &&
+			plane.distance(points[1]) < 0 &&
+			plane.distance(points[2]) < 0 &&
+			plane.distance(points[3]) < 0 &&
+			plane.distance(points[4]) < 0 &&
+			plane.distance(points[5]) < 0 &&
+			plane.distance(points[6]) < 0 &&
+			plane.distance(points[7]) < 0) {
 			return false;
 		}
 	}

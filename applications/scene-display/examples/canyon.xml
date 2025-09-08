@@ -94,7 +94,7 @@
     </texture>
     <texture id="grass-mask" file="res/textures/terrain/canyon/mask-grass.png"/>
     <texture id="tree-mask" file="res/textures/terrain/canyon/mask-trees.png"/>
-    <texture id="grass-color" file="res/textures/materials/grass/0/color.png" wrapping="REPEAT" />
+    <texture id="grass-color" file="res/textures/materials/grass/0/color.png" wrapping="CLAMP_TO_EDGE" />
     <texture id="fir-color" file="res/textures/materials/tree-twig/fir/color.png" wrapping="REPEAT" />
     <texture id="wind-flowmap" file="res/textures/wind/flowmap0.png" wrapping="REPEAT"/>
     <texture id="wind-noise" type="noise" preset="cloud"
@@ -112,7 +112,7 @@
             position="-40.0, 14.0, 0.0"/>
     <camera id="sun-camera"
             culling-index="main-index"
-            lod-shift="1,1,1,0"
+            lod-shift="0,0,0,0"
             lod-camera="main-camera"
             camera="main-camera"
             light="sky-sun"
@@ -362,7 +362,7 @@
     <mesh id="tree-mesh" type="proctree"
             lods="3,2,1"
             lod-thresholds="10.0, 50.0, 100.0"
-            use-silhouette="true"
+            use-silhouette="1"
             tile-counts="4,2,2,2"
             alpha-cut="0.1"
             coverage-threshold="0.01"
@@ -402,7 +402,7 @@
                     hemispherical="0"
                     top-view="0"
                     bottom-view="0"
-                    longitude-steps="8"
+                    longitude-steps="16"
                     latitude-steps="0"
                     texture-size="256,256"
                     update-frequency="NEVER">
@@ -410,6 +410,7 @@
                 <update-state>
                     <alpha discard-threshold="0.25"/>
                     <depth test="1" write="1"/>
+                    <input name="col" type="vec4" value="0.9,0.9,0.9,1.0"/>
                 </update-state>
                 <input name="stiffness" type="float" value="0.1"/>
             </mesh>
@@ -598,7 +599,7 @@
         <transform id="fish-tf" num-instances="{{num-fish}}" is-instanced="1"
             update-frequency="PER_FRAME" gpu-usage="BUFFER_GPU_WRITE">
             <scale value="0.001, 0.001, 0.001"/>
-            <translate value="0.0, -0.5, 3.0"/>
+            <translate value="0.0, -0.5, -10.0"/>
             <set mode="circle" target="translate" radius="1.0" variance="0.8"
                 dir-x="1.0, 0.0, 0.0" dir-z="0.0, 1.0, 1.0"/>
             <animation type="boids"
@@ -922,6 +923,7 @@
                 </view>
             </node>
 
+            <node import="Foliage-Pass"/>
             <node import="Post-Pass"/>
 
             <view id="Spatial Index">

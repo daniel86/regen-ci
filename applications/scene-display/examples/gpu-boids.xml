@@ -298,7 +298,7 @@
                 num-instances="{{num-fish}}" is-instanced="1"
                 update-frequency="NEVER">
             <scale value="0.001, 0.001, 0.001"/>
-            <translate value="0.0, -5.5, 30.0"/>
+            <translate value="0.0, -5.5, -50.0"/>
             <set mode="circle" target="translate" radius="1.0" variance="0.8"
                 dir-x="10.0, 0.0, 0.0" dir-z="0.0, 1.0, 10.0"/>
             <animation type="boids"

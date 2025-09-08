@@ -36,17 +36,17 @@ namespace regen {
 		/**
 		 * @return flag indicating if this state is hidden.
 		 */
-		inline bool isHidden() const { return isHidden_; }
+		bool isHidden() const noexcept { return isHidden_.load(std::memory_order_relaxed); }
 
 		/**
 		 * @param v flag indicating if this state is hidden.
 		 */
-		void set_isHidden(bool v) { isHidden_ = v; }
+		void set_isHidden(bool v) noexcept { isHidden_.store(v, std::memory_order_relaxed); }
 
 		/**
 		 * @return joined states.
 		 */
-		const std::vector<ref_ptr<State> > &joined() const { return joined_; }
+		ref_ptr<std::vector<ref_ptr<State>>> joined() const { return joined_; }
 
 		/**
 		 * Add a state to the end of the list of joined states.
@@ -212,9 +212,9 @@ namespace regen {
 		void attach(const ref_ptr<EventObject> &obj);
 
 	protected:
-		std::vector<ref_ptr<State> > joined_;
+		ref_ptr<std::vector<ref_ptr<State>>> joined_;
 		std::vector<ref_ptr<EventObject> > attached_;
-		bool isHidden_ = false;
+		std::atomic<bool> isHidden_{false};
 
 		// shader inputs
 		// note: the inputs are not share between copies.
@@ -227,6 +227,13 @@ namespace regen {
 		std::vector<std::string> shaderIncludes_;
 		std::map<std::string, std::string> shaderFunctions_;
 		GLuint shaderVersion_ = 330;
+
+		template<typename F> void updateVector(F &&fn) {
+			// Make a copy, modify, then atomically swap
+			auto newVec = ref_ptr<std::vector<ref_ptr<State>>>::alloc(*joined_.get());
+			fn(*newVec.get());
+			joined_ = newVec;
+		}
 
 	private:
 		struct StateShared; // forward declaration

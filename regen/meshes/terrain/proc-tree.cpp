@@ -87,7 +87,7 @@ ProcTree::ProcTree(scene::SceneInputNode &input) : ProcTree() {
 		silhouetteCfg_.texcoScale = input.getValue<Vec2f>("texco-scale", Vec2f(1.0f));
 	}
 	if (input.hasAttribute("use-silhouette")) {
-		useSilhouetteMesh_ = input.getValue<bool>("use-silhouette-mesh", true);
+		useSilhouetteMesh_ = input.getValue<bool>("use-silhouette", true);
 	}
 
 	if (input.hasAttribute("preset")) {
@@ -296,8 +296,6 @@ void ProcTree::loadPreset(Preset preset) {
 				REGEN_WARN("Cannot create silhouette mesh for twig texture.");
 			}
 		}
-	} else {
-		twigSilhouette_ = {};
 	}
 }
 
@@ -346,9 +344,9 @@ void ProcTree::computeTan(TreeMesh &treeMesh, const ProcMesh &procMesh, int vert
 
 static int addQuadPoint(Vec3f *quadPos, const Vec3f &pos, const Vec2f &uv) {
 	int quadIndex;
-	if (uv.y > 0.5 && uv.x < 0.5) {
+	if (uv.y < 0.5 && uv.x < 0.5) {
 		quadIndex = 0;
-	} else if (uv.y > 0.5 && uv.x > 0.5) {
+	} else if (uv.y < 0.5 && uv.x > 0.5) {
 		quadIndex = 2;
 	} else if (uv.x < 0.5) {
 		quadIndex = 1;
@@ -548,7 +546,7 @@ void ProcTree::updateTwigAttributes() {
 	const ProcMesh lod0 = twigProcMesh(handle);
 	std::vector<Mesh::MeshLOD> lodLevels;
 
-	if (twigSilhouette_.get()) {
+	if (useSilhouetteMesh_ && twigSilhouette_.get()) {
 		const uint32_t nq_in = lod0.mFaceCount / 2;
 		uint32_t numVertices = 0u; // Total number of vertices over all LODs
 		uint32_t numIndices = 0u; // Total number of indices over all LODs
@@ -586,30 +584,30 @@ void ProcTree::updateTwigAttributes() {
 				// For this we need to compute tangents along u/v directions.
 
 				auto &face_in = lod0.mFace[quadIdx_in * 2];
-				const Vec3f *bottomLeft, *bottomRight, *topRight;
+				const Vec3f *topLeft, *topRight, *botRight;
 				if (quadIdx_in % 2 == 0) {
 					// input ordering: (0,0), (1,0), (1,1)
-					bottomLeft = (Vec3f*)&lod0.mVert[face_in.x];
-					bottomRight = (Vec3f*)&lod0.mVert[face_in.y];
-					topRight = (Vec3f*)&lod0.mVert[face_in.z];
+					topLeft = (Vec3f*)&lod0.mVert[face_in.x];
+					topRight = (Vec3f*)&lod0.mVert[face_in.y];
+					botRight = (Vec3f*)&lod0.mVert[face_in.z];
 				} else {
 					// input ordering: (1,1), (1,0), (0,0)
-					topRight = (Vec3f*)&lod0.mVert[face_in.x];
-					bottomRight = (Vec3f*)&lod0.mVert[face_in.y];
-					bottomLeft = (Vec3f*)&lod0.mVert[face_in.z];
+					botRight = (Vec3f*)&lod0.mVert[face_in.x];
+					topRight = (Vec3f*)&lod0.mVert[face_in.y];
+					topLeft = (Vec3f*)&lod0.mVert[face_in.z];
 				}
-				Vec3f origin = *bottomLeft;
+				Vec3f origin = *topLeft;
 
 				// base position for the quad
-				Vec3f basePos = ((*bottomLeft) + (*bottomRight)) * 0.5f;
+				Vec3f basePos = ((*topLeft) + (*topRight)) * 0.5f + ((*botRight) - (*topRight));
 				// compute direction vectors along face plane
 				// length of the vectors should be width/height of the quad.
-				Vec3f u_axis = (*bottomRight) - (*bottomLeft);
-				Vec3f v_axis = (*topRight) - (*bottomRight);
+				Vec3f u_axis = (*topRight) - (*topLeft);
+				Vec3f v_axis = (*botRight) - (*topRight);
 				if (quadIdx_in % 2 != 0) {
 					// for odd numbered quads, flip the u axis to maintain winding order
 					u_axis = -u_axis;
-					origin = *bottomRight;
+					origin = *topRight;
 				}
 
 				for (uint32_t uvRectIdx = 0u; uvRectIdx < uvRects.size(); uvRectIdx++) {
@@ -625,7 +623,7 @@ void ProcTree::updateTwigAttributes() {
 						// world position = origin + u_axis * uq + v_axis * vq
 						twig_p[vOffset + c] = origin + (u_axis * us[c]) + (v_axis * vs[c]);
 						// UVs unchanged (still 0..1)
-						twig_uv[vOffset + c] = Vec2f(us[c], vs[c]);
+						twig_uv[vOffset + c] = Vec2f(us[c], 1.0 - vs[c]);
 						// basePos per-vertex
 						if (twig_bp) twig_bp[vOffset + c] = basePos;
 					}

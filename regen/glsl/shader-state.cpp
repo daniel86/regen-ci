@@ -130,7 +130,8 @@ void ShaderState::enable(RenderState *rs) {
 }
 
 ref_ptr<Shader> ShaderState::findShader(State *s) {
-	for (auto it = s->joined().rbegin(); it != s->joined().rend(); ++it) {
+	auto joined = s->joined();
+	for (auto it = joined->rbegin(); it != joined->rend(); ++it) {
 		ref_ptr<Shader> out = findShader((*it).get());
 		if (out.get() != nullptr) return out;
 	}

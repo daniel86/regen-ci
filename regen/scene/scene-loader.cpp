@@ -32,7 +32,6 @@ SceneLoader::SceneLoader(
 	physics_->setAnimationName("BulletPhysics");
 	physics_->startAnimation();
 	init();
-	loadShapes();
 }
 
 SceneLoader::SceneLoader(
@@ -45,7 +44,6 @@ SceneLoader::SceneLoader(
 		  resources_(resources),
 		  physics_(physics) {
 	init();
-	loadShapes();
 }
 
 void SceneLoader::init() {

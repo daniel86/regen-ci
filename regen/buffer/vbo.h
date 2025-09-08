@@ -17,6 +17,8 @@ namespace regen {
 
 		~VBO() override = default;
 
+		VertexLayout vertexLayout() const { return vertexLayout_; }
+
 		/**
 		 * Allocate a block in the VBO memory.
 		 * And copy the data from RAM to GPU.

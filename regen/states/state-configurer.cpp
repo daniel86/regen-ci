@@ -90,7 +90,7 @@ void StateConfigurer::preAddState(const State *s) {
 		// set FBO flag to true, to avoid that parent FBOs are added
 		hasFBO_ = true;
 	}
-	for (const auto & it : s->joined()) {
+	for (const auto & it : *s->joined().get()) {
 		preAddState(it.get());
 	}
 }
@@ -195,7 +195,7 @@ void StateConfigurer::addState(const State *s) {
 		// do not add joined states of sequences
 		return;
 	}
-	for (const auto & it : s->joined()) {
+	for (const auto & it : *s->joined().get()) {
 		addState(it.get());
 	}
 }

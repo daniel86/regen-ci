@@ -15,10 +15,12 @@ MaskMesh::MaskMesh(
 		  maskIndex_(maskIndex),
 		  meshSize_(cfg.meshSize) {
 	shaderDefine("VERTEX_MASK_INDEX", REGEN_STRING(maskIndex_));
-	maskTextureState_ = ref_ptr<TextureState>::alloc(maskTexture_, "maskTexture");
-	maskTextureState_->set_mapTo(TextureState::MAP_TO_VERTEX_MASK);
-	maskTextureState_->set_mapping(TextureState::MAPPING_XZ_PLANE);
-	joinStates(maskTextureState_);
+	if (maskTexture_.get()) {
+		maskTextureState_ = ref_ptr<TextureState>::alloc(maskTexture_, "maskTexture");
+		maskTextureState_->set_mapTo(TextureState::MAP_TO_VERTEX_MASK);
+		maskTextureState_->set_mapping(TextureState::MAPPING_XZ_PLANE);
+		joinStates(maskTextureState_);
+	}
 }
 
 MaskMesh::Config::Config()
@@ -37,8 +39,9 @@ void MaskMesh::updateMask() {
 
 	unsigned int numInstances = 0;
 
-	maskTexture_->ensureTextureData();
-	auto maskTextureData = maskTexture_->textureData();
+	if (maskTexture_.get()) {
+		maskTexture_->ensureTextureData();
+	}
 
 	Vec2f maskUV = quadSize_ts * 0.5f;
 
@@ -47,18 +50,20 @@ void MaskMesh::updateMask() {
 	for (unsigned int y = 0; y < quadCountY; ++y) {
 		for (unsigned int x = 0; x < quadCountX; ++x) {
 			float maskDensity = 0.0f;
-			if (maskTexture_->format()==GL_RGBA) {
+			if (!maskTexture_.get()) {
+				maskDensity = 1.0f;
+			} else if (maskTexture_->format()==GL_RGBA) {
 				maskDensity = maskTexture_->sampleMax<Vec4f>(maskUV,
-					quadSize_ts, maskTextureData, maskIndex_);
+					quadSize_ts, maskTexture_->textureData(), maskIndex_);
 			} else if (maskTexture_->format()==GL_RGB) {
 				maskDensity = maskTexture_->sampleMax<Vec3f>(maskUV,
-					quadSize_ts, maskTextureData, maskIndex_);
+					quadSize_ts, maskTexture_->textureData(), maskIndex_);
 			} else if (maskTexture_->format()==GL_RG) {
 				maskDensity = maskTexture_->sampleMax<Vec2f>(maskUV,
-					quadSize_ts, maskTextureData, maskIndex_);
+					quadSize_ts, maskTexture_->textureData(), maskIndex_);
 			} else {
 				maskDensity = maskTexture_->sampleMax<float>(maskUV,
-					quadSize_ts, maskTextureData);
+					quadSize_ts, maskTexture_->textureData());
 			}
 			maskUV.x += quadSize_ts.x;
 			if (maskDensity > 0.1) {

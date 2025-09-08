@@ -9,8 +9,6 @@
 
 using namespace regen;
 
-// TODO: camera class uses too much virtual, also functions that are called each frame!
-
 namespace regen {
 	class CameraMotion : public Animation {
 	public:
@@ -322,7 +320,7 @@ bool Camera::updateView() {
 		if (std::abs(dir.xyz_().dot(Vec3f::up())) > 0.999f) {
 			view_[i] = Mat4f::lookAtMatrix(
 					getClamped(position_, i).xyz_(),
-					dir.xyz_(), Vec3f::right());
+					dir.xyz_(), localUp_);
 			viewInv_[i] = view_[i].lookAtInverse();
 		} else {
 			view_[i] = Mat4f::lookAtMatrix(
@@ -683,6 +681,9 @@ ref_ptr<Camera> Camera::createCamera(LoadingContext &ctx, scene::SceneInputNode 
 		cam->set_isAudioListener(
 				input.getValue<bool>("audio-listener", false));
 		cam->setPosition(0, input.getValue<Vec3f>("position", Vec3f(0.0f, 2.0f, -2.0f)));
+		if (input.hasAttribute("up")) {
+			cam->setLocalUp(input.getValue<Vec3f>("up", Vec3f::right()));
+		}
 
 		auto dir = input.getValue<Vec3f>("direction", Vec3f(0.0f, 0.0f, 1.0f));
 		dir.normalize();

@@ -144,7 +144,7 @@ namespace regen {
 		/**
 		 * Number of components per texel.
 		 */
-		inline uint32_t numComponents() const { return dim_; }
+		inline uint32_t textureDimension() const { return dim_; }
 
 		/**
 		 * @return the texture depth.
@@ -436,15 +436,16 @@ namespace regen {
 		 */
 		template<class T>
 		T sample(unsigned int texelIndex, const ref_ptr<ImageData> &textureData) const {
-			auto *dataOffset = textureData->pixels + texelIndex * numComponents_;
 			T v(0.0f);
 			auto *typedData = (float *) &v;
 			if (pixelType_ == GL_UNSIGNED_BYTE) {
+				auto *dataOffset = textureData->pixels + texelIndex * numComponents_;
 				for (unsigned int i = 0; i < numComponents_; ++i) {
 					typedData[i] = static_cast<float>(dataOffset[i]) / 255.0f;
 				}
 			} else if (pixelType_ == GL_FLOAT) {
-				auto *floatData = (float *) dataOffset;
+				auto *dataOffset = ((float*) textureData->pixels) + texelIndex * numComponents_;
+				auto *floatData = dataOffset;
 				for (unsigned int i = 0; i < numComponents_; ++i) {
 					typedData[i] = floatData[i];
 				}

@@ -22,7 +22,9 @@ void GrassPatch::setMask(
 	setBufferMapMode(patchConfig.quad.mapMode);
 	setClientAccessMode(patchConfig.quad.accessMode);
 	maskMesh_ = ref_ptr<MaskMesh>::alloc(tf_, maskTexture, maskIndex, patchConfig);
-	joinStates(maskMesh_->maskTextureState());
+	if (maskTexture.get()) {
+		joinStates(maskMesh_->maskTextureState());
+	}
 }
 
 void GrassPatch::setSilhouette(
@@ -38,14 +40,13 @@ void GrassPatch::updateSilhouette() {
 }
 
 void GrassPatch::updateTransforms() {
-	maskMesh_->updateMask();
+	if (maskMesh_.get()) {
+		maskMesh_->updateMask();
+	}
 }
 
 void GrassPatch::generateLODLevel(uint32_t lodLevel) {
-	auto &maskLOD = maskMesh_->meshLODs()[lodLevel];
 	auto &grassLOD = meshLODs_[lodLevel];
-	// map client data for reading
-	auto mask_p = maskMesh_->pos()->mapClientData<Vec3f>(BUFFER_GPU_READ);
 	// map client data for writing
 	auto grass_p  = (Vec3f*) pos_->clientBuffer()->clientData(0);
 	auto grass_base = (Vec3f*) basePos_->clientBuffer()->clientData(0);
@@ -55,10 +56,13 @@ void GrassPatch::generateLODLevel(uint32_t lodLevel) {
 	grass_p += grassLOD.vertexOffset();
 	grass_base += grassLOD.vertexOffset();
 	grass_i += grassLOD.indexOffset() * indices_->dataTypeBytes();
-	const uint32_t maskOffset = maskLOD.vertexOffset();
 	const uint32_t vBaseOffset = grassLOD.vertexOffset();
 	const auto &uvRects = silhouetteMesh_->silhouetteUVRects()[lodLevel];
 	const uint32_t numQuadsPerVertex = uvRects.size();
+
+	auto &maskLOD = maskMesh_->meshLODs()[lodLevel];
+	auto mask_p = maskMesh_->pos()->mapClientData<Vec3f>(BUFFER_GPU_READ);
+	const uint32_t maskOffset = maskLOD.vertexOffset();
 
 	Vec2f grassQuadSize = Vec2f(1.0f);
 	if (lodLevel > 1) {
@@ -243,10 +247,6 @@ ref_ptr<GrassPatch> GrassPatch::load(
 			input.getValue("material-weights") << "-" << materialTextureIdx);
 		maskTexture = scene->getResource<Texture2D>(materialTextureName);
 		maskIndex = maskIndex % 4;
-	}
-	if (maskTexture.get() == nullptr) {
-		REGEN_WARN("Ignoring " << input.getDescription() << ", failed to load mask texture.");
-		return {};
 	}
 
 	ref_ptr<Texture2D> silhouetteTexture = scene->getResource<Texture2D>(

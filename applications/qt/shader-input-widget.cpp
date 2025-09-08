@@ -227,7 +227,7 @@ bool ShaderInputWidget::handleState(
 
 	// Note: create a copy of joined states to avoid iterator invalidation
 	auto joined = state->joined();
-	for (const auto &it: joined) {
+	for (const auto &it: *joined.get()) {
 		if (handleState(node, it, parent)) {
 			isEmpty = false;
 		}
@@ -294,7 +294,8 @@ bool ShaderInputWidget::isValidState(const State *rootState) {
 		if (texState != nullptr) {
 			return true;
 		}
-		for (const auto &it: state->joined()) {
+		auto joined = state->joined();
+		for (const auto &it: *joined.get()) {
 			states.push(it.get());
 		}
 	}

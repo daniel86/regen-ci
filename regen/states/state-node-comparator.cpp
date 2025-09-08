@@ -18,7 +18,7 @@ ModelTransformation *NodeEyeDepthComparator::findModelTransformation(StateNode *
 	auto *ret = dynamic_cast<ModelTransformation *>(nodeState);
 	if (ret != nullptr) { return ret; }
 
-	for (const auto &it: nodeState->joined()) {
+	for (const auto &it: *nodeState->joined().get()) {
 		ret = dynamic_cast<ModelTransformation *>(it.get());
 		if (ret != nullptr) { return ret; }
 	}

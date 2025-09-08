@@ -67,9 +67,10 @@ void StateNode::removeChild(StateNode *child) {
 static void getStateCamera(const ref_ptr<State> &state, ref_ptr<Camera> *out) {
 	if (dynamic_cast<Camera *>(state.get()))
 		*out = ref_ptr<Camera>::dynamicCast(state);
-	auto it = state->joined().begin();
+	auto joined = state->joined();
+	auto it = joined->begin();
 
-	while (out->get() == nullptr && it != state->joined().end()) {
+	while (out->get() == nullptr && it != joined->end()) {
 		getStateCamera(*it, out);
 		++it;
 	}
@@ -88,9 +89,10 @@ ref_ptr<State> StateNode::getParentCamera() {
 static void getFrameBufferState(const ref_ptr<State> &state, ref_ptr<FBOState> *out) {
 	if (dynamic_cast<FBOState *>(state.get()))
 		*out = ref_ptr<FBOState>::dynamicCast(state);
-	auto it = state->joined().begin();
+	auto joined = state->joined();
+	auto it = joined->begin();
 
-	while (out->get() == nullptr && it != state->joined().end()) {
+	while (out->get() == nullptr && it != joined->end()) {
 		getFrameBufferState(*it, out);
 		++it;
 	}

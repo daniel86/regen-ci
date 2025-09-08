@@ -692,6 +692,8 @@ namespace regen {
 
 		void updateDrawFunction();
 
+		void updateVAO_();
+
 		void createShader(const ref_ptr<StateNode> &parentNode, StateConfig &shaderConfigurer);
 
 		void addShaderInput(const std::string &name, const ref_ptr<ShaderInput> &in);

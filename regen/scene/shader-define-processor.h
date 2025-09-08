@@ -28,8 +28,8 @@ namespace regen::scene {
 				return;
 			}
 			ref_ptr<State> s = state;
-			while (!s->joined().empty()) {
-				s = *s->joined().rbegin();
+			while (!s->joined()->empty()) {
+				s = *s->joined()->rbegin();
 			}
 			s->shaderDefine(input.getValue("key"), input.getValue("value"));
 		}

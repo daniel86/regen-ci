@@ -64,12 +64,12 @@ void FBO::applyReadBuffer(GLenum attachment) {
 	}
 }
 
-void FBO::applyDrawBuffers() {
-	applyDrawBuffers(colorAttachments_);
+void FBO::applyDrawBuffers(GLenum attachment) {
+	applyDrawBuffers(DrawBuffers(attachment));
 }
 
-void FBO::applyDrawBuffers(GLenum attachment) {
-	glNamedFramebufferDrawBuffer(id(), attachment);
+void FBO::applyDrawBuffers() {
+	applyDrawBuffers(colorAttachments_);
 }
 
 void FBO::applyDrawBuffers(const DrawBuffers &buffers) {

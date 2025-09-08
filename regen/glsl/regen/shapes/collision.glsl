@@ -33,6 +33,15 @@ vec4 getCollisionVector(vec3 posWorld)
     collision += 1.0 - clamp(0.0, 1.0, length(collisionVector) / in_colliderRadius);
     count += 1.0;
 #endif
+#ifdef HAS_collisionFlowMap || HAS_collisionMap
+    vec2 uv = (posWorld.xz - in_collisionMapCenter) / in_collisionMapArea + vec2(0.5);
+#endif
+#ifdef HAS_collisionFlowMap
+    vec4 flow = texture(in_collisionFlowMap, uv);
+    dir += vec3(flow.x, 0.0, flow.y);
+    collision += flow.z;
+    count += 1.0;
+#endif
 #ifdef HAS_collisionMap
     #define2 COLLISION_ID ${TEX_ID_collisionMap}
     #define2 COLLISION_MAP_TX ${TEX_TEXEL_X${COLLISION_ID}}
@@ -42,7 +51,8 @@ vec4 getCollisionVector(vec3 posWorld)
     // information, best we can do is to sample the neighboring points and compute
     // the reflection vector pointing towards the weakest collision.
     // the collision map UV coordinate for posWorld
-    vec2 uv = (posWorld.zx - in_collisionMapCenter) / in_collisionMapArea + vec2(0.5);
+    // FIXME collision map x is flipped from ortho view
+    uv.x = 1.0 - uv.x;
     vec2 step = vec2(${COLLISION_MAP_TX},${COLLISION_MAP_TY}) * 3.0;
     float ct = texture(in_collisionMap, uv + vec2(0.0, step.y)).r;
     float cb = texture(in_collisionMap, uv - vec2(0.0, step.y)).r;

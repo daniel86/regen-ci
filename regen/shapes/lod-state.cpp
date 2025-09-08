@@ -154,7 +154,7 @@ void LODState::createInstanceBuffer() {
 	setInput(instanceBuffer_);
 }
 
-ref_ptr<SSBO> LODState::createIndirectDrawBuffer(uint32_t partIdx) {
+ref_ptr<SSBO> LODState::createIndirectDrawBuffer(const std::vector<DrawCommand> &initialData) {
 	const uint32_t numLayer = camera_->numLayer();
 	auto buffer = ref_ptr<DrawIndirectBuffer>::alloc(
 			"IndirectDrawBuffer",
@@ -162,13 +162,12 @@ ref_ptr<SSBO> LODState::createIndirectDrawBuffer(uint32_t partIdx) {
 	auto input = ref_ptr<ShaderInputStruct<DrawCommand>>::alloc(
 			"DrawCommand", "drawParams", numLODs_ * numLayer);
 	if (cullShape_->isIndexShape()) {
-		input->setInstanceData(1, 1,
-			(byte*)indirectDrawData_[partIdx].current.data());
+		input->setInstanceData(1, 1, (byte*)initialData.data());
 	}
 	buffer->addStagedInput(input);
 	buffer->update();
 	if (!cullShape_->isIndexShape()) {
-		buffer->setBufferData((byte*)indirectDrawData_[partIdx].current.data());
+		buffer->setBufferData((byte*)initialData.data());
 	}
 	return buffer;
 }
@@ -244,7 +243,7 @@ void LODState::createIndirectDrawBuffers() {
 		}
 
 		// finally create the indirect draw buffer for this part
-		indirectDrawBuffers_[partIdx] = createIndirectDrawBuffer(partIdx);
+		indirectDrawBuffers_[partIdx] = createIndirectDrawBuffer(drawData.current);
 	}
 }
 

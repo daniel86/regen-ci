@@ -103,7 +103,6 @@ void AssetImporter::setAiProcessFlags_Regen() {
 	aiProcessFlags_ = aiProcess_Triangulate
 			| aiProcess_GenUVCoords
 			| aiProcess_CalcTangentSpace
-			| aiProcess_FlipUVs
 			| aiProcess_SortByPType
 			| aiProcess_ImproveCacheLocality
 			| aiProcess_RemoveRedundantMaterials
@@ -629,10 +628,19 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 											 AI_MATKEY_COLOR_AMBIENT, &aiCol)) {
 			mat->ambient()->setVertex(0, aiToOgle3f(&aiCol));
 		}
+
+		float emissionStrength = emissionStrength_;
+		if (aiGetMaterialFloatArray(aiMat, AI_MATKEY_EMISSIVE_INTENSITY,
+									&floatVal, &maxElements) == AI_SUCCESS) {
+			// TODO: add support for AI_MATKEY_EMISSIVE_INTENSITY
+			//mat->set_colorBlendFactor(floatVal);
+			emissionStrength *= floatVal;
+		}
 		if (AI_SUCCESS == aiGetMaterialColor(aiMat,
 											 AI_MATKEY_COLOR_EMISSIVE, &aiCol)) {
-			mat->set_emission(aiToOgle3f(&aiCol));
+			mat->set_emission(aiToOgle3f(&aiCol) * emissionStrength);
 		}
+
 		// Defines the transparent color of the material,
 		// this is the color to be multiplied with the color of translucent light to
 		// construct the final 'destination color' for a particular position in the screen buffer.
@@ -652,11 +660,8 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 		// This is simply a multiplier to the specular color of a material
 		if (aiGetMaterialFloatArray(aiMat, AI_MATKEY_SHININESS_STRENGTH,
 									&floatVal, &maxElements) == AI_SUCCESS) {
+			// TODO: add support for AI_MATKEY_SHININESS_STRENGTH
 			//mat->set_shininessStrength( floatVal );
-		}
-		if (aiGetMaterialFloatArray(aiMat, AI_MATKEY_EMISSIVE_INTENSITY,
-									&floatVal, &maxElements) == AI_SUCCESS) {
-			//mat->set_colorBlendFactor(floatVal);
 		}
 
 		maxElements = 1;
@@ -1254,6 +1259,9 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 		auto asset = ref_ptr<AssetImporter>::alloc(assetPath);
 		if (input.hasAttribute("texture-path")) {
 			asset->setTexturePath(resourcePath(input.getValue("texture-path")));
+		}
+		if (input.hasAttribute("emission-strength")) {
+			asset->setEmissionStrength(input.getValue<GLfloat>("emission-strength", 1.0f));
 		}
 		auto preset = input.getValue<std::string>("preset", "");
 		if (preset == "fast") {

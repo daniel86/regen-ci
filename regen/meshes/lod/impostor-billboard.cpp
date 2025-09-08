@@ -6,6 +6,7 @@ using namespace regen;
 
 #undef DEBUG_SNAPSHOT_VIEWS
 #define USE_POINT_EXTRUSION
+#define USE_IMPOSTOR_MIPMAPS
 
 #ifndef USE_POINT_EXTRUSION
 static ref_ptr<Rectangle> getImpostorQuad() {
@@ -59,7 +60,7 @@ void ImpostorBillboard::createShader(const ref_ptr<StateNode> &parentNode) {
 	//       the original mesh to the impostor.
 	for (auto &mesh: meshes_) {
 		std::stack<ref_ptr<State>> stateStack;
-		for (auto &state: mesh.meshOrig->joined()) {
+		for (auto &state: *mesh.meshOrig->joined().get()) {
 			stateStack.push(state);
 		}
 		while (!stateStack.empty()) {
@@ -82,7 +83,7 @@ void ImpostorBillboard::createShader(const ref_ptr<StateNode> &parentNode) {
 					}
 				}
 			}
-			for (auto &joined: state->joined()) {
+			for (auto &joined: *state->joined().get()) {
 				stateStack.push(joined);
 			}
 		}
@@ -217,7 +218,11 @@ void ImpostorBillboard::createResources() {
 											   GL_RGBA, GL_RGBA8, GL_UNSIGNED_BYTE);
 		albedo->set_name("diffuse");
 		snapshotAlbedo_ = ref_ptr<Texture2DArray>::dynamicCast(albedo);
+#ifdef USE_IMPOSTOR_MIPMAPS
 		snapshotAlbedo_->set_filter(TextureFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR));
+#else
+		snapshotAlbedo_->set_filter(TextureFilter(GL_LINEAR, GL_LINEAR));
+#endif
 		snapshotAlbedo_->set_wrapping(GL_CLAMP_TO_EDGE);
 		drawAttachments.push_back(GL_COLOR_ATTACHMENT0);
 
@@ -459,7 +464,9 @@ void ImpostorBillboard::createSnapshot() {
 		view.meshCopy->set_numVisibleInstances(oldNumInstances);
 	}
 	snapshotFBO_->disable(rs);
+#ifdef USE_IMPOSTOR_MIPMAPS
 	snapshotAlbedo_->updateMipmaps();
+#endif
 }
 
 ref_ptr<ImpostorBillboard> ImpostorBillboard::load(LoadingContext &ctx, scene::SceneInputNode &input) {

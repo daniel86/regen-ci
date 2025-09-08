@@ -356,7 +356,7 @@ void textureMappingFragment(in vec3 P, inout vec4 C, inout vec3 N)
   #if _MAPTO == COLOR
     ${_BLEND}( texel${INDEX}, C, ${TEX_BLEND_FACTOR${_ID}} );
   #elif _MAPTO == ALPHA
-    ${_BLEND}( texel${INDEX}.x, C.a, ${TEX_BLEND_FACTOR${_ID}} );
+    ${_BLEND}( texel${INDEX}.a, C.a, ${TEX_BLEND_FACTOR${_ID}} );
   #endif
 #endfor
 }

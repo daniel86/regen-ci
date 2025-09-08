@@ -199,6 +199,15 @@ namespace regen {
 		}
 
 		/**
+		 * Set the local up vector for the camera.
+		 * @param up the local up vector.
+		 */
+		void setLocalUp(const Vec3f &up) {
+			localUp_ = up;
+			localUp_.normalize();
+		}
+
+		/**
 		 * Get a vector of the most recent camera directions.
 		 * This returns the latest value. Only safe to call in animation thread.
 		 * @return the camera directions.
@@ -555,6 +564,7 @@ namespace regen {
 		std::vector<Vec4f> position_;
 		Vec4f vel_;
 		std::vector<ProjectionParams> projParams_;
+		Vec3f localUp_ = Vec3f::right();
 
 		std::vector<Mat4f> projData_;
 		std::span<Mat4f> proj_;

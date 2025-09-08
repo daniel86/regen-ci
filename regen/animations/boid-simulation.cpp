@@ -1,6 +1,7 @@
 #include "boid-simulation.h"
 #include "boids-cpu.h"
 #include "regen/scene/resource-manager.h"
+#include "regen/textures/collision-map.h"
 
 using namespace regen;
 
@@ -64,6 +65,17 @@ void BoidSimulation::setMap(
 	mapSize_ = mapSize;
 	heightMap_ = heightMap;
 	heightMapFactor_ = heightMapFactor;
+}
+
+void BoidSimulation::setCollisionMap(
+		const Vec3f &mapCenter,
+		const Vec2f &mapSize,
+		const ref_ptr<Texture2D> &collisionMap,
+		CollisionMapType mapType) {
+	collisionMap_ = collisionMap;
+	collisionMapCenter_ = mapCenter;
+	collisionMapSize_ = mapSize;
+	collisionMapType_ = mapType;
 }
 
 void BoidSimulation::addHomePoint(const Vec3f &homePoint) {
@@ -245,6 +257,33 @@ void BoidSimulation::loadSettings(LoadingContext &ctx, scene::SceneInputNode &in
 			setMap(mapCenter, mapSize, heightMap, heightScale);
 		} else {
 			REGEN_WARN("Ignoring " << input.getDescription() << ", failed to load height map textures.");
+		}
+	}
+
+	if (input.hasAttribute("collision-map")) {
+		auto collisionMap = ctx.scene()->getResource<Texture2D>(input.getValue("collision-map"));
+		if (collisionMap.get() != nullptr) {
+			collisionMap->ensureTextureData();
+			auto mapCenter = input.getValue<Vec3f>("collision-map-center", Vec3f(0.0f));
+			auto mapSize = input.getValue<Vec2f>("collision-map-size", Vec2f(10.0f));
+			auto mapType = input.getValue<CollisionMapType>("collision-map-mode", COLLISION_SCALAR);
+			setCollisionMap(mapCenter, mapSize, collisionMap, mapType);
+		} else {
+			REGEN_WARN("Ignoring " << input.getDescription() << ", failed to load collision map textures.");
+		}
+	}
+	if (input.hasAttribute("collision-map-fbo")) {
+		auto fbo = ctx.scene()->getResource<FBO>(input.getValue("collision-map-fbo"));
+		uint32_t attachmentIdx = input.getValue<uint32_t>("collision-map-attachment", 0);
+		auto collisionMap = ref_ptr<Texture2D>::dynamicCast(fbo->colorTextures()[attachmentIdx]);
+		if (collisionMap.get() != nullptr) {
+			collisionMap->ensureTextureData();
+			auto mapCenter = input.getValue<Vec3f>("collision-map-center", Vec3f(0.0f));
+			auto mapSize = input.getValue<Vec2f>("collision-map-size", Vec2f(10.0f));
+			auto mapType = input.getValue<CollisionMapType>("collision-map-mode", COLLISION_SCALAR);
+			setCollisionMap(mapCenter, mapSize, collisionMap, mapType);
+		} else {
+			REGEN_WARN("Ignoring " << input.getDescription() << ", failed to load collision map textures.");
 		}
 	}
 

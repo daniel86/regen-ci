@@ -237,7 +237,7 @@ void Mesh::createShader(const ref_ptr<StateNode> &parentNode) {
 
 void Mesh::createShader(const ref_ptr<StateNode> &parentNode, StateConfig &shaderConfig) {
 	auto shaderState = ref_ptr<ShaderState>::alloc();
-	for (auto &joinedState : joined()) {
+	for (auto &joinedState : *joined().get()) {
 		// disjoin any ShaderState that might be joined
 		auto *shaderStateJoined = dynamic_cast<ShaderState *>(joinedState.get());
 		if (shaderStateJoined != nullptr) {
@@ -250,8 +250,9 @@ void Mesh::createShader(const ref_ptr<StateNode> &parentNode, StateConfig &shade
 	if(shaderKey_.empty()) {
 		shaderKey_ = "regen.models.mesh";
 	}
+	bool hasValidShader = false;
 	if(shaderStageKeys_.empty()) {
-		shaderState->createShader(shaderConfig, shaderKey_);
+		hasValidShader = shaderState->createShader(shaderConfig, shaderKey_);
 	}
 	else {
 		std::vector<std::string> stageKeys(glenum::glslStageCount());
@@ -265,10 +266,16 @@ void Mesh::createShader(const ref_ptr<StateNode> &parentNode, StateConfig &shade
 				stageKeys[i] = it->second;
 			}
 		}
-		shaderState->createShader(shaderConfig, stageKeys);
+		hasValidShader = shaderState->createShader(shaderConfig, stageKeys);
 	}
 
-	updateVAO(shaderConfig, shaderState->shader());
+	if (!hasValidShader) {
+		// Hide the mesh if no valid shader could be created.
+		set_isHidden(true);
+	} else {
+		updateVAO(shaderConfig, shaderState->shader());
+	}
+
 	// create shader of lod meshes
 	bool hasImpostor = false;
 	for (auto &lod : meshLODs_) {
@@ -330,6 +337,13 @@ void Mesh::updateVAO(uint32_t bufferName) {
 }
 
 void Mesh::updateVAO() {
+	updateVAO_();
+	for (auto &view : meshViews_) {
+		view->updateVAO_();
+	}
+}
+
+void Mesh::updateVAO_() {
 	if (vaoAttributes_.empty()) return;
 	updateVAO(vaoAttributes_.front().input->buffer());
 
