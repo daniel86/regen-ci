@@ -5,6 +5,11 @@
 
 using namespace regen;
 
+STBLoader::STBLoader() {
+	// Flip all images vertically on load to match OpenGL's coordinate system.
+	stbi_set_flip_vertically_on_load(true);
+}
+
 bool STBLoader::canLoad(std::string_view fileExt) const {
 	if (fileExt == ".png" || fileExt == ".jpg" || fileExt == ".jpeg" ||
 		fileExt == ".bmp" || fileExt == ".tga" || fileExt == ".gif" ||

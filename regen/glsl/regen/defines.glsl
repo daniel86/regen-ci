@@ -3,12 +3,6 @@
 #ifndef regen_InstanceID_defined_
 #define2 regen_InstanceID_defined_
 
-#ifdef HAS_LOD && HAS_INSTANCES
-    #ifndef HAS_instanceIDMap
-#error "HAS_LOD + HAS_INSTANCES defined but HAS_instanceIDMap not defined"
-    #endif
-#endif
-
 #if SHADER_STAGE==fs
     #ifdef HAS_instanceIDMap
 #define regen_InstanceID in_instanceIDMap[in_instanceID]

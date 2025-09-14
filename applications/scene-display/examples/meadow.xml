@@ -1,0 +1,809 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<node>
+    <constant name="num-fire-flies" value="2000"/>
+    <constant name="far-plane" value="100.0"/>
+    <constant name="close-range" value="40.0"/>
+    <constant name="mid-range" value="100.0"/>
+    <constant name="map-y" value="-2.0"/>
+    <constant name="map-y-min" value="-2.0"/>
+    <constant name="map-size" value="400.0"/>
+    <constant name="map-height" value="8.0"/>
+    <constant name="map-height-half" value="4.0"/>
+    <constant name="grass-max-y" value="0.0"/>
+
+    <include xml-file="scene-display/examples/templates/default.xml"/>
+
+    <node id="configuration"
+            date="01-09-2014 02:00:00"
+            time-scale="6.0">
+        <camera id="main-camera"
+                mode="first-person"
+                speed="0.05"
+                eye-offset="0.0,0.0,0.0"
+                horizontal-orientation="2.71225"
+                vertical-orientation="0.05"
+                ease-in-out="1.8"
+                anchor-pause-time="0.7"
+                anchor-time-scale="0.8">
+            <anchor type="look-at" pos="1.91421, 2.7976, 69.4426" dir="0.00561657, -0.119712, -0.992793"/>
+            <anchor type="look-at" pos="-8.87293, 26.9105, 44.0725" dir="-0.0312102, -0.416871, -0.90843"/>
+            <anchor type="look-at" pos="-60.9974, 12.444, 20.6355" dir="0.913553, -0.20846, -0.349234"/>
+            <anchor type="look-at" pos="-32.7158, 26.0987, -44.5119" dir="0.433522, -0.412321, 0.80128"/>
+            <anchor type="look-at" pos="-6.0579, 8.01226, -30.8331" dir="0.0155151, -0.227978, 0.973543"/>
+            <anchor type="look-at" pos="-5.1858, 30.5205, -49.9847" dir="0.0309986, -0.505533, 0.86225"/>
+            <anchor type="look-at" pos="62.9234, 2.7976, -32.937" dir="-0.938045, 0.0149996, 0.346188"/>
+            <anchor type="look-at" pos="5.24732, 10.0293, 38.6082" dir="-0.254233, -0.0599641, -0.965282"/>
+        </camera>
+    </node>
+
+    <!-- FBOs -->
+    <fbo id="g-buffer"
+         size-mode="rel" size="1.0,1.0"
+         pixel-type="FLOAT"
+         pixel-size="24"
+         pixel-components="4">
+        <texture id="diffuse"/>
+        <texture id="ambient"/>
+        <texture id="specular"/>
+        <texture id="normal"/>
+        <texture id="emission" pixel-components="3"/>
+        <depth id="depth" pixel-size="24"/>
+    </fbo>
+    <fbo id="room-light-shadow0"
+         target="TEXTURE_2D_ARRAY"
+         size-mode="abs" size="2048,2048,1">
+        <depth pixel-size="24" pixel-type="FLOAT"
+               wrapping="CLAMP_TO_EDGE"
+               min-filter="NEAREST"
+               mag-filter="NEAREST"
+               compare-mode="COMPARE_R_TO_TEXTURE"
+               compare-function="LEQUAL"
+               sampler-type="sampler2DArrayShadow"/>
+    </fbo>
+    <fbo id="collision-fbo" size-mode="abs" size="256,256"
+         pixel-type="UNSIGNED_BYTE" pixel-size="8">
+        <texture id="staticCollision" pixel-components="1"/>
+        <texture id="collisionFlow" pixel-type="FLOAT" pixel-size="16" pixel-components="3" />
+    </fbo>
+    <!-- Textures -->
+    <texture id="emission-map-bloom" type="bloom" num-mips="4" input-fbo="g-buffer"/>
+    <texture id="ground-color" file="res/textures/materials/grass/0/ground.png"/>
+    <texture id="glow-map" file="res/textures/glow-map.tga" wrapping="CLAMP_TO_EDGE"/>
+    <texture id="sand" file="res/textures/materials/sand.jpg"/>
+    <texture id="grass-color" file="res/textures/materials/grass/0/color.png" wrapping="CLAMP_TO_EDGE"/>
+    <texture id="wind-flowmap" file="res/textures/wind/flowmap0.png" wrapping="REPEAT"/>
+    <texture id="wind-noise" type="noise" preset="cloud"
+            size="128.0,128.0,1.0" swizzle-g="RED" swizzle-b="RED"/>
+    <texture id="fire-noise" file="res/textures/fire/noise.png" wrapping="REPEAT"/>
+    <texture id="fire-color" file="res/textures/fire/color.png" wrapping="CLAMP_TO_EDGE"/>
+    <!-- Spatial Index -->
+    <index id="main-index" type="quadtree"
+            min-node-size="2.0"
+            max-objects-per-node="4"/>
+    <!-- Cameras -->
+    <camera id="main-camera"
+            culling-index="main-index"
+            fov="45.0" near="0.1" far="{{far-plane}}"
+            position="40.0,4.0,40.0"
+            direction="-1.0,0.0,-1.0"/>
+    <camera id="room-light-camera0"
+            culling-index="main-index"
+            light="room-light0"
+            camera="main-camera"
+            camera-type="paraboloid"
+            dual-paraboloid="0"
+            update-frequency="NEVER"/>
+    <!-- Orthogonal top-down camera used for collision map generation -->
+    <camera id="collision-camera" type="orthogonal"
+            width="90.0" height="90.0" far="7.0"
+            position="0.0, 5.0, 0.0"
+            direction="0.0,-1.0,0.0"
+            up="0.0,0.0,1.0"
+            update-frequency="NEVER"/>
+    <!-- Lights -->
+    <light id="room-light0"
+           type="POINT"
+           position="-19.0,15.5,-15.0"
+           radius="30.0,54.0"
+           direction="0.0,-1.0,0.0"
+           diffuse="0.4,0.45,0.435"
+           ambient="0.1,0.1,0.1"
+           update-frequency="NEVER"/>
+    <light id="cauldron-light0"
+           type="POINT"
+           position="-2.0,3.5,2.0"
+           radius="3.0,8.0"
+           direction="0.0,-1.0,0.0"
+           diffuse="1.0,0.5,0.25"
+           ambient="0.1,0.05,0.02"
+           update-frequency="NEVER"/>
+    <light id="fire-flies-light0"
+           num-instances="{{num-fire-flies}}"
+           type="POINT"
+           radius="0.5,1.6"
+           ambient="0.0,0.0,0.0">
+        <set target="lightPosition" value="4.0,12.0,-4.0">
+            <set mode="circle" blend-mode="ADD" radius="5.0" variance="0.1"
+                 dir-x="1.0, 0.0, 0.0" dir-z="0.0, 0.0, 1.0"/>
+        </set>
+        <set target="lightDiffuse">
+            <set mode="fade" blend-mode="SRC" start="0.47, 0.45, 0.15" stop="0.47, 0.18, 0.08"/>
+        </set>
+        <animation type="boids"
+                   sim-mode="CPU"
+                   max-speed="7.0"
+                   visual-range="1.0"
+                   look-ahead="0.5"
+                   repulsion="8.0"
+                   coherence-weight="10.0"
+                   alignment-weight="10.0"
+                   avoidance-weight="10.0"
+                   avoidance-distance="1.5"
+                   separation-weight="10.0"
+                   collision-map-fbo="collision-fbo"
+                   collision-map-attachment="1"
+                   collision-map-center="0.0,0.0"
+                   collision-map-size="90.0,90.0"
+                   collision-map-mode="VECTOR_FIELD"
+                   bounds-min="-50.0, -2.0, -50.0"
+                   bounds-max="50.0, -1.0, 50.0">
+            <!--
+            <home-point value="0.0, -1.5, 0.0"/>
+            <home-point value="12.0, 2.0, 12.0"/>
+            <home-point value="-12.0, 2.0, -12.0"/>
+            <object type="danger" value="8.0, 10.0, -8.0" />
+            <object type="attractor" value="8.0, 8.0, -8.0" />
+            <object type="danger" value="8.0, 6.0, -8.0" />
+            <object type="attractor" value="8.0, 4.0, -8.0" />
+            -->
+        </animation>
+    </light>
+    <!-- Assets -->
+    <asset id="asset-lamp"
+        type="asset"
+        file="res/models/park-lamp/LIGHT.obj"
+        texture-path="res/models/park-lamp"
+        emission-strength="5.0"
+        use-animation="0"/>
+    <asset id="asset-cauldron"
+        type="asset"
+        file="res/models/cauldron.obj"
+        use-animation="0"/>
+    <asset id="asset-bench"
+        type="asset"
+        file="res/models/bench/Bench_HighRes.obj"
+        texture-path="res/models/bench"
+        use-animation="0"/>
+    <!-- Sky -->
+    <sky id="sky" camera="main-camera" update-interval="200.0" >
+        <star-map texture="res/sky/milkyway.png" scattering="0.8" delta-magnitude="0.05" lod="0" />
+        <stars catalog="res/sky/bright-stars.bin" scale="1.4"
+            scattering="1.0" scintillation="0.2" apparent-magnitude="6.0"
+            glare-intensity="0.04" glare-scale="0.2"
+            color="0.66,0.78,1.0" color-ratio="0.66"/>
+        <moon texture="res/sky/moon.png" scale="0.04" scattering="4.0"
+            sun-shine-color="0.923,0.786,0.636" sun-shine-intensity="128.0"
+            earth-shine-color="0.88,0.96,1.0" earth-shine-intensity="8.0" />
+        <atmosphere preset="earth" size="256" lod="0">
+            <input type="float" name="cirrus" value="0.8" />
+            <input type="float" name="cumulus" value="0.6" />
+            <input type="float" name="dithering" value="0.2" />
+            <input type="float" name="ditheringScale" value="100.0" />
+            <input type="float" name="cloudTimeFactor" value="0.3" />
+        </atmosphere>
+    </sky>
+    <node id="Sky">
+        <sky id="sky"/>
+    </node>
+
+    <!--**************************-->
+    <!--********* Ground *********-->
+    <!--**************************-->
+
+    <mesh id="ground-mesh" type="rectangle" use-normal="1" use-texco="1" center="1" lod="1"
+          rotation="0.0,0.0,3.1415"
+          scaling="400.0,20.0,400.0"
+          texco-scaling="100.0,100.0"
+          update-frequency="NEVER">
+        <transform id="ground-tf" update-frequency="NEVER">
+            <translate value="0.0,-2.0,0.0"/>
+        </transform>
+    </mesh>
+
+    <!--**************************-->
+    <!--********* Trees *********-->
+    <!--**************************-->
+
+    <mesh id="tree-mesh" type="proctree"
+            lods="3,2,1"
+            lod-thresholds="40.0, 80.0, 120.0"
+            use-silhouette="1"
+            tile-counts="4,2,2,2"
+            alpha-cut="0.1"
+            coverage-threshold="0.01"
+            silhouette-padding="1"
+            preset="fir">
+        <shader mesh-index="0" key="regen.models.mesh"/>
+        <shader mesh-index="1" key="regen.models.mesh">
+            <define key="POS_WORLD_TRANSFER_KEY" value="regen.weather.wind.wavingBaseTransfer"/>
+        </shader>
+        <transform id="tree-tf">
+            <scale value="4.0, 4.0, 4.0"/>
+            <rotate value="1.5707963,0.0,0.0"/>
+            <translate value="8.0,-2.0, -8.0"/>
+        </transform>
+        <shape id="tree-shape" index="1" cull="1" type="aabb" mesh-id="tree-mesh" transform-id="tree-tf">
+            <has-part mesh-id="tree-mesh" mesh-index="1"/>
+        </shape>
+    </mesh>
+
+    <mesh id="tree-pot" type="torus"
+          lod-levels="3, 2, 1"
+          use-normal="1" use-tangent="1" center="1"
+          scaling="3.0, 3.0, 3.0" texco-scaling="3.0, 1.0"
+          ring-radius="1.0" tube-radius="0.2"
+          update-frequency="NEVER">
+        <transform id="tree-pot-tf" update-frequency="NEVER">
+            <translate value="8.0, -1.4, -8.0"/>
+        </transform>
+        <shape id="tree-pot-shape" index="1" cull="1" type="aabb"
+               mesh-id="tree-pot" transform-id="tree-pot-tf">
+            <has-part mesh-id="tree-disc"/>
+        </shape>
+        <material preset="stone" color-blend-mode="MUL" emission="0.0, 0.0, 0.0"/>
+    </mesh>
+
+    <mesh id="tree-disc" type="disc"
+          lod-levels="3, 2, 1"
+          use-normal="1" center="1" scaling="3.0, 3.0, 3.0"
+          texco-scaling="0.1, 0.1" disc-radius="1.0"
+          update-frequency="NEVER">
+        <transform id="tree-disc-tf" update-frequency="NEVER">
+            <translate value="8.0, -1.0, -8.0"/>
+        </transform>
+    </mesh>
+
+    <node id="Trees">
+        <node id="tree1">
+            <node id="tree1-trunk">
+                <input name="matEmission" type="vec3" value="0.01,0.01,0.01"/>
+                <mesh id="tree-mesh" mesh-index="0"/>
+            </node>
+            <node id="tree1-twig">
+                <alpha discard-threshold="0.25" />
+                <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+                <texture name="windFlow" id="wind-flowmap"/>
+                <input name="stiffness" type="float" value="0.5"/>
+                <mesh id="tree-mesh" mesh-index="1" update-visibility="0"/>
+            </node>
+        </node>
+        <node id="tree1-pot">
+            <node id="tree1-pot">
+                <mesh id="tree-pot" shader="regen.models.mesh"/>
+            </node>
+            <node id="tree1-pot-disc">
+                <texture id="sand" map-to="color" blend-mode="SRC"/>
+                <material ambient="0.1, 0.1, 0.1" specular="0.0, 0.0, 0.0" update-frequency="NEVER"/>
+                <mesh id="tree-disc" shader="regen.models.mesh" update-visibility="0" />
+            </node>
+        </node>
+    </node>
+
+    <!--**************************-->
+    <!--********* Other Garden Stuff *********-->
+    <!--**************************-->
+
+    <mesh id="mesh-lamp" type="asset" asset="asset-lamp"
+          asset-indices="*" asset-animation="0"
+          scaling="6.0,6.0,6.0"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER">
+        <transform id="mesh-lamp-tf" update-frequency="NEVER">
+            <rotate value="0.0, 0.0, 0.0"/>
+            <translate value="-19.0, -2.05, -15.0"/>
+        </transform>
+        <shape id="lamp-shape" index="1" cull="1" type="aabb"
+                box-size="3.0, 20.0, 3.0"
+                box-center="0.0, 10.0, 0.0"
+                transform-id="mesh-lamp-tf">
+            <has-part mesh-id="mesh-lamp" mesh-index="2"/>
+            <has-part mesh-id="mesh-lamp" mesh-index="3"/>
+            <has-part mesh-id="mesh-lamp" mesh-index="4"/>
+        </shape>
+    </mesh>
+
+    <mesh id="mesh-cauldron" type="asset" asset="asset-cauldron"
+          asset-indices="*" asset-animation="0"
+          scaling="0.3,0.3,0.3"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER">
+        <transform id="mesh-cauldron-tf" update-frequency="NEVER">
+            <rotate value="0.0, 0.0, 0.0"/>
+            <translate value="-2.0, -2.0, 2.0"/>
+        </transform>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <material preset="iron" variant="0" />
+        <shape id="cauldron-shape" index="1" cull="1" type="aabb"
+                mesh-id="mesh-cauldron" transform-id="mesh-cauldron-tf" />
+    </mesh>
+
+    <mesh id="grass-patches"
+          type="grass-patch"
+          silhouette-texture="grass-color"
+          lod-thresholds="20.0,60.0,120.0"
+          lod-levels="4,4,3,2"
+          tile-counts="8,8,4,4"
+          alpha-cut="0.1"
+          coverage-threshold="0.01"
+          silhouette-padding="1"
+          scaling="10.0,1.0,10.0"
+          ground-size="{{map-size}},{{map-size}}"
+          update-frequency="NEVER">
+        <shader mesh-index="0" key="regen.terrain.grass" />
+        <transform id="grass-tf" mode="offset" update-frequency="NEVER">
+            <translate value="0.0,-1,8.0"/>
+        </transform>
+        <shape id="grass-shape" index="1" cull="1" type="aabb"
+                box-size="10.0, {{map-height}}, 10.0"
+                box-center="0.0, {{map-height-half}}, 0.0"
+                transform-id="grass-tf">
+            <has-part mesh-id="grass-patches" />
+        </shape>
+    </mesh>
+
+    <mesh id="mesh-bench" type="asset" asset="asset-bench"
+          asset-indices="*" asset-animation="0"
+          scaling="0.05,0.05,0.05"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER">
+        <transform id="mesh-bench-tf" update-frequency="NEVER">
+            <rotate value="0.0,0.0,0.0"/>
+            <translate value="-6.0,-2.0,-14.0"/>
+        </transform>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <material preset="wood" variant="0" />
+        <shape id="bench-shape" index="1" cull="1" type="aabb"
+                mesh-id="mesh-bench" transform-id="mesh-bench-tf" />
+    </mesh>
+
+    <mesh id="stone0" type="sphere" use-normal="1" use-texco="1" use-tangent="1"
+          lod-levels="4, 3, 2"
+          lod-thresholds="20.0, 50.0, 0.0"
+          scaling="1.5,3.0,3.0"
+          num-instances="20"
+          update-frequency="NEVER">
+        <transform id="stone0-tf" num-instances="20" is-instanced="1">
+            <rotate value="0.0, 1.57079632, 0.0"/>
+            <translate value="0.0, -0.6, 0.0"/>
+            <set mode="circle" target="translate" radius="42.0" variance="0.8"
+                 dir-x="1.0, 0.0, 0.0" dir-z="0.0, 0.0, 1.0"/>
+        </transform>
+        <material preset="stone" variant="0" max-offset="0.2" update-frequency="NEVER"/>
+        <shape id="stone0-shape" index="1" cull="1" type="sphere"
+               mesh-id="stone0" transform-id="stone0-tf" radius="1.6"/>
+    </mesh>
+
+    <node id="Lamps">
+        <node id="Park-Lamp">
+            <mesh id="mesh-lamp" shader="regen.models.mesh" mesh-indices="3,4"/>
+        </node>
+        <node id="Cauldron">
+            <mesh id="mesh-cauldron" shader="regen.models.mesh"/>
+        </node>
+    </node>
+
+    <node id="Bench">
+        <mesh id="mesh-bench" shader="regen.models.mesh"/>
+    </node>
+
+    <node id="Grass">
+        <material diffuse="1.0, 1.0, 1.0" ambient="0.1, 0.1, 0.1"
+                specular="0.0, 0.0, 0.0" shininess="256.0"
+                update-frequency="NEVER"/>
+        <!-- size and position -->
+        <input name="quadSize" type="vec2" value="2.0, 0.5"/>
+        <input name="posVariation" type="float" value="0.4"/>
+        <input name="offset" type="vec3" value="0.0, -2.0, 0.0"/>
+        <!-- color -->
+        <texture id="grass-color" map-to="color" blend-mode="src"/>
+        <input name="uvDarken" type="float" value="0.25"/>
+        <!-- wind -->
+        <texture name="windFlow" id="wind-flowmap" />
+        <texture name="windNoise" id="wind-noise"/>
+        <input name="windNoiseScale" type="float" value="100.0"/>
+        <input name="windNoiseSpeed" type="float" value="1.0"/>
+        <input name="windNoiseStrength" type="float" value="0.1"/>
+        <input name="stiffness" type="float" value="1.0"/>
+        <!-- collision -->
+        <texture name="collisionFlowMap" fbo="collision-fbo" attachment="1" />
+        <input name="collisionMapArea" type="vec2" value="90.0,90.0"/>
+        <input name="collisionMapCenter" type="vec2" value="0.0,0.0"/>
+        <input name="colliderStrength" type="float" value="2.5"/>
+        <input name="colliderRadius" type="float" value="2.4"/>
+
+        <node id="Grass-Albedo">
+            <alpha discard-threshold="0.25"/>
+            <mesh id="grass-patches" />
+        </node>
+        <!--
+        <node id="Grass-Depth">
+            <alpha discard-threshold="0.25"/>
+            <define key="OUTPUT_TYPE" value="DEPTH" />
+            <define key="DEPTH_FACE" value="FRONT" />
+            <color-mask mask="0,0,0,0"/>
+            <mesh id="grass-patches" />
+        </node>
+        <node id="Grass-Albedo">
+            <depth function="EQUAL" test="1" write="0" />
+            <mesh id="grass-patches" />
+        </node>
+        -->
+    </node>
+
+    <node id="Garden-Items">
+        <node import="Lamps"/>
+        <node import="Bench"/>
+        <node import="Trees"/>
+        <node id="Stone0">
+            <mesh id="stone0" shader="regen.models.mesh"/>
+        </node>
+    </node>
+
+    <!--**************************-->
+    <!--***** Particles etc. *****-->
+    <!--**************************-->
+
+    <mesh id="fire-sprite" type="point" update-frequency="NEVER">
+        <transform id="fire-sprite-tf" update-frequency="NEVER">
+            <translate value="-2.0, 3.5, 2.0"/>
+        </transform>
+        <shape id="fire-sprite-shape" index="1" cull="0" type="sphere"
+               mesh-id="fire-sprite" transform-id="fire-sprite-tf" radius="1.0"/>
+    </mesh>
+
+    <node id="Fire">
+        <alpha discard-threshold="0.25"/>
+        <input type="vec2" name="spriteSize" value="3.25, 3.25"/>
+        <texture id="fire-noise" name="fireNoiseTexture"/>
+        <texture id="fire-color" map-to="COLOR" blend="SRC"
+            texco-transfer-key="regen.models.sprite.fireTransfer1"/>
+        <mesh id="fire-sprite" shader="regen.models.sprite"/>
+    </node>
+
+    <block type="ubo" id="WindUBO" update-frequency="NEVER">
+        <uniform name="wind" type="vec2" value="0.6, 0.6"/>
+        <uniform name="windFlowScale" type="float" value="150.0"/>
+        <uniform name="windFlowTime" type="float" value="0.2"/>
+        <uniform name="windStrength" type="float" value="1.0"/>
+    </block>
+
+    <!--**************************-->
+    <!--******* Collisions *******-->
+    <!--**************************-->
+
+    <!-- Render static objects into collision map -->
+    <node id="Collision-Initialize">
+        <depth test="0" write="0"/>
+        <node id="Collision">
+            <define key="OUTPUT_TYPE" value="WHITE"/>
+            <camera id="collision-camera"/>
+            <fbo id="collision-fbo" clear-buffers="0" draw-buffers="0"/>
+            <node>
+                <cull mode="FRONT"/>
+                <mesh id="stone0" shader="regen.models.mesh"/>
+            </node>
+            <node import="Lamps"/>
+            <node import="Bench"/>
+            <node>
+                <mesh id="tree-disc" shader="regen.models.mesh"/>
+                <mesh id="tree-pot" shader="regen.models.mesh"/>
+            </node>
+        </node>
+        <node id="Collision-Blur">
+            <input type="int" name="numBlurPixels" value="4" />
+            <input type="float" name="blurSigma" value="2.0" />
+            <filter-sequence id="collision-blur" fbo="collision-fbo" attachment="0" >
+                <filter shader="regen.filter.sampling" scale="0.5" />
+                <filter shader="regen.filter.blur.horizontal" />
+                <filter shader="regen.filter.blur.vertical" />
+            </filter-sequence>
+        </node>
+        <node id="Collision-Flow">
+            <fbo id="collision-fbo" clear-buffers="1" draw-buffers="1"/>
+            <texture name="inputTexture" id="collision-blur"/>
+            <fullscreen-pass shader="regen.filter.gradient.sobel"/>
+        </node>
+    </node>
+
+    <!--**************************-->
+    <!--********* Shading ********-->
+    <!--**************************-->
+
+    <node id="Shadow-Pass">
+        <cull mode="FRONT"/>
+        <define key="OUTPUT_TYPE" value="DEPTH"/>
+
+        <node id="Room-Light-Shadow">
+            <node id="Room-Light-Shadow0">
+                <fbo id="room-light-shadow0" clear-depth="1"/>
+                <camera id="room-light-camera0"/>
+                <node import="Shadow-Caster"/>
+            </node>
+        </node>
+    </node>
+
+    <node id="Shading-Pass">
+        <depth test="0" write="0"/>
+        <input type="vec3" name="lightAmbient" value="0.3,0.3,0.3"/>
+        <resource id="sky"/>
+
+        <node id="Light-Shading">
+            <node>
+                <light-pass type="DIRECTIONAL" ambient="1" shader="regen.shading.deferred.directional">
+                    <light id="sky-sun"/>
+                </light-pass>
+            </node>
+            <node>
+                <blend mode="add"/>
+                <node>
+                    <light-pass type="POINT" ambient="0"
+                                shader="regen.shading.deferred.point.parabolic"
+                                shadow-filter="PCF_GAUSSIAN">
+                        <light id="room-light0"
+                               shadow-buffer="room-light-shadow0" shadow-attachment="depth"
+                               shadow-camera="room-light-camera0"/>
+                    </light-pass>
+                </node>
+                <node>
+                    <light-pass type="POINT" ambient="0" shader="regen.shading.deferred.point.cube">
+                        <light id="cauldron-light0"/>
+                    </light-pass>
+                </node>
+                <node>
+                    <light-pass type="POINT" ambient="0" shader="regen.shading.deferred.point.cube">
+                        <light id="fire-flies-light0"/>
+                    </light-pass>
+                </node>
+            </node>
+        </node>
+    </node>
+
+    <!--**************************-->
+    <!--********* Objects ********-->
+    <!--**************************-->
+
+    <mesh id="fire-flies0" type="point" update-frequency="NEVER" num-vertices="1" num-instances="{{num-fire-flies}}">
+        <material diffuse="0.0, 0.0, 0.0" ambient="0.0, 0.0, 0.0" specular="0.0, 0.0, 0.0" shininess="256.0" update-frequency="NEVER"/>
+        <define key="in_modelOffset" value="in_lightPosition_FireFly" />
+        <define key="in_matEmission" value="in_lightDiffuse_FireFly" />
+        <define key="HAS_modelOffset" value="TRUE" />
+        <define key="HAS_matEmission" value="TRUE" />
+        <input name="LightOfFireFly" state="fire-flies-light0" component="Light" member-suffix="_FireFly"/>
+    </mesh>
+
+    <node id="Shadow-Caster">
+        <node import="Garden-Items"/>
+    </node>
+
+    <node id="Non-Shadow-Caster">
+        <node id="Fire-Flies">
+            <input name="sphereRadius" type="float" value="0.05"/>
+            <mesh id="fire-flies0" shader="regen.models.sprite-sphere"/>
+        </node>
+        <node id="Light-Bulbs">
+            <node id="Lamp-Bulb">
+                <mesh id="mesh-lamp" shader="regen.models.mesh" mesh-index="2"/>
+            </node>
+        </node>
+        <node import="Grass"/>
+        <node id="Ground">
+            <texture id="ground-color" map-to="color" blend-mode="SRC" wrapping="REPEAT"/>
+            <material specular="0, 0, 0" ambient="0.05, 0.0, 0.0" update-frequency="NEVER"/>
+            <mesh id="ground-mesh" primitive="triangles" shader="regen.models.mesh"/>
+        </node>
+    </node>
+
+    <!--**************************-->
+    <!--**************************-->
+
+    <node id="Post-Pass">
+        <depth test="0" write="0"/>
+
+        <node id="Albedo-Fog">
+            <fbo id="g-buffer" draw-buffers="0"/>
+            <input type="float" name="fogDensity" value="1.0"/>
+            <input type="vec2" name="fogDistance" value="50.0,{{far-plane}}" min="0.0" max="{{far-plane}}"/>
+            <input type="vec3" name="fogColor" value="0.2,0.33,0.3" schema="color"/>
+            <input type="vec2" name="farDistance" value="75.0,{{far-plane}}"/>
+            <input name="SunLight" state="sky-sun" component="Light" member-suffix="_Sun"/>
+            <input type="vec3" name="warmTint" value="0.6, 0.4, 0.3" />
+            <texture name="gDepthTexture" fbo="g-buffer" attachment="depth" />
+            <texture name="gColorTexture" fbo="g-buffer" attachment="1"/>
+            <texture name="skyColorTexture" id="sky" />
+            <fullscreen-pass shader="regen.weather.fog.distance"/>
+        </node>
+        <view id="Albedo-Fog">
+            <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
+        </view>
+        <node import="Sky">
+            <fbo id="g-buffer" draw-buffers="0"/>
+        </node>
+        <!-- blur the g-buffer attachment0 -->
+        <node import="G-Buffer-Blur0"/>
+        <!-- apply depth of field effect by mixing the blurred scene with the original scene -->
+        <node import="Depth-of-Field">
+            <fbo id="g-buffer" draw-buffers="1"/>
+            <texture name="inputTexture" fbo="g-buffer" attachment="0"/>
+            <input type="vec2" name="focalWidth" value="0.7,1.0" />
+        </node>
+        <view id="Depth of Field">
+            <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+        </view>
+
+        <!-- render transparent objects -->
+        <node id="Transparent-Pass">
+            <fbo id="g-buffer" draw-buffers="1"/>
+            <blend mode="add"/>
+            <depth test="1" write="0"/>
+            <!-- render emission light -->
+            <node id="Material-Emission">
+                <texture name="gEmissionTexture" fbo="g-buffer" attachment="4"/>
+                <texture name="gEmissionBlurred" id="emission-map-bloom"/>
+                <fullscreen-pass shader="regen.shading.deferred.emission"/>
+            </node>
+            <node id="Alpha-Blending-Pass">
+                <blend mode="alpha"/>
+                <define key="OUTPUT_TYPE" value="TRANSPARENCY"/>
+                <!-- apply fog to transparent objects -->
+                <input type="float" name="fogDensity" value="1.0"/>
+                <input type="vec2" name="fogDistance" value="50.0,{{far-plane}}" min="0.0" max="{{far-plane}}"/>
+                <input type="vec3" name="fogColor" value="0,0,0" schema="color"/>
+                <input type="vec2" name="farDistance" value="75.0,{{far-plane}}"/>
+                <texture name="gDepthTexture" fbo="g-buffer" attachment="depth" />
+                <texture name="gColorTexture" fbo="g-buffer" attachment="4"/>
+
+                <node id="Lamp-Glass">
+                    <mesh id="mesh-lamp" shader="regen.models.mesh" mesh-index="5"/>
+                </node>
+                <node import="Fire"/>
+            </node>
+            <view id="Transparent Objects">
+                <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+            </view>
+        </node>
+        <!-- antialias the final image -->
+        <node import="FXAA">
+            <fbo id="g-buffer" draw-buffers="0"/>
+            <texture name="inputTexture" fbo="g-buffer" attachment="1"/>
+        </node>
+        <view id="Antialiased Scene">
+            <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
+        </view>
+    </node>
+
+    <node id="initialize">
+        <node import="Collision-Initialize"/>
+    </node>
+
+    <node id="root">
+        <input name="Wind" ubo="WindUBO"/>
+        <resource id="sky"/>
+
+        <node id="Pre-Render">
+            <!-- Render shadow maps such that they can be used in the shading pass -->
+            <node import="Shadow-Pass">
+                <polygon offset-fill="1.1,4.0"/>
+            </node>
+            <view id="Parabolic Shadow-Map">
+                <fbo id="SCREEN"/>
+                <texture name="inputTexture" fbo="room-light-shadow0" attachment="depth"/>
+                <input type="int" name="arrayTextureSize" value="1"/>
+                <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
+            </view>
+            <view id="Collision Map">
+                <fbo id="SCREEN"/>
+                <texture name="inputTexture1" id="collision-blur"/>
+                <texture name="inputTexture2" fbo="collision-fbo" attachment="1"/>
+                <fullscreen-pass shader="regen.filter.sampling.x2"/>
+            </view>
+        </node>
+
+        <node id="Render">
+            <camera id="main-camera"/>
+
+            <node id="Geometry-Pass">
+                <fbo id="g-buffer"
+                        clear-buffers="0,1,2,3,4"
+                        clear-depth="1"
+                        draw-buffers="0,1,2,3,4"/>
+                <depth test="1" write="1"/>
+                <node import="Shadow-Caster"/>
+                <node import="Non-Shadow-Caster"/>
+                <view id="G-Buffer: Emission">
+                    <blit src-fbo="g-buffer" src-attachment="4" dst-fbo="SCREEN"/>
+                </view>
+                <node import="G-Buffer-Views"/>
+            </node>
+
+            <node id="Post-Geometry">
+                <node id="Additive-Emission">
+                    <node id="Fire-Emission">
+                        <blend mode="add"/>
+                        <fbo id="g-buffer" draw-buffers="4"/>
+                        <node import="Fire"/>
+                    </node>
+                </node>
+                <node id="Emission-Fog">
+                    <depth test="0" write="0"/>
+                    <fbo id="g-buffer" draw-buffers="1"/>
+                    <!-- apply fog to emission -->
+                    <input type="float" name="fogDensity" value="1.0"/>
+                    <input type="vec2" name="fogDistance" value="50.0,{{far-plane}}" min="0.0" max="{{far-plane}}"/>
+                    <input type="vec3" name="fogColor" value="0,0,0" schema="color"/>
+                    <input type="vec2" name="farDistance" value="75.0,{{far-plane}}"/>
+                    <texture name="gDepthTexture" fbo="g-buffer" attachment="depth" />
+                    <texture name="gColorTexture" fbo="g-buffer" attachment="4"/>
+                    <fullscreen-pass shader="regen.weather.fog.distance"/>
+                </node>
+                <node id="Emission-Update">
+                    <input type="float" name="filterRadius" value="0.01"/>
+                    <bloom fbo="g-buffer" attachment="1" bloom-texture="emission-map-bloom"/>
+                </node>
+                <node id="Shaded Scene">
+                    <blit src-fbo="g-buffer" src-attachment="1"
+                          dst-fbo="g-buffer" dst-attachment="4"/>
+                </node>
+                <view id="Emission Mips">
+                    <fbo id="SCREEN"/>
+                    <texture name="inputTexture1" id="emission-map-bloom" mip-level="0"/>
+                    <texture name="inputTexture2" id="emission-map-bloom" mip-level="1"/>
+                    <texture name="inputTexture3" id="emission-map-bloom" mip-level="2"/>
+                    <texture name="inputTexture4" id="emission-map-bloom" mip-level="3"/>
+                    <fullscreen-pass shader="regen.filter.sampling.x4"/>
+                </view>
+            </node>
+
+            <node id="Shading">
+                <fbo id="g-buffer" draw-buffers="1" clear-buffers="1"/>
+                <node id="Light-Pass">
+                    <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
+                    <texture name="gDiffuseTexture" fbo="g-buffer" attachment="0"/>
+                    <texture name="gSpecularTexture" fbo="g-buffer" attachment="2"/>
+                    <texture name="gNorWorldTexture" fbo="g-buffer" attachment="3"/>
+                    <node import="Shading-Pass"/>
+                </node>
+                <view id="Shaded Scene">
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </view>
+            </node>
+
+            <node import="Post-Pass"/>
+
+            <view id="Spatial Index">
+                <node import="spatial-index-debug">
+                    <fbo id="g-buffer" draw-buffers="1"/>
+                </node>
+                <node>
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </node>
+            </view>
+            <!--
+            <node import="spatial-index-debug">
+                <fbo id="g-buffer" draw-buffers="1"/>
+            </node>
+            -->
+
+            <node import="GUI-Pass">
+                <fbo id="g-buffer" draw-buffers="1"/>
+            </node>
+
+            <view id="Output Rendering">
+                <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+            </view>
+        </node>
+    </node>
+</node>

@@ -872,6 +872,75 @@ bool BoidsCPU::avoidCollisions(
 	}
 
 	////////////////
+	/////// Collision with collision map which stores solid areas in the red channel.
+	////////////////
+	if (collisionMap_.get()) {
+		auto uv0 = computeUV(boidPos, collisionMapCenter_, collisionMapSize_);
+		uv0.x = math::clamp(uv0.x, 0.0f, 1.0f);
+		uv0.y = math::clamp(uv0.y, 0.0f, 1.0f);
+		auto uv1 = computeUV(lookAhead, collisionMapCenter_, collisionMapSize_);
+		uv1.x = math::clamp(uv1.x, 0.0f, 1.0f);
+		uv1.y = math::clamp(uv1.y, 0.0f, 1.0f);
+
+		if (collisionMapType_ == COLLISION_VECTOR_FIELD) {
+			Vec3f sample0 = collisionMap_->sampleLinear<Vec3f>(uv0, collisionMap_->textureData());
+			Vec3f sample1 = collisionMap_->sampleLinear<Vec3f>(uv1, collisionMap_->textureData());
+			Vec2f collisionFlow = sample0.xy_();
+			float collisionStrength = sample0.z;
+			if (sample1.z > collisionStrength) {
+				collisionStrength = sample1.z;
+				collisionFlow = sample1.xy_();
+			}
+
+			if (collisionStrength > 0.01f) {
+				// Compute avoidance force proportional to strength
+				float strength = priv_->repulsionTimesSeparation_ * collisionStrength * 3.0f;
+				boidForce.x += collisionFlow.x * strength;
+				boidForce.z += collisionFlow.y * strength;
+				// dampen forward velocity slightly near obstacles
+				boidForce -= nextVelocity * (strength * 0.2f);
+			}
+		} else {
+			// Sample at current and lookahead positions
+			float collisionValue = 0.0f;
+			const int samples = 3; // sample along velocity
+			for (int i = 0; i < samples; ++i) {
+				float t = (float)i / (samples - 1);
+				Vec3f pos = boidPos + nextVelocity * t;
+				auto uvSample = computeUV(pos, collisionMapCenter_, collisionMapSize_);
+				uvSample.x = 1.0f - std::clamp(uvSample.x, 0.0f, 1.0f);
+				uvSample.y = std::clamp(uvSample.y, 0.0f, 1.0f);
+				collisionValue = std::max(collisionValue,
+					collisionMap_->sampleLinear<float>(uvSample, collisionMap_->textureData()));
+			}
+
+			if (collisionValue > 0.05f) {
+				const float eps = 1.0f / float(collisionMap_->width());
+				uv0.x = 1.0f - uv0.x; // flip x for sampling
+				float c = collisionMap_->sampleLinear<float>(uv0, collisionMap_->textureData()); // central sample
+				float dx = collisionMap_->sampleLinear<float>(uv0 + Vec2f(eps,0), collisionMap_->textureData())
+						 - collisionMap_->sampleLinear<float>(uv0 - Vec2f(eps,0), collisionMap_->textureData());
+				float dy = collisionMap_->sampleLinear<float>(uv0 + Vec2f(0,eps), collisionMap_->textureData())
+						 - collisionMap_->sampleLinear<float>(uv0 - Vec2f(0,eps), collisionMap_->textureData());
+
+				Vec3f normal(dx, 0.0f, dy);
+				if (normal.lengthSquared() > 1e-8f) normal.normalize();
+				else {
+					Vec3f up(0,1,0);
+					normal = nextVelocity.cross(up);
+					if (normal.lengthSquared() > 1e-8f) normal.normalize();
+				}
+
+				// use both the max along lookahead and the center sample to compute final strength
+				float strength = priv_->repulsionTimesSeparation_ * std::clamp(0.75f * collisionValue + 0.25f * c, 0.0f, 1.0f);
+
+				boidForce -= normal * strength;
+				boidForce -= nextVelocity * (strength * 0.3f);
+			}
+		}
+	}
+
+	////////////////
 	/////// Collision with height map.
 	////////////////
 	if (heightMap_.get()) {

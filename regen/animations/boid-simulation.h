@@ -5,6 +5,7 @@
 #include "regen/shapes/bounds.h"
 #include "regen/textures/texture.h"
 #include "regen/states/model-transformation.h"
+#include "regen/textures/collision-map.h"
 
 namespace regen {
 	/**
@@ -134,6 +135,18 @@ namespace regen {
 				const ref_ptr<Texture2D> &heightMap,
 				float heightMapFactor);
 
+		/**
+		 * Set the collision map, which is optional.
+		 * @param mapCenter the center.
+		 * @param mapSize the size.
+		 * @param collisionMap the collision map.
+		 */
+		void setCollisionMap(
+				const Vec3f &mapCenter,
+				const Vec2f &mapSize,
+				const ref_ptr<Texture2D> &collisionMap,
+				CollisionMapType mapType);
+
 		Vec3f getCellCenter(const Vec3i &gridIndex) const;
 
 		Vec3f getCellCenter(const Vec3ui &gridIndex) const;
@@ -161,6 +174,12 @@ namespace regen {
 		float heightMapFactor_ = 1.0f;
 		Vec3f mapCenter_ = Vec3f::zero();
 		Vec2f mapSize_ = Vec2f(10.0f);
+
+		// collision map
+		ref_ptr<Texture2D> collisionMap_;
+		Vec3f collisionMapCenter_ = Vec3f::zero();
+		Vec2f collisionMapSize_ = Vec2f(10.0f);
+		CollisionMapType collisionMapType_ = COLLISION_SCALAR;
 
 		ref_ptr<ShaderInput3ui> gridSize_;
 		ref_ptr<ShaderInput1f> cellSize_;

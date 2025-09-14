@@ -343,11 +343,21 @@ vec3 transformTexcoToWorld(vec2 texco, float depth, int layer) {
 #define2 REGEN_transformParaboloid_INCLUDED
 #include regen.states.camera.input
 vec4 transformParaboloid(vec4 posEye, int layer) {
-    vec3 pos = posEye.xyz;
-    // normalize incoming vector by its w component
-    pos /= posEye.w;
+    vec3 pos = posEye.xyz / posEye.w;
     float l = length(pos.xyz);
     pos /= l;
+
+#if OUTPUT_TYPE == DEPTH
+    float bias = 0.01;
+    float isBack = float(layer != 0);
+    // positive means inside current hemisphere
+    float hemisphereTest = mix(pos.z + bias, pos.z - bias, isBack);
+    float keep = step(0.0, hemisphereTest); // 1 if inside hemisphere, else 0
+    // Push outside clip volume if rejected
+    pos.xy *= keep;
+    pos.z = mix(2.0, pos.z, keep); // z=2 is behind far plane
+#endif
+
     // x/y coordinates of the paraboloid
 	pos.xy /= pos.z + 1.0f;
 	pos.x = -pos.x;

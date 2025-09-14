@@ -70,14 +70,14 @@ void emitQuad_eye(vec3 quadPos[4], int layer)
 #endif
 
     vec4 posEye;
-    out_texco0 = vec2(1.0,1.0);
+    out_texco0 = vec2(1.0,0.0);
     posEye = vec4(quadPos[0],1.0);
     out_posEye = posEye.xyz;
     out_posWorld = transformEyeToWorld(posEye,layer).xyz;
     gl_Position = transformEyeToScreen(posEye,layer);
     EmitVertex();
 
-    out_texco0 = vec2(1.0,0.0);
+    out_texco0 = vec2(1.0,1.0);
     posEye = vec4(quadPos[1],1.0);
     out_posEye = posEye.xyz;
     out_posWorld = transformEyeToWorld(posEye,layer).xyz;
@@ -87,14 +87,14 @@ void emitQuad_eye(vec3 quadPos[4], int layer)
 #ifdef HAS_UPWARDS_NORMAL
     out_norWorld = normalize(transformEyeToWorld(vec4(quadPos[3] - quadPos[2], 0.0),layer).xyz);
 #endif
-    out_texco0 = vec2(0.0,1.0);
+    out_texco0 = vec2(0.0,0.0);
     posEye = vec4(quadPos[2],1.0);
     out_posEye = posEye.xyz;
     out_posWorld = transformEyeToWorld(posEye,layer).xyz;
     gl_Position = transformEyeToScreen(posEye,layer);
     EmitVertex();
 
-    out_texco0 = vec2(0.0,0.0);
+    out_texco0 = vec2(0.0,1.0);
     posEye = vec4(quadPos[3],1.0);
     out_posEye = posEye.xyz;
     out_posWorld = transformEyeToWorld(posEye,layer).xyz;
@@ -130,7 +130,7 @@ void emitQuad_world(vec3 quadPos[4], vec4 color, int layer)
     //color.rgb *= in_uvDarken;
 
     vec4 posEye;
-    out_texco0 = vec2(1.0, 1.0);
+    out_texco0 = vec2(1.0, 0.0);
     out_posWorld = quadPos[0];
 #ifdef HAS_UV_FADED_COLOR
     out_col = color * in_uvDarken;
@@ -140,7 +140,7 @@ void emitQuad_world(vec3 quadPos[4], vec4 color, int layer)
     gl_Position = transformEyeToScreen(posEye,layer);
     EmitVertex();
 
-    out_texco0 = vec2(1.0, 0.0);
+    out_texco0 = vec2(1.0, 1.0);
     out_posWorld = quadPos[1];
 #ifdef HAS_UV_FADED_COLOR
     out_col = color;
@@ -153,7 +153,7 @@ void emitQuad_world(vec3 quadPos[4], vec4 color, int layer)
 #ifdef HAS_UPWARDS_NORMAL
     out_norWorld = normalize(quadPos[3] - quadPos[2]);
 #endif
-    out_texco0 = vec2(0.0, 1.0);
+    out_texco0 = vec2(0.0, 0.0);
     out_posWorld = quadPos[2];
 #ifdef HAS_UV_FADED_COLOR
     out_col = color * in_uvDarken;
@@ -163,7 +163,7 @@ void emitQuad_world(vec3 quadPos[4], vec4 color, int layer)
     gl_Position = transformEyeToScreen(posEye,layer);
     EmitVertex();
 
-    out_texco0 = vec2(0.0, 0.0);
+    out_texco0 = vec2(0.0, 1.0);
     out_posWorld = quadPos[3];
 #ifdef HAS_UV_FADED_COLOR
     out_col = color;
@@ -274,7 +274,7 @@ const vec2 in_spriteSize = vec2(4.0, 4.0);
 #include regen.models.sprite.emitBillboard
 
 void main() {
-    emitBillboard(in_pos[0], vec4(1.0), in_spriteSize);
+    emitBillboard(in_pos[0], in_spriteSize);
 }
 
 -- fs
@@ -299,7 +299,7 @@ uniform sampler2D in_fireNoiseTexture;
 
 void fireTransfer1(inout vec2 texco)
 {
-    texco.y = 1.0 - texco.y;
+    //texco.y = 1.0 - texco.y;
     // Sample the noise using coordinatesthat change over time.
     vec2 noise1 = texture(in_fireNoiseTexture, (texco * in_fireScales.x) -
         vec2(0.0, in_time * in_fireScrollSpeeds.x)).rr;
@@ -318,6 +318,6 @@ void fireTransfer1(inout vec2 texco)
     finalNoise *= ((texco.y) * in_fireDistortionScale) + in_fireDistortionBias;
 
     // modify the texture coordinates by the final noise
-    texco = vec2(finalNoise.x + texco.x, finalNoise.y + (1.0f - texco.y));
+    texco = vec2(finalNoise.x + texco.x, finalNoise.y + texco.y);
 }
 #endif

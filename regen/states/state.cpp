@@ -10,23 +10,26 @@ struct State::StateShared {
 };
 
 State::State()
-		: EventObject(),
-		  Resource() {
+	: EventObject(),
+	  Resource(),
+	  joined_(ref_ptr<std::vector<ref_ptr<State> > >::alloc()) {
 	shared_ = ref_ptr<StateShared>::alloc();
 }
 
 State::State(const ref_ptr<State> &other)
-		: EventObject(),
-		  joined_(other->joined_),
-		  attached_(other->attached_),
-		  isHidden_(other->isHidden_),
-		  shaderDefines_(other->shaderDefines_),
-		  shaderIncludes_(other->shaderIncludes_),
-		  shaderFunctions_(other->shaderFunctions_),
-		  shaderVersion_(other->shaderVersion_),
-		  shared_(other->shared_) {
+	: EventObject(),
+	  joined_(other->joined_),
+	  attached_(other->attached_),
+	  shaderDefines_(other->shaderDefines_),
+	  shaderIncludes_(other->shaderIncludes_),
+	  shaderFunctions_(other->shaderFunctions_),
+	  shaderVersion_(other->shaderVersion_),
+	  shared_(other->shared_) {
 	inputs_ = other->inputs_;
 	inputMap_ = other->inputMap_;
+	if (other->isHidden()) {
+		set_isHidden(true);
+	}
 }
 
 State::~State() {
@@ -34,7 +37,6 @@ State::~State() {
 		removeInput(inputs_.begin()->name_);
 	}
 	attached_.clear();
-	joined_.clear();
 }
 
 const std::vector<NamedShaderInput> &State::inputs() const {
@@ -61,43 +63,50 @@ void State::setConstantUniforms(bool isConstant) {
 	for (const auto &it: inputs_) {
 		it.in_->set_isConstant(isConstant);
 	}
-	for (const auto &it: joined()) {
+	auto localJoined = joined_;
+	for (const auto &it: *localJoined.get()) {
 		it->setConstantUniforms(isConstant);
 	}
 }
 
 void State::enable(RenderState *state) {
-	for (auto &it: joined_) {
+	auto local = joined_;
+	for (auto &it: *local.get()) {
 		if (!it->isHidden()) it->enable(state);
 	}
 }
 
 void State::disable(RenderState *state) {
-	for (auto it = joined_.rbegin(); it != joined_.rend(); ++it) {
+	auto local = joined_;
+	for (auto it = local->rbegin(); it != local->rend(); ++it) {
 		if (!(*it)->isHidden()) (*it)->disable(state);
 	}
 }
 
-void State::attach(const ref_ptr<EventObject> &obj) {
-	attached_.push_back(obj);
-}
-
 void State::joinStates(const ref_ptr<State> &state) {
-	joined_.push_back(state);
+	updateVector([&](auto &vec) { vec.push_back(state); });
 }
 
 void State::joinStatesFront(const ref_ptr<State> &state) {
-	joined_.insert(joined_.begin(), state);
+	updateVector([&](auto &vec) { vec.insert(vec.begin(), state); });
 }
 
 bool State::disjoinStates(const ref_ptr<State> &state) {
-	for (auto it = joined_.begin(); it != joined_.end(); ++it) {
-		if (it->get() == state.get()) {
-			joined_.erase(it);
-			return true;
+	bool removed = false;
+	updateVector([&](auto &vec) {
+		for (auto it = vec.begin(); it != vec.end(); ++it) {
+			if (it->get() == state.get()) {
+				vec.erase(it);
+				removed = true;
+				break;
+			}
 		}
-	}
-	return false;
+	});
+	return removed;
+}
+
+void State::attach(const ref_ptr<EventObject> &obj) {
+	attached_.push_back(obj);
 }
 
 bool State::hasInput(const std::string &name) const {
@@ -136,7 +145,8 @@ void State::setInput(const ref_ptr<ShaderInput> &in, const std::string &name, co
 
 	if (inputMap_.count(inputName) > 0) {
 		removeInput(inputName);
-	} else { // insert into map of known attributes
+	} else {
+		// insert into map of known attributes
 		inputMap_.insert(inputName);
 	}
 
@@ -162,7 +172,8 @@ void State::removeInput(const std::string &name) {
 
 void State::collectShaderInput(ShaderInputList &out) {
 	out.insert(out.end(), inputs_.begin(), inputs_.end());
-	for (auto &buddy : joined_) { buddy->collectShaderInput(out); }
+	auto local = joined_;
+	for (auto &buddy: *local.get()) { buddy->collectShaderInput(out); }
 }
 
 std::optional<StateInput> State::findShaderInput(const std::string &name) {
@@ -187,7 +198,8 @@ std::optional<StateInput> State::findShaderInput(const std::string &name) {
 		}
 	}
 
-	for (auto &joined: joined_) {
+	auto local = joined_;
+	for (auto &joined: *local.get()) {
 		auto joinedRet = joined->findShaderInput(name);
 		if (joinedRet.has_value()) {
 			return joinedRet.value();
@@ -227,14 +239,16 @@ void StateSequence::set_globalState(const ref_ptr<State> &globalState) { globalS
 
 void StateSequence::enable(RenderState *state) {
 	globalState_->enable(state);
-	for (auto &it: joined_) {
+	auto local = joined_;
+	for (auto &it: *local.get()) {
 		it->enable(state);
 		it->disable(state);
 	}
 	globalState_->disable(state);
 }
 
-void StateSequence::disable(RenderState *state) {}
+void StateSequence::disable(RenderState *state) {
+}
 
 ref_ptr<StateSequence> StateSequence::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 	ref_ptr<StateSequence> seq = ref_ptr<StateSequence>::alloc();

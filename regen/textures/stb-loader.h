@@ -15,7 +15,7 @@ namespace regen {
 	 */
 	class STBLoader : public ITextureLoader {
 	public:
-		STBLoader() = default;
+		STBLoader();
 
 		~STBLoader() override = default;
 

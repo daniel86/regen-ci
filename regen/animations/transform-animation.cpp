@@ -69,8 +69,6 @@ void TransformAnimation::animate(GLdouble dt) {
 		GLdouble t = currentFrame.dt > 0.0 ? dt_ / currentFrame.dt : 1.0;
 		{
 			if (mesh_.get() != nullptr && mesh_->physicalObjects().size() > 0) {
-				// TODO: not sure why, but only if setting here the velocity
-				// so far makes the mesh move exactly with the bullet shape.
 				auto &physicalObject = mesh_->physicalObjects()[0];
 				physicalObject->rigidBody()->setMotionState(nullptr);
 				btTransform btCurrentVal;

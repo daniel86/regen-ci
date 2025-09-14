@@ -937,7 +937,25 @@ void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
     ref_ptr<SceneInputXML> xmlInput = ref_ptr<SceneInputXML>::alloc(sceneFile);
     scene::SceneLoader sceneParser(app_, xmlInput);
     sceneParser.setNodeProcessor(ref_ptr<ViewNodeProcessor>::alloc(&viewNodes_));
-    ref_ptr<SceneInputNode> root = sceneParser.getRoot();
+	ref_ptr<SceneInputNode> root = sceneParser.getRoot();
+
+	// Note: We need to do this before processing the root node, so that
+	// any buffer objects created in the initialization node are available
+	// when processing the root node.
+	if (root->getFirstChild("node", "initialize").get() != nullptr) {
+		ref_ptr<StateNode> initializeNode = ref_ptr<StateNode>::alloc();
+		initializeNode->state()->joinStates(app_->renderTree()->state());
+		sceneParser.processNode(initializeNode, "initialize", "node");
+		// ensure the buffer objects of the initialization node are updated.
+		StagingSystem::instance().updateData();
+		initializeNode->traverse(RenderState::get());
+		// Make sure that any FBO that is written to in the initialization node
+		// has its content actually written.
+		glFinish();
+	}
+
+	// pre-load meshes and shapes
+	sceneParser.loadShapes();
 
     // Process the root node
     sceneParser.processNode(tree, "root", "node");
@@ -1050,19 +1068,6 @@ void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
     lightStates_ = sceneParser.getResources()->getLights();
     AnimationManager::get().setSpatialIndices(spatialIndices_);
     AnimationManager::get().resetTime();
-
-    /////////////////////////////
-    //////// Scene Parsing
-    /////////////////////////////
-
-    if (root->getFirstChild("node", "initialize").get() != nullptr) {
-        ref_ptr<StateNode> initializeNode = ref_ptr<StateNode>::alloc();
-        initializeNode->state()->joinStates(app_->renderTree()->state());
-        sceneParser.processNode(initializeNode, "initialize", "node");
-        // ensure the buffer objects of the initialization node are updated.
-		StagingSystem::instance().updateData();
-        initializeNode->traverse(RenderState::get());
-    }
 
     AnimationManager::get().resume();
     REGEN_INFO("XML Scene Loaded.");

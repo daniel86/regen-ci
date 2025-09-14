@@ -112,7 +112,8 @@ namespace regen {
 				if (thisState) {
 					return thisState;
 				}
-				for (auto &joined: node->state_->joined()) {
+				auto j = node->state_->joined();
+				for (auto &joined: *j.get()) {
 					auto *joinedState = dynamic_cast<StateType *>(joined.get());
 					if (joinedState) {
 						return joinedState;
@@ -142,7 +143,8 @@ namespace regen {
 						return;
 					}
 				}
-				for (auto &joined: node->state_->joined()) {
+				auto j = node->state_->joined();
+				for (auto &joined: *j.get()) {
 					auto *joinedState = dynamic_cast<StateType *>(joined.get());
 					if (joinedState) {
 						if (func(*joinedState)) {

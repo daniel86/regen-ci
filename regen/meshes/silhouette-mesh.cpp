@@ -125,10 +125,10 @@ void SilhouetteMesh::generateLODLevel(
         v_pos[vi+3] = rotMat.transformVector(silhouetteCfg_.posScale * p3);
 
         if (v_uv) {
-            v_uv[vi+0] = Vec2f(u0, 1.0-v0);
-            v_uv[vi+1] = Vec2f(u1, 1.0-v0);
-            v_uv[vi+2] = Vec2f(u1, 1.0-v1);
-            v_uv[vi+3] = Vec2f(u0, 1.0-v1);
+            v_uv[vi+0] = Vec2f(u0, v0);
+            v_uv[vi+1] = Vec2f(u1, v0);
+            v_uv[vi+2] = Vec2f(u1, v1);
+            v_uv[vi+3] = Vec2f(u0, v1);
         }
         if (v_nor) {
             v_nor[vi+0] = Vec3f::front();

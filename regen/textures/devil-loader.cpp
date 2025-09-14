@@ -67,8 +67,11 @@ GLenum DevilLoader::convertImage(GLenum format, GLenum type) {
 ImageDataArray DevilLoader::load(std::string_view file, const TextureConfig &cfg) {
 	static bool devilInitialized = false;
 	if (!devilInitialized) {
-		ilInit();
 		devilInitialized = true;
+		ilInit();
+		// Change origin to lower left to match OpenGL texture coordinate system.
+		ilEnable(IL_ORIGIN_SET);
+		ilOriginFunc(IL_ORIGIN_LOWER_LEFT);
 	}
 	if (!boost::filesystem::exists(file)) {
 		throw textures::Error(REGEN_STRING("Unable to open image file at '" << file << "'."));

@@ -213,18 +213,19 @@ void Texture::unsetTextureData() {
 }
 
 void Texture::updateTextureData() {
-	auto bufSize = static_cast<int32_t>(numTexel() * numComponents_);
+	const uint32_t pixelTypeSize = (pixelType_ == GL_FLOAT) ? sizeof(float) : sizeof(byte);
+	auto bufSize = static_cast<int32_t>(numTexel() * numComponents_ * pixelTypeSize);
 	auto *pixels = new byte[bufSize];
 	glGetTextureImage(id(), 0,
-					  format(), GL_UNSIGNED_BYTE,
+					  format(), pixelType_,
 					  bufSize, pixels);
 	auto imgData = ref_ptr<ImageData>::alloc();
 	imgData->width = width();
 	imgData->height = height();
 	imgData->depth = depth();
-	imgData->bpp = numComponents();
+	imgData->bpp = numComponents_;
 	imgData->format = format();
-	imgData->pixelType = GL_UNSIGNED_BYTE;
+	imgData->pixelType = pixelType_;
 	imgData->pixels = pixels;
 	setTextureData(imgData);
 }

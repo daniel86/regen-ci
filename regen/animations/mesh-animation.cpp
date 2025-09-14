@@ -30,8 +30,6 @@ void MeshAnimation::findFrameBeforeTick(
 	}
 }
 
-// TODO: client data mapping can be improved in this file
-
 MeshAnimation::MeshAnimation(
 		const ref_ptr<Mesh> &mesh,
 		const std::list<Interpolation> &interpolations)
@@ -54,6 +52,8 @@ MeshAnimation::MeshAnimation(
 	std::list<std::string> transformFeedback;
 
 	shaderNames[GL_VERTEX_SHADER] = "regen.animation.morph.interpolate";
+	auto vertexLayout = mesh->vertexBuffer()->vertexLayout();
+	hasMeshInterleavedAttributes_ = (vertexLayout == VERTEX_LAYOUT_INTERLEAVED);
 
 	// find buffer size
 	bufferSize_ = 0u;
@@ -63,13 +63,6 @@ MeshAnimation::MeshAnimation(
 		if (!in->isVertexAttribute()) continue;
 		bufferSize_ += in->inputSize();
 		transformFeedback.push_back(in->name());
-
-		// TODO revise vertex memory layout
-		if(in->stride()==0) {
-			hasMeshInterleavedAttributes_ = GL_FALSE;
-		} else {
-			hasMeshInterleavedAttributes_ = GL_TRUE;
-		}
 
 		std::string interpolationName = "interpolate_linear";
 		std::string interpolationKey;
@@ -93,8 +86,6 @@ MeshAnimation::MeshAnimation(
 	shaderConfig["NUM_ATTRIBUTES"] = REGEN_STRING(i);
 
 	// used to save two frames
-	auto vertexLayout = hasMeshInterleavedAttributes_ ?
-			VERTEX_LAYOUT_INTERLEAVED : VERTEX_LAYOUT_SEQUENTIAL;
 	animationBuffer_ = ref_ptr<VBO>::alloc(ARRAY_BUFFER, BufferUpdateFlags::NEVER, vertexLayout);
 	animationBuffer_->setClientAccessMode(BUFFER_GPU_ONLY);
 	feedbackBuffer_ = ref_ptr<VBO>::alloc(TRANSFORM_FEEDBACK_BUFFER, BufferUpdateFlags::NEVER, vertexLayout);
@@ -249,7 +240,7 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 		return;
 	}
 
-	GLboolean framesChanged = GL_FALSE;
+	bool framesChanged = false;
 	// Look for present frame number.
 	GLint lastFrame = lastFramePosition_;
 	GLint frame = (timeInTicks >= lastTime_ ? lastFrame : startFramePosition_);
@@ -261,26 +252,26 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 	MeshAnimation::KeyFrame &frame0 = frames_[lastFrame];
 	if (lastFrame != pingFrame_ && lastFrame != pongFrame_) {
 		loadFrame(lastFrame, frame == pingFrame_);
-		framesChanged = GL_TRUE;
+		framesChanged = true;
 	}
 	if (lastFrame != lastFrame_) {
 		for (auto & attribute : frame0.attributes) {
 			attribute.location = interpolationShader_->attributeLocation("next_" + attribute.input->name());
 		}
 		lastFrame_ = lastFrame;
-		framesChanged = GL_TRUE;
+		framesChanged = true;
 	}
 	MeshAnimation::KeyFrame &frame1 = frames_[frame];
 	if (frame != pingFrame_ && frame != pongFrame_) {
 		loadFrame(frame, lastFrame == pingFrame_);
-		framesChanged = GL_TRUE;
+		framesChanged = true;
 	}
 	if (frame != nextFrame_) {
 		for (auto it = frame1.attributes.begin(); it != frame1.attributes.end(); ++it) {
 			it->location = interpolationShader_->attributeLocation("last_" + it->input->name());
 		}
 		nextFrame_ = frame;
-		framesChanged = GL_TRUE;
+		framesChanged = true;
 		REGEN_DEBUG("Next frame: " << nextFrame_ << " (time: " << timeInTicks << ")");
 	}
 	if (framesChanged) {
@@ -303,8 +294,8 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 
 	{ // Write interpolated attributes to transform feedback buffer
 		// no FS used
-		rs->toggles().push(RenderState::RASTERIZER_DISCARD, GL_TRUE);
-		rs->depthMask().push(GL_FALSE);
+		rs->toggles().push(RenderState::RASTERIZER_DISCARD, true);
+		rs->depthMask().push(false);
 		// setup the interpolation shader
 		rs->shader().apply(interpolationShader_->id());
 		interpolationShader_->enable(rs);
@@ -435,17 +426,16 @@ void MeshAnimation::addSphereAttributes(
 		REGEN_WARN("mesh has no input named '" << ATTRIBUTE_NAME_NOR << "'");
 		return;
 	}
-
-	GLfloat radiusScale = horizontalRadius / verticalRadius;
-	Vec3f scale(radiusScale, 1.0, radiusScale);
+	//GLfloat radiusScale = horizontalRadius / verticalRadius;
+	//Vec3f scale(radiusScale, 1.0, radiusScale);
 
 	ref_ptr<ShaderInput3f> posAtt = ref_ptr<ShaderInput3f>::dynamicCast(mesh_->positions());
 	ref_ptr<ShaderInput3f> norAtt = ref_ptr<ShaderInput3f>::dynamicCast(mesh_->normals());
 	// allocate memory for the animation attributes
 	ref_ptr<ShaderInput3f> spherePos = ref_ptr<ShaderInput3f>::dynamicCast(
-			ShaderInput::copy(posAtt, GL_FALSE));
+			ShaderInput::copy(posAtt, false));
 	ref_ptr<ShaderInput3f> sphereNor = ref_ptr<ShaderInput3f>::dynamicCast(
-			ShaderInput::copy(norAtt, GL_FALSE));
+			ShaderInput::copy(norAtt, false));
 
 	// find the centroid of the mesh
 	Vec3f minPos = posAtt->getVertex(0).r;

@@ -432,8 +432,9 @@ void Scene::updateBOs() {
 				}
 			}
 
-			for (const auto &joined: state->joined()) {
-				stateQueue.push(joined.get());
+			auto joined = state->joined();
+			for (const auto &x: *joined.get()) {
+				stateQueue.push(x.get());
 			}
 		}
 	}

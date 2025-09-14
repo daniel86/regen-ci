@@ -21,8 +21,13 @@ Shading shade(vec3 P, vec3 N, float depth, float shininess)
 {
   // accumulates lighting
   Shading s;
+#if NUM_LIGHTS == 0
+  s.diffuse = vec3(1.0);
+  s.specular = vec3(1.0);
+#else
   s.diffuse = vec3(0.0);
   s.specular = vec3(0.0);
+#endif
   vec3 L, lightVec;
   float attenuation;
   float nDotL;

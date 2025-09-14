@@ -134,7 +134,7 @@ namespace regen {
 
 		void createIndirectDrawBuffers();
 
-		ref_ptr<SSBO> createIndirectDrawBuffer(uint32_t partIdx);
+		ref_ptr<SSBO> createIndirectDrawBuffer(const std::vector<DrawCommand> &initialData);
 
 		void updateVisibility(
 				uint32_t layerIdx,

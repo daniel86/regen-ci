@@ -282,7 +282,7 @@
     <!-- ************************ -->
 
     <mesh id="logo-widget" type="rectangle" use-normal="0" use-texco="1" use-tangent="0"
-          lod="0" rotation="1.57,0.0,0.0" scaling="90.0,1.0,23.0" texco-scaling="-1.0,1.0" center="0"
+          lod="0" rotation="1.57,0.0,0.0" scaling="90.0,1.0,23.0" texco-scaling="-1.0,-1.0" center="0"
           update-frequency="NEVER">
         <define key="INVERT_Y" value="TRUE"/>
         <define key="INVERT_X" value="FALSE"/>

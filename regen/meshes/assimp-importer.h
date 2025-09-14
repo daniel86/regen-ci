@@ -106,6 +106,12 @@ namespace regen {
 		void setTexturePath(const std::string &texturePath) { texturePath_ = texturePath; }
 
 		/**
+		 * Set the strength for emissive materials.
+		 * @param strength Emission strength.
+		 */
+		void setEmissionStrength(float strength) { emissionStrength_ = strength; }
+
+		/**
 		 * Set a flag for importing.
 		 */
 		void setImportFlag(ImportFlag flag) { importFlags_ |= flag; }
@@ -231,6 +237,7 @@ namespace regen {
 
 		// user specified texture path
 		std::string texturePath_;
+		float emissionStrength_ = 1.0f;
 
 		// loaded lights
 		std::vector<ref_ptr<Light> > lights_;

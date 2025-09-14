@@ -162,7 +162,7 @@ namespace regen {
 
 		GLuint mapOffset_, mapSize_;
 
-		GLboolean hasMeshInterleavedAttributes_;
+		bool hasMeshInterleavedAttributes_;
 
 		void loadFrame(GLuint frameIndex, GLboolean isPongFrame);
 

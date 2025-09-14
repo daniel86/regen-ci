@@ -117,7 +117,7 @@ namespace regen {
 		double dt_;
 		int64_t intervalMili_;
 		AVFrame *lastFrame_;
-		byte *videoImageData_;
+		byte *videoImageData_ = nullptr;
 
 		void decode();
 

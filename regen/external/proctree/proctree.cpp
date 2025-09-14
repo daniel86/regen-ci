@@ -838,15 +838,15 @@ namespace Proctree {
 			mTwigNormal[vert5] = (normal2);
 #endif
 
-			mTwigUV[vert1] = {0, 0};
-			mTwigUV[vert2] = {1, 0};
-			mTwigUV[vert3] = {1, 1};
-			mTwigUV[vert4] = {0, 1};
+			mTwigUV[vert1] = {0, 1};
+			mTwigUV[vert2] = {1, 1};
+			mTwigUV[vert3] = {1, 0};
+			mTwigUV[vert4] = {0, 0};
 
-			mTwigUV[vert8] = {0, 0};
-			mTwigUV[vert7] = {1, 0};
-			mTwigUV[vert6] = {1, 1};
-			mTwigUV[vert5] = {0, 1};
+			mTwigUV[vert8] = {0, 1};
+			mTwigUV[vert7] = {1, 1};
+			mTwigUV[vert6] = {1, 0};
+			mTwigUV[vert5] = {0, 0};
 		} else {
 			createTwigs(aBranch->mChild0);
 			createTwigs(aBranch->mChild1);

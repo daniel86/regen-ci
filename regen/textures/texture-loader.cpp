@@ -301,7 +301,7 @@ ref_ptr<TextureCube> textures::loadCube(
 		faceHeight = firstImage->height / 3;
 		GLint faces_[12] = {
 				-1, TextureCube::TOP, -1, -1,
-				TextureCube::LEFT, TextureCube::FRONT, TextureCube::RIGHT, TextureCube::BACK,
+				TextureCube::LEFT, TextureCube::BACK, TextureCube::RIGHT, TextureCube::FRONT,
 				-1, TextureCube::BOTTOM, -1, -1
 		};
 		for (int i = 0; i < 12; ++i) faces[i] = faces_[i];
@@ -310,9 +310,9 @@ ref_ptr<TextureCube> textures::loadCube(
 		faceHeight = firstImage->height / 4;
 		GLint faces_[12] = {
 				-1, TextureCube::TOP, -1,
-				TextureCube::LEFT, TextureCube::FRONT, TextureCube::RIGHT,
+				TextureCube::LEFT, TextureCube::BACK, TextureCube::RIGHT,
 				-1, TextureCube::BOTTOM, -1,
-				-1, TextureCube::BACK, -1
+				-1, TextureCube::FRONT, -1
 		};
 		for (int i = 0; i < 12; ++i) faces[i] = faces_[i];
 	}
@@ -331,43 +331,44 @@ ref_ptr<TextureCube> textures::loadCube(
 		glenum::textureInternalFormat(tex->format()) :
 		texCfg.forcedInternalFormat);
 	tex->allocTexture();
-
 	tex->set_filter(GL_LINEAR);
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, faceWidth * numCols);
 
-	byte *imageData = firstImage->pixels;
+	std::vector<byte> tmpFace(faceBytes);
 	int index = 0;
 	for (int row = 0; row < numRows; ++row) {
-		byte *colData = imageData;
+		int flippedRow = numRows - 1 - row;  // account for bottom-left origin
+		byte *rowPtr = firstImage->pixels + flippedRow * rowBytes;
+
+		byte *colData = rowPtr;
 		for (int col = 0; col < numCols; ++col) {
 			int mappedFace = faces[index];
 			if (mappedFace != -1) {
 				auto nextFace = (TextureCube::CubeSide) mappedFace;
 
-				if (flipBackFace && nextFace == TextureCube::BACK) {
+				if (nextFace == TextureCube::TOP || nextFace == TextureCube::BOTTOM) {
+					glPixelStorei(GL_UNPACK_ROW_LENGTH, faceWidth * numCols);
+					tex->updateSubImage(nextFace, colData);
+				}
+				else if (flipBackFace && nextFace == TextureCube::FRONT) {
+					glPixelStorei(GL_UNPACK_ROW_LENGTH, faceWidth * numCols);
+					tex->updateSubImage(nextFace, colData);
+				} else {
 					glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-					auto *flippedFace = new byte[faceBytes];
-					auto *faceData = (byte *) colData;
-					auto *dst = flippedFace;
-					for (int row = faceWidth - 1; row >= 0; --row) {
-						auto *rowData = faceData + row * faceWidth * numCols * bpp;
-						for (int col = faceHeight - 1; col >= 0; --col) {
-							byte *pixelData = rowData + col * bpp;
+					auto *dst = tmpFace.data();
+					for (int y = faceHeight - 1; y >= 0; --y) {
+						auto *rowData = colData + y * faceWidth * bpp * numCols;
+						for (int x = faceWidth - 1; x >= 0; --x) {
+							byte *pixelData = rowData + x * bpp;
 							memcpy(dst, pixelData, bpp);
 							dst += bpp;
 						}
 					}
-					tex->updateSubImage(nextFace, (GLubyte *) flippedFace);
-					delete[] flippedFace;
-					glPixelStorei(GL_UNPACK_ROW_LENGTH, faceWidth * numCols);
-				} else {
-					tex->updateSubImage(nextFace, (GLubyte *) colData);
+					tex->updateSubImage(nextFace, tmpFace.data());
 				}
 			}
 			index += 1;
 			colData += bpp * faceWidth;
 		}
-		imageData += rowBytes;
 	}
 
 	if (texCfg.useMipmaps) {

@@ -241,6 +241,8 @@ namespace regen::scene {
 
 		void loadResources(const std::string &name);
 
+		void loadShapes();
+
 	protected:
 		Scene *application_;
 		std::list<ref_ptr<EventHandler> > eventHandler_;
@@ -254,8 +256,6 @@ namespace regen::scene {
 		ref_ptr<BulletPhysics> physics_;
 
 		void init();
-
-		void loadShapes();
 
 		void processState(
 				const ref_ptr<StateNode> &parentNode,

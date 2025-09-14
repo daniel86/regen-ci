@@ -185,6 +185,9 @@ in vec4 in_col;
 #ifdef HAS_windFlow || HAS_colliderRadius
     #define USE_FORCE
 #endif
+#ifdef HAS_colliderRadius || HAS_collisionMap
+    #define USE_COLLISION
+#endif
 
 in vec3 in_pos;
 out vec2 out_texco0;
@@ -212,11 +215,15 @@ flat out int out_layer;
 #ifdef HAS_wind || HAS_windFlow
     #include regen.weather.wind.windAtPosition
 #endif
+#ifdef USE_COLLISION
+    #include regen.shapes.collision.getCollisionVector
+#endif
 
 const float in_maskThreshold = 0.1; // threshold for the mask texture
 const float in_uvDarken = 0.5;
 const float in_collisionThreshold = 0.75;
 
+#ifdef HAS_HEIGHT_MAP
 ivec2 getHeightCoords(vec2 uv_xz) {
     // nearest texel fetch for height
     vec2 hSize = vec2(
@@ -225,15 +232,18 @@ ivec2 getHeightCoords(vec2 uv_xz) {
     return ivec2(clamp(uv_xz * hSize,
         vec2(0), hSize - vec2(1)));
 }
+#endif
 
 void main() {
     int layer = regen_RenderLayer();
 
     vec4 baseWorld = transformModel(vec4(in_basePos,1.0));
     vec2 uv_xz = clamp(baseWorld.xz / in_planeSize + vec2(0.5), 0.0, 1.0);
-    float mask   = texture(in_maskTexture, uv_xz)[VERTEX_MASK_INDEX];
-    float height = texelFetch(in_heightTexture, getHeightCoords(uv_xz), 0).r
-            * TEX_BLEND_FACTOR${TEX_ID_heightTexture};
+#ifdef HAS_maskTexture
+    float mask = texture(in_maskTexture, uv_xz)[VERTEX_MASK_INDEX];
+#else
+    float mask = 1.0;
+#endif
 
     // use xz position as seed to get smooth transition over the plane.
     // note that we need to have a constant seed for each sprite as we vary its properties
@@ -253,8 +263,12 @@ void main() {
 #endif
         REGEN_VIEW_INV_(layer)[0].xyz * (posModel.x * size) + // camera +X in world
         REGEN_VIEW_INV_(layer)[2].xyz * (posModel.z * size);  // camera +Z in world
+#ifdef HAS_HEIGHT_MAP
     // Apply height texture
+    float height = texelFetch(in_heightTexture, getHeightCoords(uv_xz), 0).r
+            * TEX_BLEND_FACTOR${TEX_ID_heightTexture};
     posWorld.y += height;
+#endif
 #ifdef HAS_posVariation
     // Randomize position
     posWorld.x += (random(seed) - 0.5) * in_posVariation;
@@ -268,17 +282,16 @@ void main() {
     force += windAtPosition(fixedPoint.xyz);
 #endif
 #ifdef USE_COLLISION
-    vec4 collision = getCollisionVector(center);
-    mask *= clamp(collision.w / in_collisionThreshold, 0.0, 1.0);
-    force = mix(force,
-        collision.xz * in_colliderStrength,
-        collision.w / collisionThreshold);
+    vec4 collision = getCollisionVector(fixedPoint);
+    float collisionW = collision.w / in_collisionThreshold;
+    mask *= step(clamp(collisionW, 0.0, 1.0), 0.8);
+    force = mix(force, collision.xz * in_colliderStrength, collisionW);
 #endif
     applyForceBase(posWorld, fixedPoint.xyz, force);
 #endif
 
     gl_Position = transformWorldToScreen(vec4(posWorld.xyz,1.0),layer);
-    out_texco0 = vec2(posModel.x + 0.5, 1.0 - posModel.y);
+    out_texco0 = vec2(posModel.x + 0.5, posModel.y);
     // Randomized color
     out_col = vec3(random(seed)*0.5 + 0.5); // * in_uvDarken;
     gl_ClipDistance[0] = mask - in_maskThreshold;
