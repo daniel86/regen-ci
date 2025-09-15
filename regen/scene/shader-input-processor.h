@@ -312,8 +312,6 @@ namespace regen {
 					else if (numComponents == 4) processTyped<ShaderInput4f,Vec4f,float>(input, s, in);
 					else if (numComponents == 9) processTyped<ShaderInputMat3,Mat3f,float>(input, s, in);
 					else if (numComponents == 16) processTyped<ShaderInputMat4,Mat4f,float>(input, s, in);
-				} else {
-					REGEN_WARN("No processor registered for '" << in->name() << "'.");
 				}
 
 				if (in->name() != input.getValue("name")) {
