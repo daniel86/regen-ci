@@ -76,6 +76,8 @@ namespace regen {
 									break;
 							}
 						}
+					} else if (child->getCategory() == "animation") {
+						// handled in processTyped
 					} else {
 						REGEN_WARN("No processor registered for '" << child->getDescription() << "'.");
 					}
@@ -291,6 +293,29 @@ namespace regen {
 					parent->state();
 				}
 
+				const uint32_t dataType = in->baseType();
+				const uint32_t numComponents = in->valsPerElement();
+				if (dataType == GL_INT) {
+					if (numComponents == 1) processTyped<ShaderInput1i,int,int>(input, s, in);
+					else if (numComponents == 2) processTyped<ShaderInput2i,Vec2i,int>(input, s, in);
+					else if (numComponents == 3) processTyped<ShaderInput3i,Vec3i,int>(input, s, in);
+					else if (numComponents == 4) processTyped<ShaderInput4i,Vec4i,int>(input, s, in);
+				} else if (dataType == GL_UNSIGNED_INT) {
+					if (numComponents == 1) processTyped<ShaderInput1ui,GLuint,unsigned int>(input, s, in);
+					else if (numComponents == 2) processTyped<ShaderInput2ui,Vec2ui,unsigned int>(input, s, in);
+					else if (numComponents == 3) processTyped<ShaderInput3ui,Vec3ui,unsigned int>(input, s, in);
+					else if (numComponents == 4) processTyped<ShaderInput4ui,Vec4ui,unsigned int>(input, s, in);
+				} else if (dataType == GL_FLOAT) {
+					if (numComponents == 1) processTyped<ShaderInput1f,GLfloat,float>(input, s, in);
+					else if (numComponents == 2) processTyped<ShaderInput2f,Vec2f,float>(input, s, in);
+					else if (numComponents == 3) processTyped<ShaderInput3f,Vec3f,float>(input, s, in);
+					else if (numComponents == 4) processTyped<ShaderInput4f,Vec4f,float>(input, s, in);
+					else if (numComponents == 9) processTyped<ShaderInputMat3,Mat3f,float>(input, s, in);
+					else if (numComponents == 16) processTyped<ShaderInputMat4,Mat4f,float>(input, s, in);
+				} else {
+					REGEN_WARN("No processor registered for '" << in->name() << "'.");
+				}
+
 				if (in->name() != input.getValue("name")) {
 					// TODO: there is a problem with renaming of inputs, as state configurer
 					//   uses the name. We can avoid problems in shader generation by adding some macros here manually.
@@ -302,6 +327,26 @@ namespace regen {
 					s->setInput(in,
 						input.getValue("name"),
 						input.getValue<std::string>("member-suffix", ""));
+				}
+			}
+
+			template<class U, class T, typename ValueType>
+			static void processTyped(
+					SceneInputNode &input,
+					const ref_ptr<State> &state,
+					const ref_ptr<ShaderInput> &untyped) {
+				ref_ptr<U> v = ref_ptr<U>::dynamicCast(untyped);
+				// Load animations.
+				for (const auto &n: input.getChildren("animation")) {
+					ref_ptr<InputAnimation<U, T> > inputAnimation = ref_ptr<InputAnimation<U, T> >::alloc(v);
+					for (const auto &m: n->getChildren("key-frame")) {
+						inputAnimation->push_back(
+								m->getValue<T>("value", T()),
+								m->getValue<GLdouble>("dt", 1.0)
+						);
+					}
+					state->attach(inputAnimation);
+					inputAnimation->startAnimation();
 				}
 			}
 
@@ -364,19 +409,6 @@ namespace regen {
 					v->setSchema(schema);
 				} else if (input.hasAttribute("schema")) {
 					v->setSchema(InputSchema::getDefault(semantics));
-				}
-
-				// Load animations.
-				for (const auto &n: input.getChildren("animation")) {
-					ref_ptr<InputAnimation<U, T> > inputAnimation = ref_ptr<InputAnimation<U, T> >::alloc(v);
-					for (const auto &m: n->getChildren("key-frame")) {
-						inputAnimation->push_back(
-								m->getValue<T>("value", defaultValue),
-								m->getValue<GLdouble>("dt", 1.0)
-						);
-					}
-					state->attach(inputAnimation);
-					inputAnimation->startAnimation();
 				}
 
 				return v;

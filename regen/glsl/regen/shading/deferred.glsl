@@ -356,7 +356,18 @@ void main() {
     // TODO: better don't discard and just multiply in the end?
     if(attenuation*nDotL < 0.0) discard;
 #endif
+#ifdef HAS_headlightMask
+    vec4 lightUV = in_viewProjectionMatrix_Light * vec4(P,1.0);
+    lightUV.xy = lightUV.xy*0.5/lightUV.w + 0.5;
+    #ifdef HAS_lightUVScale
+    lightUV.xy *= in_lightUVScale;
+    #endif
+#endif
 
+#ifdef HAS_headlightMask
+    // apply the mask
+    attenuation *= texture(in_headlightMask, lightUV.xy).r;
+#endif
 #ifdef USE_SHADOW_MAP
     float lightNear = in_lightProjParams.x;
     float lightFar = in_lightProjParams.y;

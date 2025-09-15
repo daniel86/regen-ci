@@ -198,9 +198,11 @@ ref_ptr<Light> Light::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 	light->setConeAngles(angles.x, angles.y);
 	ctx.scene()->putState(input.getName(), light);
 
+	std::vector<ref_ptr<scene::SceneInputNode>> visited;
 	// process light node children
 	for (auto &child: input.getChildren()) {
 		if (child->getCategory() == "set") {
+			visited.push_back(child);
 			// set a given light input. The input key is given by the "target" attribute.
 			auto targetName = child->getValue("target");
 			// find the shader input in the light state
@@ -219,6 +221,7 @@ ref_ptr<Light> Light::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 		}
 		if (child->getCategory() == "animation") {
 			auto animationType = child->getValue("type");
+			visited.push_back(child);
 			if (animationType == "boids") {
 				// let a boid simulation change the light positions
 				LoadingContext boidsConfig(ctx.scene(), ctx.parent());
@@ -236,8 +239,22 @@ ref_ptr<Light> Light::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 			}
 		}
 	}
+	// remove visited children
+	for (auto &child : visited) {
+		input.removeChild(child);
+	}
 	if (lightType == Light::SPOT) {
 		light->updateConeMatrix();
+	}
+
+	auto parser = ctx.scene();
+	for (auto &child: input.getChildren()) {
+		auto processor = parser->getStateProcessor(child->getCategory());
+		if (processor.get() == nullptr) {
+			REGEN_WARN("No processor registered for '" << child->getDescription() << "'.");
+			continue;
+		}
+		processor->processInput(parser, *child.get(), ctx.parent(), light);
 	}
 
 	return light;
