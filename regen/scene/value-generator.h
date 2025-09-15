@@ -43,6 +43,7 @@ namespace regen {
 				else if (mode_ == "circle") return nextCircle();
 				else if (mode_ == "fade") return nextFade();
 				else if (mode_ == "random") return nextRandom();
+				else if (mode_ == "index") return nextIndex();
 				else if (mode_ == "constant") return value_;
 				REGEN_WARN("Unknown distribute mode '" << mode_ << "'.");
 				return value_;
@@ -54,6 +55,12 @@ namespace regen {
 			Vec4ui counter_;
 			T value_;
 			std::string mode_;
+
+			T nextIndex() {
+				value_ = T(counter_.x);
+				counter_.x += 1;
+				return value_;
+			}
 
 			T nextRow() {
 				const T stepX = n_->getValue<T>("x-step", T(1));

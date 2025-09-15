@@ -2,10 +2,11 @@
 
 using namespace regen;
 
-TransformAnimation::TransformAnimation(const ref_ptr<ModelTransformation> &tf)
+TransformAnimation::TransformAnimation(const ref_ptr<ModelTransformation> &tf, uint32_t tfIdx)
 		: Animation(false, true),
-		  tf_(tf) {
-	auto currentTransform = tf_->modelMat()->getVertex(0);
+		  tf_(tf),
+		  tfIdx_(tfIdx) {
+	auto currentTransform = tf_->modelMat()->getVertex(tfIdx_);
 	it_ = frames_.end();
 	dt_ = 0.0;
 	setAnimationName(REGEN_STRING("animation-"<<tf->modelMat()->name()));
@@ -86,6 +87,6 @@ void TransformAnimation::animate(GLdouble dt) {
 			currentVal_.scale(initialScale_);
 			currentVal_.translate(currentPos_);
 		}
-		tf_->setModelMat(0, currentVal_);
+		tf_->setModelMat(tfIdx_, currentVal_);
 	}
 }

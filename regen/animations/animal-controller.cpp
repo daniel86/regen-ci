@@ -7,9 +7,10 @@ using namespace regen;
 
 AnimalController::AnimalController(
 			const ref_ptr<ModelTransformation> &tf,
+			uint32_t tfIdx,
 			const ref_ptr<NodeAnimation> &animation,
 			const std::vector<scene::AnimRange> &ranges)
-				: AnimationController(tf, animation, ranges),
+				: AnimationController(tf, tfIdx, animation, ranges),
 				  territoryBounds_(Vec2f::zero(), Vec2f::zero()),
 				  walkSpeed_(0.05f),
 				  runSpeed_(0.1f),

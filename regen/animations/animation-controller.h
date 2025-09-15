@@ -15,6 +15,7 @@ namespace regen {
 	public:
 		AnimationController(
 			const ref_ptr<ModelTransformation> &tf,
+			uint32_t tfIdx,
 			const ref_ptr<NodeAnimation> &animalAnimation,
 			const std::vector<scene::AnimRange> &ranges);
 

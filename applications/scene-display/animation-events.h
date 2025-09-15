@@ -35,6 +35,25 @@ protected:
 	std::vector<regen::scene::AnimRange> animRanges_;
 };
 
+class FixedAnimationRangeUpdater : public EventHandler {
+public:
+	FixedAnimationRangeUpdater(
+			const ref_ptr<NodeAnimation> &anim,
+			const regen::scene::AnimRange &animRange)
+			: EventHandler(),
+			  anim_(anim),
+			  animRange_(animRange) {}
+
+	~FixedAnimationRangeUpdater() override = default;
+	void call(EventObject *ev, EventData *data) override {
+		setAnimationRangeActive(anim_, animRange_);
+	}
+protected:
+	ref_ptr<NodeAnimation> anim_;
+	regen::scene::AnimRange animRange_;
+};
+
+
 class RandomAnimationRangeUpdater2 : public EventHandler {
 public:
 	explicit RandomAnimationRangeUpdater2(

@@ -12,6 +12,8 @@
 #include <regen/scene/resource-manager.h>
 #include <regen/scene/scene-input-xml.h>
 
+#include "regen/animations/npc-controller.h"
+
 using namespace regen::scene;
 using namespace std;
 
@@ -744,7 +746,7 @@ static void handleAssetController(
     auto tf = sceneParser.getResources()->getTransform(
         &sceneParser, animationNode->getValue("tf"));
     auto instanceIndex = animationNode->getValue<int>("instance", 0);
-    ref_ptr<AnimationController> controller;
+	std::vector<ref_ptr<AnimationController>> controller;
 
     if (!tf.get()) {
         REGEN_WARN("Unable to find transform for controller '" << animationNode->getDescription() << "'.");
@@ -752,9 +754,10 @@ static void handleAssetController(
     }
 
     if (controllerType == "animal") {
+    	uint32_t tfIdx = 0; // TODO: support multiple instances
         auto animalController = ref_ptr<AnimalController>::alloc(
-            tf, nodeAnimations[instanceIndex], ranges);
-        controller = animalController;
+            tf, tfIdx, nodeAnimations[instanceIndex], ranges);
+        controller.push_back(animalController);
         animalController->setWorldTime(&sceneParser.application()->worldTime());
         animalController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
         animalController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
@@ -787,12 +790,74 @@ static void handleAssetController(
         }
 
         animalController->startAnimation();
+    } else if (controllerType == "npc") {
+    	controller.reserve(tf->numInstances());
+    	for (int32_t tfIdx=0; tfIdx<tf->numInstances(); tfIdx++) {
+    		REGEN_INFO("Creating NPC controller for instance " << tfIdx);
+    		auto npcController = ref_ptr<NPCController>::alloc(
+				tf, tfIdx, nodeAnimations[tfIdx], ranges);
+			controller.push_back(npcController);
+    		npcController->setWorldTime(&sceneParser.application()->worldTime());
+    		npcController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
+    		npcController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
+    		npcController->setFloorHeight(animationNode->getValue<float>("floor-height", 0.0f));
+    		if (animationNode->hasAttribute("base-orientation")) {
+				npcController->setBaseOrientation(
+					animationNode->getValue<GLfloat>("base-orientation", 0.0f));
+			}
+
+    		npcController->setLaziness(animationNode->getValue<float>("laziness", 0.5f));
+    		npcController->setSpirituality(animationNode->getValue<float>("spirituality", 0.5f));
+
+    		npcController->setMaxHeight(animationNode->getValue<float>("max-height", std::numeric_limits<float>::max()));
+    		npcController->setMinHeight(
+				animationNode->getValue<float>("min-height", std::numeric_limits<float>::lowest()));
+    		//npcController->setHomeBounds(
+			//	animationNode->getValue<Vec2f>("territory-center", Vec2f(0.0)),
+			//	animationNode->getValue<Vec2f>("territory-size", Vec2f(10.0)));
+
+    		if (animationNode->hasAttribute("height-map")) {
+    			auto heightMap = sceneParser.getResources()->getTexture2D(
+					&sceneParser, animationNode->getValue("height-map"));
+    			if (heightMap.get()) {
+    				auto heightMapCenter = animationNode->getValue<Vec2f>("height-map-center", Vec2f(0.0));
+    				auto heightMapSize = animationNode->getValue<Vec2f>("height-map-size", Vec2f(10.0));
+    				auto heightMapFactor = animationNode->getValue<float>("height-map-factor", 8.0f);
+    				npcController->setHeightMap(heightMap, heightMapCenter, heightMapSize, heightMapFactor);
+    			} else {
+    				REGEN_WARN("Unable to find height map for NPC controller.");
+    			}
+    		}
+
+    		// handle children nodes in XML tree
+			for (const auto &x: animationNode->getChildren()) {
+				if (x->getCategory() == string("place")) {
+					// Add place of interest to the controller.
+					// Here we distinguish between "HOME", "SPIRITUAL" and "GATHERING" places.
+					auto placeType = x->getValue<NPCController::PlaceType>(
+						"type", NPCController::PlaceType::PLACE_HOME);
+					auto placePos = x->getValue<Vec2f>("point", Vec2f(0.0f));
+					auto placeRadius = x->getValue<float>("radius", 1.0f);
+					auto place = ref_ptr<NPCController::Place>::alloc(
+						placeType, placePos, placeRadius);
+					npcController->addPlaceOfInterest(place);
+				}
+				/** else if (x->getCategory() == string("object")) {
+
+				} **/
+				else {
+					REGEN_WARN("Unhandled controller child node " << x->getDescription() << ".");
+				}
+			}
+
+    		npcController->startAnimation();
+    	}
     } else {
         REGEN_WARN("Unhandled controller type in '" << animationNode->getDescription() << "'.");
     }
 
-    if (controller.get()) {
-        animations.emplace_back(controller);
+    for (const auto &c: controller) {
+        animations.emplace_back(c);
     }
 }
 
@@ -829,6 +894,17 @@ static void handleAssetAnimationConfiguration(
             evData.eventID = Animation::ANIMATION_STOPPED;
             animStopped->call(anim.get(), &evData);
         }
+    } else if (animationNode->getValue("mode") ==  "fixed") {
+    	for (const auto &anim: nodeAnimations_) {
+    		auto &fixedRange = ranges[0]; // TODO
+    		ref_ptr<EventHandler> animStopped = ref_ptr<FixedAnimationRangeUpdater>::alloc(anim, fixedRange);
+    		anim->connect(Animation::ANIMATION_STOPPED, animStopped);
+    		eventHandler.push_back(animStopped);
+
+    		EventData evData;
+    		evData.eventID = Animation::ANIMATION_STOPPED;
+    		animStopped->call(anim.get(), &evData);
+    	}
     } else if (animationNode->getCategory() == "controller") {
         handleAssetController(sceneParser, animationNode, animations, nodeAnimations_, ranges);
     } else {

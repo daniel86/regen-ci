@@ -4,9 +4,10 @@ using namespace regen;
 
 AnimationController::AnimationController(
 			const ref_ptr<ModelTransformation> &tf,
+			uint32_t tfIdx,
 			const ref_ptr<NodeAnimation> &animalAnimation,
 			const std::vector<scene::AnimRange> &ranges) :
-		TransformAnimation(tf),
+		TransformAnimation(tf, tfIdx),
 		animation_(animalAnimation),
 		animationRanges_(ranges),
 		tf_(tf) {

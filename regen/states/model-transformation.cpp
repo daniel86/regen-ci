@@ -543,7 +543,8 @@ static void transformAnimation(
 							   << child->getDescription() << " has no model matrix.");
 			return;
 		}
-		auto transformAnimation = ref_ptr<TransformAnimation>::alloc(tf);
+		auto transformAnimation = ref_ptr<TransformAnimation>::alloc(tf,
+			child->getValue<uint32_t>("tf-id", 0u));
 
 		if (child->hasAttribute("mesh-id")) {
 			auto meshID = child->getValue("mesh-id");
