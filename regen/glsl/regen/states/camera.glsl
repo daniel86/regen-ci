@@ -31,9 +31,11 @@
 #if SHADER_STAGE == tes
 #define TES_CAMERA_TRANSFORM
 #endif
-#if RENDER_LAYER == 1
+#ifndef HAS_layer
+    #if RENDER_LAYER == 1
 #define in_layer 0
-#endif // RENDER_LAYER == 1
+    #endif // RENDER_LAYER == 1
+#endif
 // Macros for Layered Camera access
 #ifdef IS_ARRAY_viewMatrix
     #define REGEN_VIEW_(layer) in_viewMatrix[layer]

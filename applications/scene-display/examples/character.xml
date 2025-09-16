@@ -624,7 +624,6 @@
     </mesh>
 
     <node id="Particle-Update-FBO">
-        <define key="USE_SOFT_PARTICLES" value="TRUE"/>
         <define key="USE_NEAR_CAMERA_SOFT_PARTICLES" value="FALSE"/>
         <depth test="0" write="0"/>
 

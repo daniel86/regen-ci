@@ -79,6 +79,8 @@ namespace regen {
 			MAPPING_INSTANCE_REFRACTION,
 			/** Use XZ coordinates for mapping. */
 			MAPPING_XZ_PLANE,
+			/** Triplanar mapping. */
+			MAPPING_TRIPLANAR,
 			/** User defined mapping. */
 			MAPPING_CUSTOM
 		};
@@ -244,6 +246,11 @@ namespace regen {
 		void set_texcoTransfer(TransferTexco mode);
 
 		/**
+		 * @param scale Specifies a scale factor for texture coordinates.
+		 */
+		void set_texcoScale(float scale);
+
+		/**
 		 * Specifies how texture coordinates are transferred before sampling.
 		 * @param function specification of a shader function that should be used.
 		 */
@@ -295,7 +302,7 @@ namespace regen {
 	protected:
 		static GLuint idCounter_;
 
-		GLuint stateID_;
+		uint32_t stateID_;
 
 		ref_ptr<Texture> texture_;
 		std::string name_;
@@ -304,11 +311,12 @@ namespace regen {
 		BlendMode blendMode_;
 		Mapping mapping_;
 		MapTo mapTo_;
-		GLfloat blendFactor_;
+		float blendFactor_;
+		float texcoScale_ = 1.0f;
 
-		GLuint texcoChannel_;
+		uint32_t texcoChannel_;
 
-		GLboolean ignoreAlpha_;
+		bool ignoreAlpha_;
 
 		ref_ptr<ShaderFunction> blendFunction_;
 		ref_ptr<ShaderFunction> mappingFunction_;

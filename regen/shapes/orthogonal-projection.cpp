@@ -3,18 +3,20 @@
 #include "frustum.h"
 
 #define FRUSTUM_TRIANGLE_TOLERANCE 0.75
+#define FRUSTUM_USE_CONVEX_HULL
 
 using namespace regen;
 
-template<int Count>
-std::pair<float, float> project(const std::vector<Vec2f> &points, const Vec2f &axis) {
-	std::array<float, Count> projections{};
-	std::transform(points.begin(), points.end(), projections.begin(),
-				   [&axis](const Vec2f &point) {
-					   return point.dot(axis);
-				   });
-	auto [minIt, maxIt] = std::minmax_element(projections.begin(), projections.end());
-	return {*minIt, *maxIt};
+static inline void project(const std::vector<Vec2f> &points, OrthogonalProjection::Axis &axis) {
+	float mn = std::numeric_limits<float>::infinity();
+	float mx = -std::numeric_limits<float>::infinity();
+	for (const auto &p : points) {
+		float v = p.dot(axis.dir);
+		if (v < mn) mn = v;
+		if (v > mx) mx = v;
+	}
+	axis.min = mn;
+	axis.max = mx;
 }
 
 static inline Vec2f perpendicular(const Vec2f &v) {
@@ -74,26 +76,14 @@ void OrthogonalProjection::update(const BoundingShape &shape) {
 					Axis(perpendicular(points[3] - points[0]))
 			};
 			for (auto &axis: axes) {
-				auto [axisMin, axisMax] = project<4>(points, axis.dir);
-				axis.min = axisMin;
-				axis.max = axisMax;
+				project(points, axis);
 			}
 			break;
 		}
 		case BoundingShapeType::FRUSTUM: {
 			auto *frustum = dynamic_cast<const Frustum *>(&shape);
-			if (frustum->fov > 0.0) {
-				double farToNear = sqrt(
-					pow(frustum->points[0].x - frustum->points[4].x, 2) +
-					pow(frustum->points[0].z - frustum->points[4].z, 2));
-				if (farToNear > (frustum->far - frustum->near) * FRUSTUM_TRIANGLE_TOLERANCE) {
-					frustumProjectionTriangle(*frustum);
-				} else {
-					frustumProjectionRectangle(*frustum);
-				}
-			} else {
-				frustumProjectionRectangle(*frustum);
-			}
+			// use the convex hull of the frustum points as projection
+			createConvexHull(frustum->points, 8);
 			break;
 		}
 	}
@@ -118,143 +108,64 @@ void OrthogonalProjection::update(const BoundingShape &shape) {
 	}
 }
 
-void OrthogonalProjection::frustumProjectionRectangle(const Frustum &frustum) {
-	// approximate the frustum with a rectangle.
-	// To this end start with the 4 corners of the far plane,
-	// and then extend the rectangle to include the near plane.
-	// This should be a perfect fit in case of parallel projections.
-	type = OrthogonalProjection::Type::RECTANGLE;
-	auto *planePoints = frustum.points;
-	points.resize(4);
-	// the center points of near/far plane projection
-	Vec2f nearCenter_2D(0.0f), farCenter_2D(0.0f);
-	// the near plane points projected to the xz-plane
-	std::array<Vec2f, 4> nearPoints_2D;
-	for (int i = 0; i < 4; i++) {
-		// initialize with the far plane points
-		points[i] = Vec2f(planePoints[i + 4].x, planePoints[i + 4].z);
-		// project the near plane points
-		nearPoints_2D[i] = Vec2f(planePoints[i].x, planePoints[i].z);
-		farCenter_2D += points[i];
-		nearCenter_2D += nearPoints_2D[i];
-	}
-	farCenter_2D /= 4.0f;
-	nearCenter_2D /= 4.0f;
-	// distance between 2D projections of near/far plane centers
-	auto centerDistance = (farCenter_2D - nearCenter_2D).length();
-	// next find the two near plane points that are the farthest away from the far plane center
-	std::array<std::pair<float, int>, 4> distances;
-	for (int i = 0; i < 4; ++i) {
-		distances[i] = {(nearPoints_2D[i] - farCenter_2D).length(), i};
-	}
-	std::sort(distances.begin(), distances.end(), [](const auto &a, const auto &b) {
-		return a.first < b.first;
-	});
-	auto x_i1 = std::min(distances[0].second, distances[1].second);
-	auto x_i2 = std::max(distances[0].second, distances[1].second);
-	if (x_i1 == 0) {
-		auto buf = x_i1;
-		x_i1 = x_i2;
-		x_i2 = buf;
-	}
-	// x_i3/4 are the indices where the corner points of far plane must be adjusted
-	auto x_i4 = (x_i1 - 1) % 4;
-	auto x_i3 = (x_i2 + 1) % 4;
-	// edge length of near plane in 2D
-	auto near_d1 = (nearPoints_2D[x_i3] - nearPoints_2D[x_i1]).length();
-	// edge length of far plane in 2D
-	auto far_d1 = (points[x_i3] - points[x_i1]).length();
-	// compute adjusted edge length of the rectangle
-	auto edgeLength = std::max(far_d1, centerDistance + (far_d1 + near_d1) * 0.5f);
-	// finally scale the rectangle to include the near plane
-	auto dir = (points[x_i3] - points[x_i1]).normalize();
-	points[x_i4] = points[x_i1] + dir * edgeLength;
-	points[x_i3] = points[x_i2] + dir * edgeLength;
-	// axes of the rectangle
-	axes = {
-			Axis(Vec2f(1, 0)),
-			Axis(Vec2f(0, 1)),
-			Axis(perpendicular(points[1] - points[0])),
-			Axis(perpendicular(points[3] - points[0]))
-	};
-	for (auto &axis: axes) {
-		auto [axisMin, axisMax] = project<4>(points, axis.dir);
-		axis.min = axisMin;
-		axis.max = axisMax;
-	}
+// Helper for cross product (2D, z-component)
+static inline float cross(const Vec2f& O, const Vec2f& A, const Vec2f& B) {
+	return (A.x - O.x) * (B.y - O.y) - (A.y - O.y) * (B.x - O.x);
 }
 
-void OrthogonalProjection::frustumProjectionTriangle(const regen::Frustum &frustum) {
-	type = OrthogonalProjection::Type::TRIANGLE;
-	points.resize(3);
+void OrthogonalProjection::createConvexHull(const Vec3f *inputPoints, uint32_t numPoints) {
+	type = OrthogonalProjection::Type::CONVEX_HULL;
 
-	// Frustum origin in world space, projected to XZ
-	auto &basePoint = frustum.translation();
-	points[0] = Vec2f(basePoint.x, basePoint.z);
-
-#if 0
-	// Project far plane points onto the xz plane
-	auto *farPlanePoints = frustum.points;
-	std::array<Vec2f, 4> farPoints2D;
-	Vec2f farPlaneCenter2D;
-	for (int i = 0; i < 4; ++i) {
-		farPoints2D[i] = Vec2f(farPlanePoints[i + 4].x, farPlanePoints[i + 4].z);
-		farPlaneCenter2D += farPoints2D[i];
+	// Project into 2D (xz-plane) and sort lexicographically (x, then y)
+	if (tmpPoints.size() != numPoints) {
+		tmpPoints.resize(numPoints);
 	}
-	farPlaneCenter2D *= 0.25f; // Center of all far frustum points
-	auto baseToCenter = farPlaneCenter2D - points[0];
-	baseToCenter.normalize();
-	// Compute the scores based on angle
-	std::array<std::pair<float, int>, 4> scores;
-	for (int i = 0; i < 4; ++i) {
-		auto baseToPt = farPoints2D[i] - points[0];
-		baseToPt.normalize();
-		scores[i] = { baseToPt.dot(baseToCenter), i};
+	for (uint32_t i = 0; i < numPoints; ++i) {
+		tmpPoints[i].x = inputPoints[i].x;
+		tmpPoints[i].y = inputPoints[i].z;
 	}
-	// Sort the angles to find the maximum
-	std::sort(scores.begin(), scores.end(), [](const auto &a, const auto &b) {
-		return a.first > b.first;
+	std::sort(tmpPoints.begin(), tmpPoints.end(), [](const Vec2f& a, const Vec2f& b) {
+		return (a.x < b.x) || (a.x == b.x && a.y < b.y);
 	});
-	points[1] = farPoints2D[scores[0].second];
-	points[2] = farPoints2D[scores[1].second];
-	if ((points[1] - points[2]).length() < std::numeric_limits<float>::epsilon()) {
-		// If the two points are the same, switch the last two point
-		points[2] = farPoints2D[scores[2].second];
+
+	// Build lower hull + upper hull
+	std::vector<Vec2f> hull;
+	hull.reserve(numPoints * 2);
+	for (const auto& p : tmpPoints) {
+		while (hull.size() >= 2 && cross(hull[hull.size()-2], hull.back(), p) <= 0) {
+			hull.pop_back();
+		}
+		hull.push_back(p);
 	}
-#else
-	// Get far plane points in 2D (XZ)
-	auto *fp = frustum.points;
-	std::array<Vec2f, 4> farPoints2D = {
-		Vec2f(fp[4].x, fp[4].z), // bottom right
-		Vec2f(fp[5].x, fp[5].z), // top left
-		Vec2f(fp[6].x, fp[6].z), // top right
-		Vec2f(fp[7].x, fp[7].z)  // bottom left
-	};
-
-	// Pick two far plane points that form a triangle base with the origin.
-	// Here, use bottom left (7) and bottom right (4).
-	points[1] = farPoints2D[3]; // bottom left
-	points[2] = farPoints2D[0]; // bottom right
-
-	// Ensure non-degenerate triangle (could add fallback if needed)
-	if ((points[1] - points[2]).length() < std::numeric_limits<float>::epsilon()) {
-		points[2] = farPoints2D[2]; // fallback to top right
+	size_t lowerSize = hull.size();
+	for (int i = int(tmpPoints.size()) - 2; i >= 0; --i) {
+		const auto& p = tmpPoints[i];
+		while (hull.size() > lowerSize && cross(hull[hull.size()-2], hull.back(), p) <= 0) {
+			hull.pop_back();
+		}
+		hull.push_back(p);
 	}
-#endif
+	if (!hull.empty()) hull.pop_back();
 
-	// Build axes for SAT test
-	axes = {
-		Axis(Vec2f(1, 0)),                          // x-axis
-		Axis(Vec2f(0, 1)),                          // z-axis
-		Axis(perpendicular(points[1] - points[0])),   // triangle edge 1
-		Axis(perpendicular(points[2] - points[1])),   // triangle edge 2
-		Axis(perpendicular(points[0] - points[2]))    // triangle edge 3
-	};
+	// Save result + Compute SAT axes from polygon edges
+	points = hull;
+	axes.clear();
+	axes.reserve(points.size() + 2); // +2 for world axes
+	size_t N = points.size();
+	for (size_t i = 0; i < N; ++i) {
+		Vec2f edge = points[(i + 1) % N] - points[i];
+		if (edge.lengthSquared() < 1e-12f) continue; // skip degenerate edges
+		// Note: normalization is not strictly necessary for SAT
+		axes.emplace_back(Vec2f(-edge.y, edge.x));
+	}
 
-	// Project triangle onto each axis and store min/max
-	for (auto &axis : axes) {
-		auto [minP, maxP] = project<3>(points, axis.dir);
-		axis.min = minP;
-		axis.max = maxP;
+	// add world X/Y axes for fast early rejection
+	// note: this is not strictly necessary for correctness.
+	axes.emplace_back(Vec2f(1.0f, 0.0f));
+	axes.emplace_back(Vec2f(0.0f, 1.0f));
+
+	// Precompute projections along each axis for SAT
+	for (auto& axis : axes) {
+		project(points, axis);
 	}
 }

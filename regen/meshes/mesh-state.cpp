@@ -515,6 +515,22 @@ void Mesh::setLODThresholds(const Vec3f &thresholds) {
 
 void Mesh::setMeshLODs(const std::vector<MeshLOD> &meshLODs) {
 	meshLODs_ = meshLODs;
+	for (auto &lod : meshLODs_) {
+		if (lod.impostorMesh.get()) {
+			if(cullShape_.get()) {
+				lod.impostorMesh->setCullShape(cullShape_);
+			}
+			if(instanceBuffer_.get()) {
+				lod.impostorMesh->setInstanceBuffer(instanceBuffer_);
+			}
+			if(indirectDrawBuffer_.get()) {
+				lod.impostorMesh->setIndirectDrawBuffer(
+					indirectDrawBuffer_,
+					baseDrawIdx_,
+					numDrawLayers_);
+			}
+		}
+	}
 }
 
 void Mesh::addMeshLOD(const MeshLOD &meshLOD) {

@@ -140,6 +140,10 @@ vector<ref_ptr<Light> > AssetImporter::loadLights() {
 		aiLight *assimpLight = scene_->mLights[i];
 		// node could be animated, but for now it is ignored
 		aiNode *node = nodes_[string(assimpLight->mName.data)];
+		if (node == nullptr) {
+			REGEN_WARN("Light '" << assimpLight->mName.data << "' has no corresponding node.");
+			continue;
+		}
 		aiVector3D lightPos = node->mTransformation * assimpLight->mPosition;
 
 		ref_ptr<Light> light;
@@ -1277,11 +1281,14 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 		}
 		if (input.getValue<bool>("gen-normals", false)) {
 			asset->setAiProcessFlag(aiProcess_GenNormals);
-		}
-		if (input.getValue<bool>("gen-smooth-normals", false)) {
+		} else if (input.getValue<bool>("gen-smooth-normals", false)) {
 			asset->setAiProcessFlag(aiProcess_GenSmoothNormals);
 		}
-		if (input.getValue<bool>("gen-uv-coords", false)) {
+		if (input.getValue<bool>("force-gen-normals", false)) {
+			asset->setAiProcessFlag(aiProcess_ForceGenNormals);
+		}
+		if (input.getValue<bool>("gen-uv-coords", false) ||
+					input.getValue<bool>("gen-uv", false)) {
 			asset->setAiProcessFlag(aiProcess_GenUVCoords);
 		}
 		if (input.getValue<bool>("flip-uvs", false)) {
@@ -1296,11 +1303,28 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 		if (input.getValue<bool>("optimize-graph", false)) {
 			asset->setAiProcessFlag(aiProcess_OptimizeGraph);
 		}
+		if (input.getValue<bool>("optimize-meshes", false)) {
+			asset->setAiProcessFlag(aiProcess_OptimizeMeshes);
+		}
+		if (input.getValue<bool>("triangulate", true)) {
+			asset->setAiProcessFlag(aiProcess_Triangulate);
+		}
+		if (input.getValue<bool>("calc-tangent-space", false) ||
+					input.getValue<bool>("gen-tangents", false)) {
+			asset->setAiProcessFlag(aiProcess_CalcTangentSpace);
+		}
 		asset->setAnimationConfig(animConfig);
 		if (input.getValue<bool>("ignore-normal-map", false)) {
 			asset->setImportFlags(AssetImporter::IGNORE_NORMAL_MAP);
 		}
 		asset->importAsset();
+
+		REGEN_INFO("Loaded Asset '" << assetPath << "' with " <<
+			getMeshCount(asset->scene_->mRootNode) << " meshes, " <<
+			asset->materials().size() << " materials, " <<
+			asset->lights().size() << " lights, " <<
+			asset->getNodeAnimations().size() << " animations.");
+
 		return asset;
 	}
 	catch (AssetImporter::Error &e) {

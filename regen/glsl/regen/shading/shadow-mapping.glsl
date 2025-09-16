@@ -97,11 +97,11 @@ float shadowGaussian(samplerCubeShadow tex, vec4 coord, float texelSize)
 -- sampling.dir
 #include regen.shading.shadow-mapping.filtering.all
 
-vec4 dirShadowCoord(int layer, vec3 posWorld, mat4 lightMatrix)
-{
+vec4 dirShadowCoord(int layer, vec3 posWorld, mat4 lightMatrix) {
     // transform this fragment's position from world space to scaled light clip space
     // such that the xy coordinates are in [0;1]
     vec4 shadowCoord = lightMatrix*vec4(posWorld,1.0);
+    shadowCoord.xyz /= shadowCoord.w;
     shadowCoord.w = shadowCoord.z;
     // tell glsl in which layer to do the look up
     shadowCoord.z = float(layer);

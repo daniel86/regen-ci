@@ -1,6 +1,6 @@
 
 -- softParticleScale
-#ifdef USE_SOFT_PARTICLES
+#ifdef HAS_softParticleScale
 // soft particles fade away where they intersect the scene
 float softParticleScale()
 {
@@ -105,12 +105,12 @@ const float in_cameraSmoothstep = 5.0;
 uniform vec4 in_cameraPosition;
 uniform vec2 in_viewport;
 
-#ifdef USE_SOFT_PARTICLES
+#ifdef HAS_softParticleScale
 #include regen.states.camera.input
 uniform sampler2D in_depthTexture;
 #endif
 
-#ifdef USE_SOFT_PARTICLES
+#ifdef HAS_softParticleScale
 #include regen.states.camera.linearizeDepth
 #include regen.particles.sprite.softParticleScale
 const float in_softParticleScale = 1.0;
@@ -130,9 +130,10 @@ const float in_softParticleScale = 1.0;
 
 void main() {
     vec3 P = in_posWorld.xyz;
+    vec3 N = normalize(in_posWorld.xyz - in_cameraPosition.xyz);
     float opacity = 1.0;
     
-#ifdef USE_SOFT_PARTICLES
+#ifdef HAS_softParticleScale
     // fade out particles intersecting the world
     opacity *= softParticleScale();
 #endif
@@ -166,7 +167,7 @@ void main() {
     textureMappingFragmentUnshaded(P, out_color);
     #endif
     #if ${NUM_LIGHTS} > 0
-    vec3 diffuseColor = getDiffuseLight(P, gl_FragCoord.z);
+    vec3 diffuseColor = getDiffuseLight(P, N, gl_FragCoord.z);
     out_color.rgb *= diffuseColor;
     #endif
     // apply the brightness of the particle

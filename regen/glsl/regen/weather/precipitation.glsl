@@ -28,13 +28,18 @@ void updateParticle(inout uint seed)
 }
 
 -- isRespawnRequired
-bool isRespawnRequired()
-{
-    return (in_lifetime<0.01)
-#ifdef HAS_surfaceHeight
-        || (in_pos.y<in_surfaceHeight)
+bool isRespawnRequired() {
+    bool isDead = (in_lifetime<0.01) ||
+        (in_pos.y<in_cameraPosition.y-in_emitterCone.y);
+#ifdef HAS_mapCenter
+    vec2 mapUV = (in_pos.xz - in_mapCenter) / in_mapSize + 0.5;
+    float heightAtPos = texture(in_heightMap, mapUV).r * in_mapFactor - in_mapFactor*0.5;
+    isDead = isDead || (in_pos.y < heightAtPos);
 #endif
-        || (in_pos.y<in_cameraPosition.y-in_emitterCone.y);
+#ifdef HAS_surfaceHeight
+    isDead = isDead || (in_pos.y < in_surfaceHeight);
+#endif
+    return isDead;
 }
 
 -- update.includes

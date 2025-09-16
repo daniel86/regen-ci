@@ -35,6 +35,16 @@ float FreeList::getFragmentationScore() const {
 	return score / static_cast<float>(activeCount_); // % tiny nodes
 }
 
+uint32_t FreeList::getMaxFreeSize() const {
+	uint32_t maxSize = 0;
+	for (size_t i = 0; i < activeCount_; ++i) {
+		if (nodes_[i].size > maxSize) {
+			maxSize = nodes_[i].size;
+		}
+	}
+	return maxSize;
+}
+
 std::pair<bool, uint32_t> FreeList::reserve(uint32_t size) {
 	for (size_t i = 0; i < activeCount_; ++i) {
 		Node &node = nodes_[i];

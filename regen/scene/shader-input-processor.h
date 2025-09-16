@@ -59,21 +59,28 @@ namespace regen {
 				}
 				for (auto &child: input.getChildren()) {
 					if (child->getCategory() == "set") {
-						std::list<GLuint> indices = child->getIndexSequence(count);
+						std::list<scene::IndexRange> indices = child->getIndexSequence(count);
 						auto blendMode = child->getValue<BlendMode>("blend-mode", BLEND_MODE_SRC);
-						ValueGenerator<T> generator(child.get(), indices.size(),
+
+						uint32_t numInstances = 0;
+						for (auto &range : indices) {
+							numInstances += (range.to - range.from) / range.step + 1;
+						}
+						ValueGenerator<T> generator(child.get(), numInstances,
 													child->getValue<T>("value", T(1)));
-						for (unsigned int & index : indices) {
-							switch (blendMode) {
-								case BLEND_MODE_ADD:
-									v_values.w[index] = v_values.r[index] + generator.next();
-									break;
-								case BLEND_MODE_MULTIPLY:
-									v_values.w[index] = v_values.r[index] * generator.next();
-									break;
-								default:
-									v_values.w[index] = generator.next();
-									break;
+						for (auto &range : indices) {
+							for (unsigned int j = range.from; j <= range.to; j = j + range.step) {
+								switch (blendMode) {
+									case BLEND_MODE_ADD:
+										v_values.w[j] = v_values.r[j] + generator.next();
+										break;
+									case BLEND_MODE_MULTIPLY:
+										v_values.w[j] = v_values.r[j] * generator.next();
+										break;
+									default:
+										v_values.w[j] = generator.next();
+										break;
+								}
 							}
 						}
 					} else if (child->getCategory() == "animation") {

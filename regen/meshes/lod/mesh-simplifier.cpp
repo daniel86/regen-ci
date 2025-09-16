@@ -874,7 +874,7 @@ void MeshSimplifier::simplifyMesh() {
 			collapseCount = generateLodLevel(lodFaces[lodLevel], levelData);
 		}
 		if (collapseCount == 0) {
-			REGEN_INFO("Mesh simplifier: No more collapses possible, stopping.");
+			REGEN_DEBUG("Mesh simplifier: No more collapses possible, stopping.");
 			// remove all remaining LOD levels
 			lodLevels_.resize(lodLevels_.size() - 1);
 			break;
@@ -883,7 +883,7 @@ void MeshSimplifier::simplifyMesh() {
 			auto &compactData = lodData_.emplace_back();
 			compactData.offset = vertexOffset_;
 			compactLodLevel(levelData, compactData, lodLevels_[lodLevel]);
-			REGEN_INFO("LOD level " << lodLevels_.size() - 1 << ":"
+			REGEN_DEBUG("LOD level " << lodLevels_.size() - 1 << ":"
 									<< " #faces=" << lodLevels_[lodLevel].size()
 									<< " #verts=" << compactData.pos.size()
 									<< " #collapses=" << collapseCount
@@ -911,14 +911,17 @@ uint32_t MeshSimplifier::createOutputAttributes() {
 		numVertices -= inputPos_->numVertices();
 		numIndices -= lodLevels_.front().size() * 3;
 	}
+
+	// create a new index buffer
+	outputIndices_ = createIndexInput(numIndices, numVertices);
 	REGEN_INFO("Mesh simplified:"
 					   << " #lods=" << (lodLevels_.size() - (useOriginal ? 0 : 1))
 					   << " #faces=" << numIndices / 3
 					   << " #verts=" << numVertices
-					   << " #indices=" << numIndices);
+					   << " #indices=" << numIndices
+					   << " out-index-type=0x" << std::hex << outputIndices_->baseType() << std::dec
+					   << " in-index-type=0x" << std::hex << inputIndices_->baseType() << std::dec);
 
-	// create a new index buffer
-	outputIndices_ = createIndexInput(numIndices, numVertices);
 	auto v_indices = (byte*) outputIndices_->clientData();
 	auto indexType = outputIndices_->baseType();
 	uint32_t v_idx = 0;

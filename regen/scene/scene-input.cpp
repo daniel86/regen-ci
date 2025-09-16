@@ -14,12 +14,13 @@ using namespace std;
 #include <regen/utility/string-util.h>
 
 static void pushIndexToSequence(
-		GLuint numIndices, list<GLuint> &indices, GLuint index) {
-	if (index >= numIndices) {
-		REGEN_WARN("Invalid index: " << index << ">=" << numIndices << ".");
+		GLuint numIndices, list<IndexRange> &indices, const IndexRange &indexRange) {
+	if (indexRange.from >= numIndices || indexRange.to >= numIndices) {
+		REGEN_WARN("Invalid index range " << indexRange.from << "-" << indexRange.to
+				<< " for numIndices=" << numIndices << ".");
 		return;
 	}
-	indices.push_back(index);
+	indices.push_back(indexRange);
 }
 
 ////////////////
@@ -53,36 +54,37 @@ string SceneInputNode::getDescription() {
 	return ss.str();
 }
 
-list<GLuint> SceneInputNode::getIndexSequence(GLuint numIndices) {
-	list<GLuint> indices;
+list<IndexRange> SceneInputNode::getIndexSequence(GLuint numIndices) {
+	list<IndexRange> indices;
 	if (hasAttribute("index")) {
-		pushIndexToSequence(numIndices, indices, getValue<GLint>("index", 0u));
+		pushIndexToSequence(numIndices, indices,
+			IndexRange(getValue<GLint>("index", 0u)));
+	} else if (hasAttribute("instance")) {
+		pushIndexToSequence(numIndices, indices,
+			IndexRange(getValue<GLint>("instance", 0u)));
 	} else if (hasAttribute("from-index") || hasAttribute("to-index")) {
 		auto from = getValue<GLuint>("from-index", 0u);
 		auto to = getValue<GLuint>("to-index", numIndices - 1);
 		auto step = getValue<GLuint>("index-step", 1u);
-		for (GLuint i = from; i <= to; i += step) {
-			pushIndexToSequence(numIndices, indices, i);
-		}
+		pushIndexToSequence(numIndices, indices,
+			IndexRange(from, to, step));
 	} else if (hasAttribute("indices")) {
 		const auto indicesAtt = getValue<string>("indices", "0");
 		vector<string> indicesStr;
 		boost::split(indicesStr, indicesAtt, boost::is_any_of(","));
 		for (auto & it : indicesStr)
-			pushIndexToSequence(numIndices, indices, atoi(it.c_str()));
+			pushIndexToSequence(numIndices, indices, IndexRange(atoi(it.c_str())));
 	} else if (hasAttribute("random-indices")) {
 		auto indexCount = getValue<GLuint>("random-indices", numIndices);
 		while (indexCount > 0) {
 			--indexCount;
-			pushIndexToSequence(numIndices, indices, rand() % numIndices);
+			pushIndexToSequence(numIndices, indices, IndexRange(rand() % numIndices));
 		}
 	}
 
 	if (indices.empty()) {
 		// If no indices found, add all
-		for (GLuint i = 0; i < numIndices; i += 1) {
-			pushIndexToSequence(numIndices, indices, i);
-		}
+		indices.emplace_back(0, numIndices - 1, 1);
 	}
 	return indices;
 }

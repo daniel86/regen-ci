@@ -92,7 +92,7 @@ in vec${_DIM} in_${_TEXCO};
 #for INDEX to NUM_TEXTURES
 #define2 _ID ${TEX_ID${INDEX}}
 #define2 _MAPPING ${TEX_MAPPING_KEY${_ID}}
-  #if ${_MAPPING} != regen.states.textures.texco_texco && TEX_MAPPING_KEY${_ID} != regen.states.textures.texco_custom
+  #if ${_MAPPING} != regen.states.textures.texco_texco && TEX_MAPPING_KEY${_ID} != regen.states.textures.texco_triplanar && TEX_MAPPING_KEY${_ID} != regen.states.textures.texco_custom
 #include ${_MAPPING}
   #endif
 #endfor
@@ -125,7 +125,29 @@ in vec${_DIM} in_${_TEXCO};
 #endif
 #define2 _MAPPING_ ${TEX_MAPPING_NAME${_ID}}
 
-#if _MAPPING_!=texco_texco
+#if _MAPPING_==texco_triplanar
+    #ifdef IS_ANIMATED
+        // TODO: for animated objects probably better to use object-space projection!
+    #endif
+    // compute 2D coords for each projection
+    #ifdef USE_JITTER
+    float _seed${_ID} = fract(sin(INSTANCE_ID * 12.9898) * 43758.5453);
+    vec3 jitter${_ID} = vec3(_seed${_ID}) * 0.001; // small offset
+    vec2 texco_x${_ID} = (P.yz + jitter${_ID}.yz) * TEXCO_SCALE${_ID};
+    vec2 texco_y${_ID} = (P.xz + jitter${_ID}.xz) * TEXCO_SCALE${_ID};
+    vec2 texco_z${_ID} = (P.xy + jitter${_ID}.xy) * TEXCO_SCALE${_ID};
+    #else
+    vec2 texco_x${_ID} = P.yz * TEXCO_SCALE${_ID};
+    vec2 texco_y${_ID} = P.xz * TEXCO_SCALE${_ID};
+    vec2 texco_z${_ID} = P.xy * TEXCO_SCALE${_ID};
+    #endif
+    // compute raw weights from normal axes
+    vec3 w${_ID} = abs(N);
+    // normalize weights (avoid div0)
+    float sumw${_ID} = max(w${_ID}.x + w${_ID}.y + w${_ID}.z, 1e-6);
+    w${_ID} /= sumw${_ID};
+
+#elif _MAPPING_!=texco_texco
     #ifndef REGEN_texco_${_TEXCO_CTX}_${_MAPPING_}_
         #define2 REGEN_texco_${_TEXCO_CTX}_${_MAPPING_}_
     // generate texco
@@ -182,7 +204,16 @@ in vec${_DIM} in_${_TEXCO};
 #endif // _MAPPING_==regen.states.textures.texco_texco
 
 -- sampleTexel
+#if TEX_MAPPING_NAME${_ID}==texco_triplanar
+    // sample the three projections and blend with weights
+    vec4 tex_x${INDEX} = texture(in_${TEX_NAME${_ID}}, texco_x${_ID});
+    vec4 tex_y${INDEX} = texture(in_${TEX_NAME${_ID}}, texco_y${_ID});
+    vec4 tex_z${INDEX} = texture(in_${TEX_NAME${_ID}}, texco_z${_ID});
+    vec4 texel${INDEX} = tex_x${INDEX} * w${_ID}.x +
+            tex_y${INDEX} * w${_ID}.y + tex_z${INDEX} * w${_ID}.z;
+#else // _MAPPING_==texco_triplanar
     vec4 texel${INDEX} = texture(in_${TEX_NAME${_ID}}, ${REGEN_TEXCO${_ID}_});
+#endif // _MAPPING_==texco_triplanar
 #ifdef TEX_IGNORE_ALPHA${_ID}
     texel${INDEX}.a = 1.0;
 #endif
@@ -299,6 +330,7 @@ void textureMappingFragment(in vec3 P, inout vec4 C, inout vec3 N)
 #define2 _ID ${TEX_ID${INDEX}}
 #define2 _TEXCO_CTX textureMappingFragment
 #define2 _MAPTO ${TEX_MAPTO${_ID}}
+#define2 _MAPPING ${TEX_MAPPING_NAME${_ID}}
     #if _MAPTO == NORMAL
         #ifndef FS_NO_OUTPUT
     // compute normal map texco
@@ -309,6 +341,7 @@ void textureMappingFragment(in vec3 P, inout vec4 C, inout vec3 N)
 #for INDEX to NUM_TEXTURES
 #define2 _ID ${TEX_ID${INDEX}}
 #define2 _MAPTO ${TEX_MAPTO${_ID}}
+#define2 _MAPPING ${TEX_MAPPING_NAME${_ID}}
     #if _MAPTO == NORMAL
         #ifndef FS_NO_OUTPUT
     // sample normal map
@@ -416,6 +449,7 @@ void textureMappingLight(
 #for INDEX to NUM_TEXTURES
 #define2 _ID ${TEX_ID${INDEX}}
 #define2 _TEXCO_CTX textureMappingLight
+#define2 _MAPPING ${TEX_MAPPING_NAME${_ID}}
 #if TEX_MAPTO${_ID}==AMBIENT || TEX_MAPTO${_ID}==DIFFUSE || TEX_MAPTO${_ID}==SPECULAR || TEX_MAPTO${_ID}==EMISSION || TEX_MAPTO${_ID}==LIGHT || TEX_MAPTO${_ID}==SHININESS
 #include regen.states.textures.computeTexco
 #endif // ifLightMapping
@@ -423,6 +457,7 @@ void textureMappingLight(
     // sample texels
 #for INDEX to NUM_TEXTURES
 #define2 _ID ${TEX_ID${INDEX}}
+#define2 _MAPPING ${TEX_MAPPING_NAME${_ID}}
 #if TEX_MAPTO${_ID}==AMBIENT || TEX_MAPTO${_ID}==DIFFUSE || TEX_MAPTO${_ID}==SPECULAR || TEX_MAPTO${_ID}==EMISSION || TEX_MAPTO${_ID}==LIGHT || TEX_MAPTO${_ID}==SHININESS
 #include regen.states.textures.sampleTexel
 #endif // ifLightMapping
@@ -434,7 +469,7 @@ void textureMappingLight(
 #define2 _MAPTO ${TEX_MAPTO${_ID}}
   #if _MAPTO == AMBIENT
     // The texture is combined with the result of the ambient lighting equation.
-    ${_BLEND}( texel${INDEX}.rgb, mat.ambient, ${TEX_BLEND_FACTOR${_ID}} );
+    ${_BLEND}( texel${INDEX}.rgb, mat.diffuse, ${TEX_BLEND_FACTOR${_ID}} );
   #elif _MAPTO == DIFFUSE
     // The texture is combined with the result of the diffuse lighting equation.
     ${_BLEND}( texel${INDEX}.rgb, mat.diffuse, ${TEX_BLEND_FACTOR${_ID}} );

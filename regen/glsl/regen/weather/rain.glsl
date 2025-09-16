@@ -58,8 +58,9 @@ uniform sampler2D in_rainTexture;
 
 void main() {
     vec3 P = in_posWorld.xyz;
+    vec3 N = normalize(in_posWorld.xyz - in_cameraPosition.xyz);
     float density = in_brightness*texture(in_rainTexture, in_spriteTexco).x;
-    vec3 diffuseColor = getDiffuseLight(P, gl_FragCoord.z);
+    vec3 diffuseColor = getDiffuseLight(P, N, gl_FragCoord.z);
     out_color = density*vec4(diffuseColor,1.0);
 }
 
@@ -124,7 +125,9 @@ void main() {
         texture(in_rainDB, vec3(in_spriteTexco,index)).x;
     if(density<0.0001) discard;
 
-    vec3 diffuseColor = getDiffuseLight(in_posWorld.xyz, gl_FragCoord.z);
+    vec3 P = in_posWorld.xyz;
+    vec3 N = in_norWorld;
+    vec3 diffuseColor = getDiffuseLight(P, N, gl_FragCoord.z);
     out_color = density*vec4(diffuseColor,1.0);
 }
 

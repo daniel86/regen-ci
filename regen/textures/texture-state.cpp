@@ -34,6 +34,8 @@ namespace regen {
 				return out << "texco";
 			case TextureState::MAPPING_XZ_PLANE:
 				return out << "xz_plane";
+			case TextureState::MAPPING_TRIPLANAR:
+				return out << "triplanar";
 		}
 		return out;
 	}
@@ -55,6 +57,7 @@ namespace regen {
 		else if (val == "texco") mode = TextureState::MAPPING_TEXCO;
 		else if (val == "custom") mode = TextureState::MAPPING_CUSTOM;
 		else if (val == "xz_plane") mode = TextureState::MAPPING_XZ_PLANE;
+		else if (val == "triplanar") mode = TextureState::MAPPING_TRIPLANAR;
 		else {
 			REGEN_WARN("Unknown Texture Mapping '" << val <<
 												   "'. Using default CUSTOM Mapping.");
@@ -362,6 +365,11 @@ void TextureState::set_texcoTransfer(TransferTexco mode) {
 		REGEN_STRING("regen.states.textures.transfer.texco_" << mode)));
 }
 
+void TextureState::set_texcoScale(float scale) {
+	texcoScale_ = scale;
+	shaderDefine(REGEN_TEX_NAME("TEXCO_SCALE"), REGEN_STRING(texcoScale_));
+}
+
 void TextureState::set_texcoTransfer(const ref_ptr<ShaderFunction> &function) {
 	texcoTransfer_ = function;
 	shaderDefine(REGEN_TEX_NAME("TEXCO_TRANSFER_NAME"), function->functor());
@@ -521,6 +529,11 @@ ref_ptr<TextureState> TextureState::load(LoadingContext &ctx, scene::SceneInputN
 		if (customTexcoTransfer.get()) {
 			texState->set_texcoTransfer(customTexcoTransfer);
 		}
+	}
+
+	if (input.hasAttribute("texco-scale")) {
+		auto scale = input.getValue<GLfloat>("texco-scale", 1.0f);
+		texState->set_texcoScale(scale);
 	}
 
 	if (input.hasAttribute("texco-flipping")) {

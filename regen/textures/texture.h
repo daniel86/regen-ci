@@ -42,9 +42,15 @@ namespace regen {
 		 */
 		explicit Texture(GLenum textureTarget, uint32_t numTextures = 1);
 
-		~Texture() override;
+		/**
+		 * Copy constructor.
+		 */
+		Texture(const Texture &other);
 
-		Texture(const Texture &) = delete;
+		/**
+		 * Destructor.
+		 */
+		~Texture() override;
 
 		/**
 		 * Loads a texture from the given input node.
@@ -464,6 +470,7 @@ namespace regen {
 							 const std::string &sizeMode, const Vec3f &size);
 
 	protected:
+		// an atomic copy counter, for protecting deletion of shared data
 		uint32_t dim_;
 		// format of pixel data
 		GLenum format_;
@@ -526,6 +533,9 @@ namespace regen {
 		void updateSubImage_noop(GLint, GLubyte*) {}
 
 		unsigned int texelIndex(const Vec2f &texco) const;
+
+	private:
+		ref_ptr<std::atomic<uint32_t>> texCopyCounter_;
 	};
 
 	/**

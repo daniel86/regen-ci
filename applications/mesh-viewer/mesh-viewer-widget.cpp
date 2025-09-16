@@ -216,6 +216,12 @@ void MeshViewerWidget::updateLoDButtons() {
 	ui_.lodControls->setEnabled(true);
 	auto &firstMesh = meshes_[0];
 	auto numLODs = firstMesh->numLODs();
+	for (auto &mesh: meshes_) {
+		if (mesh->numLODs() > numLODs) {
+			numLODs = mesh->numLODs();
+		}
+	}
+	REGEN_INFO("Number of LODs: " << numLODs);
 	ui_.lod0Button->setEnabled(true);
 	ui_.lod1Button->setEnabled(numLODs > 1);
 	ui_.lod2Button->setEnabled(numLODs > 2);
@@ -228,6 +234,7 @@ void MeshViewerWidget::loadMeshes_GL(const std::string &assetPath) {
 	meshRoot_->clear();
 	lodMeshRoot_->clear();
 	meshNodes_.clear();
+	meshes_.clear();
 
 	// Read values from UI spinner
 	bool simplify = ui_.simplifyCheckBox->isChecked();
@@ -705,7 +712,7 @@ void MeshViewerWidget::toggleRotate(bool isEnabled) {
 }
 
 void MeshViewerWidget::setAssImpFlags() {
-	asset_->setAiProcessFlag(aiProcess_GenNormals);
+	asset_->setAiProcessFlag(aiProcess_GenSmoothNormals);
 	if (ui_.genNorCheck->checkState() == Qt::Checked) {
 		asset_->setAiProcessFlag(aiProcess_ForceGenNormals);
 	} else {

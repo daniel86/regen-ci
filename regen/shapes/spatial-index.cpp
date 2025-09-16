@@ -149,6 +149,18 @@ ref_ptr<BoundingShape> SpatialIndex::getShape(std::string_view shapeID) const {
 	return {};
 }
 
+ref_ptr<BoundingShape> SpatialIndex::getShape(std::string_view shapeID, uint32_t instance) const {
+	auto it = nameToShape_.find(shapeID);
+	if (it != nameToShape_.end() && !it->second.empty()) {
+		for (auto &shape: it->second) {
+			if (instance == shape->instanceID()) {
+				return shape;
+			}
+		}
+	}
+	return {};
+}
+
 static inline uint32_t getLODLevel(
 			const BoundingShape &b_shape,
 			const IndexedShape *i_shape,

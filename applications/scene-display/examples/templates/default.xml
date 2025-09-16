@@ -274,6 +274,12 @@
         <debugger type="spatial-index" resource="main-index"/>
     </node>
 
+    <node id="world-debug">
+        <depth test="1" write="0" function="LEQUAL"/>
+        <polygon offset-fill="1.1,4.0"/>
+        <debugger type="world" />
+    </node>
+
     <!-- ************************ -->
     <!-- Rendering of GUI widgets -->
     <!-- ************************ -->

@@ -27,24 +27,35 @@
 -- regen_RenderLayer
 #ifndef regen_RenderLayer_defined_
 #define2 regen_RenderLayer_defined_
-#if RENDER_LAYER > 1
+#ifdef HAS_layer
+#define regen_RenderLayer() in_layer
+#else // HAS_layer
+    #if RENDER_LAYER > 1
     // Compute render layer from gl_DrawID.
     // Currently the mesh may have n indirect draw calls for n LOD levels,
     // with layered rendering we repeat each LOD level for each layer.
-    #ifdef USE_GS_LAYERED_RENDERING
-    #define regen_RenderLayer() 0
+        #ifdef USE_GS_LAYERED_RENDERING
+#define regen_RenderLayer() 0
+        #else
+#define regen_RenderLayer() (gl_DrawID % ${RENDER_LAYER})
+        #endif
     #else
-    #define regen_RenderLayer() (gl_DrawID % ${RENDER_LAYER})
+#define regen_RenderLayer() 0
     #endif
-#else
-    #define regen_RenderLayer() 0
-#endif
 #endif // regen_InstanceID_defined_
+#endif
 
 -- all
 // enable GL_ARB_shader_viewport_layer_array if we do layered rendering.
 // this allows us to select the render layer in the vertex shader.
-#if SHADER_STAGE == vs && RENDER_LAYER > 1
+#if SHADER_STAGE == vs
+    #ifdef HAS_layer
+        #define2 _REQUIRE_VS_LAYER_SELECTION
+    #elif RENDER_LAYER > 1
+        #define2 _REQUIRE_VS_LAYER_SELECTION
+    #endif
+#endif
+#ifdef _REQUIRE_VS_LAYER_SELECTION
     #ifdef ARB_shader_viewport_layer_array
         #ifndef USE_GS_LAYERED_RENDERING
             #ifndef USE_GEOMETRY_SHADER
@@ -53,7 +64,9 @@
         #endif
     #endif
 #endif
-#if RENDER_LAYER > 1
+#ifdef HAS_layer
+#define VS_LAYER_SELECTION
+#elif RENDER_LAYER > 1
     #ifndef USE_GS_LAYERED_RENDERING
 #define VS_LAYER_SELECTION
     #endif

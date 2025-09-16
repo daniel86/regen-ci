@@ -7,6 +7,11 @@
 #define REGEN_BEZIER_H
 
 namespace regen::math {
+	struct ArcLengthLUT {
+		std::vector<float> s; // normalized arc length
+		std::vector<float> t; // curve parameter
+	};
+
 	/**
 	 * Bezier curve.
 	 * @tparam T the type of the control points.
@@ -31,6 +36,17 @@ namespace regen::math {
 			p += p2 * 3 * u * tt; // 3 * (1-t) * t^2 * p2
 			p += p3 * ttt; // t^3 * p3
 			return p;
+		}
+
+		/**
+		 * Sample the curve at t using arc-length parameterization.
+		 * @param lut the arc-length lookup table.
+		 * @param t the time [0, 1].
+		 * @return the point.
+		 */
+		T sample(const ArcLengthLUT &lut, float t) {
+			float tLUT = lookupParameter(lut, t);
+			return sample(tLUT);
 		}
 
 		/**
@@ -75,6 +91,57 @@ namespace regen::math {
 					(p0 - p1).length() +
 					(p2 - p1).length() +
 					(p3 - p2).length());
+		}
+
+		/**
+		 * Approximate arc-length parameterization for a cubic Bézier.
+		 * @param samples the number of samples.
+		 * @return the lookup table.
+		 */
+		ArcLengthLUT buildArcLengthLUT(int samples = 100) {
+			ArcLengthLUT lut;
+			lut.s.resize(samples+1);
+			lut.t.resize(samples+1);
+
+			lut.s[0] = 0.0f;
+			lut.t[0] = 0.0f;
+
+			float totalLength = 0.0f;
+			Vec2f prev = sample(0.0f);
+
+			for (int i = 1; i <= samples; i++) {
+				float ti = (float)i / samples;
+				Vec2f p = sample(ti);
+				totalLength += (p - prev).length();
+				lut.t[i] = ti;
+				lut.s[i] = totalLength;
+				prev = p;
+			}
+
+			// normalize s to [0,1]
+			for (int i = 0; i <= samples; i++) {
+				lut.s[i] /= totalLength;
+			}
+
+			return lut;
+		}
+
+		/**
+		 * Lookup the curve parameter t for a given arc length fraction s.
+		 * @param lut the arc-length lookup table.
+		 * @param sQuery the arc length fraction [0, 1].
+		 * @return the curve parameter t [0, 1].
+		 */
+		static float lookupParameter(const ArcLengthLUT& lut, float sQuery) {
+			// find segment
+			// TODO: this can be improved, e.g. binary search
+			int i = 0;
+			while (i < (int)lut.s.size()-1 && lut.s[i+1] < sQuery) {
+				i++;
+			}
+			// interpolate
+			float alpha = (sQuery - lut.s[i]) / (lut.s[i+1] - lut.s[i]);
+			return lut.t[i] + alpha * (lut.t[i+1] - lut.t[i]);
 		}
 	};
 }

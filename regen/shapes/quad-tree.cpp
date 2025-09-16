@@ -437,6 +437,7 @@ bool QuadTree::Node::intersects(const OrthogonalProjection &projection) const {
 			}
 			return sqDist < radiusSqr;
 		}
+		case OrthogonalProjection::Type::CONVEX_HULL:
 		case OrthogonalProjection::Type::TRIANGLE:
 		case OrthogonalProjection::Type::RECTANGLE:
 			// Check for separation along the axes of the shape and the axis-aligned quad
@@ -560,33 +561,13 @@ void QuadTree::Private::processAxis_SIMD(
 
 template<uint32_t NumAxes>
 void QuadTree::Private::processAxes_SIMD(QuadTreeTraversal &td, uint8_t &mask) {
-    if constexpr (NumAxes >= 1u) {
-        processAxis_SIMD(td, mask, 0);
+	constexpr uint32_t N = NumAxes;
+	for (uint32_t i = 0; i < N; ++i) {
+		processAxis_SIMD(td, mask, i);
 #ifdef QUAD_TREE_MASK_EARLY_EXIT
-        if (mask == 0) return;
+		if (mask == 0) return;
 #endif
-    }
-    if constexpr (NumAxes >= 2u) {
-        processAxis_SIMD(td, mask, 1);
-#ifdef QUAD_TREE_MASK_EARLY_EXIT
-        if (mask == 0) return;
-#endif
-    }
-    if constexpr (NumAxes >= 3u) {
-        processAxis_SIMD(td, mask, 2);
-#ifdef QUAD_TREE_MASK_EARLY_EXIT
-        if (mask == 0) return;
-#endif
-    }
-    if constexpr (NumAxes >= 4u) {
-        processAxis_SIMD(td, mask, 3);
-#ifdef QUAD_TREE_MASK_EARLY_EXIT
-        if (mask == 0) return;
-#endif
-    }
-    if constexpr (NumAxes >= 5u) {
-        processAxis_SIMD(td, mask, 4);
-    }
+	}
 }
 #endif
 
@@ -907,13 +888,26 @@ void QuadTree::foreachIntersection(
 	if (shape_projection.type == OrthogonalProjection::Type::CIRCLE) {
 		priv_->intersectionLoop_sphere(td);
 	} else {
-		if (shape_projection.axes.size() == 4) {
-			priv_->intersectionLoop<4>(td);
-		} else if (shape_projection.axes.size() == 5) {
-			priv_->intersectionLoop<5>(td);
-		} else {
-			REGEN_ERROR("unsupported number of axes for intersection test: " << shape_projection.axes.size());
-			return;
+		// call the templated intersection loop function with the number of axes
+		// as template parameter.
+		switch (const size_t numAxes = shape_projection.axes.size()) {
+			case 0: // circle handled separately already
+				// shouldn't reach here for polygon/circle mix, but keep safe
+				REGEN_ERROR("unexpected axis count 0");
+				break;
+			case 1: priv_->intersectionLoop<1>(td); break;
+			case 2: priv_->intersectionLoop<2>(td); break;
+			case 3: priv_->intersectionLoop<3>(td); break;
+			case 4: priv_->intersectionLoop<4>(td); break;
+			case 5: priv_->intersectionLoop<5>(td); break;
+			case 6: priv_->intersectionLoop<6>(td); break;
+			case 7: priv_->intersectionLoop<7>(td); break;
+			case 8: priv_->intersectionLoop<8>(td); break;
+			case 9: priv_->intersectionLoop<9>(td); break;
+			case 10: priv_->intersectionLoop<10>(td); break;
+			default:
+				REGEN_ERROR("unsupported number of axes for intersection test: " << numAxes);
+				return;
 		}
 	}
 
@@ -953,6 +947,60 @@ void QuadTree::foreachIntersection(
 		numTests_3d.clear();
 	}
 #endif
+}
+
+void QuadTree::foreachNeighbour(
+		const BoundingShape &shape,
+		float neighborhoodRadius,
+		void (*callback)(const BoundingShape &, void *),
+		void *userData) {
+	// The idea here is that we can simply traverse the tree starting from the node that
+	// contains the shape, and then we traverse towards root but we stop as soon a node
+	// is outside the radius.
+	// First get the node that contains the shape. We can do this by
+	// simple hash lookup.
+	auto it = shapeToItem_.find(&shape);
+	if (it == shapeToItem_.end()) {
+		REGEN_WARN("Shape not found in quad tree.");
+		return;
+	}
+
+	Item *shapeItem = it->second;
+	// reset intersection state of items.
+	// this is done to avoid duplicates as each item can be in multiple nodes.
+	for (const auto &xi: items_) {
+		xi->visited = false;
+	}
+	shapeItem->visited = true;
+
+	// Add all nodes that contain the shape to a stack.
+	std::stack<const Node *> stack;
+	for (const auto &node: shapeItem->nodes) {
+		stack.push(node);
+	}
+
+	const float radiusSqr = neighborhoodRadius * neighborhoodRadius;
+	const Vec3f &shapeOrigin = shape.getShapeOrigin();
+	const Vec2f shapeOrigin2D = Vec2f(shapeOrigin.x, shapeOrigin.z);
+
+	while (!stack.empty()) {
+		const Node *node = stack.top();
+		stack.pop();
+
+		// check all shapes in the node
+		for (const auto &quadShape: node->shapes) {
+			if (!quadShape->visited) {
+				quadShape->visited = true;
+				// check distance to shape origin
+				const Vec3f &otherOrigin = quadShape->shape->getShapeOrigin();
+				const Vec2f otherOrigin2D = Vec2f(otherOrigin.x, otherOrigin.z);
+				if ((otherOrigin2D - shapeOrigin2D).lengthSquared() <= radiusSqr) {
+					callback(*quadShape->shape.get(), userData);
+				}
+			}
+		}
+		// TODO: implement this
+	}
 }
 
 void QuadTree::update(float dt) {

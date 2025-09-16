@@ -6,45 +6,60 @@ using namespace regen;
 #define SMOOTH_HEIGHT
 
 NPCController::NPCController(
-			const ref_ptr<ModelTransformation> &tf,
-			uint32_t tfIdx,
-			const ref_ptr<NodeAnimation> &animation,
-			const std::vector<scene::AnimRange> &ranges)
-				: AnimationController(tf, tfIdx, animation, ranges),
-				  maxHeight_(std::numeric_limits<float>::max()),
-				  minHeight_(std::numeric_limits<float>::lowest()),
-				  heightMapBounds_(Vec2f::zero(), Vec2f::zero())
-{
+	const ref_ptr<WorldModel> &world,
+	const ref_ptr<ModelTransformation> &tf,
+	uint32_t tfIdx,
+	const ref_ptr<NodeAnimation> &boneAnimation,
+	const std::vector<scene::AnimRange> &ranges)
+	: AnimationController(tf, tfIdx, boneAnimation, ranges),
+	  worldModel_(world) {
 	for (auto &range: animationRanges_) {
 		if (range.name.find("walk") == 0) {
 			motionRanges_[MOTION_WALK].push_back(&range);
-		}
-		else if (range.name.find("run") == 0) {
+		} else if (range.name.find("run") == 0) {
 			motionRanges_[MOTION_RUN].push_back(&range);
-		}
-		else if (range.name.find("idle") == 0) {
+		} else if (range.name.find("idle") == 0) {
 			motionRanges_[MOTION_IDLE].push_back(&range);
-		}
-		else if (range.name.find("attack") == 0) {
+		} else if (range.name.find("yes") == 0) {
+			motionRanges_[MOTION_YES].push_back(&range);
+		} else if (range.name.find("no") == 0) {
+			motionRanges_[MOTION_NO].push_back(&range);
+		} else if (range.name.find("crouch") == 0) {
+			motionRanges_[MOTION_CROUCH].push_back(&range);
+		} else if (range.name.find("pray") == 0) {
+			motionRanges_[MOTION_PRAY].push_back(&range);
+		} else if (range.name.find("attack") == 0) {
 			motionRanges_[MOTION_ATTACK].push_back(&range);
-		}
-		else if (range.name.find("up") == 0) {
+		} else if (range.name.find("up") == 0) {
 			motionRanges_[MOTION_STAND_UP].push_back(&range);
-		}
-		else if (range.name.find("sleep") == 0) {
+		} else if (range.name.find("sleep") == 0) {
 			motionRanges_[MOTION_SLEEP].push_back(&range);
 		}
 	}
-	REGEN_WARN("NPCController created for instance " << tfIdx_ <<
-			" with " << animationRanges_.size() << " animation ranges" <<
-			" initial-pos: " << currentPos_ <<
-			" initial-rot: " << currentDir_);
-
+	pathPlanner_ = ref_ptr<PathPlanner>::alloc();
+	// add all places of interest and way points from the world model
+	for (const auto &p : worldModel_->places) {
+		addPlaceOfInterest(p);
+	}
+	for (const auto &wp : worldModel_->wayPoints) {
+		addWayPoint(wp);
+	}
+	for (const auto &conn : worldModel_->wayPointConnections) {
+		addConnection(conn.first, conn.second);
+	}
 }
 
 
+void NPCController::setSpatialIndex(const ref_ptr<SpatialIndex> &spatialIndex, std::string_view shapeName) {
+	spatialIndex_ = spatialIndex;
+	indexedShape_ = spatialIndex_->getShape(shapeName, tfIdx_);
+	if (!indexedShape_.get()) {
+		REGEN_WARN("Unable to find indexed shape '" << shapeName << "' in spatial index.");
+	}
+}
+
 void NPCController::addPlaceOfInterest(const ref_ptr<Place> &place) {
-	switch (place->type) {
+	switch (place->placeType()) {
 		case PLACE_HOME:
 			homePlaces_.push_back(place);
 			break;
@@ -58,45 +73,34 @@ void NPCController::addPlaceOfInterest(const ref_ptr<Place> &place) {
 			patrolPoints_.push_back(place);
 			break;
 		default:
-			REGEN_WARN("Unhandled place type " << place->type << ".");
+			REGEN_WARN("Unhandled place type " << place->placeType() << ".");
 			break;
 	}
+	pathPlanner_->addWayPoint(place);
 }
 
-void NPCController::setHeightMap(
-				const ref_ptr<Texture2D> &heightMap,
-				const Vec2f &heightMapCenter,
-				const Vec2f &heightMapSize,
-				float heightMapFactor) {
+void NPCController::addWayPoint(const ref_ptr<WayPoint> &wp) {
+	pathPlanner_->addWayPoint(wp);
+}
+
+void NPCController::addConnection(
+	const ref_ptr<WayPoint> &from,
+	const ref_ptr<WayPoint> &to,
+	bool bidirectional) {
+	pathPlanner_->addConnection(from, to, bidirectional);
+}
+
+void NPCController::setHeightMap(const ref_ptr<HeightMap> &heightMap) {
 	heightMap_ = heightMap;
 	heightMap_->ensureTextureData();
-	heightMapBounds_.min = heightMapCenter - heightMapSize;
-	heightMapBounds_.max = heightMapCenter + heightMapSize;
-	heightMapFactor_ = heightMapFactor;
 }
 
 float NPCController::getHeight(const Vec2f &pos) {
-	float height = floorHeight_;
 	if (heightMap_.get()) {
-		auto mapCenter = (heightMapBounds_.max + heightMapBounds_.min) * 0.5f;
-		auto mapSize = heightMapBounds_.max - heightMapBounds_.min;
-		// compute UV for height map sampling
-		auto uv = pos - mapCenter;
-		uv /= mapSize * 0.5f;
-		uv += Vec2f(0.5f);
-#ifdef SMOOTH_HEIGHT
-		auto texelSize = Vec2f(1.0f / heightMap_->width(), 1.0f / heightMap_->height());
-		auto regionTS = texelSize*8.0f;
-		auto mapValue = heightMap_->sampleAverage<float>(uv, regionTS, heightMap_->textureData());
-#else
-		auto mapValue = heightMap_->sampleLinear(uv, heightMap_->textureData(), 1);
-#endif
-		mapValue *= heightMapFactor_;
-		// increase by small bias to avoid intersection with the floor
-		mapValue += 0.02f;
-		height += mapValue;
+		return heightMap_->sampleHeight(pos);
+	} else {
+		return floorHeight_;
 	}
-	return height;
 }
 
 /**
@@ -122,24 +126,276 @@ static void intersectWithBounds(Vec2f& point, const Vec2f& origin, const Bounds<
 }
 **/
 
-void NPCController::updatePose(const TransformKeyFrame &currentFrame, double t) {
-	if (currentFrame.pos.has_value()) {
-		//currentPos_ = math::mix(lastFrame_.pos.value(), currentFrame.pos.value(), t);
-		auto sample = bezierPath_.sample(t);
-		currentPos_.x = sample.x;
-		currentPos_.z = sample.y;
-		currentPos_.y = getHeight(sample);
+struct NPCNeighborData {
+	NPCController *npc;
+	const BoundingShape *shape;
+	uint32_t neighborCount = 0;
+	Vec3f avoidance = Vec3f::zero();
+};
+
+void NPCController::handleNeighbour(const BoundingShape &other, void *userData) {
+	NPCNeighborData *data = static_cast<NPCNeighborData *>(userData);
+	if (data->shape == &other) return; // skip self
+
+	Vec3f offset = data->shape->getShapeOrigin() - other.getShapeOrigin();
+	float dist = offset.length();
+	if (dist < 0.01f) return;
+
+	offset /= dist; // normalize
+	data->avoidance += offset / (dist * dist); // inverse-square falloff
+	data->neighborCount++;
+}
+
+Vec3f NPCController::computeNeighborAvoidance() {
+	// TODO: personal space param
+	const float personalSpace = 2.2 + 1.0 * (1.0f - bravery_);
+
+	NPCNeighborData data;
+	data.npc = this;
+	data.shape = indexedShape_.get();
+
+	if (spatialIndex_.get() && indexedShape_.get()) {
+		// TODO: see if it is faster to start search with node that contains indexedShape_.
+		//spatialIndex_->foreachNeighbour(*indexedShape_.get(),
+		//	personalSpace, handleNeighbour, &data);
+
+		BoundingSphere querySphere(currentPos_, personalSpace);
+		querySphere.updateTransform(true);
+		spatialIndex_->foreachIntersection(
+			querySphere, handleNeighbour, &data);
 	}
-	if (currentFrame.rotation.has_value()) {
-		auto tangent = bezierPath_.tangent(t);
-		tangent.normalize();
-		// Convert the tangent vector to Euler angles
-        currentDir_.x = atan2(tangent.y, tangent.x) - baseOrientation_;
+
+	if (data.neighborCount > 0) {
+		data.avoidance /= static_cast<float>(data.neighborCount);
+	}
+
+	return data.avoidance;
+}
+
+static inline float wrapPi(float a) {
+	// normalize to (-PI, PI]
+	while (a <= -M_PI) a += 2.0f * M_PI;
+	while (a > M_PI) a -= 2.0f * M_PI;
+	return a;
+}
+
+Vec2f NPCController::pickTargetPosition(const ref_ptr<WayPoint> &wp) {
+	// Base target position (waypoint center)
+	auto targetPos3D = wp->pos()->getVertex(0);
+	Vec2f targetPos(targetPos3D.r.x, targetPos3D.r.z);
+
+	// Minimum distance from affordance (default 0)
+	const float minimumDistance = (currentBehaviour_.affordance.get() ?
+		currentBehaviour_.affordance->minDistance : 0.0f);
+
+	// Randomize within the waypoint radius
+	float radius = std::max(wp->radius(), minimumDistance + 0.05f);
+	if (radius > 0.1f) {
+		// Pick an angle roughly facing *towards* the waypoint from the NPC's current position
+		Vec2f npcPos(currentPos_.x, currentPos_.z);
+		Vec2f toWP = targetPos - npcPos;
+		float baseAngle = atan2(toWP.y, toWP.x);
+
+		// Allow a small angular variation (±45°)
+		float angleVariation = (math::random<float>() - 0.5f) * (M_PI / 2.0f);
+		float angle = baseAngle + angleVariation;
+
+		// Radius sampled between minimumDistance and radius
+		float r = minimumDistance + (radius - minimumDistance) * math::random<float>();
+
+		// Offset final target
+		targetPos += Vec2f(cos(angle), sin(angle)) * r;
+	}
+
+	return targetPos;
+}
+
+void NPCController::updatePose(const TransformKeyFrame &currentFrame, double frameTime) {
+	const float desiredSpeed = (currentBehaviour_.motion == MOTION_RUN ? runSpeed_ : walkSpeed_);
+	float bezierTime = math::Bezier<Vec2f>::lookupParameter(bezierLUT_, frameTime);
+
+	if (currentFrame.pos.has_value()) {
+		auto sample = bezierPath_.sample(bezierTime);
+		// Desired velocity toward Bezier point
+		Vec3f vel(sample.x - currentPos_.x, 0.0f, sample.y - currentPos_.z);
+		float length = vel.length();
+		if (length < 0.01f) { return; }
+		vel /= length;
+
+		Vec3f avoidance = computeNeighborAvoidance();
+		if (avoidance.lengthSquared() > 0.001f) {
+			// Normalize to consistent strength
+			avoidance.normalize();
+			// Blend with desired direction instead of overwriting
+			vel = (vel * (1.0f - avoidanceBlend_) + avoidance * avoidanceBlend_);
+			vel.normalize();
+			vel *= desiredSpeed;
+			//if (vel.dot(desiredDir) < 0) {
+			//	// push velocity into forward hemisphere, avoid backwards movement
+			//	vel = desiredDir * desiredSpeed * 0.2f; // small forward nudge
+			//}
+		} else {
+			vel *= desiredSpeed;
+		}
+		// Update position by following the final velocity
+		Vec3f velDir = currentVel_;
+		float velDirLen = velDir.length();
+		if (velDirLen > 1e-4f) {
+			velDir /= velDirLen;
+		}
+		float angleDiff = acos(std::clamp(vel.dot(velDir), -1.0f, 1.0f));
+		float blendFactor = std::clamp(0.1f + (angleDiff / M_PIf) * 0.4f, 0.1f, 0.5f);
+		// avoid rapid changes in velocity by blending with current vel
+		currentVel_ = math::lerp(currentVel_, vel, blendFactor);
+
+		currentPos_ += currentVel_ * lastDT_;
+		currentPos_.y = getHeight(Vec2f(currentPos_.x, currentPos_.z));
+	}
+
+	{
+		// compute path tangent (as 3D: x,z -> x,z)
+		Vec2f bezierTan2 = bezierPath_.tangent(bezierTime);
+		if (bezierTan2.length() > 1e-6f) bezierTan2.normalize();
+		Vec3f tangentDir(bezierTan2.x, 0.0f, bezierTan2.y); // tangent.x -> world X, tangent.y -> world Z
+		if (tangentDir.length() > 1e-6f) tangentDir.normalize();
+
+		// compute velocity direction (if moving)
+		float velLen = currentVel_.length();
+		Vec3f velDir(0.0f, 0.0f, 0.0f);
+		if (velLen > 1e-4f) {
+			velDir = Vec3f(currentVel_.x, 0.0f, currentVel_.z);
+			velDir.normalize();
+		}
+
+		// Blend velocity direction and path tangent to form a stable target direction.
+		// Idea: when moving fast, prefer velocity; when slow, prefer path tangent.
+		float vWeight = std::clamp(velLen / (desiredSpeed + 1e-6f), 0.0f, 1.0f); // 0..1
+		const float velOrientationInfluence = 0.9f; // how strongly to trust velocity when vWeight==1
+		float velBlend = vWeight * velOrientationInfluence; // in [0,1]
+
+		// compute blended direction
+		Vec3f blendedDir;
+		if (velDir.lengthSquared() > 1e-5f) {
+			blendedDir = tangentDir * (1.0f - velBlend) + velDir * velBlend;
+		} else {
+			blendedDir = tangentDir;
+		}
+		// safety: fallback to tangent if blended is too small
+		if (blendedDir.lengthSquared() < 1e-5f) {
+			blendedDir = tangentDir;
+		}
+		blendedDir.normalize();
+
+		// compute target yaw (world yaw)
+		float targetYaw = atan2(blendedDir.z, blendedDir.x);
+		// retrieve current stored yaw (undo baseOrientation_ offset that you store in currentDir_.x)
+		float prevYaw = currentDir_.x + baseOrientation_;
+		// shortest angular difference
+		float deltaYaw = wrapPi(targetYaw - prevYaw);
+		// clamp rotation speed (radians per second)
+		float maxDeltaThisFrame = maxTurn_ * lastDT_;
+		if (deltaYaw > maxDeltaThisFrame) deltaYaw = maxDeltaThisFrame;
+		else if (deltaYaw < -maxDeltaThisFrame) deltaYaw = -maxDeltaThisFrame;
+		// apply the clamped rotation
+		currentDir_.x = prevYaw + deltaYaw - baseOrientation_;
+	}
+}
+
+void NPCController::updatePathCurve(const Vec2f &source, const Vec2f &target) {
+	Vec2f dir;
+	if (!currentPath_.empty() && currentPathIndex_+1 == currentPath_.size()) {
+		auto pathTarget3D = currentPath_.back()->pos()->getVertex(0);
+		dir = Vec2f(pathTarget3D.r.x - target.x, pathTarget3D.r.z - target.y);
+	} else {
+		dir = target - source;
+	}
+	if (dir.lengthSquared() < 1e-6f) {
+		dir = Vec2f(cos(currentDir_.x + baseOrientation_), sin(currentDir_.x + baseOrientation_));
+	} else {
+		dir.normalize();
+	}
+	float angle = atan2(dir.y, dir.x) - baseOrientation_;
+	updatePathCurve(source, target, Vec3f(angle, 0.0f, 0.0f));
+}
+
+void NPCController::updatePathCurve(
+	const Vec2f &source,
+	const Vec2f &target,
+	const Vec3f &orientation) {
+	bezierPath_.p0 = source;
+	bezierPath_.p3 = target;
+	// compute control points using Euler angles
+	float directDistance = (bezierPath_.p0 - bezierPath_.p3).length();
+	// add base orientation
+	float angle_rad1 = currentDir_.x + baseOrientation_;
+	float angle_rad2 = orientation.x + baseOrientation_;
+	float angleDiff = wrapPi(angle_rad2 - angle_rad1);
+	// shorter handles for sharper turns
+	float handleScale = directDistance * 0.5f * (1.0f - 0.5f * std::abs(angleDiff) / M_PI);
+	//float handleScale = directDistance * 0.25f * (1.0f - 0.5f * std::abs(angleDiff) / M_PI);
+	// p1: in direction of start orientation
+	bezierPath_.p1 = bezierPath_.p0 + Vec2f(cos(angle_rad1), sin(angle_rad1)) * handleScale;
+	// p2: in direction of target orientation
+	bezierPath_.p2 = bezierPath_.p3 - Vec2f(cos(angle_rad2), sin(angle_rad2)) * handleScale;
+
+	float bezierLength = bezierPath_.length1();
+	bezierLUT_ = bezierPath_.buildArcLengthLUT(100);
+
+	// compute dt based on distance and speed
+	float dt = bezierLength / (currentBehaviour_.motion == MOTION_RUN ? runSpeed_ : walkSpeed_);
+	// set the target position
+	setTarget(
+		Vec3f(target.x, getHeight(target), target.y),
+		orientation,
+		dt);
+}
+
+void NPCController::startNavigate(bool loopPath, bool advancePath) {
+	if (!currentPath_.empty()) {
+		// Reached target point
+		if (advancePath) {
+			currentPathIndex_++;
+		}
+		if (loopPath && currentPathIndex_ >= currentPath_.size()) {
+			currentPathIndex_ = 0;
+		}
+		if (currentPathIndex_ < currentPath_.size()) {
+			// Move to next point on path
+			auto &nextPoint = currentPath_[currentPathIndex_];
+			updatePathCurve(
+				Vec2f(currentPos_.x, currentPos_.z),
+				pickTargetPosition(nextPoint));
+			return;
+		} else {
+			currentPath_.clear();
+		}
+	}
+	if (!currentBehaviour_.target) {
+		REGEN_WARN("No target place for navigation.");
+		return;
+	}
+	float distSqr = (currentBehaviour_.target->pos()->getVertex(0).r - currentPos_).lengthSquared();
+	if (distSqr < 0.01f) {
+		REGEN_WARN("Already at target place.");
+	}
+
+	currentPath_ = pathPlanner_->findPath(
+		currentPos_, currentBehaviour_.target);
+	currentPathIndex_ = 0;
+
+	if (currentPath_.size() < 2) {
+		updatePathCurve(
+			Vec2f(currentPos_.x, currentPos_.z),
+			pickTargetPosition(currentBehaviour_.target));
+	} else {
+		auto &firstWP = currentPath_.front();
+		updatePathCurve(
+			Vec2f(currentPos_.x, currentPos_.z),
+			pickTargetPosition(firstWP));
 	}
 }
 
 void NPCController::startMotion() {
-	REGEN_INFO("NPC " << tfIdx_ << " start motion type " << currentBehaviour_.motion);
 	const Motion movementType = currentBehaviour_.motion;
 	auto &ranges = motionRanges_[movementType];
 	if (ranges.empty()) {
@@ -152,50 +408,12 @@ void NPCController::startMotion() {
 	animation_->startAnimation();
 }
 
-void NPCController::startNavigate() {
-	if (!currentBehaviour_.target) {
-		REGEN_WARN("No target place for navigation.");
-		return;
-	}
-	REGEN_INFO("NPC " << tfIdx_ << " navigating to place of type " << currentBehaviour_.target->type);
-	// pick a random point close to the target place
-	Vec3f target3D = currentBehaviour_.target->pos->getVertex(0).r;
-	Vec2f target = Vec2f(target3D.x, target3D.z) + Vec2f(
-			1.0f + (math::random<float>() - 0.5f),
-			1.0f + (math::random<float>() - 0.5f)
-	) * currentBehaviour_.target->radius;
-	// pick a random orientation vector
-	auto orientation = Vec3f(
-			currentDir_.x,
-			static_cast<float>((static_cast<double>(rand()) / RAND_MAX - 0.5)*M_PI),
-			currentDir_.z
-	);
-	orientation = currentDir_;
-
-	bezierPath_.p0 = Vec2f(currentPos_.x, currentPos_.z);
-	bezierPath_.p3 = target;
-	// compute control points using Euler angles
-	float directDistance = (bezierPath_.p0 - bezierPath_.p3).length() * 0.75f;
-	// add base orientation
-	float angle_rad1 = currentDir_.x + baseOrientation_;
-	float angle_rad2 = orientation.x + baseOrientation_;
-	bezierPath_.p1 = bezierPath_.p0 + Vec2f(cos(angle_rad1), sin(angle_rad1)) * directDistance;
-	bezierPath_.p2 = bezierPath_.p3 + Vec2f(cos(angle_rad2), sin(angle_rad2)) * directDistance;
-	// TODO: make sure control points are within the map bounds
-	//intersectWithBounds(bezierPath_.p1, bezierPath_.p0, mapBounds_);
-	//intersectWithBounds(bezierPath_.p2, bezierPath_.p3, mapBounds_);
-	float bezierLength = bezierPath_.length1();
-
-	// compute dt based on distance and speed
-	float dt = bezierLength / (currentBehaviour_.motion==MOTION_RUN ? runSpeed_ : walkSpeed_);
-	// set the target position
-	setTarget(
-		Vec3f(target.x, getHeight(target), target.y),
-		orientation,
-		dt);
-}
-
 void NPCController::updateController(double dt) {
+	float dt_s = dt / 1000.0f;
+	lastDT_ = dt_s;
+	currentBehaviour_.lingerTime -= dt_s;
+	currentBehaviour_.activityTime -= dt_s;
+
 	if (it_ == frames_.end()) {
 		// currently no movement.
 		if (animation_->isNodeAnimationActive()) {
@@ -205,8 +423,7 @@ void NPCController::updateController(double dt) {
 			}
 			return;
 		}
-	}
-	else {
+	} else {
 		// movement active
 		if (!animation_->isNodeAnimationActive()) {
 			// animation not active, activate
@@ -219,7 +436,7 @@ void NPCController::updateController(double dt) {
 	}
 
 	auto lastMovement = currentBehaviour_.motion;
-	updateBehavior();
+	updateBehavior(dt);
 	if (lastMovement == MOTION_SLEEP) {
 		if (lastMovement == currentBehaviour_.motion) {
 			// remain sleeping
@@ -230,34 +447,275 @@ void NPCController::updateController(double dt) {
 		case MOTION_RUN:
 		case MOTION_WALK:
 			isLastAnimationMovement_ = true;
-			startNavigate();
-			startMotion();
+			//startNavigate(false, true);
 			break;
 		default:
 			isLastAnimationMovement_ = false;
-			startMotion();
-			//auto &ranges = behaviorRanges_[behavior_];
-			//auto &range = out[0];
-			//animation_->setAnimationActive(range->channelName, range->range);
+			break;
+	}
+	startMotion();
+}
+
+void NPCController::setIdle() {
+	currentBehaviour_.state = STATE_IDLE;
+	currentBehaviour_.motion = MOTION_IDLE;
+	currentBehaviour_.activity = ACTIVITY_IDLE;
+	currentBehaviour_.nextActivity = -1;
+	currentBehaviour_.lingerTime = 0;
+	currentBehaviour_.activityTime = 0;
+	currentBehaviour_.target = {};
+	currentBehaviour_.source = {};
+	currentBehaviour_.patient = {};
+}
+
+uint32_t NPCController::findClosestWP_idx(const std::vector<ref_ptr<WayPoint>> &wps) {
+	if (wps.empty()) return 0;
+	float bestDist = std::numeric_limits<float>::max();
+	ref_ptr<WayPoint> bestWP;
+	uint32_t bestIdx = 0;
+	for (uint32_t i = 0; i < wps.size(); i++) {
+		auto &wp = wps[i];
+		auto wpPos3D = wp->pos()->getVertex(0);
+		Vec2f wpPos(wpPos3D.r.x, wpPos3D.r.z);
+		float dist = (wpPos - Vec2f(currentPos_.x, currentPos_.z)).lengthSquared();
+		if (dist < bestDist) {
+			bestDist = dist;
+			bestWP = wp;
+			bestIdx = i;
+		}
+	}
+	return bestIdx;
+}
+
+void NPCController::setPlaceActivity(const ref_ptr<Place> &place) {
+	Behaviour &b = currentBehaviour_;
+
+	std::vector<Activity> possibleActivities;
+	if (place->hasPathWay(PathWayType::PATROL)) {
+		possibleActivities.push_back(ACTIVITY_PATROLLING);
+	}
+	if (place->hasPathWay(PathWayType::STROLL)) {
+		possibleActivities.push_back(ACTIVITY_STROLLING);
+	}
+	if (place->hasAffordance(AffordanceType::OBSERVE)) {
+		possibleActivities.push_back(ACTIVITY_OBSERVING);
+	}
+	if (place->hasAffordance(AffordanceType::CONVERSE)) {
+		possibleActivities.push_back(ACTIVITY_CONVERSING);
+	}
+	if (place->hasAffordance(AffordanceType::PRAY)) {
+		possibleActivities.push_back(ACTIVITY_PRAYING);
+	}
+	if (place->hasAffordance(AffordanceType::SLEEP)) {
+		possibleActivities.push_back(ACTIVITY_SLEEPING);
+	}
+	if (possibleActivities.empty()) {
+		possibleActivities.push_back(ACTIVITY_IDLE);
+	}
+	// Pick a random activity from the possible ones
+	// TODO: weight by personality traits etc.
+	auto nextActivity = possibleActivities[math::randomInt() % possibleActivities.size()];
+
+	switch (nextActivity) {
+		case ACTIVITY_IDLE:
+			b.activity = ACTIVITY_IDLE;
+			b.nextActivity = -1;
+			b.motion = MOTION_IDLE;
+			b.activityTime = 0.0;
+			b.patient = {};
+			b.affordance = {};
+			break;
+		case ACTIVITY_OBSERVING: {
+			// Walk to an observable object and observe it there
+			auto &observables = place->getAffordanceObjects(AffordanceType::OBSERVE);
+			auto observable = observables[math::randomInt() % observables.size()];
+			b.motion = MOTION_WALK;
+			b.activityTime = 30.0 + (math::random<float>() * 90.0f);
+			b.activity = ACTIVITY_TRAVELING;
+			b.nextActivity = ACTIVITY_OBSERVING;
+			b.patient = observable;
+			b.affordance = observable->getAffordance(AffordanceType::OBSERVE);
+			break;
+		}
+		case ACTIVITY_PRAYING: {
+			// Walk to a prayable object and pray there
+			auto &prayableObjects = place->getAffordanceObjects(AffordanceType::PRAY);
+			auto prayable = prayableObjects[math::randomInt() % prayableObjects.size()];
+			b.motion = MOTION_WALK;
+			b.activityTime = 30.0 + (math::random<float>() * 60.0f);
+			b.activity = ACTIVITY_TRAVELING;
+			b.nextActivity = ACTIVITY_PRAYING;
+			b.patient = prayable;
+			b.affordance = prayable->getAffordance(AffordanceType::PRAY);
+			break;
+		}
+		case ACTIVITY_SLEEPING: {
+			// Walk to a sleepable object and sleep there
+			auto &sleepableObjects = place->getAffordanceObjects(AffordanceType::SLEEP);
+			auto sleepable = sleepableObjects[math::randomInt() % sleepableObjects.size()];
+			b.motion = MOTION_WALK;
+			b.activityTime = 30.0 + (math::random<float>() * 60.0f);
+			b.activity = ACTIVITY_TRAVELING;
+			b.nextActivity = ACTIVITY_SLEEPING;
+			b.patient = sleepable;
+			b.affordance = sleepable->getAffordance(AffordanceType::SLEEP);
+			break;
+		}
+		case ACTIVITY_PATROLLING: {
+			auto &patrolPaths = place->getPathWays(PathWayType::PATROL);
+			currentPath_ = patrolPaths[math::randomInt() % patrolPaths.size()];
+			// randomly reverse the path
+			if (math::random<float>() < 0.5f) {
+				std::reverse(currentPath_.begin(), currentPath_.end());
+			}
+			currentPathIndex_ = findClosestWP_idx(currentPath_);
+			b.motion = MOTION_WALK;
+			b.activityTime = 60.0 + (math::random<float>() * 60.0f);
+			b.activity = ACTIVITY_PATROLLING;
+			b.nextActivity = -1;
+			b.patient = {};
+			b.affordance = {};
+			startNavigate(true, false);
+			break;
+		}
+		case ACTIVITY_STROLLING: {
+			auto &strollPaths = place->getPathWays(PathWayType::STROLL);
+			currentPath_ = strollPaths[math::randomInt() % strollPaths.size()];
+			// randomly reverse the path
+			if (math::random<float>() < 0.5f) {
+				std::reverse(currentPath_.begin(), currentPath_.end());
+			}
+			currentPathIndex_ = findClosestWP_idx(currentPath_);
+			b.motion = MOTION_WALK;
+			b.activityTime = 30.0 + (math::random<float>() * 60.0f);
+			b.activity = ACTIVITY_STROLLING;
+			b.nextActivity = -1;
+			b.patient = {};
+			b.affordance = {};
+			startNavigate(true, false);
+			break;
+		}
+		default:
+			b.activity = ACTIVITY_IDLE;
+			b.nextActivity = -1;
+			b.motion = MOTION_IDLE;
+			b.activityTime = 0.0f;
+			b.patient = {};
+			b.affordance = {};
 			break;
 	}
 }
 
-void NPCController::setIdle() {
-	REGEN_INFO("NPC " << tfIdx_ << " is now idle.");
-	currentBehaviour_.state = STATE_IDLE;
-	currentBehaviour_.motion = MOTION_IDLE;
-	currentBehaviour_.target = {};
-	currentBehaviour_.source = {};
-	//currentBehaviour_.patient = {};
-	//currentBehaviour_.instrument = {};
+void NPCController::updatePlaceActivity(const ref_ptr<Place> &place) {
+	Behaviour &b = currentBehaviour_;
+	const Vec3f &pos = currentPos_;
+
+	auto dist2D = [](const Vec3f &a, const Vec3f &b) -> float {
+		return (Vec2f(a.x, a.z) - Vec2f(b.x, b.z)).length();
+	};
+
+	switch (b.activity) {
+		case ACTIVITY_OBSERVING:
+		case ACTIVITY_IDLE:
+			b.motion = MOTION_IDLE;
+			break;
+		case ACTIVITY_SITTING:
+			// TODO: sitting motion
+			b.motion = MOTION_IDLE;
+			//b.motion = MOTION_SIT;
+			break;
+		case ACTIVITY_PRAYING:
+			// TODO: support special pray motion
+			b.motion = MOTION_CROUCH;
+			break;
+		case ACTIVITY_SLEEPING:
+			b.motion = MOTION_SLEEP;
+			break;
+		case ACTIVITY_PATROLLING:
+		case ACTIVITY_STROLLING:
+			startNavigate(true, true);
+			break;
+		case ACTIVITY_TRAVELING:
+			if (b.nextActivity != -1) {
+				const ref_ptr<WayPoint> &wp = currentPath_[currentPath_.size() - 1];
+				auto targetPos = wp->pos()->getVertex(0);
+				float distance = dist2D(pos, targetPos.r);
+				if (distance < wp->radius()) {
+					b.activity = static_cast<Activity>(b.nextActivity);
+					b.nextActivity = -1;
+				} else {
+					startNavigate(false, true);
+				}
+			} else {
+				startNavigate(false, true);
+			}
+			break;
+		case ACTIVITY_FLEEING: {
+			const ref_ptr<WayPoint> &wp = currentPath_[currentPath_.size() - 1];
+			auto targetPos = wp->pos()->getVertex(0);
+			float distance = dist2D(pos, targetPos.r);
+			if (distance < wp->radius()) {
+				setIdle();
+			} else {
+				startNavigate(false, true);
+			}
+			break;
+		}
+		case ACTIVITY_CONVERSING: {
+			std::vector<Motion> possibleMotions;
+			if (motionRanges_.find(MOTION_IDLE) != motionRanges_.end()) {
+				possibleMotions.push_back(MOTION_IDLE);
+			}
+			if (motionRanges_.find(MOTION_YES) != motionRanges_.end()) {
+				possibleMotions.push_back(MOTION_YES);
+			}
+			if (motionRanges_.find(MOTION_NO) != motionRanges_.end()) {
+				possibleMotions.push_back(MOTION_NO);
+			}
+			if (!possibleMotions.empty()) {
+				b.motion = possibleMotions[math::randomInt() % possibleMotions.size()];
+			}
+			break;
+		}
+		case ACTIVITY_FIGHTING: {
+			std::vector<Motion> possibleMotions;
+			if (motionRanges_.find(MOTION_ATTACK) != motionRanges_.end()) {
+				possibleMotions.push_back(MOTION_ATTACK);
+			}
+			if (motionRanges_.find(MOTION_BLOCK) != motionRanges_.end()) {
+				possibleMotions.push_back(MOTION_BLOCK);
+			}
+			if (!possibleMotions.empty()) {
+				b.motion = possibleMotions[math::randomInt() % possibleMotions.size()];
+			}
+			break;
+		}
+	}
 }
 
-void NPCController::updateBehavior() {
+void NPCController::setAtHome() {
+	currentBehaviour_.state = STATE_AT_HOME;
+	currentBehaviour_.lingerTime = homeLingerTime_.x + (math::random<float>() * homeLingerTime_.y);
+	setPlaceActivity(currentBehaviour_.target);
+}
+
+void NPCController::setAtMarket() {
+	currentBehaviour_.state = STATE_AT_MARKET;
+	currentBehaviour_.lingerTime = socialLingerTime_.x + (math::random<float>() * socialLingerTime_.y);
+	setPlaceActivity(currentBehaviour_.target);
+}
+
+void NPCController::setAtShrine() {
+	currentBehaviour_.state = STATE_AT_SHRINE;
+	currentBehaviour_.lingerTime = prayLingerTime_.x + (math::random<float>() * prayLingerTime_.y);
+	setPlaceActivity(currentBehaviour_.target);
+}
+
+void NPCController::updateBehavior(double dt) {
 	Behaviour &b = currentBehaviour_;
 
 	// Helper lambdas
-	auto pickRandomPlace = [](const std::vector<ref_ptr<Place>> &places) -> ref_ptr<Place> {
+	auto pickRandomPlace = [](const std::vector<ref_ptr<Place> > &places) -> ref_ptr<Place> {
 		if (places.empty()) return {};
 		return places[math::randomInt() % places.size()];
 	};
@@ -268,166 +726,106 @@ void NPCController::updateBehavior() {
 	const Vec3f &pos = currentPos_;
 
 	switch (b.state) {
-	case STATE_IDLE: {
-		// Decide what to do next based on traits and available places
-		float r = math::random<float>();
+		case STATE_IDLE: {
+			// Decide what to do next based on traits and available places
+			float r = math::random<float>();
 
-		if (!homePlaces_.empty() && r < (0.2f + laziness_ * 0.3f)) {
-			// More likely to go home if lazy
-			b.state = STATE_GO_HOME;
-			b.target = pickRandomPlace(homePlaces_);
-		}
-		else if (!gatheringPlaces_.empty() && r < 0.5f) {
-			b.state = STATE_GO_SOCIALIZE;
-			b.target = pickRandomPlace(gatheringPlaces_);
-		}
-		else if (!spiritualPlaces_.empty() && r < (0.7f + spirituality_ * 0.3f)) {
-			b.state = STATE_GO_PRAY;
-			b.target = pickRandomPlace(spiritualPlaces_);
-		}
-		else if (!patrolPoints_.empty()) {
-			b.state = STATE_GO_PATROL;
-			b.target = pickRandomPlace(patrolPoints_);
-		}
-		else {
-			// No goal → just idle
-			setIdle();
-		}
-		if (b.state != STATE_IDLE) {
-			// Set the movement type
-			// TODO: think of some variations here
-			//b.movement = (math::random<float>() < 0.7f) ? MOVEMENT_WALK : MOVEMENT_RUN;
-			b.motion = MOTION_WALK;
-		}
-		break;
-	}
-	case STATE_GO_HOME:
-	case STATE_GO_SOCIALIZE:
-	case STATE_GO_PRAY:
-	case STATE_GO_PATROL: {
-		if (!b.target) {
-			setIdle();
+			if (!homePlaces_.empty() && r < (0.2f + laziness_ * 0.3f)) {
+				// More likely to go home if lazy
+				b.state = STATE_GO_TO_HOME;
+				b.target = pickRandomPlace(homePlaces_);
+			} else if (!gatheringPlaces_.empty() && r < 0.5f) {
+				b.state = STATE_GO_TO_MARKET;
+				b.target = pickRandomPlace(gatheringPlaces_);
+			} else if (!spiritualPlaces_.empty() && r < (0.7f + spirituality_ * 0.3f)) {
+				b.state = STATE_GO_TO_SHRINE;
+				b.target = pickRandomPlace(spiritualPlaces_);
+			} else {
+				// No goal → just idle
+				setIdle();
+			}
+			if (b.state != STATE_IDLE) {
+				// Set the movement type
+				b.motion = MOTION_WALK;
+				b.activity = ACTIVITY_TRAVELING;
+				b.nextActivity = -1;
+				b.lingerTime = 0.0;
+				b.activityTime = 0.0;
+				b.patient = {};
+				b.affordance = {};
+				updatePlaceActivity(b.target);
+			}
 			break;
 		}
-
-		// Check if we've arrived
-		auto targetPos = b.target->pos->getVertex(0);
-		float distance = dist2D(pos, targetPos.r);
-		if (distance < b.target->radius) {
-			REGEN_INFO("NPC " << tfIdx_ << " arrived at place of type " << b.target->type);
-			// Switch to "being there" state
-			switch (b.state) {
-				case STATE_GO_HOME:      b.state = STATE_AT_HOME;     break;
-				case STATE_GO_SOCIALIZE: b.state = STATE_SOCIALIZE;   break;
-				case STATE_GO_PRAY:      b.state = STATE_PRAYING;     break;
-				case STATE_GO_PATROL:    b.state = STATE_PATROLLING;  break;
-				default: break;
+		case STATE_GO_TO_HOME:
+		case STATE_GO_TO_MARKET:
+		case STATE_GO_TO_SHRINE: {
+			if (!b.target) {
+				setIdle();
+				break;
 			}
-			// For now just switch to idle when arriving.
-			setIdle();
-		} else {
-			// Still traveling
-		}
-		break;
-	}
-	case STATE_AT_HOME: {
-		// TODO: Implement at home behavior
-		// Stay for a short time before going idle again
-		if ((math::randomInt() % 100) < 3) {
-			setIdle();
-		}
-		break;
-	}
-	case STATE_SOCIALIZE: {
-		// TODO: Implement socialize behavior
-		// Stay for a short time before going idle again
-		if ((math::randomInt() % 100) < 3) {
-			setIdle();
-		}
-		break;
-	}
-	case STATE_PATROLLING: {
-		// TODO: Implement patrolling behavior
-		// Stay for a short time before going idle again
-		if ((math::randomInt() % 100) < 3) {
-			setIdle();
-		}
-		break;
-	}
-	case STATE_PRAYING: {
-		// TODO: Implement praying behavior
-		// Stay for a short time before going idle again
-		if ((math::randomInt() % 100) < 3) {
-			setIdle();
-		}
-		break;
-	}
-	case STATE_ON_ALERT: {
-		// TODO: Implement on alert behavior
-		// Look around briefly, then choose fight/flee/idle
-		if ((math::randomInt() % 100) < 10) {
-			if (bravery_ > 0.5f) {
-				b.state = STATE_FIGHTING;
-				b.motion = MOTION_ATTACK;
+			// Check if we've arrived
+			auto targetPos = b.target->pos()->getVertex(0);
+			float distance = dist2D(pos, targetPos.r);
+			if (distance < b.target->radius()) {
+				// Switch to "being there" state
+				switch (b.state) {
+					case STATE_GO_TO_HOME: setAtHome();
+						break;
+					case STATE_GO_TO_MARKET: setAtMarket();
+						break;
+					case STATE_GO_TO_SHRINE: setAtShrine();
+						break;
+					default: setIdle();
+						break;
+				}
 			} else {
-				b.state = STATE_RUN_AWAY;
-				b.motion = MOTION_RUN;
+				updatePlaceActivity(b.target);
 			}
+			break;
 		}
-		break;
-	}
-	case STATE_RUN_AWAY: {
-		// TODO: Implement run away behavior
-		// After some time, calm down and go idle
-		if ((math::randomInt() % 100) < 5) {
-			setIdle();
+		case STATE_AT_SHRINE:
+		case STATE_AT_MARKET:
+		case STATE_AT_HOME: {
+			if (b.lingerTime < 0.0) {
+				setIdle(); // switch to idle state
+			} else if (b.activityTime < 0.0) {
+				setPlaceActivity(b.target);
+			} else {
+				updatePlaceActivity(b.target);
+			}
+			break;
 		}
-		break;
-	}
-	case STATE_FIGHTING: {
-		// TODO: Implement fighting behavior
-		if ((math::randomInt() % 100) < 5) {
-			setIdle();
+		case STATE_ON_ALERT: {
+			// TODO: Implement on alert behavior
+			// Look around briefly, then choose fight/flee/idle
+			if ((math::randomInt() % 100) < 10) {
+				if (bravery_ > 0.5f) {
+					b.state = STATE_FIGHTING;
+					b.motion = MOTION_ATTACK;
+				} else {
+					b.state = STATE_RUN_AWAY;
+					b.motion = MOTION_RUN;
+				}
+			}
+			break;
 		}
-		break;
-	}
-	case STATE_SLEEPING: {
-		// TODO: Implement sleeping behavior
-		if ((math::randomInt() % 100) < 2) {
-			setIdle();
+		case STATE_RUN_AWAY: {
+			// TODO: Implement run away behavior
+			// After some time, calm down and go idle
+			if ((math::randomInt() % 100) < 5) {
+				setIdle();
+			}
+			break;
 		}
-		break;
+		case STATE_FIGHTING: {
+			// TODO: Implement fighting behavior
+			if ((math::randomInt() % 100) < 5) {
+				setIdle();
+			}
+			break;
+		}
+		default:
+			break;
 	}
-	default:
-		break;
-	}
-}
-
-std::ostream &regen::operator<<(std::ostream &out, const NPCController::PlaceType &v) {
-	switch (v) {
-		case NPCController::PLACE_GATHERING:
-			return out << "GATHERING";
-		case NPCController::PLACE_HOME:
-			return out << "HOME";
-		case NPCController::PLACE_PATROL_POINT:
-			return out << "PATROL_POINT";
-		case NPCController::PLACE_SPIRITUAL:
-			return out << "SPIRITUAL";
-	}
-	return out;
-}
-
-std::istream &regen::operator>>(std::istream &in, NPCController::PlaceType &v) {
-	std::string val;
-	in >> val;
-	boost::to_upper(val);
-	if (val == "GATHERING") v = NPCController::PLACE_GATHERING;
-	else if (val == "HOME") v = NPCController::PLACE_HOME;
-	else if (val == "PATROL_POINT" || val == "PATROL") v = NPCController::PLACE_PATROL_POINT;
-	else if (val == "SPIRITUAL") v = NPCController::PLACE_SPIRITUAL;
-	else {
-		REGEN_WARN("Unknown place type '" << val << "'. Using HOME.");
-		v = NPCController::PLACE_HOME;
-	}
-	return in;
 }

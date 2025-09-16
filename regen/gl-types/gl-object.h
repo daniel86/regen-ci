@@ -41,7 +41,7 @@ namespace regen {
 		GLObject(
 				CreateObjectFunc createObjects,
 				ReleaseObjectFunc releaseObjects,
-				GLuint numObjects = 1);
+				uint32_t numObjects = 1);
 
 		/**
 		 * @param createObjects allocate buffers.
@@ -52,7 +52,9 @@ namespace regen {
 				CreateObjectFunc2 createObjects,
 				ReleaseObjectFunc releaseObjects,
 				GLenum objectTarget,
-				GLuint numObjects = 1);
+				uint32_t numObjects = 1);
+
+		GLObject(const GLObject &other);
 
 		virtual ~GLObject();
 
@@ -70,44 +72,39 @@ namespace regen {
 		/**
 		 * Returns the currently active buffer index.
 		 */
-		GLuint objectIndex() const;
+		uint32_t objectIndex() const { return objectIndex_; }
 
 		/**
 		 * Sets the index of the active buffer.
 		 */
-		void set_objectIndex(GLuint bufferIndex);
+		void set_objectIndex(uint32_t bufferIndex) { objectIndex_ = bufferIndex % numObjects_; }
 
 		/**
 		 * Returns number of buffers allocation
 		 * for this Bufferobject.
 		 */
-		GLuint numObjects() const;
+		uint32_t numObjects() const { return numObjects_; }
 
 		/**
 		 * GL handle for currently active buffer.
 		 */
-		GLuint id() const;
+		uint32_t id() const { return ids_[objectIndex_]; }
 
 		/**
 		 * Array of GL handles allocated for this buffer.
 		 */
-		GLuint *ids() const;
+		uint32_t *ids() const { return ids_; }
 
 	protected:
 		GLuint *ids_;
-		GLuint numObjects_;
-		GLuint objectIndex_;
+		// an atomic copy counter, for protecting deletion of shared data
+		ref_ptr<std::atomic<uint32_t>> copyCounter_;
+		uint32_t numObjects_;
+		uint32_t objectIndex_;
 		GLenum objectTarget_ = GL_NONE;
 		ReleaseObjectFunc releaseObjects_;
 		CreateObjectFunc createObjects_;
 		CreateObjectFunc2 createObjects2_;
-
-		/**
-		 * copy not allowed.
-		 */
-		GLObject(const GLObject &other);
-
-		GLObject &operator=(const GLObject &other) { return *this; }
 	};
 } // namespace
 

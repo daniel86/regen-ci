@@ -1,4 +1,6 @@
 #include "debug-node-processor.h"
+
+#include "regen/animations/world-model-debug.h"
 #include "regen/physics/bullet-debug-drawer.h"
 #include "regen/shapes/spatial-index-debug.h"
 
@@ -39,6 +41,23 @@ void processSpatialIndexDebugger(
 	debugDrawer->createShader(shaderConfig);
 }
 
+void processWorldDebugger(
+		scene::SceneLoader *scene,
+		SceneInputNode &input,
+		const ref_ptr<StateNode> &parent) {
+	auto worldModel = scene->application()->worldModel();
+	if (worldModel.get() == nullptr) {
+		REGEN_WARN("Skipping world debugger without world model in '" << input.getDescription() << "'.");
+		return;
+	}
+	auto debugDrawer = ref_ptr<WorldModelDebug>::alloc(worldModel);
+	parent->addChild(debugDrawer);
+
+	StateConfig shaderConfig = StateConfigurer::configure(debugDrawer.get());
+	shaderConfig.setVersion(330);
+	debugDrawer->createShader(shaderConfig);
+}
+
 void DebugNodeProcessor::processInput(
 		scene::SceneLoader *scene,
 		SceneInputNode &input,
@@ -48,6 +67,8 @@ void DebugNodeProcessor::processInput(
 		processBulletDebugger(scene, input, parent);
 	} else if (debuggerType == "spatial-index") {
 		processSpatialIndexDebugger(scene, input, parent);
+	} else if (debuggerType == "world") {
+		processWorldDebugger(scene, input, parent);
 	} else {
 		REGEN_WARN("Unknown debugger type '" << debuggerType << "'.");
 	}

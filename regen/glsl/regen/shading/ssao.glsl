@@ -90,15 +90,16 @@ void main() {
 -- sample.vs
 #include regen.filter.sampling.gs
 -- sample.fs
-out vec3 out_color;
+#include regen.states.camera.defines
+#include regen.filter.sampling.io
+#include regen.filter.sampling.computeTexco
 
 uniform sampler2D in_aoTexture;
 
-#include regen.filter.sampling.computeTexco
-
-void main()
-{
+void main() {
     vec2 texco_2D = gl_FragCoord.xy*in_inverseViewport;
-    out_color = vec3(1.0-texture(in_aoTexture, computeTexco(texco_2D)).x);
+    float ao = texture(in_aoTexture, computeTexco(texco_2D)).x;
+    out_color.rgb = vec3(1.0-ao);
+    out_color.a = 1.0;
 }
 

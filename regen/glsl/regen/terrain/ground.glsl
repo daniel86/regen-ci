@@ -63,6 +63,32 @@ vec3 materialUV(vec3 pos, vec3 normal, int materialIndex) {
 }
 #endif // ground_materialUV_included
 
+-- blend_ground
+#ifndef blend_ground_included
+#define2 blend_ground_included
+#include regen.states.blending.color-space
+
+#define SLOPE_MIN 0.0
+#define SLOPE_MAX 1.2
+
+const float in_snowAmount = 1.0;
+
+void blend_ground(vec3 col1, inout vec3 col2, float factor) {
+    // slope gating
+    //float slope = dot(in_norWorld, vec3(0.0, 1.0, 0.0));
+    float slope = acos(in_norWorld.y); // = acos(dot(normal, up))
+    float blendFactor = (1.0 - smoothstep(SLOPE_MIN, SLOPE_MAX, slope)) * factor;
+    // altitude factor
+    //slopeFactor *= smoothstep(SNOWLINE - SNOW_FADE, SNOWLINE + SNOW_FADE, in_posWorld.y);
+    // add simple noise to vary coverage (sample a low-frequency noise texture or value)
+    //float noise = texture(in_snowNoise, REGEN_TEXCO${_ID}_Z * 0.01).r; // cheap; or use a 3D noise
+    //slopeFactor *= mix(0.8, 1.2, noise);
+    blendFactor = clamp(in_snowAmount * blendFactor, 0.0, 1.0);
+    // mix based on factor
+    col2 = mix(col2, col1, blendFactor);
+}
+#endif // blend_ground_included
+
 ------------
 ----- Update the material weights of the ground.
 ----- The weights are rendered into float buffers using the fragment shader.

@@ -465,7 +465,6 @@
                 </direct-lights>
                 <direct-pass>
                     <node id="Fog-Particle-Draw">
-                        <define key="USE_SOFT_PARTICLES" value="TRUE"/>
                         <define key="USE_NEAR_CAMERA_SOFT_PARTICLES" value="FALSE"/>
                         <define key="IS_SHADOW_RECEIVER" value="FALSE"/>
                         <blend mode="add"/>

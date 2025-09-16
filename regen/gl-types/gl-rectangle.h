@@ -32,6 +32,11 @@ namespace regen {
 				GLuint numObjects = 1);
 
 		/**
+		 * Copy constructor.
+		 */
+		GLRectangle(const GLRectangle &other);
+
+		/**
 		 * Set the buffer size.
 		 */
 		void set_rectangleSize(uint32_t width, uint32_t height);

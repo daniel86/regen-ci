@@ -59,6 +59,7 @@ namespace regen {
 		TransformKeyFrame lastFrame_;
 		GLdouble dt_;
 		Vec3f currentPos_;
+		Vec3f currentVel_ = Vec3f::zero();
 		Vec3f currentDir_;
 		Mat4f currentVal_;
 		Vec3f initialScale_;

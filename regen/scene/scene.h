@@ -11,6 +11,7 @@
 #include "regen/animations/animation.h"
 #include "regen/buffer/staging-system.h"
 #include "screen.h"
+#include "regen/animations/world-model.h"
 
 // Defeat evil windows defines...
 #ifdef KEY_EVENT
@@ -113,6 +114,17 @@ namespace regen {
 		 * @param argv array of arguments.
 		 */
 		Scene(const int &argc, const char **argv);
+
+		/**
+		 * Sets the world model.
+		 * @param worldModel the world model.
+		 */
+		void setWorldModel(const ref_ptr<WorldModel> &worldModel) { worldModel_ = worldModel; }
+
+		/**
+		 * @return the world model.
+		 */
+		const ref_ptr<WorldModel> &worldModel() const { return worldModel_; }
 
 		/**
 		 * Initialize the scene after the render tree is loaded.
@@ -378,6 +390,8 @@ namespace regen {
 		ref_ptr<ShaderInput1f> timeSeconds_;
 		ref_ptr<ShaderInput1f> timeDelta_;
 		ref_ptr<UBO> globalUniforms_;
+
+		ref_ptr<WorldModel> worldModel_;
 
 		boost::posix_time::ptime lastMotionTime_;
 		boost::posix_time::ptime lastTime_;

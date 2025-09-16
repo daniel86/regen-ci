@@ -70,9 +70,9 @@ namespace regen {
 				const auto varianceY = n_->getValue<float>("y-variance", 0.0f);
 				const auto varianceZ = n_->getValue<float>("z-variance", 0.0f);
 				value_ =
-					stepX * (counter_.x + random()*varianceX) +
-					stepY * (counter_.y + random()*varianceY) +
-					stepZ * (counter_.z + random()*varianceZ);
+					stepX * (counter_.x + math::random<float>()*varianceX) +
+					stepY * (counter_.y + math::random<float>()*varianceY) +
+					stepZ * (counter_.z + math::random<float>()*varianceZ);
 
 				auto xCount = n_->getValue<GLuint>("x-count", numValues_);
 				auto yCount = n_->getValue<GLuint>("y-count", 1);
@@ -100,8 +100,8 @@ namespace regen {
 				const double x = radius * cos(position);
 				const double y = radius * sin(position);
 				value_ =
-					dirX * (x + random()*variance) +
-					dirY * (y + random()*variance);
+					dirX * (x + math::random<float>()*variance) +
+					dirY * (y + math::random<float>()*variance);
 				counter_.x += 1;
 				return value_;
 			}
@@ -109,7 +109,7 @@ namespace regen {
 			T nextRandom() {
 				const T min = n_->getValue<T>("min", T(0));
 				const T max = n_->getValue<T>("max", T(1));
-				value_ = min + (max - min) * random();
+				value_ = min + (max - min) * math::random<float>();
 				counter_.x += 1;
 				return value_;
 			}
@@ -121,10 +121,6 @@ namespace regen {
 				value_ = start + (stop - start) * progress;
 				counter_.x += 1;
 				return value_;
-			}
-
-			auto random() {
-				return (rand() % 10000) / 10000.0;
 			}
 		};
 	}

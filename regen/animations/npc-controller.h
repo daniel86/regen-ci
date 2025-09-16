@@ -4,10 +4,13 @@
 #include <regen/math/vector.h>
 #include <regen/textures/texture.h>
 #include <regen/animations/animation-controller.h>
+#include <regen/animations/world-model.h>
+#include <regen/animations/path-planner.h>
 #include "animation-node.h"
 #include "regen/shapes/bounds.h"
 #include "regen/states/model-transformation.h"
 #include "regen/math/bezier.h"
+#include "regen/textures/height-map.h"
 
 namespace regen {
 	class NPCController : public AnimationController {
@@ -18,14 +21,12 @@ namespace regen {
 		enum State {
 			STATE_IDLE = 0,
 			// Try to reach home place as fast as possible.
-			STATE_GO_HOME,
+			STATE_GO_TO_HOME,
 			// Go to a place to socialize with other NPCs.
-			STATE_GO_SOCIALIZE,
-			// Go to a patrolling way point.
-			STATE_GO_PATROL,
+			STATE_GO_TO_MARKET,
 			// Go to a place to pray.
 			// But if not spiritual the NPC would not take long detours.
-			STATE_GO_PRAY,
+			STATE_GO_TO_SHRINE,
 			// Alert, e.g. because of a noise.
 			// Look around, try to find the threat.
 			STATE_ON_ALERT,
@@ -33,20 +34,24 @@ namespace regen {
 			STATE_RUN_AWAY,
 			// Fight against a threat.
 			STATE_FIGHTING,
-			// At home, doing nothing special.
-			// Interact with any obects of interest at random for now.
 			STATE_AT_HOME,
-			// Sleeping, usually at home.
-			// But very lazy NPCs may sleep anywhere.
-			STATE_SLEEPING,
-			// Socializing with other NPCs.
-			STATE_SOCIALIZE,
-			// Patrolling along a path in the territory.
-			STATE_PATROLLING,
-			// Pray, usually after reaching a temple.
-			// But very spiritual NPCs may pray anywhere.
-			STATE_PRAYING,
+			STATE_AT_MARKET,
+			STATE_AT_SHRINE,
 			STATE_LAST
+		};
+
+		enum Activity {
+			ACTIVITY_IDLE = 0,
+			ACTIVITY_CONVERSING,
+			ACTIVITY_STROLLING,
+			ACTIVITY_OBSERVING,
+			ACTIVITY_PATROLLING,
+			ACTIVITY_PRAYING,
+			ACTIVITY_SLEEPING,
+			ACTIVITY_FIGHTING,
+			ACTIVITY_FLEEING,
+			ACTIVITY_TRAVELING,
+			ACTIVITY_SITTING
 		};
 
 		/**
@@ -60,6 +65,8 @@ namespace regen {
 			MOTION_WALK,
 			// no movement, just standing around
 			MOTION_IDLE,
+			MOTION_YES,
+			MOTION_NO,
 			// attacking, e.g. with a weapon
 			MOTION_ATTACK,
 			// blocking, e.g. with a shield
@@ -76,52 +83,23 @@ namespace regen {
 		};
 
 		/**
-		 * Categories of places of interest for the NPC.
-		 */
-		enum PlaceType {
-			PLACE_HOME = 0,
-			PLACE_SPIRITUAL,
-			PLACE_GATHERING,
-			PLACE_PATROL_POINT
-		};
-
-		/**
-		 * A place of interest for the NPC.
-		 */
-		struct Place {
-			const PlaceType type;
-			const float radius = 1.0f;
-			ref_ptr<ShaderInput3f> pos;
-
-			explicit Place(PlaceType type, float radius = 1.0f) :
-				type(type),
-				radius(radius),
-				pos(createUniform<ShaderInput3f>("pos", Vec3f::zero())) {}
-			Place(PlaceType type, const Vec2f &position, float radius = 1.0f) :
-				type(type),
-				radius(radius),
-				pos(createUniform<ShaderInput3f>("pos", Vec3f(position.x, 0.0f, position.y))) {}
-			Place(PlaceType type, const Vec3f &position, float radius = 1.0f) :
-				type(type),
-				radius(radius),
-				pos(createUniform<ShaderInput3f>("pos", position)) {}
-			Place(PlaceType type, const ref_ptr<ShaderInput3f> &position, float radius = 1.0f) :
-				type(type),
-				radius(radius),
-				pos(position) {}
-		};
-
-		/**
 		 * Constructor.
 		 * @param tf the model transformation.
 		 * @param animation the node animation.
 		 * @param ranges the animation ranges.
 		 */
 		NPCController(
+			const ref_ptr<WorldModel> &world,
 			const ref_ptr<ModelTransformation> &tf,
 			uint32_t tfIdx,
 			const ref_ptr<NodeAnimation> &animation,
 			const std::vector<scene::AnimRange> &ranges);
+
+		/**
+		 * Set the spatial index for path finding.
+		 * @param spatialIndex the spatial index.
+		 */
+		void setSpatialIndex(const ref_ptr<SpatialIndex> &spatialIndex, std::string_view shapeName);
 
 		/**
 		 * Set the world time.
@@ -166,25 +144,13 @@ namespace regen {
 		void setBravery(float bravery) { bravery_ = bravery; }
 
 		/**
-		 * Set the max height.
-		 * @param maxHeight the max height.
-		 */
-		void setMaxHeight(float maxHeight) { maxHeight_ = maxHeight; }
-
-		/**
-		 * Set the min height.
-		 * @param minHeight the min height.
-		 */
-		void setMinHeight(float minHeight) { minHeight_ = minHeight; }
-
-		/**
 		 * Set the base orientation of the mesh around y axis for looking into z direction.
 		 * @param baseOrientation the base orientation.
 		 */
 		void setBaseOrientation(float baseOrientation) { baseOrientation_ = baseOrientation; }
 
 		/**
-		 * Set the floor height.
+		 * Set the floor height, only used if no height map is set.
 		 * @param floorHeight the floor height.
 		 */
 		void setFloorHeight(float floorHeight) { floorHeight_ = floorHeight; }
@@ -192,21 +158,21 @@ namespace regen {
 		/**
 		 * Set the height map.
 		 * @param heightMap the height map.
-		 * @param heightMapCenter the center.
-		 * @param heightMapSize the size.
-		 * @param heightMapFactor the factor.
 		 */
-		void setHeightMap(
-				const ref_ptr<Texture2D> &heightMap,
-				const Vec2f &heightMapCenter,
-				const Vec2f &heightMapSize,
-				float heightMapFactor);
+		void setHeightMap(const ref_ptr<HeightMap> &heightMap);
 
 		/**
 		 * Add a place of interest for the NPC.
 		 * @param place the place.
 		 */
 		void addPlaceOfInterest(const ref_ptr<Place> &place);
+
+		void addWayPoint(const ref_ptr<WayPoint> &wp);
+
+		void addConnection(
+				const ref_ptr<WayPoint> &from,
+				const ref_ptr<WayPoint> &to,
+				bool bidirectional = true);
 
 		// override
 		void updateController(double dt) override;
@@ -215,6 +181,9 @@ namespace regen {
 		void updatePose(const TransformKeyFrame &currentFrame, double t) override;
 
 	protected:
+		ref_ptr<WorldModel> worldModel_;
+		ref_ptr<SpatialIndex> spatialIndex_;
+		ref_ptr<BoundingShape> indexedShape_;
 		// Base orientation of the mesh around y axis
 		float baseOrientation_ = M_PI_2;
 
@@ -224,23 +193,33 @@ namespace regen {
 		float alertness_ = 0.5f;
 		float bravery_ = 0.5f;
 
+		Vec2f homeLingerTime_ = Vec2f(60.0f, 300.0f);
+		Vec2f socialLingerTime_ = Vec2f(60.0f, 300.0f);
+		Vec2f prayLingerTime_ = Vec2f(60.0f, 300.0f);
+
+		float avoidanceBlend_ = 0.7f; // 0 = ignore avoidance, 1 = only avoidance
+		float maxTurnDegPerSec_ = 180.0f; // 90..360
+		float maxTurn_ = maxTurnDegPerSec_ * (M_PI / 180.0f);
+
 		// Terrain information.
 		float floorHeight_ = 0.0f;
-		float maxHeight_;
-		float minHeight_;
-		ref_ptr<Texture2D> heightMap_;
-		Bounds<Vec2f> heightMapBounds_;
-		float heightMapFactor_ = 8.0f;
+		ref_ptr<HeightMap> heightMap_;
 
+		ref_ptr<PathPlanner> pathPlanner_;
 		// Walking behavior parameters.
 		float walkSpeed_ = 0.05f;
 		float runSpeed_ = 0.1f;
 		// The current path of the NPC, if any.
+		std::vector<ref_ptr<WayPoint>> currentPath_;
+		uint32_t currentPathIndex_ = 0;
 		math::Bezier<Vec2f> bezierPath_;
+		math::ArcLengthLUT bezierLUT_;
 		// All semantic movements the NPC can perform.
 		std::map<Motion, std::vector<const scene::AnimRange*>> motionRanges_;
 		// Flag is used for continuous movement.
 		bool isLastAnimationMovement_ = false;
+
+		double lastDT_ = 0.0;
 
 		// Places of interest.
 		std::vector<ref_ptr<Place>> homePlaces_;
@@ -251,6 +230,9 @@ namespace regen {
 		struct Behaviour {
 			// The current state of the NPC.
 			State state = STATE_IDLE;
+			// The current activity of the NPC.
+			Activity activity = ACTIVITY_IDLE;
+			int nextActivity = -1;
 			// The current movement behavior of the NPC.
 			Motion motion = MOTION_IDLE;
 			// The place in focus of the NPC, if any.
@@ -259,29 +241,51 @@ namespace regen {
 			ref_ptr<Place> target;
 			// The place of origin of the NPC, if any.
 			ref_ptr<Place> source;
+			ref_ptr<WorldObject> patient;
+			ref_ptr<Affordance> affordance;
 			// The object in focus of the NPC, if any.
 			//ref_ptr<Object> patient;
 			// The instrument used by the NPC, if any.
 			//ref_ptr<Object> instrument;
+			double lingerTime = 0.0;
+			double activityTime = 0.0;
 		};
 		Behaviour currentBehaviour_;
 
 		const WorldTime *worldTime_ = nullptr;
 
-		void startNavigate();
+		void startNavigate(bool loopPath, bool advancePath);
 
 		void startMotion();
 
-		void updateBehavior();
+		void setIdle();
+
+		void setAtHome();
+
+		void setAtMarket();
+
+		void setAtShrine();
+
+		void setPlaceActivity(const ref_ptr<Place> &place);
+
+		void updatePlaceActivity(const ref_ptr<Place> &place);
+
+		void updateBehavior(double dt);
+
+		Vec3f computeNeighborAvoidance();
 
 		float getHeight(const Vec2f &pos);
 
-		void setIdle();
+		void updatePathCurve(const Vec2f &source, const Vec2f &target);
+
+		void updatePathCurve(const Vec2f &source, const Vec2f &target, const Vec3f &orientation);
+
+		Vec2f pickTargetPosition(const ref_ptr<WayPoint> &wp);
+
+		static void handleNeighbour(const BoundingShape &b_shape, void *userData);
+
+		uint32_t findClosestWP_idx(const std::vector<ref_ptr<WayPoint>> &wps);
 	};
-
-	std::ostream &operator<<(std::ostream &out, const NPCController::PlaceType &v);
-
-	std::istream &operator>>(std::istream &in, NPCController::PlaceType &v);
 } // namespace
 
 #endif /* REGEN_NPC_CONTROLLER_H_ */

@@ -115,15 +115,16 @@ uniform sampler2D in_gEmissionBlurred;
 void main() {
     vec2 texco_2D = gl_FragCoord.xy*in_inverseViewport;
     vecTexco texco = computeTexco(texco_2D);
-    vec3 col1 = texture(in_gEmissionTexture,texco).rgb;
+    vec4 col1 = texture(in_gEmissionTexture,texco);
 #ifdef HAS_gEmissionBlurred
-    vec3 col2 = texture(in_gEmissionBlurred,texco).rgb;
-    out_color.rgb = col1 + col2;
+    vec4 col2 = texture(in_gEmissionBlurred,texco);
+    out_color.rgb = col1.rgb + col2.rgb;
 #else
-    out_color.rgb = col1;
+    out_color.rgb = col1.rgb;
 #endif
     // need to provide an alpha value for blending
-    out_color.a = (out_color.r+out_color.g+out_color.b)/3.0;
+    //out_color.a = (out_color.r+out_color.g+out_color.b)/3.0;
+    out_color.a = col1.a;
 }
 
 --------------------------------------
@@ -182,6 +183,11 @@ void main() {
 #endif
     vec3 L = normalize(in_lightDirection.xyz);
     float nDotL = dot( N, L );
+    // modulate light intensity by the vertical component of the light direction
+    // this makes the light less strong when coming from the side and cancels it
+    // when coming from below the ground.
+    nDotL *= L.y;
+
 #ifdef USE_AMBIENT_LIGHT
     if(nDotL>0.0) {
 #else

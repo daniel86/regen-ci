@@ -4,49 +4,273 @@
     <constant name="num-cascades" value="3"/>
     <constant name="num-dwarves" value="100"/>
     <constant name="map-y-min" value="-2.0"/>
+    <constant name="map-size" value="1000.0"/>
+    <constant name="map-height" value="64.0"/>
+    <constant name="shrine-center-x" value="378.0"/>
+    <constant name="shrine-center-z" value="378.0"/>
+    <constant name="shrine-center" value="{{shrine-center-x}},{{shrine-center-z}}"/>
+    <constant name="village-center-a-x" value="240.0"/>
+    <constant name="village-center-a-z" value="-415.0"/>
+    <constant name="village-center-a" value="{{village-center-a-x}},{{village-center-a-z}}"/>
+    <constant name="village-center-b-x" value="-340.0"/>
+    <constant name="village-center-b-z" value="-55.0"/>
+    <constant name="village-center-b" value="{{village-center-b-x}},{{village-center-b-z}}"/>
+    <constant name="market-x" value="8.0"/>
+    <constant name="market-z" value="-240.0"/>
+    <constant name="statue-a-x" value="-20.75"/>
+    <constant name="statue-a-z" value="0.99"/>
+    <constant name="statue-b-x" value="-30.63"/>
+    <constant name="statue-b-z" value="125.0"/>
+    <constant name="statue-c-x" value="477.0"/>
+    <constant name="statue-c-z" value="101.0"/>
+    <constant name="far-plane" value="200.0"/>
     <include xml-file="scene-display/examples/templates/default.xml"/>
 
     <node id="configuration"
-            date="01-09-2014 06:00:00"
-            time-scale="60.0">
+          date="01-09-2014 06:00:00"
+          time-scale="60.0">
         <!--
         <animation id="dwarf-asset-instanced" type="asset" mode="fixed"/>
         -->
+        <world id="dwarf-rocks" height-map="ground-height">
+            <place id="village-a" type="home" point="{{village-center-a}}" radius="40.0">
+                <object id="fireplace" point="0.0,0.0" radius="20.0">
+                    <affordance type="converse" min-distance="3.0"/>
+                    <affordance type="observe" target="fireplace" min-distance="3.0"/>
+                </object>
+                <object id="meeting-point" point="35.0,45.0" radius="10.0">
+                    <affordance type="converse" min-distance="0.5"/>
+                </object>
+                <object id="bench" point="25.0,25.0" radius="5.0">
+                    <affordance type="sit" min-distance="0.0"/>
+                    <affordance type="observe" target="fireplace" min-distance="1.0"/>
+                </object>
+                <object id="crates" point="16.8,45.0" radius="5.0">
+                    <affordance type="observe" target="crates" min-distance="1.0"/>
+                </object>
+                <path type="stroll" radius="5.0">
+                    <point value="28.0,0.0"/>
+                    <point value="20.0,20.0"/>
+                    <point value="0.0,28.0"/>
+                    <point value="-20.0,20.0"/>
+                    <point value="-28.0,0.0"/>
+                    <point value="-20.0,-20.0"/>
+                    <point value="0.0,-28.0"/>
+                    <point value="20.0,-20.0"/>
+                </path>
+                <path type="patrol" radius="5.0">
+                    <!--
+                    <point value="60.0,0.0"/>
+                    <point value="0.0,60.0"/>
+                    -->
+                    <point value="-55.0,55.0"/>
+                    <point value="-60.0,0.0"/>
+                    <point value="-55.0,-55.0"/>
+                    <point value="0.0,-60.0"/>
+                    <point value="55.0,-55.0"/>
+                    <point value="0.0,-60.0"/>
+                    <point value="-55.0,-55.0"/>
+                    <point value="-60.0,0.0"/>
+                </path>
+            </place>
+            <place id="village-b" type="home" point="{{village-center-b}}" radius="40.0">
+                <object id="fireplace" point="0.0,0.0" radius="20.0">
+                    <affordance type="converse" min-distance="3.0"/>
+                    <affordance type="observe" target="fireplace" min-distance="3.0"/>
+                </object>
+                <object id="meeting-point" point="35.0,45.0" radius="10.0">
+                    <affordance type="converse" min-distance="0.5"/>
+                </object>
+                <object id="bench" point="-25.0,-25.0" radius="5.0">
+                    <affordance type="sit" min-distance="0.0"/>
+                    <affordance type="observe" target="fireplace" min-distance="1.0"/>
+                </object>
+                <object id="crates" point="35.0,-35.0" radius="5.0">
+                    <affordance type="observe" target="crates" min-distance="1.0"/>
+                </object>
+                <path type="stroll" radius="5.0">
+                    <point value="28.0,0.0"/>
+                    <point value="20.0,20.0"/>
+                    <point value="0.0,28.0"/>
+                    <point value="-20.0,20.0"/>
+                    <point value="-28.0,0.0"/>
+                    <point value="-20.0,-20.0"/>
+                    <point value="0.0,-28.0"/>
+                    <point value="20.0,-20.0"/>
+                </path>
+                <path type="patrol" radius="5.0">
+                    <point value="10.0,-70.0"/>
+                    <point value="60.0,-60.0"/>
+                    <point value="60.0,0.0"/>
+                    <point value="0.0,60.0"/>
+                    <point value="60.0,0.0"/>
+                    <point value="60.0,-60.0"/>
+                </path>
+            </place>
+            <place id="shrine" type="spiritual" point="{{shrine-center}}" radius="120.0">
+                <object id="altar" point="0.0,0.0" radius="50.0">
+                    <affordance type="pray" min-distance="10.0"/>
+                    <affordance type="observe" target="altar" min-distance="25.0"/>
+                </object>
+                <object id="meeting-point" point="35.0,45.0" radius="20.0">
+                    <affordance type="converse" min-distance="0.5"/>
+                </object>
+                <object id="meeting-point" point="-35.0,45.0" radius="20.0">
+                    <affordance type="converse" min-distance="0.5"/>
+                </object>
+                <path type="stroll" radius="5.0">
+                    <point value="60.0,0.0"/>
+                    <point value="50.0,50.0"/>
+                    <point value="0.0,60.0"/>
+                    <point value="-50.0,50.0"/>
+                    <point value="-60.0,0.0"/>
+                    <point value="-50.0,-50.0"/>
+                    <point value="0.0,-60.0"/>
+                    <point value="50.0,-50.0"/>
+                </path>
+                <path type="patrol" radius="5.0">
+                    <point value="80.0,0.0"/>
+                    <point value="65.0,65.0"/>
+                    <point value="0.0,80.0"/>
+                    <point value="-65.0,65.0"/>
+                    <point value="-80.0,0.0"/>
+                    <point value="-65.0,-65.0"/>
+                    <point value="0.0,-80.0"/>
+                    <point value="65.0,-65.0"/>
+                </path>
+            </place>
+            <place id="market" type="gathering" point="{{market-x}},{{market-z}}" radius="40.0">
+                <object id="well" point="0.0,0.0" radius="20.0">
+                    <affordance type="converse" min-distance="4.0"/>
+                    <affordance type="observe" target="well" min-distance="4.0"/>
+                </object>
+                <object id="meeting-point1" point="35.0,-45.0" radius="10.0">
+                    <affordance type="converse" min-distance="0.5"/>
+                </object>
+                <object id="meeting-point2" point="-35.0,40.0" radius="10.0">
+                    <affordance type="converse" min-distance="0.5"/>
+                </object>
+                <object id="shop-tent0" point="0.0,-45.0" radius="10.0">
+                    <affordance type="observe" target="shop-tent0" min-distance="0.0"/>
+                </object>
+                <object id="shop-tent1" point="20.0,-40.0" radius="10.0">
+                    <affordance type="observe" target="shop-tent1" min-distance="0.0"/>
+                </object>
+                <object id="shop-tent2" point="-20.0,-40.0" radius="10.0">
+                    <affordance type="observe" target="shop-tent2" min-distance="0.0"/>
+                </object>
+                <path type="stroll" radius="5.0">
+                    <point value="35.0,0.0"/>
+                    <point value="25.0,25.0"/>
+                    <point value="0.0,35.0"/>
+                    <point value="-25.0,25.0"/>
+                    <point value="-35.0,0.0"/>
+                    <point value="-25.0,-25.0"/>
+                    <point value="0.0,-35.0"/>
+                    <point value="25.0,-25.0"/>
+                </path>
+                <path type="patrol" radius="5.0">
+                    <point value="60.0,0.0"/>
+                    <point value="0.0,60.0"/>
+                    <point value="-80.0,50.0"/>
+                    <point value="-90.0,-40.0"/>
+                    <point value="0.0,-70.0"/>
+                    <point value="60.0,-60.0"/>
+                </path>
+            </place>
+            <object id="wp0" type="waypoint" point="-280.0,-93.0" radius="5.0"/> <!-- signpost near village b -->
+            <object id="wp1" type="waypoint" point="-220.0,-93.0" radius="5.0"/>
+            <object id="wp2" type="waypoint" point="-74.0,-101.0" radius="5.0"/>
+            <object id="wp3" type="waypoint" point="38.5,-180.5" radius="5.0"/> <!-- signpost near market -->
+            <object id="wp4" type="waypoint" point="78.0,-275.7" radius="5.0"/> <!-- signpost near market -->
+            <object id="wp5" type="waypoint" point="137.4,-396.7" radius="5.0"/>
+            <object id="wp6" type="waypoint" point="193.7,-457.4" radius="5.0"/> <!-- signpost near village a -->
+            <object id="wp7" type="waypoint" point="269.5,-107.7" radius="5.0"/>
+            <object id="wp8" type="waypoint" point="210.2,18.28" radius="5.0"/>
+            <object id="wp9" type="waypoint" point="246.0,159.09" radius="5.0"/>
+            <object id="wp10" type="waypoint" point="69.9,248.02" radius="5.0"/>
+            <object id="wp11" type="waypoint" point="-92.39,250.49" radius="5.0"/>
+            <object id="wp12" type="waypoint" point="-227.0,-1.48" radius="5.0"/>
+            <object id="wp13" type="waypoint" point="70.65,425.89" radius="5.0"/>
+            <object id="wp14" type="waypoint" point="477.0,228.26" radius="5.0"/>
+            <path from="wp0" to="village-b"/>
+            <path from="wp0" to="wp1"/>
+            <path from="wp1" to="wp2"/>
+            <path from="wp2" to="wp3"/>
+            <path from="wp3" to="market"/>
+            <path from="wp3" to="wp4"/>
+            <path from="wp4" to="market"/>
+            <path from="wp4" to="wp5"/>
+            <path from="wp5" to="wp6"/>
+            <path from="wp6" to="village-a"/>
+            <path from="wp5" to="wp7"/>
+            <path from="wp7" to="wp8"/>
+            <path from="wp8" to="wp9"/>
+            <path from="wp9" to="wp10"/>
+            <path from="wp10" to="wp11"/>
+            <path from="wp11" to="wp12"/>
+            <path from="wp12" to="wp1"/>
+            <path from="wp10" to="wp13"/>
+            <path from="wp9" to="wp14"/>
+            <path from="wp13" to="shrine"/>
+            <path from="wp14" to="shrine"/>
+        </world>
         <animation id="dwarf-asset-instanced" type="asset" idle="idle1">
             <controller id="dwarf-controller" type="npc" tf="dwarf-tf"
-                laziness="0.5,0.25"
-                floor-height="-2.0"
-                base-orientation="4.7124"
-                run-speed="4.0" walk-speed="3.0">
-                <place type="home" point="250.0,250.0" radius="5.0"/>
-                <place type="home" point="-250.0,-250.0" radius="5.0"/>
-                <place type="spiritual" point="0.0,0.0" radius="5.0"/>
-                <place type="gathering" point="100.0,0.0" radius="5.0"/>
-                <place type="gathering" point="-150.0,-50.0" radius="5.0"/>
+                        indexed-shape="dwarf-shape"
+                        spatial-index="main-index"
+                        height-map="ground-height"
+                        base-orientation="4.7124"
+                        run-speed="6.0" walk-speed="5.0">
             </controller>
         </animation>
         <camera id="main-camera"
                 mode="first-person"
                 speed="0.04"
                 eye-offset="0.0,1.0,0.0"
-                eye-orientation="0.0">
-            <anchor type="look-at" transform="cauldron-tf1" offset="0.0,5.0,0.0"/>
-            <anchor type="look-at" transform="cauldron-tf2" offset="0.0,5.0,0.0"/>
-            <anchor type="look-at" pos="250.0, 5.0, 250.0" dir="0.00561657, -0.119712, -0.992793"/>
-            <anchor type="look-at" pos="-250.0, 5.0, -250.0" dir="0.707107, -0.119712, 0.696364"/>
+                eye-orientation="0.0"
+                ease-in-out="1.8"
+                anchor-pause-time="0.7"
+                anchor-time-scale="0.1">
+            <anchor type="look-at"
+                    pos="{{market-x}}, 0.0, {{market-z}}"
+                    offset="0.0, -10.0, 35.0"
+                    dir="0.0, -0.2, -0.7"/>
+
+            <anchor type="look-at"
+                    pos="{{village-center-b-x}}, 0.0, {{village-center-b-z}}"
+                    offset="0.0, -15.0, 50.0"
+                    dir="0.007107, -0.119712, -0.696364"/>
+            <anchor type="look-at"
+                    pos="{{statue-a-x}}, 0.0, {{statue-a-z}}"
+                    offset="0.0, 10.0, -35.0"
+                    dir="0.0, -0.2, 0.7"/>
+            <anchor type="look-at"
+                    pos="{{shrine-center-x}}, 45.0, {{shrine-center-z}}"
+                    offset="0.0, 0.0, -35.0"
+                    dir="0.0, -0.2, 0.7"/>
+            <anchor type="look-at"
+                    pos="{{village-center-a-x}}, 0.0, {{village-center-a-z}}"
+                    offset="0.0, -15.0, -45.0"
+                    dir="-0.00561657, -0.119712, 0.992793"/>
+            <anchor type="look-at"
+                    pos="{{market-x}}, 0.0, {{market-z}}"
+                    offset="0.0, -10.0, 35.0"
+                    dir="0.0, -0.2, -0.7"/>
         </camera>
     </node>
 
     <!-- FBOs -->
     <fbo id="g-buffer"
          size-mode="rel" size="1.0,1.0"
-         pixel-type="UNSIGNED_BYTE"
-         pixel-size="16"
+         pixel-type="FLOAT"
+         pixel-size="24"
          pixel-components="4">
         <texture id="diffuse"/>
         <texture id="tmp"/>
         <texture id="specular"/>
         <texture id="normal"/>
+        <texture id="emission" num-components="4"/>
         <depth id="depth" pixel-size="24"/>
     </fbo>
     <fbo id="sun-shadow" size-mode="abs" size="2048,2048,{{num-cascades}}">
@@ -59,17 +283,61 @@
                compare-function="LEQUAL"
                sampler-type="sampler2DArrayShadow"/>
     </fbo>
+    <fbo id="footsteps-fbo0" size-mode="abs" size="256,256"
+         pixel-type="UNSIGNED_BYTE" pixel-size="16">
+        <texture id="collision" pixel-components="1"
+                 min-filter="LINEAR" mag-filter="LINEAR"/>
+    </fbo>
+    <fbo id="footsteps-fbo1" size-mode="abs" size="256,256,2"
+         target="TEXTURE_2D_ARRAY" pixel-components="1"
+         min-filter="LINEAR" mag-filter="LINEAR">
+        <texture id="footsteps" pixel-components="1"
+                 min-filter="LINEAR" mag-filter="LINEAR"/>
+    </fbo>
     <!-- Textures -->
     <texture id="snow-flake" file="res/textures/splats/flake.png"/>
+    <texture id="snow" file="res/textures/ground/snow/2/diffuse.png" mipmap="1"/>
     <texture id="wind-flowmap" file="res/textures/wind/flowmap0.png" wrapping="REPEAT"/>
+    <texture id="ground-normal" file="res/textures/terrain/rocky1/normal.png" mipmap="1"/>
+    <texture id="ground-height" type="height" file="res/textures/terrain/rocky1/height.png" mipmap="1"
+             map-center="0.0,0.0"
+             map-size="{{map-size}},{{map-size}}"
+             map-factor="{{map-height}}"/>
+    <texture id="ground-noise" type="noise" size="1024.0,1024.0" is-seamless="0"
+             output-generator="0" noise-scale="1.0">
+        <generator id="0" type="perlin" octaves="4" frequency="2.0" persistence="0.5" lacunarity="2.0"/>
+        <!--
+        <generator id="1" type="sphere">
+            <source id="0" />
+        </generator>
+        -->
+    </texture>
+    <texture id="fire-noise" file="res/textures/fire/noise.png" wrapping="REPEAT"/>
+    <texture id="fire-color" file="res/textures/fire/color.png" wrapping="CLAMP_TO_EDGE"/>
+    <texture id="emission-map-bloom" type="bloom" num-mips="4" input-fbo="g-buffer"/>
+    <!-- Spatial Index -->
+    <index id="main-index" type="quadtree"
+           max-objects-per-node="4"
+           test-mode-3d="closest"
+           close-distance="20.0"/>
     <!-- Cameras -->
-    <camera id="main-camera"
-            fov="45.0" near="0.1" far="200.0"
+    <camera id="main-camera" culling-index="main-index"
+            fov="45.0" near="0.1" far="{{far-plane}}"
             position="1.0,6.0,-50.0"
             direction="0.0,0.0,1.0"/>
-    <camera id="sun-camera" light="sky-sun" camera="main-camera"
+    <camera id="sun-camera" culling-index="main-index"
+            light="sky-sun" camera="main-camera"
             lod-shift="1,1,1,0"
-            num-layer="{{num-cascades}}" split-weight="0.6"/>
+            num-layer="{{num-cascades}}"
+            split-weight="0.6"
+            uniform-z-range="1"
+            depth-padding="0.0"/>
+    <camera id="footsteps-camera" type="orthogonal"
+            width="3.0" height="3.0" far="0.55"
+            position="0.0, -0.5, 0.0"
+            direction="0.0,1.0,0.0"
+            up="0.0,0.0,-1.0"
+            update-frequency="NEVER"/>
     <!-- Assets -->
     <!-- TODO: animation-instances="100" can e removed? -->
     <asset id="dwarf-asset-instanced"
@@ -86,7 +354,8 @@
         <anim-range name="walk" range="1.0,13.0"/>
         <anim-range name="run" range="15.0,25.0"/>
         <anim-range name="jump" range="27.0,39.0"/>
-        <anim-range name="crouch" range="55.0,58.0"/>
+        <!-- <anim-range name="crouch" range="55.0,58.0"/> -->
+        <anim-range name="crouch" range="59.0,68.0"/>
         <anim-range name="battleIdle1" range="74.0,87.0"/>
         <anim-range name="battleIdle2" range="89.0,109.0"/>
         <anim-range name="attack" range="111.0,125.0"/>
@@ -97,27 +366,95 @@
         <anim-range name="block" range="193.0,209.0"/>
         <anim-range name="idle" range="291.0,324.0"/>
         <anim-range name="idle2" range="326.0,359.0"/>
+        <anim-range name="yes" range="252.0,271.0"/>
+        <anim-range name="no" range="273.0,289.0"/>
     </asset>
-    <asset id="asset-cauldron"
-        type="asset"
-        file="res/models/cauldron.obj"
-        use-animation="0"/>
+    <asset id="asset-cauldron" type="asset" file="res/models/cauldron.obj" use-animation="0"/>
+    <asset id="asset-woodpile" type="asset"
+           file="res/models/woodpile/Wood.obj"
+           texture-path="res/models/woodpile"
+           use-animation="0"/>
+    <asset id="asset-crate" type="asset"
+           file="res/models/crate/box 01.obj"
+           texture-path="res/models/crate"
+           use-animation="0"/>
+    <asset id="asset-house" type="asset"
+           file="res/models/village-house/medieval house.obj"
+           texture-path="res/models/village-house"
+           use-animation="0"/>
+    <asset id="asset-old-bench" type="asset"
+           file="res/models/old-bench/bench.obj"
+           texture-path="res/models/old-bench"
+           use-animation="0"/>
+    <asset id="asset-altar" type="asset"
+           file="res/models/egyptian-altar/altar.obj"
+           texture-path="res/models/egyptian-altar"
+           use-animation="0"/>
+    <asset id="asset-well" type="asset"
+           file="res/models/well/well.obj"
+           texture-path="res/models/well"
+           use-animation="0"/>
+    <asset id="asset-pallet" type="asset"
+           file="res/models/pallet/pallet.obj"
+           texture-path="res/models/pallet"
+           use-animation="0"/>
+    <asset id="asset-barrel" type="asset"
+           file="res/models/explosive-barrel/barrel.fbx"
+           texture-path="res/models/explosive-barrel"
+           use-animation="0"/>
+    <asset id="asset-cart" type="asset"
+           file="res/models/cart/cart.obj"
+           texture-path="res/models/cart"
+           use-animation="0"/>
+    <asset id="asset-stable" type="asset"
+           file="res/models/stable/stable.obj"
+           texture-path="res/models/stable"
+           use-animation="0"/>
+    <asset id="asset-trade-tent" type="asset"
+           file="res/models/trade-tent/tent.obj"
+           texture-path="res/models/trade-tent"
+           use-animation="0" gen-normals="1"/>
+    <asset id="asset-apple" type="asset"
+           file="res/models/apple/apple.obj"
+           texture-path="res/models/apple"/>
+    <asset id="asset-pear" type="asset"
+           file="res/models/pear/pear.obj"
+           texture-path="res/models/pear"/>
+    <asset id="asset-pumpkin" type="asset"
+           file="res/models/pumpkin/pumpkin.obj"
+           texture-path="res/models/pumpkin"
+           gen-smooth-normals="1"/>
+    <asset id="asset-campfire" type="asset"
+           file="res/models/campfire/campfire.obj"
+           texture-path="res/models/campfire"
+           use-animation="0"/>
+    <asset id="asset-rack" type="asset" file="res/models/weapon-rack.obj" gen-normals="1"/>
+    <asset id="asset-stool" type="asset" file="res/models/stool.obj"
+           gen-normals="1" gen-uv="1" gen-tangents="1"/>
+    <asset id="asset-statue" type="asset"
+           file="res/models/statue/statue.obj"
+           texture-path="res/models/statue"
+           use-animation="0"/>
+    <asset id="asset-sphinx" type="asset"
+           file="res/models/sphinx/sphinx.obj"
+           texture-path="res/models/sphinx"
+           use-animation="0"/>
     <!-- Sky -->
-    <sky id="sky" camera="main-camera" update-interval="200.0" >
-        <star-map texture="res/sky/milkyway.png" scattering="0.8" delta-magnitude="0.05" lod="0" />
+    <sky id="sky" camera="main-camera" update-interval="200.0">
+        <star-map texture="res/sky/milkyway.png" scattering="0.8" delta-magnitude="0.05" lod="0"/>
         <stars catalog="res/sky/bright-stars.bin" scale="1.4"
-            scattering="1.0" scintillation="0.2" apparent-magnitude="6.0"
-            glare-intensity="0.04" glare-scale="0.2"
-            color="0.66,0.78,1.0" color-ratio="0.66"/>
+               scattering="1.0" scintillation="0.2" apparent-magnitude="6.0"
+               glare-intensity="0.04" glare-scale="0.2"
+               color="0.66,0.78,1.0" color-ratio="0.66"/>
         <moon texture="res/sky/moon.png" scale="0.04" scattering="4.0"
-            sun-shine-color="0.923,0.786,0.636" sun-shine-intensity="128.0"
-            earth-shine-color="0.88,0.96,1.0" earth-shine-intensity="8.0" />
+              sun-shine-color="0.923,0.786,0.636" sun-shine-intensity="128.0"
+              earth-shine-color="0.88,0.96,1.0" earth-shine-intensity="8.0"/>
         <atmosphere preset="earth" size="256" lod="0">
-            <input type="float" name="cirrus" value="1.0" />
-            <input type="float" name="cumulus" value="1.0" />
-            <input type="float" name="dithering" value="0.2" />
-            <input type="float" name="ditheringScale" value="100.0" />
-            <input type="float" name="cloudTimeFactor" value="0.3" />
+            <input type="float" name="cirrus" value="1.0"/>
+            <input type="float" name="cumulus" value="1.0"/>
+            <input type="float" name="dithering" value="0.2"/>
+            <input type="float" name="ditheringScale" value="100.0"/>
+            <input type="float" name="cloudTimeFactor" value="0.3"/>
         </atmosphere>
     </sky>
     <node id="Sky">
@@ -132,24 +469,144 @@
     </block>
 
     <!--**************************-->
+    <!--****** one-time init *******-->
     <!--**************************-->
 
-    <mesh id="ground-mesh" type="rectangle" lod="0" center="1"
-          use-normal="1" use-texco="1" use-tangent="1"
-          rotation="0.0,0.0,3.1415"
-          scaling="1000.0,1000.0,1000.0"
-          texco-scaling="400.0,400.0"
-          update-frequency="NEVER">
-        <transform update-frequency="NEVER">
-            <translate value="0.0,-2.0,0.0"/>
-        </transform>
-        <material preset="ground/stone" variant="4"/>
+    <node id="Footsteps-Initialize">
+        <depth test="0" write="0"/>
+        <node id="Collision">
+            <define key="IGNORE_modelMatrix" value="TRUE"/>
+            <define key="OUTPUT_TYPE" value="WHITE"/>
+            <camera id="footsteps-camera"/>
+            <fbo id="footsteps-fbo0" clear-buffers="0" draw-buffers="0"/>
+            <node id="Dwarf">
+                <mesh id="dwarf-base"/>
+            </node>
+        </node>
+        <node id="Footsteps-Array">
+            <texture name="inputTexture" fbo="footsteps-fbo0" attachment="0"/>
+            <depth test="0" write="0"/>
+            <fbo id="footsteps-fbo1" clear-buffers="0" draw-buffers="0"/>
+            <node id="Left-Foot">
+                <input name="layer" type="int" value="0"/>
+                <input name="uRange" type="vec2" value="0.0,0.5"/>
+                <fullscreen-pass shader="regen.filter.sampling"/>
+            </node>
+            <node id="Right-Foot">
+                <input name="layer" type="int" value="1"/>
+                <input name="uRange" type="vec2" value="0.5,1.0"/>
+                <fullscreen-pass shader="regen.filter.sampling"/>
+            </node>
+        </node>
+    </node>
+
+    <node id="initialize">
+        <node import="Footsteps-Initialize"/>
+    </node>
+
+    <!--**************************-->
+    <!--****** Ground mesh *******-->
+    <!--**************************-->
+
+    <mesh id="ground-mesh"
+          type="ground"
+          lod-levels="6,5,4,2"
+          lod-thresholds="40.0, 80.0, 120.0"
+          patch-density="35"
+          map-size="{{map-size}},{{map-height}},{{map-size}}"
+          map-center="0.0,0.0,0.0"
+          skirt-size="1.4"
+          weight-map-size="2024"
+          weight-mips="1"
+          triplanar-blending="1"
+          height-map="ground-height"
+          normal-map="ground-normal"
+          tf="ground-tf">
+        <shader mesh-index="0" key="regen.terrain.ground"/>
+        <shader mesh-index="1" key="regen.terrain.ground.skirt"/>
+        <transform id="ground-tf" update-frequency="NEVER"/>
+        <materials>
+            <!--
+            <material type="grass" name="ground/grass" variant="1" uv-scale="0.25"
+                    height="0.25, 0.75, 0.25" slope="0.0, 25.0, 10.0"/>
+            <material type="sand" name="ground/sand" variant="3" uv-scale="0.05"
+                    height="0.0, 0.3, 0.2" slope="0.0, 15.0, 15.0"/>
+            -->
+            <material type="rock" name="ground/stone" variant="8" uv-scale="0.1"
+                      slope="6.0, 180.0, 30.0"/>
+            <material type="dirt" name="ground/stone" variant="7" uv-scale="0.1" is-fallback="1"
+                      height="0.0, 0.75, 0.2" slope="10.0, 180.0, 20.0"/>
+            <material type="snow" name="ground/snow" variant="2" uv-scale="0.1"
+                      height="0.2, 1.0, 0.1" slope="0.0, 15.0, 10.0"/>
+        </materials>
+        <shape id="ground-shape" cull="1" index="1" type="obb" mesh-index="0"
+               mesh-id="ground-mesh" transform-id="ground-tf">
+            <has-part mesh-id="ground-mesh" mesh-index="1"/>
+        </shape>
     </mesh>
 
-    <node id="Scene-Geometry">
-        <node id="Ground">
-            <mesh id="ground-mesh" shader="regen.models.mesh"/>
+    <node id="Ground">
+        <define key="USE_VERTEX_NOISE" value="TRUE"/>
+        <input type="float" name="noiseScale" value="0.005"/>
+        <texture name="noiseTexture" id="ground-noise"/>
+        <node id="Ground-quad">
+            <mesh id="ground-mesh" mesh-index="0"/>
         </node>
+        <node id="Ground-skirts">
+            <mesh id="ground-mesh" mesh-index="1" update-visibility="0"/>
+        </node>
+    </node>
+
+    <mesh id="ground-blanket" type="rectangle"
+          use-normal="1" use-tangent="1" use-texco="1" center="1"
+          lod-levels="6, 5, 4, 2"
+          lod-thresholds="40.0, 80.0, 120.0"
+          rotation="0.0,0.0,3.1415"
+          scaling="20.0,20.0,20.0"
+          texco-scaling="1.0,1.0"
+          update-frequency="NEVER">
+        <material preset="stone" variant="0"/>
+        <transform id="ground-blanket-tf" update-frequency="NEVER">
+            <translate value="10.0,-32.0,0.0"/>
+            <translate value="0.0,0.1,0.0"/>
+        </transform>
+        <shape id="ground-blanket-shape" cull="1" index="1" type="aabb"
+               box-size="20.0,{{map-height}},20.0"
+               box-center="0.0,32.0,0.0"
+               transform-id="ground-blanket-tf">
+            <has-part mesh-id="ground-blanket" mesh-index="0"/>
+        </shape>
+    </mesh>
+
+    <!--
+    <mesh id="dwarf-footsteps" type="footsteps"
+            ground-mesh="ground-mesh"
+            num-npcs="{{num-dwarves}}">
+        <shader mesh-index="0" key="regen.terrain.ground"/>
+        <transform id="dwarf-footsteps-tf" is-instanced="1">
+        </transform>
+        <shape id="dwarf-footsteps-shape" cull="1" index="1" type="aabb"
+                box-size="20.0,{{map-height}},20.0"
+                box-center="0.0,32.0,0.0"
+                transform-id="dwarf-footsteps-tf">
+            <has-part mesh-id="dwarf-footsteps" mesh-index="0"/>
+        </shape>
+    </mesh>
+    -->
+
+    <node id="Scene-Geometry">
+        <node id="Blanket">
+            <input name="planeSize" type="vec2" value="{{map-size}},{{map-size}}"/>
+            <texture name="heightTexture" id="ground-height" map-to="HEIGHT"
+                     mapping="xz_plane" blend-mode="ADD" blend-factor="{{map-height}}"/>
+            <mesh id="ground-blanket"/>
+        </node>
+        <!--
+        <node id="Footsteps">
+            <mesh id="dwarf-footsteps"/>
+        </node>
+        -->
+        <node import="Ground"/>
     </node>
 
     <!--**************************-->
@@ -160,8 +617,13 @@
           asset="dwarf-asset-instanced"
           asset-indices="*"
           asset-animation="1"
+          lod-simplification="1.0, 0.85, 0.7"
+          lod-thresholds="20.0, 50.0, 100.0"
+          lod-strict-boundary="1"
           num-instances="{{num-dwarves}}"
           update-frequency="NEVER">
+        <shader mesh-index="0" key="regen.models.mesh"/>
+        <shader mesh-index="1" key="regen.models.mesh"/>
         <transform id="dwarf-tf" is-instanced="1">
             <!--
             <set mode="fade" target="scale"
@@ -169,14 +631,28 @@
                  random-indices="30"/>
                  -->
             <set mode="row" target="translate"
-                 x-step="8.0,0.0,0.0" x-count="10"
-                 z-step="0.0,0.0,8.0"/>
-            <translate value="-40.0,-2.0,-40.0"/>
+                 x-step="20.0,0.0,0.0" x-count="10"
+                 z-step="0.0,0.0,20.0"/>
+            <translate value="-40.0,0.0,-40.0"/>
+            <height map="ground-height"/>
         </transform>
         <input type="int" name="boneOffset" is-instanced="1">
-            <!-- <set mode="random" min="0" max="49"/> -->
-            <set mode="index" />
+            <set mode="index"/>
         </input>
+        <!-- Use s sphere shape for culling -->
+        <shape id="dwarf-shape" index="1" cull="1" type="sphere"
+               mesh-id="dwarf" mesh-index="0" transform-id="dwarf-tf">
+            <has-part mesh-id="dwarf" mesh-index="1"/>
+        </shape>
+    </mesh>
+
+    <mesh id="dwarf-base" type="asset" asset="dwarf-asset-instanced"
+          asset-indices="1"
+          asset-animation="0"
+          num-instances="1"
+          update-frequency="NEVER">
+        <shader mesh-index="0" key="regen.models.mesh"/>
+        <transform id="dwarf-base-tf" is-instanced="1"/>
     </mesh>
 
     <mesh id="mesh-cauldron" type="asset" asset="asset-cauldron"
@@ -184,31 +660,614 @@
           scaling="0.3,0.3,0.3"
           rotation="0.0,0.0,0.0"
           translation="0.0,0.0,0.0"
-          update-frequency="NEVER">
+          update-frequency="NEVER"
+          num-instances="4">
+        <shader key="regen.models.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
-        <material preset="iron" variant="0" />
+        <material preset="iron" variant="0"/>
+        <transform id="mesh-cauldron-tf" update-frequency="NEVER" is-instanced="1">
+            <translate instance="0" value="50.0, 0.0, 40.0"/>
+            <translate instance="1" value="-50.0, 0.0, -40.0"/>
+            <translate instance="2" value="50.0, 0.0, -40.0"/>
+            <translate instance="3" value="-50.0, 0.0, 40.0"/>
+            <translate value="{{market-x}}, 0.0, {{market-z}}"/>
+            <height map="ground-height"/>
+        </transform>
         <shape id="cauldron-shape" index="1" cull="1" type="aabb"
-                mesh-id="mesh-cauldron" transform-id="mesh-cauldron-tf" />
+               mesh-id="mesh-cauldron" transform-id="mesh-cauldron-tf"/>
+    </mesh>
+
+    <mesh id="fire-sprite" type="point" update-frequency="NEVER" num-instances="6">
+        <transform id="fire-sprite-tf" update-frequency="NEVER" is-instanced="1">
+            <translate instance="0" value="50.0, 5.5, 40.0"/>
+            <translate instance="1" value="-50.0, 5.5, -40.0"/>
+            <translate instance="2" value="50.0, 5.5, -40.0"/>
+            <translate instance="3" value="-50.0, 5.5, 40.0"/>
+            <translate indices="0,1,2,3" value="{{market-x}}, 0.0, {{market-z}}"/>
+            <translate instance="4" value="{{village-center-a-x}}, 0.25, {{village-center-a-z}}"/>
+            <translate instance="5" value="{{village-center-b-x}}, 0.25, {{village-center-b-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="fire-sprite-shape" index="1" cull="0" type="sphere"
+               mesh-id="fire-sprite" transform-id="fire-sprite-tf" radius="1.0"/>
+    </mesh>
+
+    <mesh id="cart" type="asset" asset="asset-cart"
+          asset-indices="*" asset-animation="0"
+          scaling="0.075,0.075,0.075"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="2">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <transform id="cart-tf" update-frequency="NEVER" is-instanced="1">
+            <rotate instance="0" value="1.57, 0.0, 0.0"/>
+            <rotate instance="1" value="2.57, 0.0, 0.0"/>
+            <translate instance="0" value="-75.0, 0.0, 30.0"/>
+            <translate instance="1" value="15.0, 0.0, -75.0"/>
+            <translate value="{{market-x}}, 0.0, {{market-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="cart-shape" index="1" cull="1" type="obb"
+               mesh-id="cart" transform-id="cart-tf"/>
+    </mesh>
+
+    <mesh id="stable" type="asset" asset="asset-stable"
+          asset-indices="*" asset-animation="0"
+          scaling="0.04,0.04,0.04"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="1">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <transform id="stable-tf" update-frequency="NEVER" is-instanced="1">
+            <rotate instance="0" value="-1.57, 0.0, 0.0"/>
+            <translate instance="0" value="-60.0, -0.2, 0.0"/>
+            <translate value="{{market-x}}, 0.0, {{market-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="stable-shape" index="1" cull="1" type="obb"
+               mesh-id="stable" mesh-index="0" transform-id="stable-tf">
+            <has-part mesh-id="stable" mesh-index="1"/>
+            <has-part mesh-id="stable" mesh-index="2"/>
+            <has-part mesh-id="stable" mesh-index="3"/>
+            <has-part mesh-id="stable" mesh-index="4"/>
+        </shape>
+    </mesh>
+
+    <mesh id="trade-tent" type="asset" asset="asset-trade-tent"
+          asset-indices="*" asset-animation="0"
+          scaling="0.15,0.15,0.15"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="3">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <transform id="trade-tent-tf" update-frequency="NEVER" is-instanced="1">
+            <rotate instance="1" value="0.4, 0.0, 0.0"/>
+            <rotate instance="2" value="-0.4, 0.0, 0.0"/>
+            <translate instance="0" value="0.0, 0.0, -55.0"/>
+            <translate instance="1" value="25.0, 0.0, -50.0"/>
+            <translate instance="2" value="-25.0, 0.0, -50.0"/>
+            <translate value="{{market-x}}, 0.0, {{market-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="trade-tent-shape" index="1" cull="1" type="aabb"
+               mesh-id="trade-tent" transform-id="trade-tent-tf"/>
+    </mesh>
+
+    <mesh id="apple" type="asset" asset="asset-apple"
+          asset-indices="*" asset-animation="0"
+          nor-max-angle="0.4"
+          nor-penalty="0.05"
+          valence-penalty="0.05"
+          area-penalty="0.05"
+          scaling="1.2,1.2,1.2"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="72">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <transform id="apple-tf" update-frequency="NEVER" is-instanced="1">
+            <set mode="random" target="rotate" min="-3.14,0.0,0.0" max="3.14,0.0,0.0"/>
+            <!-- top-left corner of leftmost basket, z-step moves to next basket -->
+            <translate value="-5.5, 2.6, 0.9"/>
+            <set from-index="0" to-index="71" mode="row" target="translate"
+                 x-step="0.7,0.0,0.0" y-step="0.0,0.0,0.8" z-step="1.975,0.0,0.0" x-count="2" y-count="3"/>
+            <!-- center store -->
+            <translate from-index="0" to-index="35" value="0.0, 0.0, -55.0"/>
+            <!-- left store -->
+            <rotate from-index="36" to-index="71" value="-0.4,0.0,0.0"/>
+            <translate from-index="36" to-index="71" value="-36.0,0.0,-45.5"/>
+            <translate value="{{market-x}}, 0.0, {{market-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="apple-shape" index="1" cull="1" type="sphere"
+               mesh-id="apple" transform-id="apple-tf"/>
+    </mesh>
+
+    <mesh id="pear" type="asset" asset="asset-pear"
+          asset-indices="*" asset-animation="0"
+          lod-simplification="0.75, 0.5, 0.25, 0.05"
+          lod-thresholds="20.0, 40.0, 60.0"
+          nor-max-angle="0.4"
+          nor-penalty="0.05"
+          valence-penalty="0.05"
+          area-penalty="0.05"
+          scaling="0.075,0.075,0.075"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="36">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <transform id="pear-tf" update-frequency="NEVER" is-instanced="1">
+            <rotate value="0.0, 0.0, 1.57"/>
+            <!-- top-left corner of leftmost basket, z-step moves to next basket -->
+            <translate value="-5.5, 3.0, 0.9"/>
+            <set mode="row" target="translate"
+                 x-step="0.7,0.0,0.0" y-step="0.0,0.0,0.8" z-step="1.975,0.0,0.0" x-count="2" y-count="3"/>
+            <!-- center store -->
+            <translate value="0.0,0.0,0.5"/>
+            <rotate value="0.4,0.0,0.0"/>
+            <translate value="25.25,0.0,-50.25"/>
+            <translate value="{{market-x}}, 0.0, {{market-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="pear-shape" index="1" cull="1" type="sphere"
+               mesh-id="pear" transform-id="pear-tf"/>
+    </mesh>
+
+    <mesh id="pumpkin" type="asset" asset="asset-pumpkin"
+          asset-indices="*" asset-animation="0"
+          lod-simplification="0.8, 0.6, 0.4, 0.1"
+          lod-thresholds="20.0, 40.0, 60.0"
+          nor-max-angle="0.4"
+          nor-penalty="0.05"
+          valence-penalty="0.05"
+          area-penalty="0.05"
+          scaling="0.008,0.008,0.008"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="4">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <transform id="pumpkin-tf" update-frequency="NEVER" is-instanced="1">
+            <set mode="random" target="rotate" min="-3.14,0.0,0.0" max="3.14,0.0,0.0"/>
+            <rotate value="0.0, 0.0, -0.44"/>
+            <translate value="-3.8, 0.85, 4.2"/>
+            <set mode="row" target="translate" x-step="2.425,0.0,0.0" x-count="4"/>
+            <!-- center store -->
+            <translate value="0.0, 0.0, -55.0"/>
+            <translate value="{{market-x}}, 0.0, {{market-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="pumpkin-shape" index="1" cull="1" type="sphere"
+               mesh-id="pumpkin" transform-id="pumpkin-tf"/>
+    </mesh>
+
+    <mesh id="market-place" type="disc"
+          lod-levels="3, 2, 1"
+          use-normal="1" use-tangent="1"
+          center="1" scaling="10.0, 1.0, 10.0"
+          texco-scaling="0.2, 0.2" disc-radius="1.0"
+          update-frequency="NEVER">
+        <shader mesh-index="0" key="regen.models.mesh"/>
+        <material preset="ground/stone" variant="3"/>
+        <transform id="market-place-tf" update-frequency="NEVER">
+            <translate instance="0" value="{{market-x}}, 0.0, {{market-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+    </mesh>
+
+    <mesh id="well" type="asset" asset="asset-well"
+          asset-indices="*" asset-animation="0"
+          scaling="0.05,0.05,0.05"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="1">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <transform id="well-tf" update-frequency="NEVER" is-instanced="1">
+            <translate instance="0" value="{{market-x}}, 0.0, {{market-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="well-shape" index="1" cull="1" type="aabb"
+               mesh-id="well" mesh-index="0" transform-id="well-tf">
+            <has-part mesh-id="well" mesh-index="1"/>
+            <has-part mesh-id="well" mesh-index="2"/>
+        </shape>
+    </mesh>
+
+    <mesh id="campfire" type="asset" asset="asset-campfire"
+          asset-indices="2,3,4" asset-animation="0"
+          scaling="0.3,0.3,0.3"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="2">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <transform id="campfire-tf" update-frequency="NEVER" is-instanced="1">
+            <translate instance="0" value="{{village-center-a-x}}, 0.0, {{village-center-a-z}}"/>
+            <translate instance="1" value="{{village-center-b-x}}, 0.0, {{village-center-b-z}}"/>
+            <translate value="-4.0,0.0,0.0"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="campfire-shape" index="1" cull="1" type="aabb"
+               mesh-id="campfire" mesh-index="0" transform-id="campfire-tf">
+            <has-part mesh-id="campfire" mesh-index="1"/>
+            <has-part mesh-id="campfire" mesh-index="2"/>
+        </shape>
+    </mesh>
+
+    <mesh id="pallet" type="asset" asset="asset-pallet"
+          asset-indices="0" asset-animation="0"
+          scaling="0.5,0.5,0.5"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="1">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <material preset="wood" variant="0"/>
+        <transform id="pallet-tf" update-frequency="NEVER" is-instanced="1">
+            <translate instance="0" value="100.0, 0.0, 0.0"/>
+            <translate instance="0" value="0.0, 0.0, 20.0"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="pallet-shape" index="1" cull="1" type="obb"
+               mesh-id="pallet" transform-id="pallet-tf"/>
+    </mesh>
+
+    <mesh id="woodpile" type="asset" asset="asset-woodpile"
+          asset-indices="*" asset-animation="0"
+          scaling="0.5,0.5,0.5"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="6">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <transform id="woodpile-tf" update-frequency="NEVER" is-instanced="1">
+            <!-- wood piles in village a -->
+            <translate instance="0" value="0.0, 0.0, 0.0"/>
+            <translate instance="1" value="3.25, 0.0, 0.0"/>
+            <translate instance="2" value="-3.25, 0.0, 0.0"/>
+            <rotate indices="0,1,2" value="3.92699,0.0,0.0"/>
+            <translate indices="0,1,2" value="-35.0, 0.0, 35.0"/>
+            <translate indices="0,1,2" value="{{village-center-a-x}}, 0.0, {{village-center-a-z}}"/>
+            <!-- wood piles in village b -->
+            <translate indices="3,4,5" value="{{village-center-b-x}}, 0.0, {{village-center-b-z}}"/>
+            <translate instance="3" value="-35.0, 0.0, -35.0"/>
+            <translate instance="4" value="-38.25, 0.0, -35.0"/>
+            <translate instance="5" value="-31.75, 0.0, -35.0"/>
+            <translate value="0.0, 0.4, 0.0"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="woodpile-shape" index="1" cull="1" type="obb" mesh-index="0"
+               mesh-id="woodpile" transform-id="woodpile-tf"/>
+    </mesh>
+
+    <mesh id="crate" type="asset" asset="asset-crate"
+          asset-indices="*" asset-animation="0"
+          scaling="2.5,2.5,2.5"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="9">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <transform id="crate-tf" update-frequency="NEVER" is-instanced="1">
+            <!-- crates in village b -->
+            <translate instance="0" value="0.0, 0.0, 0.0"/>
+            <translate instance="1" value="0.0, 0.0, -2.5"/>
+            <translate instance="2" value="0.0, 0.0, 2.5"/>
+            <translate instance="3" value="0.0, 2.5, 0.0"/>
+            <rotate indices="0,1,2,3" value="2.35619,0.0,0.0"/>
+            <translate indices="0,1,2,3" value="35.0, 0.0, -35.0"/>
+            <translate indices="0,1,2,3" value="{{village-center-b-x}}, 0.0, {{village-center-b-z}}"/>
+            <!-- crates in village a -->
+            <translate instance="4" value="0.0, 0.0, 0.0"/>
+            <translate instance="5" value="0.0, 0.0, -2.5"/>
+            <translate instance="6" value="0.0, 2.5, 0.0"/>
+            <translate instance="7" value="0.0, 0.0, 2.5"/>
+            <translate instance="8" value="0.0, 2.5, 2.5"/>
+            <rotate indices="4,5,6,7,8" value="1.57, 0.0, 0.0"/>
+            <translate indices="4,5,6,7,8" value="16.8, 0.0, 45.0"/>
+            <translate indices="4,5,6,7,8"
+                       value="{{village-center-a-x}}, 0.0, {{village-center-a-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="crate-shape" index="1" cull="1" type="obb"
+               mesh-id="crate" transform-id="crate-tf"/>
+    </mesh>
+
+    <mesh id="old-bench" type="asset" asset="asset-old-bench"
+          asset-indices="*" asset-animation="0"
+          scaling="0.05,0.15,0.15"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="2">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <material preset="iron" variant="0"/>
+        <transform id="old-bench-tf" update-frequency="NEVER" is-instanced="1">
+            <rotate instance="0" value="2.35619, 0.0, 0.0"/>
+            <rotate instance="1" value="2.35619, 0.0, 0.0"/>
+            <translate instance="0" value="25.0, 0.0, 25.0"/>
+            <translate instance="0" value="{{village-center-a-x}}, 0.0, {{village-center-a-z}}"/>
+            <translate instance="1" value="-25.0, 0.0, -25.0"/>
+            <translate instance="1" value="{{village-center-b-x}}, 0.0, {{village-center-b-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="old-bench-shape" index="1" cull="1" type="obb"
+               mesh-id="old-bench" transform-id="old-bench-tf"/>
+    </mesh>
+
+    <mesh id="altar" type="asset" asset="asset-altar"
+          asset-indices="*" asset-animation="0"
+          scaling="0.05,0.05,0.05"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="1">
+        <shader key="regen.models.mesh"/>
+        <transform id="altar-tf" update-frequency="NEVER" is-instanced="1">
+            <rotate value="0.0, 0.0, 1.57"/>
+            <translate instance="0" value="{{shrine-center-x}}, 0.0, {{shrine-center-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="altar-shape" index="1" cull="1" type="obb"
+               mesh-id="altar" transform-id="altar-tf"/>
+    </mesh>
+
+    <mesh id="sphinx" type="asset" asset="asset-sphinx"
+          asset-indices="*" asset-animation="0"
+          scaling="0.005,0.005,0.005"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="1">
+        <shader key="regen.models.mesh"/>
+        <transform id="sphinx-tf" update-frequency="NEVER" is-instanced="1">
+            <rotate value="0.0, 0.0, 1.57"/>
+            <rotate value="4.0, 0.0, 0.0"/>
+            <translate value="{{shrine-center-x}}, 0.0, {{shrine-center-z}}"/>
+            <translate value="-55.0, 0.0, 60.0"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="sphinx-shape" index="1" cull="1" type="obb"
+               mesh-id="sphinx" transform-id="sphinx-tf"/>
+    </mesh>
+
+    <mesh id="shrine-stones" type="sphere" use-normal="1" use-texco="1" use-tangent="1"
+          lod-levels="4, 3, 2"
+          lod-thresholds="20.0, 50.0, 0.0"
+          scaling="1.5,3.0,3.0"
+          num-instances="20"
+          update-frequency="NEVER">
+        <transform id="shrine-stones-tf" num-instances="20" is-instanced="1">
+            <rotate value="0.0, 1.57079632, 0.0"/>
+            <translate value="0.0, 0.0, 0.0"/>
+            <set mode="circle" target="translate" radius="45.0" variance="0.8"
+                 dir-x="1.0, 0.0, 0.0" dir-z="0.0, 0.0, 1.0"/>
+            <translate value="{{shrine-center-x}}, 0.0, {{shrine-center-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <material preset="stone" variant="0" max-offset="0.2" update-frequency="NEVER"/>
+        <shape id="shrine-stones-shape" index="1" cull="1" type="sphere"
+               mesh-id="shrine-stones" transform-id="shrine-stones-tf" radius="1.6"/>
+    </mesh>
+
+    <mesh id="statue" type="asset" asset="asset-statue"
+          asset-indices="*" asset-animation="0"
+          scaling="0.03,0.03,0.03"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="1">
+        <shader key="regen.models.mesh"/>
+        <transform id="statue-tf" update-frequency="NEVER" is-instanced="1">
+            <rotate value="0.0, 0.0, 1.57"/>
+            <rotate value="3.14, 0.0, 0.0"/>
+            <translate instance="0" value="{{statue-a-x}}, 0.0, {{statue-a-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="statue-shape" index="1" cull="1" type="aabb"
+               mesh-id="statue" transform-id="statue-tf"/>
+    </mesh>
+
+    <mesh id="rack" type="asset" asset="asset-rack"
+          asset-indices="*" asset-animation="0"
+          scaling="0.75,0.75,0.75"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="1">
+        <shader key="regen.models.mesh"/>
+        <transform id="rack-tf" update-frequency="NEVER" is-instanced="1">
+            <rotate value="1.57, 0.0, 0.0"/>
+            <translate instance="0" value="-22.0, 0.0, 45.0"/>
+            <translate instance="0" value="{{village-center-a-x}}, 0.0, {{village-center-a-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="rack-shape" index="1" cull="1" type="obb"
+               mesh-id="rack" transform-id="rack-tf"/>
+    </mesh>
+
+    <mesh id="barrel" type="asset" asset="asset-barrel"
+          asset-indices="*" asset-animation="0"
+          scaling="0.05,0.05,0.05"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="1">
+        <shader key="regen.models.mesh"/>
+        <transform id="barrel-tf" update-frequency="NEVER" is-instanced="1">
+            <rotate value="0.0, 0.0, 1.57"/>
+            <translate instance="0" value="40.0, 0.0, -15.0"/>
+            <translate instance="0" value="{{village-center-a-x}}, 0.0, {{village-center-a-z}}"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="barrel-shape" index="1" cull="1" type="obb"
+               mesh-id="barrel" transform-id="barrel-tf"/>
+    </mesh>
+
+    <!--
+    <mesh id="stool" type="asset" asset="asset-stool"
+          asset-indices="*" asset-animation="0"
+          scaling="0.005,0.005,0.005"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="1">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <material preset="wood" variant="0" />
+        <transform id="stool-tf" update-frequency="NEVER" is-instanced="1">
+            <translate instance="0" value="0.0, -10.0, 10.0"/>
+            <height map="ground-height" />
+        </transform>
+        <shape id="stool-shape" index="1" cull="1" type="obb"
+                mesh-id="stool" transform-id="stool-tf" />
+    </mesh>
+    -->
+
+    <mesh id="house" type="asset" asset="asset-house"
+          asset-indices="1" asset-animation="0"
+          scaling="2.0,2.0,2.0"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="6">
+        <shader key="regen.models.mesh"/>
+        <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
+        <transform id="house-tf" update-frequency="NEVER" is-instanced="1">
+            <!-- small village at home place a -->
+            <rotate instance="0" value="1.57, 0.0, 0.0"/>
+            <rotate instance="1" value="3.14, 0.0, 0.0"/>
+            <rotate instance="2" value="4.71, 0.0, 0.0"/>
+            <translate indices="0,1,2" value="{{village-center-a-x}}, 0.0, {{village-center-a-z}}"/>
+            <translate instance="0" value="40.0, 0.0, 0.0"/>
+            <translate instance="1" value="0.0, 0.0, 40.0"/>
+            <translate instance="2" value="-40.0, 0.0, 0.0"/>
+            <!-- small village at home place b -->
+            <rotate instance="3" value="1.57, 0.0, 0.0"/>
+            <rotate instance="4" value="0.0, 0.0, 0.0"/>
+            <rotate instance="5" value="4.71, 0.0, 0.0"/>
+            <translate indices="3,4,5" value="{{village-center-b-x}}, 0.0, {{village-center-b-z}}"/>
+            <translate instance="3" value="40.0, 0.0, 0.0"/>
+            <translate instance="4" value="0.0, 0.0, -40.0"/>
+            <translate instance="5" value="-40.0, 0.0, 0.0"/>
+            <height map="ground-height"/>
+        </transform>
+        <shape id="house-shape" index="1" cull="1" type="obb"
+               mesh-id="house" transform-id="house-tf"/>
     </mesh>
 
     <node id="Shadow-Caster">
-        <node id="Cauldron1">
-            <transform id="mesh-cauldron-tf1" update-frequency="NEVER">
-                <rotate value="0.0, 0.0, 0.0"/>
-                <translate value="-150.0, -2.0, -50.0"/>
-            </transform>
-            <mesh id="mesh-cauldron" shader="regen.models.mesh"/>
+        <node id="Crate">
+            <mesh id="crate"/>
         </node>
-        <node id="Cauldron2">
-            <transform id="mesh-cauldron-tf2" update-frequency="NEVER">
-                <rotate value="0.0, 0.0, 0.0"/>
-                <translate value="100.0, -2.0, 0.0"/>
-            </transform>
-            <mesh id="mesh-cauldron" shader="regen.models.mesh"/>
+        <node id="Cauldron">
+            <mesh id="mesh-cauldron"/>
+        </node>
+        <node id="Woodpile">
+            <mesh id="woodpile" mesh-index="0"/>
+        </node>
+        <node id="Pallet">
+            <mesh id="pallet"/>
+        </node>
+        <node id="Barrel">
+            <mesh id="barrel" mesh-index="0"/>
+        </node>
+        <node id="Old-Bench">
+            <mesh id="old-bench"/>
+        </node>
+        <!--
+        <node id="Stool">
+            <mesh id="stool" />
+        </node>
+        -->
+        <node id="Campfire">
+            <mesh id="campfire" mesh-indices="0,1,2"/>
+        </node>
+        <node id="Altar">
+            <mesh id="altar" mesh-index="1"/>
+        </node>
+        <node id="Shrine-Stones">
+            <mesh id="shrine-stones"/>
+        </node>
+        <node id="Cart">
+            <mesh id="cart"/>
+        </node>
+        <node id="Well">
+            <texture name="snowTexture" id="snow" map-to="DIFFUSE"
+                     mapping="TRIPLANAR" texco-scale="0.1" blend-factor="0.9"
+                     blend-function-key="regen.terrain.ground.blend_ground"/>
+            <mesh id="well"/>
+        </node>
+        <node id="Altar-Statue">
+            <input name="matEmission" type="vec3" value="0.0,1.0,0.0"/>
+            <mesh id="altar" mesh-index="0"/>
+        </node>
+        <node id="Sphinx">
+            <mesh id="sphinx"/>
+        </node>
+        <node id="Rack">
+            <mesh id="rack" mesh-index="0"/>
+        </node>
+        <node id="Statue">
+            <texture name="snowTexture" id="snow" map-to="DIFFUSE"
+                     mapping="TRIPLANAR" texco-scale="0.1" blend-factor="0.8"
+                     blend-function-key="regen.terrain.ground.blend_ground"/>
+            <mesh id="statue"/>
+        </node>
+        <node id="Stable">
+            <texture name="snowTexture" id="snow" map-to="DIFFUSE"
+                     mapping="TRIPLANAR" texco-scale="0.1" blend-factor="0.8"
+                     blend-function-key="regen.terrain.ground.blend_ground"/>
+            <mesh id="stable"/>
+        </node>
+        <node id="Apple">
+            <mesh id="apple" mesh-index="0"/>
+        </node>
+        <node id="Pear">
+            <mesh id="pear" mesh-index="0"/>
+        </node>
+        <node id="Pumpkin">
+            <mesh id="pumpkin" mesh-index="0"/>
+        </node>
+        <node id="Trade-Tent">
+            <mesh id="trade-tent" mesh-indices="0,2,3"/>
+        </node>
+        <node id="Trade-Tent-Flag">
+            <define key="HAS_TWO_SIDES" value="TRUE"/>
+            <toggle key="CULL_FACE" value="0"/>
+            <mesh id="trade-tent" mesh-indices="1"/>
+        </node>
+        <node id="House">
+            <define key="HAS_TWO_SIDES" value="TRUE"/>
+            <toggle key="CULL_FACE" value="0"/>
+            <mesh id="house"/>
         </node>
         <node id="Dwarf">
-            <mesh id="dwarf" shader="regen.models.mesh"/>
+            <mesh id="dwarf" mesh-index="1" update-visibility="1"/>
         </node>
+        <!--
+        <node id="Market-Place">
+            <mesh id="market-place"/>
+        </node>
+        -->
+        <!-- TODO: render axe when fighting etc -->
     </node>
 
     <!--**************************-->
@@ -221,11 +1280,16 @@
         <input type="vec3" name="initialVelocity" value="0.05,-0.05,0.05"/>
         <input type="vec2" name="initialBrightness" value="5.0,2.0"/>
         <input type="vec2" name="emitterCone" value="60.0,30.0"/>
-        <input type="float" name="surfaceHeight" value="{{map-y-min}}"/>
         <input name="Camera" state="main-camera" component="Camera"/>
         <input type="float" name="windFactor" value="10.0"/>
         <input name="Wind" ubo="WindUBO"/>
         <texture name="windFlow" id="wind-flowmap"/>
+
+        <!-- <input type="float" name="surfaceHeight" value="{{map-y-min}}"/> -->
+        <input type="vec2" name="mapCenter" value="0.0,0.0"/>
+        <input type="vec2" name="mapSize" value="{{map-size}},{{map-size}}"/>
+        <input type="float" name="mapFactor" value="{{map-height}}"/>
+        <texture name="heightMap" id="ground-height"/>
     </node>
 
     <mesh id="snow-particles"
@@ -239,23 +1303,68 @@
     </mesh>
 
     <node id="Snow">
-        <direct-shading ambient="0.3,0.3,0.3">
+        <direct-shading ambient="0.2,0.2,0.24">
             <direct-lights>
                 <light id="sky-sun"/>
                 <light id="sky-moon"/>
             </direct-lights>
             <direct-pass>
                 <node id="particle-draw">
+                    <define key="NORMAL_CORRECTION" value="FALSE"/>
                     <blend mode="add"/>
                     <depth test="1" write="0"/>
                     <texture name="depthTexture" fbo="g-buffer" attachment="depth"/>
                     <texture name="snowTexture" id="snow-flake"/>
-                    <input type="vec2" name="particleSize" value="0.06,0.06"/>
+                    <input type="vec2" name="particleSize" value="0.08,0.08"/>
+                    <input type="float" name="softParticleScale" value="30.0"/>
                     <mesh id="snow-particles" shader="regen.weather.snow.draw"/>
                 </node>
             </direct-pass>
         </direct-shading>
     </node>
+
+    <node id="Fire">
+        <alpha discard-threshold="0.25"/>
+        <input type="vec2" name="spriteSize" value="3.25, 3.25"/>
+        <texture id="fire-noise" name="fireNoiseTexture"/>
+        <texture id="fire-color" map-to="COLOR" blend="SRC"
+                 texco-transfer-key="regen.models.sprite.fireTransfer1"/>
+        <mesh id="fire-sprite" shader="regen.models.sprite"/>
+    </node>
+
+    <!--**************************-->
+    <!--******* Lightning ********-->
+    <!--**************************-->
+
+    <mesh id="lightning-mesh" type="lightning"
+          update-frequency="PER_FRAME" update-scope="FULL">
+        <shader mesh-index="0" key="regen.weather.lightning"/>
+        <strike num-subdivisions="7" jitter-offset="24.0"
+                max-branches="12" branch-probability="0.9" branch-offset="32.0"
+                frequency="1.1f, 1.0f" lifetime="0.35f, 0.15f"
+                source-constant="300, 140.0, 380"
+                target-constant="{{shrine-center-x}}, 36.0, {{shrine-center-z}}"/>
+        <strike num-subdivisions="7" jitter-offset="24.0"
+                max-branches="12" branch-probability="0.9" branch-offset="32.0"
+                frequency="1.1f, 1.0f" lifetime="0.35f, 0.15f"
+                source-constant="420, 140.0, 340"
+                target-constant="{{shrine-center-x}}, 36.0, {{shrine-center-z}}"/>
+        <strike num-subdivisions="5" jitter-offset="2.0" width-factor="0.3"
+                max-branches="6" branch-probability="0.6" branch-offset="1.0"
+                frequency="0.0f, 0.0f" lifetime="0.7f, 0.3f"
+                ring-strength="4" ring-tf="shrine-stones-tf"/>
+        <!--
+<strike num-subdivisions="4" jitter-offset="1.0" width-factor="0.1"
+        max-branches="4" branch-probability="0.4" branch-offset="1.0"
+        frequency="0.0f, 0.0f" lifetime="0.2f, 0.1f"
+        ring-strength="2" ring-tf="sphere2-tf"/>
+<strike num-subdivisions="6" jitter-offset="3.0" width-factor="0.2"
+        max-branches="11" branch-probability="0.7" branch-offset="4.0"
+        frequency="10.1f, 5.0f" lifetime="0.95f, 0.3f"
+        source-tf="stone-ring-tf"
+        target-tf="sphere2-tf" target-randomize="1"/>
+        -->
+    </mesh>
 
     <!--**************************-->
     <!--**************************-->
@@ -274,54 +1383,139 @@
                        shadow-camera="sun-camera"/>
             </light-pass>
         </node>
+
         <node import="Ambient-Occlusion-Update"/>
-        <node import="Ambient-Occlusion-Sample"/>
+        <node id="Ambient-Occlusion-Sample">
+            <blend mode="mul"/>
+            <texture name="aoTexture" id="ambient-occlusion"/>
+            <fullscreen-pass shader="regen.shading.ssao.sample"/>
+        </node>
     </node>
 
-    <node id="Background-Pass">
-        <depth test="1" write="0"/>
+    <node id="Emission-Update">
+        <node id="Additive-Emission">
+            <define key="OUTPUT_TYPE" value="TRANSPARENCY"/>
+            <fbo id="g-buffer" draw-buffers="4"/>
+            <depth test="1" write="0"/>
+            <blend mode="add"/>
 
-        <node id="Distance-Fog">
+            <!-- apply fog to transparent objects -->
+            <input type="float" name="fogDensity" value="1.0"/>
+            <input type="vec2" name="fogDistance" value="50.0,{{far-plane}}" min="0.0" max="{{far-plane}}"/>
+            <input type="vec3" name="fogColor" value="0,0,0" schema="color"/>
+            <input type="vec2" name="farDistance" value="75.0,{{far-plane}}"/>
+            <input name="SunLight" state="sky-sun" component="Light" member-suffix="_Sun"/>
+            <input type="vec3" name="warmTint" value="0.6, 0.4, 0.3"/>
+            <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
+            <texture name="gColorTexture" fbo="g-buffer" attachment="0"/>
+
+            <node id="Fire-Emission">
+                <node import="Fire"/>
+            </node>
+            <node id="Lightning-Emission">
+                <blend mode="alpha"/>
+                <input type="float" name="lightningWidth" value="0.15"/>
+                <input type="vec3" name="matDiffuse" value="0.8, 1.5, 8.0"/>
+                <mesh id="lightning-mesh"/>
+            </node>
+        </node>
+        <view id="Additive Emission">
+            <blit src-fbo="g-buffer" src-attachment="4" dst-fbo="SCREEN"/>
+        </view>
+        <node id="Emission-Update">
+            <input type="float" name="filterRadius" value="1.0"/>
+            <bloom fbo="g-buffer" attachment="4" bloom-texture="emission-map-bloom"/>
+        </node>
+        <view id="Emission Mips">
+            <fbo id="SCREEN"/>
+            <texture name="inputTexture1" id="emission-map-bloom" mip-level="0"/>
+            <texture name="inputTexture2" id="emission-map-bloom" mip-level="1"/>
+            <texture name="inputTexture3" id="emission-map-bloom" mip-level="2"/>
+            <texture name="inputTexture4" id="emission-map-bloom" mip-level="3"/>
+            <fullscreen-pass shader="regen.filter.sampling.x4"/>
+        </view>
+    </node>
+
+    <node id="Post-Pass">
+        <fbo id="g-buffer" draw-buffers="1"/>
+        <depth test="0" write="0"/>
+
+        <node id="Albedo-Fog">
+            <depth test="1" write="0"/>
             <fbo id="g-buffer" draw-buffers="0"/>
             <input type="float" name="fogDensity" value="1.0"/>
-            <input type="vec2" name="fogDistance" value="50.0,150.0" min="0,0" max="200"/>
+            <input type="vec2" name="fogDistance" value="50.0,{{far-plane}}" min="0,0" max="{{far-plane}}"/>
             <input type="vec3" name="fogColor" value="0.25, 0.35, 0.3" schema="color"/>
-            <!--
-            <input type="float" name="fogHeightMax" value="15.0"/>
-            <input type="float" name="fogHeightMin" value="-10.0"/>
-            -->
-            <input type="vec2" name="farDistance" value="150.0,200.0"/>
+            <input type="vec2" name="farDistance" value="150.0,{{far-plane}}"/>
             <input name="SunLight" state="sky-sun" component="Light" member-suffix="_Sun"/>
-            <input type="vec3" name="warmTint" value="0.6, 0.4, 0.3" />
+            <input type="vec3" name="warmTint" value="0.6, 0.4, 0.3"/>
             <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
             <texture name="gColorTexture" fbo="g-buffer" attachment="1"/>
             <texture name="skyColorTexture" id="sky"/>
             <fullscreen-pass shader="regen.weather.fog.distance"/>
         </node>
-        <view id="Fog">
+        <view id="Albedo-Fog">
             <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
         </view>
-
         <node import="Sky">
             <fbo id="g-buffer" draw-buffers="0"/>
         </node>
-    </node>
 
-    <node id="Post-Pass">
-        <depth test="0" write="0"/>
-
-        <node import="G-Buffer-Blur0"/>
+        <node import="G-Buffer-Blur0"/> <!-- TODO: remove? -->
         <node import="Depth-of-Field">
             <fbo id="g-buffer" draw-buffers="1"/>
             <texture name="inputTexture" fbo="g-buffer" attachment="0"/>
-            <input type="vec2" name="focalWidth" value="0.2,0.5" />
+            <input type="vec2" name="focalWidth" value="0.2,0.5"/>
         </node>
         <view id="DoF">
             <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
         </view>
 
-        <node import="Snow">
+        <!-- render transparent objects -->
+        <node id="Transparent-Pass">
             <fbo id="g-buffer" draw-buffers="1"/>
+            <blend mode="add"/>
+            <depth test="1" write="0"/>
+            <!-- render emission light -->
+            <node id="Material-Emission">
+                <depth test="0" write="0"/>
+                <texture name="gEmissionTexture" fbo="g-buffer" attachment="4"/>
+                <texture name="gEmissionBlurred" id="emission-map-bloom"/>
+                <fullscreen-pass shader="regen.shading.deferred.emission"/>
+                <!--
+                <blend mode="alpha"/>
+                <depth test="0" write="0"/>
+                <texture name="inputTexture" fbo="g-buffer" attachment="4"/>
+                <fullscreen-pass shader="regen.filter.sampling"/>
+                -->
+            </node>
+            <node id="Alpha-Blending-Pass">
+                <blend mode="alpha"/>
+                <define key="OUTPUT_TYPE" value="TRANSPARENCY"/>
+                <!-- apply fog to transparent objects -->
+                <input type="float" name="fogDensity" value="1.0"/>
+                <input type="vec2" name="fogDistance" value="50.0,{{far-plane}}" min="0.0" max="{{far-plane}}"/>
+                <input type="vec3" name="fogColor" value="0,0,0" schema="color"/>
+                <input type="vec2" name="farDistance" value="75.0,{{far-plane}}"/>
+                <input name="SunLight" state="sky-sun" component="Light" member-suffix="_Sun"/>
+                <input type="vec3" name="warmTint" value="0.6, 0.4, 0.3"/>
+                <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
+                <texture name="gColorTexture" fbo="g-buffer" attachment="0"/>
+                <texture name="skyColorTexture" id="sky"/>
+
+                <node import="Fire"/>
+                <node id="Lightning-Inner">
+                    <input type="float" name="lightningWidth" value="0.075"/>
+                    <input type="vec3" name="matDiffuse" value="1.0, 1.0, 1.0"/>
+                    <mesh id="lightning-mesh"/>
+                </node>
+            </node>
+            <node import="Snow">
+                <fbo id="g-buffer" draw-buffers="1"/>
+            </node>
+            <view id="Transparent Objects">
+                <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+            </view>
         </node>
 
         <node import="FXAA">
@@ -336,22 +1530,94 @@
     <!--**************************-->
     <!--**************************-->
 
+    <node id="Debug-Views">
+        <view id="Sun Shadow Map">
+            <fbo id="SCREEN"/>
+            <texture name="inputTexture" fbo="sun-shadow" attachment="depth"/>
+            <input type="int" name="arrayTextureSize" value="{{num-cascades}}"/>
+            <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
+        </view>
+        <view id="Footsteps">
+            <fbo id="SCREEN"/>
+            <texture name="inputTexture" fbo="footsteps-fbo1" attachment="0"/>
+            <input type="int" name="arrayTextureSize" value="2"/>
+            <fullscreen-pass shader="regen.filter.sampling.array"/>
+        </view>
+        <view id="World Model">
+            <node import="world-debug">
+                <fbo id="g-buffer" draw-buffers="1"/>
+            </node>
+            <node>
+                <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+            </node>
+        </view>
+        <view id="Spatial Index">
+            <node import="spatial-index-debug">
+                <fbo id="g-buffer" draw-buffers="1"/>
+            </node>
+            <node>
+                <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+            </node>
+        </view>
+    </node>
+
     <node id="root">
         <resource id="sky"/>
         <node id="Pre-Render">
-            <define key="OUTPUT_TYPE" value="DEPTH"/>
-
-            <cull mode="FRONT"/>
-            <fbo id="sun-shadow" clear-depth="1"/>
-            <camera id="sun-camera"/>
-            <node import="Shadow-Caster"/>
+            <node id="Shadow-Pass">
+                <define key="OUTPUT_TYPE" value="DEPTH"/>
+                <cull mode="FRONT"/>
+                <polygon offset-fill="1.1,4.0"/>
+                <fbo id="sun-shadow" clear-depth="1"/>
+                <camera id="sun-camera"/>
+                <node import="Shadow-Caster"/>
+            </node>
         </node>
-
         <node id="Render">
-            <fbo id="g-buffer" clear-buffers="0,1,2,3" clear-depth="1"/>
             <camera id="main-camera"/>
 
-            <node import="Default-Pipeline"/>
+            <node id="Geometry-Pass">
+                <fbo id="g-buffer"
+                     clear-buffers="0,1,2,3,4"
+                     clear-depth="1"
+                     draw-buffers="0,1,2,3,4"/>
+                <depth test="1" write="1"/>
+
+                <node import="Shadow-Caster"/>
+                <node import="Scene-Geometry"/>
+                <view id="G-Buffer: Emission">
+                    <blit src-fbo="g-buffer" src-attachment="4" dst-fbo="SCREEN"/>
+                </view>
+                <node import="G-Buffer-Views"/>
+            </node>
+
+            <node id="Post-Geometry">
+                <node import="Emission-Update"/>
+            </node>
+
+            <node id="Shading">
+                <fbo id="g-buffer" draw-buffers="1"/>
+                <node id="Light-Pass">
+                    <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
+                    <texture name="gDiffuseTexture" fbo="g-buffer" attachment="0"/>
+                    <texture name="gSpecularTexture" fbo="g-buffer" attachment="2"/>
+                    <texture name="gNorWorldTexture" fbo="g-buffer" attachment="3"/>
+                    <node import="Shading-Pass"/>
+                </node>
+                <view id="Ambient Occlusion">
+                    <fbo id="SCREEN"/>
+                    <texture name="inputTexture" id="ambient-occlusion"/>
+                    <fullscreen-pass shader="regen.filter.sampling"/>
+                </view>
+                <view id="Shading">
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </view>
+            </node>
+
+            <node import="Post-Pass"/>
+
+            <node import="Debug-Views"/>
+
             <node import="GUI-Pass">
                 <fbo id="g-buffer" draw-buffers="1"/>
             </node>

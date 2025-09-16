@@ -123,7 +123,7 @@ ref_ptr<ShaderInput> State::getInput(const std::string &name) const {
 void State::setInput(const ref_ptr<ShaderInput> &in, const std::string &name, const std::string &memberSuffix) {
 	const std::string &inputName = (name.empty() ? in->name() : name);
 
-	if (in->isVertexAttribute() && in->numVertices() > static_cast<uint32_t>(shared_->numVertices_)) {
+	if (in->isVertexAttribute() && in->numVertices() != static_cast<uint32_t>(shared_->numVertices_)) {
 		shared_->numVertices_ = static_cast<int>(in->numVertices());
 	}
 	if (in->numInstances() > 1) {

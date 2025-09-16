@@ -13,6 +13,10 @@
 
 #include "noise-widget.h"
 
+#include <QFileDialog>
+
+#include "regen/textures/devil-loader.h"
+
 using namespace regen;
 using namespace std;
 
@@ -64,20 +68,17 @@ void NoiseWidget::gl_loadScene() {
 	ref_ptr<FBO> fbo = ref_ptr<FBO>::alloc(winSize.x, winSize.y);
 	ref_ptr<Texture> target = fbo->addTexture(1, GL_TEXTURE_2D, GL_RGB, GL_RGB8, GL_UNSIGNED_BYTE);
 	ref_ptr<FBOState> fboState = ref_ptr<FBOState>::alloc(fbo);
-	fboState->addDrawBuffer(GL_COLOR_ATTACHMENT0);
+	fboState->setDrawBuffers({GL_COLOR_ATTACHMENT0});
 	fboState->setClearColor({
 		Vec4f(0.26, 0.26, 0.36, 1.0),
 		GL_COLOR_ATTACHMENT0 });
-	// resize fbo with window
-	auto resizer = ref_ptr<FBOResizer>::alloc(fboState, 1.0, 1.0);
-	app_->connect(Scene::RESIZE_EVENT, resizer);
 
 	// create a root node (that binds the render target)
 	ref_ptr<StateNode> sceneRoot = ref_ptr<StateNode>::alloc(fboState);
 	app_->renderTree()->addChild(sceneRoot);
 
 	// add the video widget to the root node
-	texture_ = ref_ptr<NoiseTexture2D>::alloc(1024, 1024);
+	texture_ = ref_ptr<NoiseTexture2D>::alloc(4096, 4096);
 
 	auto pass = ref_ptr<FullscreenPass>::alloc("regen.filter.sampling");
 	sceneRoot->state()->joinStates(
@@ -95,8 +96,14 @@ void NoiseWidget::gl_loadScene() {
 			GL_TRUE));
 	GL_ERROR_LOG();
 
-	updateSize();
+	// resize fbo with window
+	app_->connect(Scene::RESIZE_EVENT, ref_ptr<FBOResizer>::alloc(fboState, 1.0, 1.0));
+	// Update frustum when window size changes
+	//app_->connect(Scene::RESIZE_EVENT, ref_ptr<ProjectionUpdater>::alloc(userCamera_, app_->screen()));
+
+	//updateSize();
 	AnimationManager::get().resume();
+	REGEN_INFO("Scene Loaded.");
 }
 
 //////////////////////////////
@@ -182,7 +189,7 @@ void NoiseWidget::addProperty(
 		GLdouble val = (static_cast<GLdouble>(value) / REGEN_QT_SLIDER_MAX_d) * ((max - min) + min);
 		setter(val);
 		ui_.parameterTable->item(itemRow, 1)->setText(QString::number(val));
-		updateTexture();
+		//updateTexture();
 	});
 }
 
@@ -210,7 +217,7 @@ void NoiseWidget::addProperty_i(
 			 static_cast<GLdouble>(max - min)) + min);
 		setter(val);
 		ui_.parameterTable->item(itemRow, 1)->setText(QString::number(val));
-		updateTexture();
+		//updateTexture();
 	});
 }
 
@@ -311,8 +318,47 @@ void NoiseWidget::updateTable(const ref_ptr<NoiseGenerator> &generator) {
 		return;
 	}
 
+	auto riggedMultifractal = dynamic_cast<noise::module::RidgedMulti *>(handle);
+	if (riggedMultifractal) {
+		addProperty_i("Seed", NOISE_SEED_MIN, NOISE_SEED_MAX, riggedMultifractal->GetSeed(),
+			[riggedMultifractal](GLint value) { riggedMultifractal->SetSeed(value); });
+		addProperty("Frequency", NOISE_FREQUENCY_MIN, NOISE_FREQUENCY_MAX, riggedMultifractal->GetFrequency(),
+			[riggedMultifractal](GLdouble value) { riggedMultifractal->SetFrequency(value); });
+		addProperty("Lacunarity", NOISE_LACUNARITY_MIN, NOISE_LACUNARITY_MAX, riggedMultifractal->GetLacunarity(),
+			[riggedMultifractal](GLdouble value) { riggedMultifractal->SetLacunarity(value); });
+		addProperty_i("Octave Count", NOISE_OCTAVES_MIN, NOISE_OCTAVES_MAX, riggedMultifractal->GetOctaveCount(),
+			[riggedMultifractal](GLint value) { riggedMultifractal->SetOctaveCount(value); });
+		return;
+	}
+
 	auto add = dynamic_cast<noise::module::Add *>(handle);
 	if (add) {
+		return;
+	}
+
+	auto multiply = dynamic_cast<noise::module::Multiply *>(handle);
+	if (multiply) {
+		return;
+	}
+
+	auto max = dynamic_cast<noise::module::Max *>(handle);
+	if (max) {
+		return;
+	}
+
+	auto min = dynamic_cast<noise::module::Min *>(handle);
+	if (min) {
+		return;
+	}
+
+	auto select = dynamic_cast<noise::module::Select *>(handle);
+	if (select) {
+		addProperty("Lower Bound", -1.0, 1.0, select->GetLowerBound(),
+			[select](GLdouble value) { select->SetBounds(value, select->GetUpperBound()); });
+		addProperty("Upper Bound", -1.0, 1.0, select->GetUpperBound(),
+			[select](GLdouble value) { select->SetBounds(select->GetLowerBound(), value); });
+		addProperty("Edge Falloff", 0.0, 1.0, select->GetEdgeFalloff(),
+			[select](GLdouble value) { select->SetEdgeFalloff(value); });
 		return;
 	}
 
@@ -360,7 +406,7 @@ void NoiseWidget::updateTextureSelection() {
 		return;
 	}
 	updateWidgets(generator);
-	updateTexture();
+	//updateTexture();
 }
 
 void NoiseWidget::toggleFullscreen() {
@@ -448,7 +494,12 @@ void NoiseWidget::addNoiseModule() {
 	typeBox->addItem("Cylinders");
 	typeBox->addItem("ScaleBias");
 	typeBox->addItem("ScalePoint");
+	typeBox->addItem("RidgedMulti");
 	typeBox->addItem("Add");
+	typeBox->addItem("Multiply");
+	typeBox->addItem("Max");
+	typeBox->addItem("Min");
+	typeBox->addItem("Select");
 	typeBox->addItem("TranslatePoint");
 	typeBox->addItem("RotatePoint");
 	auto *okButton = new QPushButton("OK", dialog);
@@ -479,6 +530,16 @@ void NoiseWidget::addNoiseModule() {
 			newGen = ref_ptr<NoiseGenerator>::alloc(name, ref_ptr<noise::module::ScalePoint>::alloc());
 		} else if (type == "Add") {
 			newGen = ref_ptr<NoiseGenerator>::alloc(name, ref_ptr<noise::module::Add>::alloc());
+		} else if (type == "Multiply") {
+			newGen = ref_ptr<NoiseGenerator>::alloc(name, ref_ptr<noise::module::Multiply>::alloc());
+		} else if (type == "Max") {
+			newGen = ref_ptr<NoiseGenerator>::alloc(name, ref_ptr<noise::module::Max>::alloc());
+		} else if (type == "Min") {
+			newGen = ref_ptr<NoiseGenerator>::alloc(name, ref_ptr<noise::module::Min>::alloc());
+		} else if (type == "RidgedMulti") {
+			newGen = ref_ptr<NoiseGenerator>::alloc(name, ref_ptr<noise::module::RidgedMulti>::alloc());
+		} else if (type == "Select") {
+			newGen = ref_ptr<NoiseGenerator>::alloc(name, ref_ptr<noise::module::Select>::alloc());
 		} else if (type == "TranslatePoint") {
 			newGen = ref_ptr<NoiseGenerator>::alloc(name, ref_ptr<noise::module::TranslatePoint>::alloc());
 		} else if (type == "RotatePoint") {
@@ -523,6 +584,22 @@ void NoiseWidget::loadWood() {
 	updateTexture();
 	updateNoiseGenerators(gen);
 	updateWidgets(gen);
+}
+
+
+void NoiseWidget::saveImage() {
+	// select a file name
+	auto fileName = QFileDialog::getSaveFileName(
+			this,
+			"Save Image",
+			"",
+			"PNG Image (*.png);;JPEG Image (*.jpg);;BMP Image (*.bmp)");
+	if (fileName.isEmpty()) {
+		return;
+	}
+	// grab the texture data
+	texture_->updateTextureData();
+	DevilLoader::save(texture_->textureData(), fileName.toStdString());
 }
 
 //////////////////////////////

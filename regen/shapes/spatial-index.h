@@ -72,6 +72,14 @@ namespace regen {
 		ref_ptr<BoundingShape> getShape(std::string_view shapeID) const;
 
 		/**
+		 * @brief Get the shape with a given ID and instance
+		 * @param shapeID The shape ID
+		 * @param instance The instance ID
+		 * @return The shape
+		 */
+		ref_ptr<BoundingShape> getShape(std::string_view shapeID, uint32_t instance) const;
+
+		/**
 		 * @brief Get the shapes in the index
 		 * @return The shapes
 		 */
@@ -119,9 +127,23 @@ namespace regen {
 		 * @brief Iterate over all intersections with a shape
 		 * @param shape The shape
 		 * @param callback The callback function
+		 * @param userData User data passed to the callback
 		 */
 		virtual void foreachIntersection(
 				const BoundingShape &shape,
+				void (*callback)(const BoundingShape&, void*),
+				void *userData) = 0;
+
+		/**
+		 * @brief Iterate over all neighbours of an indexed shape
+		 * @param shape The indexed shape
+		 * @param neighborhoodRadius The neighborhood radius
+		 * @param callback The callback function
+		 * @param userData User data passed to the callback
+		 */
+		virtual void foreachNeighbour(
+				const BoundingShape &shape,
+				float neighborhoodRadius,
 				void (*callback)(const BoundingShape&, void*),
 				void *userData) = 0;
 

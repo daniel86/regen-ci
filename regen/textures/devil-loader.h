@@ -21,6 +21,8 @@ namespace regen {
 
 		ImageDataArray load(std::string_view file, const TextureConfig& cfg) override;
 
+		static void save(const ref_ptr<ImageData> &img, std::string_view file);
+
 		/**
 		 * Scale the currently bound image to the given size.
 		 * If w or h is 0, the image will not be scaled in that dimension.

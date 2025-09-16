@@ -127,6 +127,18 @@ vec4 coverageAverage_MS(vec2 uv) {
 
 void main() {
     vec2 uv = gl_FragCoord.xy*in_inverseViewport;
+#ifdef HAS_uRange
+    if (uv.x < in_uRange.x || uv.x > in_uRange.y) {
+        out_color = vec4(0);
+        return;
+    }
+#endif
+#ifdef HAS_vRange
+    if (uv.y < in_vRange.x || uv.y > in_vRange.y) {
+        out_color = vec4(0);
+        return;
+    }
+#endif
 #if TEXTURE_SEMANTICS == DEPTH
     #ifdef HAS_INPUT_MULTISAMPLE
     writeDepth(coverageAverage_MS(computeTexco(uv)).r);

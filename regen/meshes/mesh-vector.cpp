@@ -340,6 +340,9 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 			if (input.hasAttribute("area-penalty")) {
 				simplifier.setAreaPenalty(input.getValue<float>("area-penalty", 0.1f));
 			}
+			if (input.hasAttribute("lod-strict-boundary")) {
+				simplifier.setUseStrictBoundary(input.getValue<bool>("lod-strict-boundary", false));
+			}
 			simplifier.simplifyMesh();
 		}
 	}
@@ -495,6 +498,9 @@ ref_ptr<MeshVector> MeshVector::createAssetMeshes(LoadingContext &ctx, scene::Sc
 			}
 		}
 	}
+
+	REGEN_INFO("Loaded " << out.size() << " meshes from Asset '" <<
+			  input.getValue("asset") << "'.");
 
 	return out_;
 }

@@ -127,6 +127,13 @@ namespace regen {
 				void (*callback)(const BoundingShape&, void*),
 				void *userData) override;
 
+		// override SpatialIndex::foreachIntersection
+		void foreachNeighbour(
+				const BoundingShape &shape,
+				float neighborhoodRadius,
+				void (*callback)(const BoundingShape&, void*),
+				void *userData) override;
+
 		// override SpatialIndex
 		void debugDraw(DebugInterface &debug) const override;
 
@@ -135,7 +142,7 @@ namespace regen {
 		Private *priv_;
 
 		Node *root_ = nullptr;
-		std::unordered_map<BoundingShape*, Item*> shapeToItem_;
+		std::unordered_map<const BoundingShape*, Item*> shapeToItem_;
 		std::vector<Item *> items_;
 		std::vector<Item *> newItems_;
 		std::stack<Node *> nodePool_;

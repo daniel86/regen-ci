@@ -6,6 +6,8 @@
 #include <regen/gl-types/gl-enum.h>
 #include <regen/gl-types/render-state.h>
 
+#include "height-map.h"
+
 using namespace regen;
 
 #include "texture.h"
@@ -33,16 +35,60 @@ Texture::Texture(GLenum textureTarget, GLuint numTextures)
 		  texBind_(textureTarget, id()),
 		  allocTexture_(&Texture::allocTexture_noop),
 		  updateImage_(&Texture::updateImage_noop),
-		  updateSubImage_(&Texture::updateSubImage_noop) {
+		  updateSubImage_(&Texture::updateSubImage_noop),
+		  texCopyCounter_(ref_ptr<std::atomic<uint32_t>>::alloc(1)) {
 	set_rectangleSize(2, 2);
 	samplerType_ = "sampler2D";
 	setUniformData(-1);
 	set_active(false);
 }
 
+Texture::Texture(const Texture &other)
+		: GLRectangle(other),
+		  ShaderInput1i(other.name_),
+		  dim_(other.dim_),
+		  format_(other.format_),
+		  internalFormat_(other.internalFormat_),
+		  numComponents_(other.numComponents_),
+		  imageDepth_(other.imageDepth_),
+		  numMips_(other.numMips_),
+		  pixelType_(other.pixelType_),
+		  border_(other.border_),
+		  texBind_(other.texBind_),
+		  numSamples_(other.numSamples_),
+		  fixedSampleLocations_(other.fixedSampleLocations_),
+		  textureChannel_(other.textureChannel_),
+		  samplerType_(other.samplerType_),
+		  textureFile_(other.textureFile_),
+		  texFilter_(other.texFilter_),
+		  wrappingMode_(other.wrappingMode_),
+		  texLoD_(other.texLoD_),
+		  texSwizzle_(other.texSwizzle_),
+		  texCompare_(other.texCompare_),
+		  texMaxLevel_(other.texMaxLevel_),
+		  texAniso_(other.texAniso_),
+		  textureData_(other.textureData_),
+		  numTexel_(other.numTexel_),
+		  allocTexture_(other.allocTexture_),
+		  updateImage_(other.updateImage_),
+		  updateSubImage_(other.updateSubImage_),
+		  allocatedSize_(other.allocatedSize_),
+		  texCopyCounter_(other.texCopyCounter_) {
+	auto &counter = *(other.texCopyCounter_.get());
+	counter.fetch_add(1);
+	setUniformData(-1);
+	setTextureChannel(textureChannel_);
+}
+
 Texture::~Texture() {
-	if (textureChannel_ != -1) {
-		TextureBinder::release(this);
+	auto &counter = *(texCopyCounter_.get());
+	auto oldValue = counter.fetch_sub(1);
+	if (oldValue == 1) {
+		// we are the last copy, make sure the texture is not bound anymore
+		if (textureChannel_ != -1) {
+			REGEN_WARN("Releasing texture bound to channel " << textureChannel_ << ".");
+			TextureBinder::release(this);
+		}
 	}
 }
 
@@ -624,6 +670,20 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 	}
 	tex->set_name(input.getName());
 	configure(tex, input);
+
+	if (typeName == "height") {
+		auto tex2d = dynamic_cast<Texture2D *>(tex.get());
+		if (tex2d) {
+			auto heightMap = ref_ptr<HeightMap>::alloc(*tex2d);
+			heightMap->setMapCenter(input.getValue<Vec2f>(
+				"map-center", Vec2f(0.0)));
+			heightMap->setMapFactor(input.getValue<float>(
+				"map-factor", 8.0f));
+			heightMap->setMapSize(input.getValue<Vec2f>(
+				"map-size", Vec2f(10.0)));
+			tex = heightMap;
+		}
+	}
 
 	return tex;
 }

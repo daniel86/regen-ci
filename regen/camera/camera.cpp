@@ -548,6 +548,15 @@ ref_ptr<Camera> createLightCamera(LoadingContext &ctx, scene::SceneInputNode &in
 			}
 			auto dirCam = ref_ptr<LightCamera_CSM>::alloc(light, userCamera, numLayer);
 			dirCam->setSplitWeight(splitWeight);
+			if (input.hasAttribute("uniform-z-range")) {
+				dirCam->setUseUniformDepthRange(input.getValue<bool>("uniform-z-range", true));
+			}
+			if (input.hasAttribute("depth-padding")) {
+				dirCam->setDepthPadding(input.getValue<double>("depth-padding", 0.0));
+			}
+			if (input.hasAttribute("ortho-padding")) {
+				dirCam->setOrthoPadding(input.getValue<double>("ortho-padding", 0.0));
+			}
 			lightCamera = dirCam;
 			break;
 		}
