@@ -567,6 +567,9 @@ ref_ptr<FBO> FBO::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 		ctx.scene()->addEventHandler(Scene::RESIZE_EVENT, resizer);
 	}
 
+	bool hasDepthAttachment = false;
+	bool hasStencilAttachment = false;
+
 	for (auto &n: input.getChildren()) {
 		if (n->getCategory() == "texture") {
 			LoadingContext texCfg(ctx.scene(), ctx.parent());
@@ -576,52 +579,92 @@ ref_ptr<FBO> FBO::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 				tex->nextObject();
 			}
 		} else if (n->getCategory() == "depth") {
-			auto depthSize = n->getValue<GLint>("pixel-size", 16);
-			GLenum depthType = glenum::pixelType(
-					n->getValue<std::string>("pixel-type", "UNSIGNED_BYTE"));
-			GLenum textureTarget = glenum::textureTarget(
-					n->getValue<std::string>("target", "TEXTURE_2D"));
-			auto numSamples = n->getValue<GLuint>("num-samples", 1);
+			if (hasStencilAttachment) {
+				REGEN_WARN("Ignoring depth attachment in " << n->getDescription()
+							<< ", stencil attachment already present.");
+			} else if (hasDepthAttachment) {
+				REGEN_WARN("Ignoring depth attachment in " << n->getDescription()
+							<< ", depth attachment already present.");
+			} else {
+				hasDepthAttachment = true;
+				auto depthSize = n->getValue<GLint>("pixel-size", 16);
+				GLenum depthType = glenum::pixelType(
+						n->getValue<std::string>("pixel-type", "UNSIGNED_BYTE"));
+				GLenum textureTarget = glenum::textureTarget(
+						n->getValue<std::string>("target", "TEXTURE_2D"));
+				auto numSamples = n->getValue<GLuint>("num-samples", 1);
 
-			GLenum depthFormat;
-			if (depthSize <= 16) depthFormat = GL_DEPTH_COMPONENT16;
-			else if (depthSize <= 24) depthFormat = GL_DEPTH_COMPONENT24;
-			else depthFormat = GL_DEPTH_COMPONENT32;
+				GLenum depthFormat;
+				if (depthSize <= 16) depthFormat = GL_DEPTH_COMPONENT16;
+				else if (depthSize <= 24) depthFormat = GL_DEPTH_COMPONENT24;
+				else depthFormat = GL_DEPTH_COMPONENT32;
 
-			fbo->createDepthTexture(textureTarget, depthFormat, depthType, numSamples);
+				fbo->createDepthTexture(textureTarget, depthFormat, depthType, numSamples);
 
-			ref_ptr<Texture> tex = fbo->depthTexture();
-			Texture::configure(tex, *n.get());
+				ref_ptr<Texture> tex = fbo->depthTexture();
+				Texture::configure(tex, *n.get());
+			}
 		} else if (n->getCategory() == "depth-stencil") {
-			GLenum textureTarget = glenum::textureTarget(
-					n->getValue<std::string>("target", "TEXTURE_2D"));
-			GLenum depthFormat = GL_DEPTH24_STENCIL8;
-			GLenum depthType = GL_UNSIGNED_INT_24_8;
+			if (hasStencilAttachment) {
+				REGEN_WARN("Ignoring depth-stencil attachment in " << n->getDescription()
+							<< ", stencil attachment already present.");
+			} else if (hasDepthAttachment) {
+				REGEN_WARN("Ignoring depth-stencil attachment in " << n->getDescription()
+							<< ", depth attachment already present.");
+			} else {
+				hasDepthAttachment = true;
+				hasStencilAttachment = true;
 
-   			auto tex = fbo->createTexture(
-   				fbo->width(), fbo->height(), fbo->depth(),
-   				1, textureTarget,
-   				GL_DEPTH_STENCIL, depthFormat, depthType);
-			fbo->set_depthStencilTexture(tex);
-		} else if (n->getCategory() == "stencil") {
-			GLenum pixelType = glenum::pixelType(
-					n->getValue<std::string>("pixel-type", "UNSIGNED_BYTE"));
-			GLenum textureTarget = glenum::textureTarget(
-					n->getValue<std::string>("target", "TEXTURE_2D"));
+				auto depthSize = n->getValue<uint32_t>("depth-size", 24);
+				auto stencilSize = n->getValue<uint32_t>("stencil-size", 8);
+				if (depthSize != 24) {
+					REGEN_WARN("Ignoring depth-size in " << n->getDescription()
+								<< ", only 24 is supported for depth-stencil.");
+				}
+				if (stencilSize != 8) {
+					REGEN_WARN("Ignoring stencil-size in " << n->getDescription()
+								<< ", only 8 is supported for depth-stencil.");
+				}
 
-			GLenum stencilFormat;
-			auto stencilSize = n->getValue<GLint>("pixel-size", 8);
-			if (stencilSize < 8) stencilFormat = GL_STENCIL_INDEX1;
-			else if (stencilSize < 16) stencilFormat = GL_STENCIL_INDEX4;
-			else stencilFormat = GL_STENCIL_INDEX8;
+				GLenum textureTarget = glenum::textureTarget(
+						n->getValue<std::string>("target", "TEXTURE_2D"));
+				GLenum depthFormat = GL_DEPTH24_STENCIL8;
+				GLenum depthType = GL_UNSIGNED_INT_24_8;
 
-			auto stencilTexture = FBO::createTexture(
+				auto tex = fbo->createTexture(
 					fbo->width(), fbo->height(), fbo->depth(),
 					1, textureTarget,
-					GL_STENCIL_INDEX,
-					stencilFormat,
-					pixelType);
-			fbo->set_stencilTexture(stencilTexture);
+					GL_DEPTH_STENCIL, depthFormat, depthType);
+				fbo->set_depthStencilTexture(tex);
+			}
+		} else if (n->getCategory() == "stencil") {
+			if (hasStencilAttachment) {
+				REGEN_WARN("Ignoring stencil attachment in " << n->getDescription()
+							<< ", stencil attachment already present.");
+			} else if (hasDepthAttachment) {
+				REGEN_WARN("Ignoring stencil attachment in " << n->getDescription()
+							<< ", depth attachment already present.");
+			} else {
+				hasStencilAttachment = true;
+				GLenum pixelType = glenum::pixelType(
+						n->getValue<std::string>("pixel-type", "UNSIGNED_BYTE"));
+				GLenum textureTarget = glenum::textureTarget(
+						n->getValue<std::string>("target", "TEXTURE_2D"));
+
+				GLenum stencilFormat;
+				auto stencilSize = n->getValue<GLint>("pixel-size", 8);
+				if (stencilSize < 8) stencilFormat = GL_STENCIL_INDEX1;
+				else if (stencilSize < 16) stencilFormat = GL_STENCIL_INDEX4;
+				else stencilFormat = GL_STENCIL_INDEX8;
+
+				auto stencilTexture = FBO::createTexture(
+						fbo->width(), fbo->height(), fbo->depth(),
+						1, textureTarget,
+						GL_STENCIL_INDEX,
+						stencilFormat,
+						pixelType);
+				fbo->set_stencilTexture(stencilTexture);
+			}
 		} else {
 			REGEN_WARN("No processor registered for '" << n->getDescription() << "'.");
 		}

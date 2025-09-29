@@ -2,6 +2,8 @@
 #define REGEN_GROUND_H_
 
 #include <regen/meshes/primitives/skirt-quad.h>
+
+#include "regen/meshes/primitives/blanket.h"
 #include "regen/states/material-state.h"
 #include "regen/textures/texture.h"
 #include "regen/textures/fbo-state.h"
@@ -53,6 +55,25 @@ namespace regen {
 			SmoothRange rockiness   = SmoothRange(Vec3f(0.0f, 1.0f, 0.1f));
 			SmoothRange humidity    = SmoothRange(Vec3f(0.0f, 1.0f, 0.1f));
 			SmoothRange concavity   = SmoothRange(Vec3f(0.0f, 1.0f, 0.1f));
+		};
+
+		struct MaskChannel {
+			MaskChannel() {}
+			// The material channel that will be masked.
+			uint32_t channelIdx = 0;
+			// How the mask value is blended with the material weight.
+			BlendMode blendMode = BLEND_MODE_MULTIPLY;
+			// The blend factor for the mask value with the material weight.
+			float blendFactor = 1.0f;
+		};
+
+		struct MaskFallback {
+			MaskFallback() {}
+			// The channel of fallback in case there is no other material with weight.
+			// -1 means use the default fallback material if any.
+			int32_t channelIdx = -1;
+			// The intensity of fallback material where the mask is at max.
+			float intensity = 1.0f;
 		};
 
 		Ground();
@@ -138,6 +159,93 @@ namespace regen {
 		 */
 		uint32_t numBiomes() const { return biomeConfigs_.size(); }
 
+		/**
+		 * Add a mask texture for this ground.
+		 * @param maskTexture the mask texture to add.
+		 * @param maskChannels the channels of the mask texture to use.
+		 * @param maskFallback the fallback configuration.
+		 */
+		void addMask(
+				const ref_ptr<Texture> &maskTexture,
+				const std::vector<MaskChannel> &maskChannels,
+				const MaskFallback &maskFallback = MaskFallback());
+
+		/**
+		 * @return the number of masks used by this ground.
+		 */
+		uint32_t numMasks() const { return groundMasks_.size(); }
+
+		/**
+		 * @return the shader defines used by the ground material.
+		 */
+		const ref_ptr<State>& groundDefines() const { return groundShaderDefines_; }
+
+		/**
+		 * @return the material used by this ground.
+		 */
+		const ref_ptr<Material>& groundMaterial() const { return groundMaterial_; }
+
+		/**
+		 * @return the height map.
+		 */
+		const ref_ptr<Texture2D> &heightMap() const { return heightMap_; }
+
+		/**
+		 * @return the normal map.
+		 */
+		const ref_ptr<Texture2D> &normalMap() const { return normalMap_; }
+
+		/**
+		 * @return the albedo texture array for the materials.
+		 */
+		const ref_ptr<Texture2DArray> &materialAlbedoTex() const { return materialAlbedoTex_; }
+
+		/**
+		 * @return the normal texture array for the materials.
+		 */
+		const ref_ptr<Texture2DArray> &materialNormalTex() const { return materialNormalTex_; }
+
+		/**
+		 * @return the mask texture array for the materials.
+		 */
+		const ref_ptr<Texture2DArray> &materialMaskTex() const { return materialMaskTex_; }
+
+		/**
+		 * @return the weight maps used to blend the materials.
+		 */
+		const std::vector<ref_ptr<Texture2D>> &weightMaps() const { return weightMaps_; }
+
+		/**
+		 * @return the map center.
+		 */
+		const ref_ptr<ShaderInput3f> &mapCenter() const { return u_mapCenter_; }
+
+		/**
+		 * @return the map size.
+		 */
+		const ref_ptr<ShaderInput3f> &mapSize() const { return u_mapSize_; }
+
+		/**
+		 * @return the skirt size.
+		 */
+		const ref_ptr<ShaderInput1f> &skirtSize() const { return u_skirtSize_; }
+
+		/**
+		 * @return the UV scale for the materials.
+		 */
+		const ref_ptr<ShaderInput1f> &uvScale() const { return u_uvScale_; }
+
+		/**
+		 * @return the normal index for the materials.
+		 */
+		const ref_ptr<ShaderInput1i> &normalIdx() const { return u_normalIdx_; }
+
+		/**
+		 * Setup a blanket mesh to use the same material and states as this ground.
+		 * @param blanket the blanket mesh to setup.
+		 */
+		void setupGroundBlanket(Mesh &blanket);
+
 		// override
 		void updateAttributes() override;
 
@@ -183,6 +291,14 @@ namespace regen {
 		ref_ptr<TextureState> materialNormalState_;
 		ref_ptr<TextureState> materialMaskState_;
 		uint32_t numNormalMaps_ = 0u; // number of normal maps in the texture array
+
+		struct GroundMask {
+			ref_ptr<Texture> texture;
+			ref_ptr<TextureState> state;
+			std::vector<MaskChannel> channels;
+			MaskFallback fallback;
+		};
+		std::vector<GroundMask> groundMasks_;
 
 		// maps that encode the weight of each material over the ground.
 		// must only be computed once in case the geometry has stable height values.

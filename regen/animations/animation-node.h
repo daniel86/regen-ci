@@ -275,6 +275,20 @@ namespace regen {
 			return (uint32_t) animData_.size();
 		}
 
+		double elapsedTime() const {
+			if (animationIndex_ < 0 || animationIndex_ >= (GLint) animData_.size()) {
+				return 0.0;
+			}
+			return animData_[animationIndex_]->elapsedTime_;
+		}
+
+		double ticksPerSecond(uint32_t animationIndex) const {
+			if (animationIndex >= animData_.size()) {
+				return 0;
+			}
+			return animData_[animationIndex]->ticksPerSecond_;
+		}
+
 		// override
 		void animate(GLdouble dt) override;
 

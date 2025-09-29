@@ -10,6 +10,7 @@
 #include "regen/shapes/bounds.h"
 #include "regen/states/model-transformation.h"
 #include "regen/math/bezier.h"
+#include "regen/meshes/terrain/blanket-trail.h"
 #include "regen/textures/height-map.h"
 
 namespace regen {
@@ -102,6 +103,12 @@ namespace regen {
 		void setSpatialIndex(const ref_ptr<SpatialIndex> &spatialIndex, std::string_view shapeName);
 
 		/**
+		 * Set the footstep trail for visualizing footsteps.
+		 * @param trail the footstep trail.
+		 */
+		void setFootstepTrail(const ref_ptr<BlanketTrail> &trail) { footstepTrail_ = trail; }
+
+		/**
 		 * Set the world time.
 		 * @param worldTime the world time.
 		 */
@@ -187,6 +194,14 @@ namespace regen {
 		// Base orientation of the mesh around y axis
 		float baseOrientation_ = M_PI_2;
 
+		ref_ptr<BlanketTrail> footstepTrail_;
+		uint32_t leftFootIdx_ = 0;
+		uint32_t rightFootIdx_ = 1;
+		bool leftFootDown_ = false;
+		bool rightFootDown_ = false;
+		float leftFootTime_ = 0.3f;
+		float rightFootTime_ = 0.8f;
+
 		// some high level character traits
 		float laziness_ = 0.5f;
 		float spirituality_ = 0.5f;
@@ -209,6 +224,8 @@ namespace regen {
 		// Walking behavior parameters.
 		float walkSpeed_ = 0.05f;
 		float runSpeed_ = 0.1f;
+		float walkTime_ = 0.0f;
+		float runTime_ = 0.0f;
 		// The current path of the NPC, if any.
 		std::vector<ref_ptr<WayPoint>> currentPath_;
 		uint32_t currentPathIndex_ = 0;

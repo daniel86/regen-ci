@@ -13,6 +13,7 @@
 #include <regen/scene/scene-input-xml.h>
 
 #include "regen/animations/npc-controller.h"
+#include "regen/meshes/terrain/blanket-trail.h"
 #include "regen/textures/height-map.h"
 
 using namespace regen::scene;
@@ -943,12 +944,29 @@ static void handleAssetController(
 	} else if (controllerType == "npc") {
 		controller.reserve(tf->numInstances());
 
+		// load mesh for footsteps, if any
+		auto footstepVec = sceneParser.getResources()->getMesh(
+			&sceneParser, animationNode->getValue("footstep-mesh"));
+		ref_ptr<BlanketTrail> footstepTrail;
+		if (footstepVec.get() && !footstepVec->empty()) {
+			auto footstepMesh = (*footstepVec.get())[0];
+			footstepTrail = ref_ptr<BlanketTrail>::dynamicCast(footstepMesh);
+			if (!footstepTrail) {
+				REGEN_WARN("Footstep mesh is not a BlanketTrail in '" << animationNode->getDescription() << "'.");
+			}
+		} else if (animationNode->hasAttribute("footstep-mesh")) {
+			REGEN_WARN("Unable to find footstep mesh for NPC controller in '" << animationNode->getDescription() << "'.");
+		}
+
 		for (int32_t tfIdx = 0; tfIdx < tf->numInstances(); tfIdx++) {
 			auto npcController = ref_ptr<NPCController>::alloc(
 				worldModel, tf, tfIdx, nodeAnimations[tfIdx], ranges);
 			controller.push_back(npcController);
 			if (spatialIndex.get()) {
 				npcController->setSpatialIndex(spatialIndex, indexedShapeName);
+			}
+			if (footstepTrail.get()) {
+				npcController->setFootstepTrail(footstepTrail);
 			}
 			npcController->setWorldTime(&sceneParser.application()->worldTime());
 			npcController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));

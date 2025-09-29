@@ -324,10 +324,56 @@ void main() {
 #endif
 }
 
+------------
+------------
 -- skirt.vs
 #include regen.terrain.ground.vs
 -- skirt.fs
 #include regen.terrain.ground.fs
+
+------------
+------------
+-- blanket.vs
+#define IS_GROUND_BLANKET
+#include regen.terrain.ground.vs
+-- blanket.fs
+#define IS_GROUND_BLANKET
+#include regen.terrain.ground.fs
+
+------------
+------------
+-- blanket1.vs
+#define IS_GROUND_BLANKET
+#include regen.terrain.ground.vs
+-- blanket1.fs
+#include regen.models.mesh.defines
+// FIXME redundant
+#ifndef HAS_layer
+    #if RENDER_LAYER > 1
+flat in int in_layer;
+    #else
+#define in_layer 0
+    #endif
+#endif
+#ifdef HAS_INSTANCES
+flat in int in_instanceID;
+#endif
+
+in vec2 in_texco0;
+out float out_collision;
+
+void main() {
+    #ifdef HAS_maskIndex
+    vec3 maskUV = vec3(in_texco0, float(in_maskIndex));
+    #else
+    vec2 maskUV = in_texco0;
+    #endif
+    float blanketMaskVal = texture(in_blanketMask, maskUV).r;
+    #ifdef HAS_blanketLifetime
+    blanketMaskVal *= in_blanketLifetime;
+    #endif
+    out_collision = blanketMaskVal;
+}
 
 ------------
 ----- Ground render pass.
@@ -372,13 +418,12 @@ void customHandleIO(vec3 posWorld, vec3 posEye, vec3 norWorld) {
 
 -- fs
 // add custom fragment texture mapping to regular mesh fragment shader.
-#include regen.terrain.ground.customFragmentMapping
+#define CUSTOM_FRAGMENT_MAPPING_KEY regen.terrain.ground.fragmentMapping
 #include regen.models.mesh.fs
 
--- customFragmentMapping
-#ifndef customFragmentMapping_included
-#define2 customFragmentMapping_included
-#define HAS_CUSTOM_FRAGMENT_MAPPING
+-- fragmentMapping
+#ifndef ground_fragmentMapping_included
+#define2 ground_fragmentMapping_included
 #ifndef MAX_NUM_BLENDED_MATERIALS
 #define MAX_NUM_BLENDED_MATERIALS 3
 #endif
@@ -393,6 +438,9 @@ void customHandleIO(vec3 posWorld, vec3 posEye, vec3 norWorld) {
 #define IDX_WIDTH ${TEX_WIDTH${IDX_ID}}
 #define IDX_HEIGHT ${TEX_HEIGHT${IDX_ID}}
 
+#ifdef HAS_blanketMask
+in vec2 in_texco0;
+#endif
 // computed in VS
 in vec2 in_groundUV;
 #ifdef HAS_noiseTexture
@@ -564,13 +612,88 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
 #endif
 
     // Find the top N weights and indices
-    #if NUM_MATERIALS > 4
-    TopMaterials tm = findTopWeights(
-        texture(in_groundMaterialWeights0, in_groundUV),
-        texture(in_groundMaterialWeights1, in_groundUV));
+#if NUM_MATERIALS > 4
+    vec4 materialWeights0 = texture(in_groundMaterialWeights0, in_groundUV);
+    vec4 materialWeights1 = texture(in_groundMaterialWeights1, in_groundUV);
+#else
+    vec4 materialWeights0 = texture(in_groundMaterialWeights0, in_groundUV);
+#endif
+
+#if NUM_GROUND_MASKS > 0
+    // Apply ground masks
+    vec2 screenUV = gl_FragCoord.xy * in_inverseViewport;
+    float maskVal;
+    #for MASK_I to NUM_GROUND_MASKS
+        #define2 _NUM_CH ${MASK_${MASK_I}_NUM_CHANNELS}
+        #define2 _FALLBACK_CH ${MASK_${MASK_I}_FALLBACK_CHANNEL}
+        #define2 _FALLBACK_INT ${MASK_${MASK_I}_FALLBACK_INTENSITY}
+        #if ${_FALLBACK_INT} < 4
+            #define2 FALLBACK_VEC materialWeights0
+        #else
+            #define2 FALLBACK_VEC materialWeights1
+        #endif
+    maskVal = texture(in_groundMask${MASK_I}, screenUV).r;
+    // Apply fallback intensity to fallback channel
+    // TODO: reconsider this logic
+    //${FALLBACK_VEC}[${_FALLBACK_CH}] = max(
+    //        ${_FALLBACK_INT} * maskVal,
+    //        ${FALLBACK_VEC}[${_FALLBACK_CH}]);
+    ${FALLBACK_VEC}[${_FALLBACK_CH}] = ${_FALLBACK_INT};
+    // Apply mask to channels
+        // FIXME: something does not work with the #for loop here
+        //#for CH_I to _NUM_CH
+        #for CH_I to 1
+            #define2 _CHANNEL ${MASK_${MASK_I}_CHANNEL_${CH_I}}
+            #define2 _BLEND_MODE ${MASK_${MASK_I}_BLEND_MODE_${CH_I}}
+            #define2 _BLEND_FACTOR ${MASK_${MASK_I}_BLEND_FACTOR_${CH_I}}
+            #if ${_CHANNEL} < 4
+                #define2 W_VEC materialWeights0
+            #else
+                #define2 W_VEC materialWeights1
+            #endif
+            #if ${_BLEND_MODE} == mul
+    ${W_VEC}[${_CHANNEL}] *= (1.0 - (maskVal * ${_BLEND_FACTOR}));
+            #elif ${_BLEND_MODE} == add
+    ${W_VEC}[${_CHANNEL}] += (1.0 - (maskVal * ${_BLEND_FACTOR}));
+            #else
+    #warning "Unknown MASK_BLEND_MODE"
+            #endif
+        #endfor
+    #endfor
+#endif
+
+#ifdef HAS_blanketMaskXXX
+    #ifdef HAS_maskIndex
+    vec3 maskUV = vec3(in_texco0, float(in_maskIndex));
     #else
-    TopMaterials tm = findTopWeights(
-        texture(in_groundMaterialWeights0, in_groundUV));
+    vec2 maskUV = in_texco0;
+    #endif
+    float blanketMaskVal = texture(in_blanketMask, maskUV).r;
+    #ifdef HAS_blanketLifetime
+    blanketMaskVal *= in_blanketLifetime;
+    #endif
+    blanketMaskVal = (1.0 - blanketMaskVal);
+	#for CHANNEL_I to MASK_NUM_CHANNELS
+	    #if ${CHANNEL_I} < 4
+	        #define2 W_VEC materialWeights0
+	    #else
+            #define2 W_VEC materialWeights1
+        #endif
+    ${W_VEC}[MASK_FALLBACK_${CHANNEL_I}] = MASK_FALLBACK_INTENSITY_${CHANNEL_I};
+        #if ${MASK_BLEND_MODE_${CHANNEL_I}} == mul
+    ${W_VEC}[MASK_CHANNEL_${CHANNEL_I}] *= blanketMaskVal * MASK_BLEND_FACTOR_${CHANNEL_I};
+        #elif ${MASK_BLEND_MODE_${CHANNEL_I}} == add
+    ${W_VEC}[MASK_CHANNEL_${CHANNEL_I}] += blanketMaskVal * MASK_BLEND_FACTOR_${CHANNEL_I};
+        #else
+    #warning "Unknown MASK_BLEND_MODE"
+        #endif
+	#endfor
+#endif
+
+    #if NUM_MATERIALS > 4
+    TopMaterials tm = findTopWeights(materialWeights0, materialWeights1);
+    #else
+    TopMaterials tm = findTopWeights(materialWeights0);
     #endif
     float ww = 1.0 / tm.topWeightSum;
     // normalize top weights
@@ -624,4 +747,4 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
 #endif
     outColor = vec4(color, 1.0);
 }
-#endif
+#endif // ground_fragmentMapping_included

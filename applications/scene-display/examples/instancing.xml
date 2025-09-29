@@ -6,6 +6,7 @@
     <constant name="map-y-min" value="-2.0"/>
     <constant name="map-size" value="1000.0"/>
     <constant name="map-height" value="64.0"/>
+    <constant name="map-height-half" value="32.0"/>
     <constant name="shrine-center-x" value="378.0"/>
     <constant name="shrine-center-z" value="378.0"/>
     <constant name="shrine-center" value="{{shrine-center-x}},{{shrine-center-z}}"/>
@@ -24,6 +25,7 @@
     <constant name="statue-c-x" value="477.0"/>
     <constant name="statue-c-z" value="101.0"/>
     <constant name="far-plane" value="200.0"/>
+    <constant name="dwarf-foot-size" value="3.0"/>
     <include xml-file="scene-display/examples/templates/default.xml"/>
 
     <node id="configuration"
@@ -219,6 +221,7 @@
             <controller id="dwarf-controller" type="npc" tf="dwarf-tf"
                         indexed-shape="dwarf-shape"
                         spatial-index="main-index"
+                        footstep-mesh="dwarf-foot"
                         height-map="ground-height"
                         base-orientation="4.7124"
                         run-speed="6.0" walk-speed="5.0">
@@ -271,7 +274,7 @@
         <texture id="specular"/>
         <texture id="normal"/>
         <texture id="emission" num-components="4"/>
-        <depth id="depth" pixel-size="24"/>
+        <depth id="depth" pixel-size="24" />
     </fbo>
     <fbo id="sun-shadow" size-mode="abs" size="2048,2048,{{num-cascades}}">
         <depth id="depth" pixel-size="24" pixel-type="FLOAT"
@@ -282,6 +285,11 @@
                compare-mode="COMPARE_R_TO_TEXTURE"
                compare-function="LEQUAL"
                sampler-type="sampler2DArrayShadow"/>
+    </fbo>
+    <fbo id="screen-space-footsteps" size-mode="rel" size="0.25,0.25"
+         pixel-type="UNSIGNED_BYTE" pixel-size="16">
+        <texture id="collision" pixel-components="1"
+                 min-filter="LINEAR" mag-filter="LINEAR"/>
     </fbo>
     <fbo id="footsteps-fbo0" size-mode="abs" size="256,256"
          pixel-type="UNSIGNED_BYTE" pixel-size="16">
@@ -333,7 +341,7 @@
             uniform-z-range="1"
             depth-padding="0.0"/>
     <camera id="footsteps-camera" type="orthogonal"
-            width="3.0" height="3.0" far="0.55"
+            width="{{dwarf-foot-size}}" height="{{dwarf-foot-size}}" far="0.55"
             position="0.0, -0.5, 0.0"
             direction="0.0,1.0,0.0"
             up="0.0,0.0,-1.0"
@@ -483,8 +491,22 @@
                 <mesh id="dwarf-base"/>
             </node>
         </node>
+        <node id="Footsteps-Blur">
+            <input type="int" name="numBlurPixels" value="8"/>
+            <input type="float" name="blurSigma" value="5.0"/>
+
+            <filter-sequence id="blurred-footsteps"
+                             fbo="footsteps-fbo0" attachment="0"
+                             format="RED"
+                             internal-format="R16"
+                             pixel-type="BYTE">
+                <filter shader="regen.filter.sampling" scale="1.0"/>
+                <filter shader="regen.filter.blur.horizontal"/>
+                <filter shader="regen.filter.blur.vertical"/>
+            </filter-sequence>
+        </node>
         <node id="Footsteps-Array">
-            <texture name="inputTexture" fbo="footsteps-fbo0" attachment="0"/>
+            <texture name="inputTexture" id="blurred-footsteps"/>
             <depth test="0" write="0"/>
             <fbo id="footsteps-fbo1" clear-buffers="0" draw-buffers="0"/>
             <node id="Left-Foot">
@@ -539,36 +561,54 @@
             <material type="snow" name="ground/snow" variant="2" uv-scale="0.1"
                       height="0.2, 1.0, 0.1" slope="0.0, 15.0, 10.0"/>
         </materials>
+        <masks>
+            <mask fbo="screen-space-footsteps" attachment="0"
+                    fallback-channel="1" fallback-intensity="0.1" >
+                <!-- Blend footsteps with snow weight, to remove snow where footsteps are -->
+                <channel index="2" blend-mode="MUL" blend-factor="0.85" />
+            </mask>
+        </masks>
         <shape id="ground-shape" cull="1" index="1" type="obb" mesh-index="0"
                mesh-id="ground-mesh" transform-id="ground-tf">
             <has-part mesh-id="ground-mesh" mesh-index="1"/>
         </shape>
     </mesh>
 
-    <node id="Ground">
-        <define key="USE_VERTEX_NOISE" value="TRUE"/>
-        <input type="float" name="noiseScale" value="0.005"/>
-        <texture name="noiseTexture" id="ground-noise"/>
-        <node id="Ground-quad">
-            <mesh id="ground-mesh" mesh-index="0"/>
-        </node>
-        <node id="Ground-skirts">
-            <mesh id="ground-mesh" mesh-index="1" update-visibility="0"/>
-        </node>
-    </node>
+    <!-- NOTE: running is 10 ticks with 10 TPS, so 1.0 second for two steps. -->
+    <!-- TODO: compute this from the animation speed and run speed? -->
+    <mesh id="dwarf-foot" type="blanket-trail"
+          ground-mesh="ground-mesh" tf="dwarf-foot-tf"
+          texco-scaling="1.0,1.0"
+          lod-levels="4, 3, 2, 1" lod-thresholds="40.0, 80.0, 120.0"
+          blanket-size="{{dwarf-foot-size}},{{dwarf-foot-size}}"
+          blanket-lifetime="10.0"
+          blanket-trails="{{num-dwarves}}"
+          blanket-frequency="0.5"
+          initially-dead="1">
+        <shader mesh-index="0" key="regen.terrain.ground.blanket1"/>
+        <transform id="dwarf-foot-tf" update-frequency="RARE"/>
+        <blanket-mask fbo="footsteps-fbo1" attachment="0" />
+        <!-- TODO: make a tighter fitting box, use height of NPC controller -->
+        <!--
+        <shape id="dwarf-foot-shape" cull="1" index="1" type="aabb"
+               box-size="{{dwarf-foot-size}}, {{map-height}}, {{dwarf-foot-size}}"
+               box-center="0.0, {{map-height-half}}, 0.0"
+               transform-id="dwarf-foot-tf">
+            <has-part mesh-id="dwarf-foot" mesh-index="0"/>
+        </shape>
+        -->
+    </mesh>
 
-    <mesh id="ground-blanket" type="rectangle"
-          use-normal="1" use-tangent="1" use-texco="1" center="1"
+    <mesh id="ground-blanket" type="blanket"
           lod-levels="6, 5, 4, 2"
           lod-thresholds="40.0, 80.0, 120.0"
-          rotation="0.0,0.0,3.1415"
-          scaling="20.0,20.0,20.0"
-          texco-scaling="1.0,1.0"
-          update-frequency="NEVER">
+          blanket-size="20.0,20.0"
+          texco-scaling="1.0,1.0">
+        <shader mesh-index="0" key="regen.models.mesh"/>
         <material preset="stone" variant="0"/>
         <transform id="ground-blanket-tf" update-frequency="NEVER">
-            <translate value="10.0,-32.0,0.0"/>
-            <translate value="0.0,0.1,0.0"/>
+            <translate value="20.0,-32.0,15.0"/>
+            <translate value="0.0,0.0,0.0"/>
         </transform>
         <shape id="ground-blanket-shape" cull="1" index="1" type="aabb"
                box-size="20.0,{{map-height}},20.0"
@@ -577,6 +617,24 @@
             <has-part mesh-id="ground-blanket" mesh-index="0"/>
         </shape>
     </mesh>
+
+    <node id="Ground">
+        <define key="USE_VERTEX_NOISE" value="TRUE"/>
+        <input type="float" name="noiseScale" value="0.005"/>
+        <texture name="noiseTexture" id="ground-noise"/>
+        <node id="Footsteps">
+            <fbo id="screen-space-footsteps" clear-buffers="0" draw-buffers="0"/>
+            <depth test="0" write="0"/>
+            <blend mode="ADD"/>
+            <mesh id="dwarf-foot" />
+        </node>
+        <node id="Ground">
+            <mesh id="ground-mesh" mesh-index="0" update-visibility="1"/>
+        </node>
+        <node id="Ground-Skirt">
+            <mesh id="ground-mesh" mesh-index="1" update-visibility="0"/>
+        </node>
+    </node>
 
     <!--
     <mesh id="dwarf-footsteps" type="footsteps"
@@ -1078,7 +1136,7 @@
         <transform id="statue-tf" update-frequency="NEVER" is-instanced="1">
             <rotate value="0.0, 0.0, 1.57"/>
             <rotate value="3.14, 0.0, 0.0"/>
-            <translate instance="0" value="{{statue-a-x}}, 0.0, {{statue-a-z}}"/>
+            <translate instance="0" value="{{statue-a-x}}, -1.25, {{statue-a-z}}"/>
             <height map="ground-height"/>
         </transform>
         <shape id="statue-shape" index="1" cull="1" type="aabb"
@@ -1536,6 +1594,11 @@
             <texture name="inputTexture" fbo="sun-shadow" attachment="depth"/>
             <input type="int" name="arrayTextureSize" value="{{num-cascades}}"/>
             <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
+        </view>
+        <view id="Blurred Footsteps">
+            <fbo id="SCREEN"/>
+            <texture name="inputTexture" id="blurred-footsteps"/>
+            <fullscreen-pass shader="regen.filter.sampling"/>
         </view>
         <view id="Footsteps">
             <fbo id="SCREEN"/>

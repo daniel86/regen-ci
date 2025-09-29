@@ -36,6 +36,18 @@ NPCController::NPCController(
 			motionRanges_[MOTION_SLEEP].push_back(&range);
 		}
 	}
+
+	if (!motionRanges_[MOTION_WALK].empty()) {
+		auto walkRange = motionRanges_[MOTION_WALK][0]->range;
+		auto walkTPS = boneAnimation->ticksPerSecond(motionRanges_[MOTION_WALK][0]->channelIndex);
+		walkTime_ = 1000.0f * (walkRange.y - walkRange.x) / walkTPS;
+	}
+	if (!motionRanges_[MOTION_RUN].empty()) {
+		auto runRange = motionRanges_[MOTION_RUN][0]->range;
+		auto runTPS = boneAnimation->ticksPerSecond(motionRanges_[MOTION_RUN][0]->channelIndex);
+		runTime_ = 1000.0f * (runRange.y - runRange.x) / runTPS;
+	}
+
 	pathPlanner_ = ref_ptr<PathPlanner>::alloc();
 	// add all places of interest and way points from the world model
 	for (const auto &p : worldModel_->places) {
@@ -97,7 +109,7 @@ void NPCController::setHeightMap(const ref_ptr<HeightMap> &heightMap) {
 
 float NPCController::getHeight(const Vec2f &pos) {
 	if (heightMap_.get()) {
-		return heightMap_->sampleHeight(pos);
+		return heightMap_->sampleHeight(pos) - 0.25f; // offset a bit to avoid floating
 	} else {
 		return floorHeight_;
 	}
@@ -414,6 +426,19 @@ void NPCController::updateController(double dt) {
 	currentBehaviour_.lingerTime -= dt_s;
 	currentBehaviour_.activityTime -= dt_s;
 
+	if (footstepTrail_.get() && isLastAnimationMovement_) {
+		auto movementTime = (currentBehaviour_.motion == MOTION_WALK ? walkTime_ : runTime_);
+		auto elapsed = animation_->elapsedTime();
+		if (!leftFootDown_ && elapsed > leftFootTime_ * movementTime) {
+			leftFootDown_ = true;
+			footstepTrail_->insertBlanket(currentPos_, currentDir_, leftFootIdx_);
+		}
+		if (!rightFootDown_ && elapsed > rightFootTime_ * movementTime) {
+			rightFootDown_ = true;
+			footstepTrail_->insertBlanket(currentPos_, currentDir_, rightFootIdx_);
+		}
+	}
+
 	if (it_ == frames_.end()) {
 		// currently no movement.
 		if (animation_->isNodeAnimationActive()) {
@@ -430,11 +455,17 @@ void NPCController::updateController(double dt) {
 			if (lastRange_) {
 				animation_->setAnimationActive(lastRange_->channelName, lastRange_->range);
 				animation_->startAnimation();
+				if (isLastAnimationMovement_) {
+					leftFootDown_ = false;
+					rightFootDown_ = false;
+				}
 			}
 		}
 		return;
 	}
 
+	leftFootDown_ = false;
+	rightFootDown_ = false;
 	auto lastMovement = currentBehaviour_.motion;
 	updateBehavior(dt);
 	if (lastMovement == MOTION_SLEEP) {

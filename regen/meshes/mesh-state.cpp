@@ -49,6 +49,7 @@ Mesh::Mesh(const ref_ptr<Mesh> &sourceMesh)
 		  primitive_(sourceMesh->primitive_),
 		  vertexBuffer_(sourceMesh->vertexBuffer_),
 		  elementBuffer_(sourceMesh->elementBuffer_),
+		  material_(sourceMesh->material_),
 		  meshLODs_(sourceMesh->meshLODs_),
 		  v_lodThresholds_(sourceMesh->v_lodThresholds_),
 		  lodLevel_(sourceMesh->lodLevel_),
@@ -91,6 +92,21 @@ void Mesh::setBufferMapMode(BufferMapMode mode) {
 
 void Mesh::setClientAccessMode(ClientAccessMode mode) {
 	vertexBuffer_->setClientAccessMode(mode);
+}
+
+void Mesh::setMaterial(const ref_ptr<Material> &material) {
+	if (material_ == material) return;
+	if (material_.get()) {
+		// TODO: reconsider this, it is done to influence ordering
+		//      such that XML can add textures that blend ontop.
+		//disjoinStates(material_);
+	}
+	material_ = material;
+	if (material_.get()) {
+		// TODO: reconsider this, it is done to influence ordering
+		//      such that XML can add textures that blend ontop.
+		//joinStates(material_);
+	}
 }
 
 ref_ptr<BufferReference> Mesh::updateVertexData() {
@@ -218,6 +234,14 @@ void Mesh::addShaderInput(const std::string &name, const ref_ptr<ShaderInput> &i
 
 void Mesh::createShader(const ref_ptr<StateNode> &parentNode) {
 	StateConfigurer shaderConfigurer;
+	if (material_.get()) {
+		// TODO: reconsider this, it is done to influence ordering
+		//      such that XML can add textures that blend ontop.
+		// add material first, this is needed to add textures before the parent node
+		// such that parent node textures are applied after material textures.
+		shaderConfigurer.addState(material_.get());
+		//disjoinStates(material_); // HACK
+	}
 	shaderConfigurer.addNode(parentNode.get());
 	shaderConfigurer.addState(sharedState_.get());
 	shaderConfigurer.addState(this);
@@ -233,6 +257,12 @@ void Mesh::createShader(const ref_ptr<StateNode> &parentNode) {
 		shaderConfigurer.addState(cullShape_.get());
 	}
 	createShader(parentNode, shaderConfigurer.cfg());
+	if (material_.get()) {
+		// re-join material
+		// TODO: reconsider this, it is done to influence ordering
+		//      such that XML can add textures that blend ontop.
+		joinStates(material_);
+	}
 }
 
 void Mesh::createShader(const ref_ptr<StateNode> &parentNode, StateConfig &shaderConfig) {

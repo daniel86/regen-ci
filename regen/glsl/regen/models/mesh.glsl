@@ -516,6 +516,11 @@ uniform vec4 in_col;
 #include regen.models.mesh.writeOutput
 #endif
 
+#ifdef CUSTOM_FRAGMENT_MAPPING_KEY
+#define HAS_CUSTOM_FRAGMENT_MAPPING
+#include ${CUSTOM_FRAGMENT_MAPPING_KEY}
+#endif
+
 #define HANDLE_IO(i)
 
 void main() {

@@ -381,7 +381,7 @@ bool DirectiveProcessor::process(PreProcessorState &state, string &line) {
 
 		const string &def = tree_.define(branch.upToValue);
 		if (!isNumber(def)) {
-			ss << "#error " << branch.upToValue << " is not a number" << endl;
+			ss << "#error '" << branch.upToValue << "' is not a number" << endl;
 		} else {
 			int count = boost::lexical_cast<int>(def);
 

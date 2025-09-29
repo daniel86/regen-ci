@@ -58,6 +58,11 @@ namespace regen {
 		static ref_ptr<Rectangle> getUnitQuad();
 
 		/**
+		 * @return the rectangle configuration.
+		 */
+		const Config& rectangleConfig() const { return rectangleConfig_; }
+
+		/**
 		 * Creates a rectangle mesh.
 		 * @param cfg the mesh configuration.
 		 * @return the rectangle mesh.

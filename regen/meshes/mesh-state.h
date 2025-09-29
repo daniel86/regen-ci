@@ -15,6 +15,7 @@
 #include "regen/states/state-node.h"
 #include "regen/camera/sorting.h"
 #include "regen/buffer/element-buffer.h"
+#include "regen/states/material-state.h"
 
 namespace regen {
 	// forward declaration
@@ -129,6 +130,12 @@ namespace regen {
 		 * @param mode the access mode to set.
 		 */
 		void setClientAccessMode(ClientAccessMode mode);
+
+		/**
+		 * Set the material for this mesh.
+		 * @param material the material to set.
+		 */
+		void setMaterial(const ref_ptr<Material> &material);
 
 		/**
 		 * @return VBO that manages the vertex array data.
@@ -639,6 +646,7 @@ namespace regen {
 		GLenum primitive_;
 		ref_ptr<VBO> vertexBuffer_;
 		ref_ptr<ElementBuffer> elementBuffer_;
+		ref_ptr<Material> material_;
 
 		ref_ptr<VAO> vao_;
 		std::list<InputLocation> vaoAttributes_;
@@ -685,7 +693,6 @@ namespace regen {
 		unsigned int geometryStamp_ = 0u;
 
 		std::vector<ref_ptr<PhysicalObject>> physicalObjects_;
-
 		std::vector<ref_ptr<Animation> > animations_;
 
 		void (Mesh::*draw_)(GLenum) const;

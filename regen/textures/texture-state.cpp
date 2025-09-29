@@ -427,15 +427,17 @@ ref_ptr<Texture> TextureState::getTexture(
 		const auto val = input.getValue<std::string>(attachmentKey, "0");
 		if (val == "depth") {
 			tex = fbo->depthTexture();
-		}
-		else if (val == "stencil") {
-			if (fbo->stencilTexture().get()) {
-				tex = fbo->stencilTexture();
-			} else {
+			if (!tex) {
 				tex = fbo->depthStencilTexture();
 			}
-		}
-		else {
+		} else if (val == "stencil") {
+			tex = fbo->stencilTexture();
+			if (!tex) {
+				tex = fbo->depthStencilTexture();
+			}
+		} else if (val == "depth-stencil" || val == "stencil-depth") {
+			tex = fbo->depthStencilTexture();
+		} else {
 			std::vector<ref_ptr<Texture> > &textures = fbo->colorTextures();
 
 			unsigned int attachment;

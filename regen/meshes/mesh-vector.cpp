@@ -19,6 +19,8 @@
 #include "regen/meshes/lod/impostor-billboard.h"
 #include "regen/meshes/terrain/grass-patch.h"
 #include "silhouette-mesh.h"
+#include "primitives/blanket.h"
+#include "terrain/blanket-trail.h"
 
 using namespace regen;
 
@@ -106,6 +108,25 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 
 		(*out) = MeshVector(1);
 		(*out)[0] = Rectangle::create(meshCfg);
+	} else if (meshType == "blanket") {
+		Blanket::BlanketConfig meshCfg;
+		meshCfg.levelOfDetails = lodLevels;
+		meshCfg.texcoScale = texcoScaling;
+		meshCfg.blanketSize = input.getValue<Vec2f>("blanket-size", Vec2f(1.0f, 1.0f));
+		meshCfg.isInitiallyDead = input.getValue<bool>("initially-dead", false);
+		meshCfg.blanketLifetime = input.getValue<GLfloat>("blanket-lifetime", 0.0f);
+		meshCfg.updateHint = updateFlags;
+		meshCfg.mapMode = mapMode;
+		meshCfg.accessMode = accessMode;
+		GLuint numInstances = input.getValue<GLuint>("num-instances", 1u);
+		auto blanket = ref_ptr<Blanket>::alloc(meshCfg, numInstances);
+		blanket->updateAttributes();
+		(*out) = MeshVector(1);
+		(*out)[0] = blanket;
+	} else if (meshType == "blanket-trail") {
+		auto blanket = BlanketTrail::load(ctx, input, lodLevels);
+		(*out) = MeshVector(1);
+		(*out)[0] = blanket;
 	} else if (meshType == "box") {
 		Box::Config meshCfg;
 		meshCfg.texcoMode = input.getValue<Box::TexcoMode>("texco-mode", Box::TEXCO_MODE_UV);
@@ -298,6 +319,10 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 	} else {
 		REGEN_WARN("Ignoring " << input.getDescription() << ", unknown Mesh type.");
 	}
+	if (out->size() == 0) {
+		REGEN_WARN("Ignoring " << input.getDescription() << ", no Mesh created.");
+		return {};
+	}
 	// put resources early such that children can refer to it
 	if (out->size() == 1) {
 		ref_ptr<Mesh> mesh = (*out)[0];
@@ -470,7 +495,7 @@ ref_ptr<MeshVector> MeshVector::createAssetMeshes(LoadingContext &ctx, scene::Sc
 			ref_ptr<Material> material =
 					importer->getMeshMaterial(mesh.get());
 			if (material.get() != nullptr) {
-				mesh->joinStates(material);
+				mesh->setMaterial(material);
 			}
 		}
 
@@ -498,9 +523,6 @@ ref_ptr<MeshVector> MeshVector::createAssetMeshes(LoadingContext &ctx, scene::Sc
 			}
 		}
 	}
-
-	REGEN_INFO("Loaded " << out.size() << " meshes from Asset '" <<
-			  input.getValue("asset") << "'.");
 
 	return out_;
 }

@@ -301,16 +301,16 @@ void QuadTree::collapse(Node *node) { // NOLINT(misc-no-recursion)
 			// at least one child is not a leaf -> no collapse
 			return;
 		}
+		if (child->shapes.size() != firstShapes.size()) {
+			// unequal number of shapes -> no collapse
+			return;
+		}
 	}
 	//if (parent->children[0]->shapes.size() > QUAD_TREE_COLLAPSE_THRESHOLD) {
 	// no collapse
 	//return;
 	//}
 	for (int i = 1; i < 4; i++) {
-		if (parent->children[i]->shapes.size() != firstShapes.size()) {
-			// unequal number of shapes -> no collapse
-			return;
-		}
 		for (auto &shape: parent->children[i]->shapes) {
 			if (std::find(firstShapes.begin(), firstShapes.end(), shape) == firstShapes.end()) {
 				// not all children contain the same set of shapes -> no collapse

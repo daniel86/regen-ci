@@ -2,6 +2,7 @@
 #include "regen/textures/texture-loader.h"
 #include "regen/states/depth-state.h"
 #include "regen/meshes/mesh-vector.h"
+#include "regen/meshes/primitives/blanket.h"
 
 using namespace regen;
 
@@ -111,6 +112,45 @@ void Ground::setBiome(const BiomeDescription &biome) {
 	biomeConfigs_.push_back(biome);
 }
 
+void Ground::addMask(
+		const ref_ptr<Texture> &maskTexture,
+		const std::vector<MaskChannel> &maskChannels,
+		const MaskFallback &maskFallback) {
+	if (!maskTexture) {
+		REGEN_WARN("Ground::addMask() called without mask texture.");
+		return;
+	}
+	if (maskChannels.empty()) {
+		REGEN_WARN("Ground::addMask() called without mask channels.");
+		return;
+	}
+	const uint32_t maskIdx = groundMasks_.size();
+	auto &newMask = groundMasks_.emplace_back();
+	newMask.texture = maskTexture;
+	newMask.channels = maskChannels;
+	newMask.fallback = maskFallback;
+	newMask.state = ref_ptr<TextureState>::alloc(maskTexture, REGEN_STRING("groundMask" << maskIdx));
+	newMask.state->set_mapTo(TextureState::MAP_TO_CUSTOM);
+	newMask.state->set_mapping(TextureState::MAPPING_CUSTOM);
+	joinStates(newMask.state);
+
+	// add defines for the channels.
+#define _MASK_KEY(x) REGEN_STRING("MASK_" << maskIdx << "_" << x)
+	shaderDefine(_MASK_KEY("NUM_CHANNELS"), REGEN_STRING(maskChannels.size()));
+	if (maskFallback.channelIdx >= 0) {
+		shaderDefine(_MASK_KEY("FALLBACK_CHANNEL"), REGEN_STRING(maskFallback.channelIdx));
+		shaderDefine(_MASK_KEY("FALLBACK_INTENSITY"), REGEN_STRING(maskFallback.intensity));
+	}
+	for (size_t i = 0; i < maskChannels.size(); ++i) {
+		auto &ch = maskChannels[i];
+		shaderDefine(_MASK_KEY("BLEND_MODE_" << i), REGEN_STRING(ch.blendMode));
+		shaderDefine(_MASK_KEY("CHANNEL_" << i), REGEN_STRING(ch.channelIdx));
+		shaderDefine(_MASK_KEY("BLEND_FACTOR_" << i), REGEN_STRING(ch.blendFactor));
+	}
+#undef _MASK_KEY
+	shaderDefine("NUM_GROUND_MASKS", REGEN_STRING(maskChannels.size()));
+}
+
 void Ground::updatePatchSize() {
 	// compute number of patches in x/z direction based on map size
 	// and number of patches per row (this is used for direction with less extent)
@@ -182,6 +222,27 @@ void Ground::joinSkirtStates(const ref_ptr<State> &state) {
 	joinStates(state);
 	if(skirtMesh_.get()) {
 		skirtMesh_->joinStates(state);
+	}
+}
+
+void Ground::setupGroundBlanket(Mesh &blanket) {
+	blanket.setInput(u_mapCenter_);
+	blanket.setInput(u_skirtSize_);
+	blanket.setInput(u_mapSize_);
+	blanket.setInput(u_uvScale_);
+	blanket.setInput(u_normalIdx_);
+
+	blanket.joinStates(groundMaterial_);
+	blanket.joinStates(groundShaderDefines_);
+	blanket.joinStates(materialAlbedoState_);
+	blanket.joinStates(materialNormalState_);
+	if (materialMaskState_.get()) {
+		blanket.joinStates(materialMaskState_);
+	}
+	for (uint32_t i=0; i<weightMaps_.size(); ++i) {
+		if (!weightMaps_[i].get()) continue;
+		blanket.joinStates(ref_ptr<TextureState>::alloc(
+			weightMaps_[i], "groundMaterialWeights" + REGEN_STRING(i)));
 	}
 }
 
@@ -660,6 +721,49 @@ ref_ptr<Ground> Ground::load(LoadingContext &ctx, scene::SceneInputNode &input) 
 		else if (n->getCategory() == "transform") {
 			// note: skip transform, we create one below
 			handledChildren.push_back(n);
+		}
+		else if (n->getCategory() == "masks") {
+			handledChildren.push_back(n);
+			// Add screen-space masks that modulate the blanket weights
+			// (e.g. to remove snow where there are footprints)
+			for (auto &maskNode : n->getChildren("mask")) {
+				ref_ptr<Texture> maskTexture;
+				if (maskNode->hasAttribute("fbo")) {
+					auto fboName = maskNode->getValue<std::string>("fbo", "");
+					auto fbo = ctx.scene()->getResource<FBO>(fboName);
+					if (fbo.get()) {
+						uint32_t attachmentIdx = maskNode->getValue<uint32_t>("attachment", 0);
+						maskTexture = fbo->colorTextures()[attachmentIdx];
+					}
+				} else if (maskNode->hasAttribute("texture")) {
+					auto texName = maskNode->getValue<std::string>("texture", "");
+					maskTexture = ctx.scene()->getResource<Texture2D>(texName);
+					if (!maskTexture) {
+						REGEN_WARN("No valid texture found for blanket mask in " << maskNode->getDescription() << ".");
+					}
+				}
+				if (!maskTexture.get()) {
+					REGEN_WARN("No valid FBO/attachment found for blanket mask in " << maskNode->getDescription() << ".");
+					continue;
+				}
+				MaskFallback maskFallback;
+				maskFallback.channelIdx = maskNode->getValue<uint32_t>("fallback-channel", 0);
+				maskFallback.intensity = maskNode->getValue<float>("fallback-intensity", 1.0f);
+
+				std::vector<MaskChannel> maskChannels;
+				for (auto &n: maskNode->getChildren("channel")) {
+					auto &ch = maskChannels.emplace_back();
+					ch.channelIdx = n->getValue<uint32_t>("index", 0);
+					ch.blendMode = n->getValue<BlendMode>("blend-mode", BLEND_MODE_MULTIPLY);
+					ch.blendFactor = n->getValue<float>("blend-factor", 1.0f);
+				}
+
+				if (maskChannels.empty()) {
+					REGEN_WARN("No valid mask channels found for blanket mask in " << maskNode->getDescription() << ".");
+				} else {
+					ground->addMask(maskTexture, maskChannels, maskFallback);
+				}
+			}
 		}
 	}
 	for (auto &n: handledChildren) {
