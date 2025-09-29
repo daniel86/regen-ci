@@ -611,7 +611,7 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
     #define in_offsetXY worldPos.xy
 #endif
 
-    // Find the top N weights and indices
+    // Sample the material weights
 #if NUM_MATERIALS > 4
     vec4 materialWeights0 = texture(in_groundMaterialWeights0, in_groundUV);
     vec4 materialWeights1 = texture(in_groundMaterialWeights1, in_groundUV);
@@ -634,15 +634,10 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
         #endif
     maskVal = texture(in_groundMask${MASK_I}, screenUV).r;
     // Apply fallback intensity to fallback channel
-    // TODO: reconsider this logic
-    //${FALLBACK_VEC}[${_FALLBACK_CH}] = max(
-    //        ${_FALLBACK_INT} * maskVal,
-    //        ${FALLBACK_VEC}[${_FALLBACK_CH}]);
-    ${FALLBACK_VEC}[${_FALLBACK_CH}] = ${_FALLBACK_INT};
+    ${FALLBACK_VEC}[${_FALLBACK_CH}] = min(1.0,
+        ${FALLBACK_VEC}[${_FALLBACK_CH}] + maskVal * ${_FALLBACK_INT});
     // Apply mask to channels
-        // FIXME: something does not work with the #for loop here
-        //#for CH_I to _NUM_CH
-        #for CH_I to 1
+        #for CH_I to ${_NUM_CH}
             #define2 _CHANNEL ${MASK_${MASK_I}_CHANNEL_${CH_I}}
             #define2 _BLEND_MODE ${MASK_${MASK_I}_BLEND_MODE_${CH_I}}
             #define2 _BLEND_FACTOR ${MASK_${MASK_I}_BLEND_FACTOR_${CH_I}}
@@ -662,34 +657,7 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
     #endfor
 #endif
 
-#ifdef HAS_blanketMaskXXX
-    #ifdef HAS_maskIndex
-    vec3 maskUV = vec3(in_texco0, float(in_maskIndex));
-    #else
-    vec2 maskUV = in_texco0;
-    #endif
-    float blanketMaskVal = texture(in_blanketMask, maskUV).r;
-    #ifdef HAS_blanketLifetime
-    blanketMaskVal *= in_blanketLifetime;
-    #endif
-    blanketMaskVal = (1.0 - blanketMaskVal);
-	#for CHANNEL_I to MASK_NUM_CHANNELS
-	    #if ${CHANNEL_I} < 4
-	        #define2 W_VEC materialWeights0
-	    #else
-            #define2 W_VEC materialWeights1
-        #endif
-    ${W_VEC}[MASK_FALLBACK_${CHANNEL_I}] = MASK_FALLBACK_INTENSITY_${CHANNEL_I};
-        #if ${MASK_BLEND_MODE_${CHANNEL_I}} == mul
-    ${W_VEC}[MASK_CHANNEL_${CHANNEL_I}] *= blanketMaskVal * MASK_BLEND_FACTOR_${CHANNEL_I};
-        #elif ${MASK_BLEND_MODE_${CHANNEL_I}} == add
-    ${W_VEC}[MASK_CHANNEL_${CHANNEL_I}] += blanketMaskVal * MASK_BLEND_FACTOR_${CHANNEL_I};
-        #else
-    #warning "Unknown MASK_BLEND_MODE"
-        #endif
-	#endfor
-#endif
-
+    // Find the top N weights and indices
     #if NUM_MATERIALS > 4
     TopMaterials tm = findTopWeights(materialWeights0, materialWeights1);
     #else

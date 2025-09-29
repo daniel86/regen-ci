@@ -160,6 +160,8 @@ namespace regen {
 		 */
 		void setAnimationConfig(const AssimpAnimationConfig &animationCfg) { animationCfg_ = animationCfg; }
 
+		const ref_ptr<NodeAnimation> &getNodeAnimation() { return nodeAnimation_; }
+
 		/**
 		 * Load the asset file.
 		 */
@@ -210,17 +212,12 @@ namespace regen {
 		/**
 		 * @return list of bone animation nodes associated to given mesh.
 		 */
-		std::list<ref_ptr<AnimationNode> > loadMeshBones(Mesh *meshState, NodeAnimation *anim);
+		std::list<ref_ptr<NodeAnimation::Node> > loadMeshBones(Mesh *meshState, NodeAnimation *anim);
 
 		/**
 		 * @return number of weights used for bone animation.
 		 */
 		GLuint numBoneWeights(Mesh *meshState);
-
-		/**
-		 * @return asset animations.
-		 */
-		const std::vector<ref_ptr<NodeAnimation> > &getNodeAnimations();
 
 		static ref_ptr<AssetImporter> load(LoadingContext &ctx, scene::SceneInputNode &input);
 
@@ -231,9 +228,13 @@ namespace regen {
 		int aiProcessFlags_ = 0;
 		AssimpAnimationConfig animationCfg_;
 
-		std::vector<ref_ptr<NodeAnimation> > nodeAnimations_;
+		ref_ptr<NodeAnimation> nodeAnimation_;
 		// name to node map
 		std::map<std::string, struct aiNode *> nodes_;
+		// root node of skeleton
+		ref_ptr<NodeAnimation::Node> rootNode_;
+		// maps assimp bone nodes to Bone implementation
+		std::map<struct aiNode *, ref_ptr<NodeAnimation::Node> > aiNodeToNode_;
 
 		// user specified texture path
 		std::string texturePath_;
@@ -249,11 +250,6 @@ namespace regen {
 		std::map<Mesh *, const struct aiMesh *> meshToAiMesh_;
 
 		std::map<Light *, struct aiLight *> lightToAiLight_;
-
-		// root node of skeleton
-		ref_ptr<AnimationNode> rootNode_;
-		// maps assimp bone nodes to Bone implementation
-		std::map<struct aiNode *, ref_ptr<AnimationNode> > aiNodeToNode_;
 
 		//////
 
@@ -276,9 +272,11 @@ namespace regen {
 
 		void loadNodeAnimation(const AssimpAnimationConfig &animConfig);
 
-		ref_ptr<AnimationNode> loadNodeTree();
+		ref_ptr<NodeAnimation::Node> loadNodeTree();
 
-		ref_ptr<AnimationNode> loadNodeTree(struct aiNode *assimpNode, const ref_ptr<AnimationNode> &parent);
+		ref_ptr<NodeAnimation::Node> loadNodeTree(
+				struct aiNode *assimpNode,
+				const ref_ptr<NodeAnimation::Node> &parent);
 	};
 } // namespace
 

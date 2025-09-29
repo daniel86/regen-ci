@@ -197,7 +197,7 @@ ref_ptr<LightNode> AssetImporter::loadLightNode(const ref_ptr<Light> &light) {
 	aiNode *node = nodes_[string(assimpLight->mName.data)];
 	if (node == nullptr) { return {}; }
 
-	ref_ptr<AnimationNode> &animNode = aiNodeToNode_[node];
+	ref_ptr<NodeAnimation::Node> &animNode = aiNodeToNode_[node];
 	if (animNode.get() == nullptr) { return {}; }
 
 	return ref_ptr<LightNode>::alloc(light, animNode);
@@ -1019,21 +1019,22 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 	return meshState;
 }
 
-list<ref_ptr<AnimationNode> > AssetImporter::loadMeshBones(
+list<ref_ptr<NodeAnimation::Node> > AssetImporter::loadMeshBones(
 		Mesh *meshState, NodeAnimation *anim) {
 	const struct aiMesh *mesh = meshToAiMesh_[meshState];
 	if (mesh->mNumBones == 0) { return {}; }
 
-	list<ref_ptr<AnimationNode> > boneNodes;
+	list<ref_ptr<NodeAnimation::Node> > boneNodes;
 	for (GLuint boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex) {
 		aiBone *assimpBone = mesh->mBones[boneIndex];
 		string nodeName = string(assimpBone->mName.data);
-		ref_ptr<AnimationNode> animNode = anim->findNode(nodeName);
+		ref_ptr<NodeAnimation::Node> animNode = anim->findNode(nodeName);
 		// hoping that meshes do not share bones here....
 		// is there a usecase for bone sharing between meshes ?
 		// if so the offset matrix can only be used in BonesState class
 		// and not in the bone class.
-		animNode->set_boneOffsetMatrix(*((Mat4f *) &assimpBone->mOffsetMatrix.a1));
+		animNode->offsetMatrix = *((Mat4f *) &assimpBone->mOffsetMatrix.a1);
+		animNode->isBoneNode = true;
 		boneNodes.push_back(animNode);
 	}
 	return boneNodes;
@@ -1079,7 +1080,7 @@ static NodeAnimation::Behavior animState(aiAnimBehaviour b) {
 	}
 }
 
-ref_ptr<AnimationNode> AssetImporter::loadNodeTree() {
+ref_ptr<NodeAnimation::Node> AssetImporter::loadNodeTree() {
 	if (scene_->HasAnimations()) {
 		GLboolean hasAnimations = false;
 		for (GLuint i = 0; i < scene_->mNumAnimations; ++i) {
@@ -1089,37 +1090,37 @@ ref_ptr<AnimationNode> AssetImporter::loadNodeTree() {
 			}
 		}
 		if (hasAnimations) {
-			return loadNodeTree(scene_->mRootNode, ref_ptr<AnimationNode>());
+			return loadNodeTree(scene_->mRootNode, ref_ptr<NodeAnimation::Node>());
 		}
 	}
 	return {};
 }
 
-ref_ptr<AnimationNode> AssetImporter::loadNodeTree(aiNode *assimpNode, const ref_ptr<AnimationNode> &parent) {
-	ref_ptr<AnimationNode> node = ref_ptr<AnimationNode>::alloc(string(assimpNode->mName.data), parent);
+ref_ptr<NodeAnimation::Node> AssetImporter::loadNodeTree(
+			aiNode *assimpNode,
+			const ref_ptr<NodeAnimation::Node> &parent) {
+	ref_ptr<NodeAnimation::Node> node = ref_ptr<NodeAnimation::Node>::alloc(string(assimpNode->mName.data), parent);
 	aiNodeToNode_[assimpNode] = node;
 	nodes_[string(assimpNode->mName.data)] = assimpNode;
 
-	node->set_localTransform(*((Mat4f *) &assimpNode->mTransformation.a1));
+	node->localTransform = (*((Mat4f *) &assimpNode->mTransformation.a1));
 	node->calculateGlobalTransform();
 
 	// continue for all child nodes and assign the created internal nodes as our children
 	for (GLuint i = 0; i < assimpNode->mNumChildren; ++i) {
-		ref_ptr<AnimationNode> subTree = loadNodeTree(assimpNode->mChildren[i], node);
+		ref_ptr<NodeAnimation::Node> subTree = loadNodeTree(assimpNode->mChildren[i], node);
 		node->addChild(subTree);
 	}
 
 	return node;
 }
 
-const vector<ref_ptr<NodeAnimation> > &AssetImporter::getNodeAnimations() { return nodeAnimations_; }
-
 void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 	if (!animConfig.useAnimation || !rootNode_.get()) {
 		return;
 	}
 
-	ref_ptr<NodeAnimation> anim = ref_ptr<NodeAnimation>::alloc(rootNode_);
+	ref_ptr<NodeAnimation> anim = ref_ptr<NodeAnimation>::alloc(rootNode_, animConfig.numInstances);
 	ref_ptr<vector<NodeAnimation::Channel> > channels;
 	ref_ptr<vector<NodeAnimation::KeyFrame3f> > scalingKeys;
 	ref_ptr<vector<NodeAnimation::KeyFrame3f> > positionKeys;
@@ -1227,13 +1228,7 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 				ticksPerSecond
 		);
 	}
-
-	nodeAnimations_ = vector<ref_ptr<NodeAnimation> >(
-			animConfig.numInstances > 1 ? animConfig.numInstances : 1);
-	nodeAnimations_[0] = anim;
-	for (GLuint i = 1; i < nodeAnimations_.size(); ++i) {
-		nodeAnimations_[i] = anim->copy(GL_FALSE);
-	}
+	nodeAnimation_ = anim;
 }
 
 ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInputNode &input) {
@@ -1323,7 +1318,7 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 			getMeshCount(asset->scene_->mRootNode) << " meshes, " <<
 			asset->materials().size() << " materials, " <<
 			asset->lights().size() << " lights, " <<
-			asset->getNodeAnimations().size() << " animations.");
+			" has animation: " << (asset->getNodeAnimation().get() != nullptr));
 
 		return asset;
 	}

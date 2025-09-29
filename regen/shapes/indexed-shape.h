@@ -79,6 +79,15 @@ namespace regen {
 		auto &shape() const { return shape_; }
 
 		/**
+		 * \brief Get the bounding shape for a given instance
+		 * \param instance The instance ID
+		 * \return The bounding shape
+		 */
+		const ref_ptr<BoundingShape> &boundingShape(uint32_t instance) const {
+			return boundingShapes_[instance];
+		}
+
+		/**
 		 * @param mode The sort mode to set
 		 */
 		void setInstanceSortMode(SortMode mode) { instanceSortMode_ = mode; }

@@ -77,7 +77,7 @@ void SpatialIndexDebug::drawBox(const BoundingBox &box) {
 }
 
 void SpatialIndexDebug::drawSphere(const BoundingSphere &sphere) {
-	auto &center = sphere.getShapeOrigin();
+	auto &center = sphere.tfOrigin();
 	auto radius = sphere.radius();
 	Vec3f color = Vec3f(0.0f, 1.0f, 1.0f);
 
@@ -159,7 +159,7 @@ void SpatialIndexDebug::traverse(regen::RenderState *rs) {
 	state()->enable(rs);
 	rs->arrayBuffer().apply(vbo_);
 	for (auto &shape: index_->shapes()) {
-		for (auto &instance: shape.second) {
+		for (auto &instance: *shape.second.get()) {
 			switch (instance->shapeType()) {
 				case BoundingShapeType::BOX: {
 					auto box = dynamic_cast<BoundingBox *>(instance.get());

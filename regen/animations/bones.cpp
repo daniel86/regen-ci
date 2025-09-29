@@ -21,14 +21,21 @@ Bones::Bones(GLuint numBoneWeights, GLuint numBones)
 	shaderDefine("NUM_BONES_PER_MESH", REGEN_STRING(numBones));
 }
 
-void Bones::setBones(const std::list<ref_ptr<AnimationNode> > &bones) {
+void Bones::setBones(const std::list<ref_ptr<NodeAnimation::Node> > &bones) {
 	bones_ = bones;
 	shaderDefine("NUM_BONES", REGEN_STRING(bones_.size()));
+	if (bones.empty()) {
+		REGEN_WARN("bones array is empty.");
+		return;
+	} else {
+		numInstances_ = bones.front()->boneTransformationMatrix.size();
+	}
 
 	// create and join bone matrix uniform
-	boneMatrices_ = ref_ptr<ShaderInputMat4>::alloc("boneMatrices", bones.size());
+	boneMatrices_ = ref_ptr<ShaderInputMat4>::alloc("boneMatrices", bones.size() * numInstances_);
 	boneMatrices_->set_forceArray(GL_TRUE);
 	boneMatrices_->setUniformUntyped();
+	bufferSize_ = boneMatrices_->inputSize();
 
 #ifdef USE_BONE_TBO
 	boneMatrixTBO_ = ref_ptr<TBO>::alloc("Bones",
@@ -37,7 +44,6 @@ void Bones::setBones(const std::list<ref_ptr<AnimationNode> > &bones) {
 	boneMatrixTBO_->setClientAccessMode(BUFFER_CPU_WRITE);
 	boneMatrixTBO_->setBufferMapMode(BUFFER_MAP_DISABLED);
 	boneMatrixTBO_->addStagedInput(boneMatrices_);
-	bufferSize_ = boneMatrices_->inputSize();
 	boneMatrixTBO_->update();
 
 	// and make the tbo available
@@ -60,10 +66,12 @@ void Bones::animate(GLdouble dt) {
 	auto *boneMatrixData_ = mapped.w.data();
 
 	unsigned int i = 0;
-	for (auto & bone : bones_) {
-		// the bone matrix is actually calculated in the animation thread
-		// by NodeAnimation.
-		boneMatrixData_[i] = bone->boneTransformationMatrix();
-		i += 1;
+	for (uint32_t instanceID=0u; instanceID < numInstances_; ++instanceID) {
+		for (auto &bone : bones_) {
+			// the bone matrix is actually calculated in the animation thread
+			// by NodeAnimation.
+			boneMatrixData_[i] = bone->boneTransformationMatrix[instanceID];
+			i += 1;
+		}
 	}
 }

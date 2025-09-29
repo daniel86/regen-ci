@@ -163,6 +163,12 @@ namespace regen {
 		void setFloorHeight(float floorHeight) { floorHeight_ = floorHeight; }
 
 		/**
+		 * Set the collision bit for avoiding collisions with other NPCs.
+		 * @param bit the collision bit.
+		 */
+		void setCollisionBit(uint32_t bit) { collisionMask_ = (1 << bit); }
+
+		/**
 		 * Set the height map.
 		 * @param heightMap the height map.
 		 */
@@ -191,6 +197,7 @@ namespace regen {
 		ref_ptr<WorldModel> worldModel_;
 		ref_ptr<SpatialIndex> spatialIndex_;
 		ref_ptr<BoundingShape> indexedShape_;
+		uint32_t collisionMask_ = 0;
 		// Base orientation of the mesh around y axis
 		float baseOrientation_ = M_PI_2;
 

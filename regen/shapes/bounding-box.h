@@ -56,7 +56,13 @@ namespace regen {
 		 * @brief Get the min/max bounds of the box's vertices (without transformation)
 		 * @return The bounds
 		 */
-		auto &bounds() const { return bounds_; }
+		const Bounds<Vec3f> &baseBounds() const { return baseBounds_; }
+
+		/**
+		 * @brief Get the min/max bounds of the box's vertices after transformation
+		 * @return The bounds
+		 */
+		const Bounds<Vec3f> &tfBounds() const { return tfBounds_; }
 
 		/**
 		 * @brief Get the vertices of this box
@@ -75,7 +81,7 @@ namespace regen {
 		 * @param other The other box
 		 * @return True if there is an intersection, false otherwise
 		 */
-		bool hasIntersectionWithBox(const BoundingBox &box) const;
+		bool hasIntersectionWithBox(const BoundingBox &other) const;
 
 		/**
 		 * @brief Project this box onto an axis
@@ -85,17 +91,18 @@ namespace regen {
 		std::pair<float, float> project(const Vec3f &axis) const;
 
 		// BoundingShape interface
-		void updateBounds(const Vec3f &min, const Vec3f &max) override;
+		void updateBaseBounds(const Vec3f &min, const Vec3f &max) override;
 
 	protected:
 		BoundingBoxType type_;
 		// min/max bounds of the box's vertices (without transformation)
-		Bounds<Vec3f> bounds_;
+		Bounds<Vec3f> baseBounds_;
+		// min/max bounds of the box's vertices after transformation
+		Bounds<Vec3f> tfBounds_;
+		// The center of the box before transformation
 		Vec3f basePosition_;
 		// transformed vertices
 		Vec3f vertices_[8];
-
-		void updateShapeOrigin();
 	};
 } // namespace
 

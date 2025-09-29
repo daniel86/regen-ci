@@ -63,15 +63,17 @@
     <index id="main-index" type="quadtree" max-objects-per-node="4"/>
     <!-- Cameras -->
     <camera id="main-camera"
-            culling-index="main-index"
             fov="45.0" near="0.1" far="200.0"
-            position="-40.0, 14.0, 0.0"/>
+            position="-40.0, 14.0, 0.0">
+        <culling index="main-index" />
+    </camera>
     <camera id="reflection-camera"
-            culling-index="main-index"
             lod-shift="1,1,1,0"
             camera="main-camera"
             reflector-normal="0,1,0"
-            reflector-point="0,{{water-level}},0"/>
+            reflector-point="0,{{water-level}},0">
+        <culling index="main-index" />
+    </camera>
     <!-- Assets -->
     <asset id="fish-asset" type="asset"
            file="res/models/fish-puffer/PufferFish.fbx"

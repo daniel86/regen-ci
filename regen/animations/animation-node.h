@@ -1,129 +1,15 @@
-/*
- * animation-node.h
- *
- *  Created on: 29.03.2012
- *      Author: daniel
- */
-
-#ifndef ANIMATION_NODE_H_
-#define ANIMATION_NODE_H_
+#ifndef REGEN_ANIMATION_NODE_H_
+#define REGEN_ANIMATION_NODE_H_
 
 #include <regen/utility/ref-ptr.h>
 #include <regen/math/matrix.h>
 #include <regen/math/quaternion.h>
 #include <regen/animations/animation.h>
 
-#include <map>
+#include <unordered_map>
 #include <vector>
 
 namespace regen {
-	/**
-	 * \brief A node in a skeleton with parent and children.
-	 */
-	class AnimationNode {
-	public:
-		/**
-		 * @param name the node name.
-		 * @param parent the parent node.
-		 */
-		AnimationNode(const std::string &name, const ref_ptr<AnimationNode> &parent);
-
-		/**
-		 * @return The node name.
-		 */
-		auto &name() const { return name_; }
-
-		/**
-		 * @return The parent node.
-		 */
-		auto &parent() const { return parentNode_; }
-
-		/**
-		 * Add a node child.
-		 * @param child
-		 */
-		void addChild(const ref_ptr<AnimationNode> &child);
-
-		/**
-		 * @return node children.
-		 */
-		auto &children() { return nodeChilds_; }
-
-		/**
-		 * Sets the currently active animation channel
-		 * for this node.
-		 * Should be called after animation index changed.
-		 */
-		void set_channelIndex(GLint channelIndex) { channelIndex_ = channelIndex; }
-
-		/**
-		 * @return local transform.
-		 */
-		auto &localTransform() const { return localTransform_; }
-
-		/**
-		 * @param v the local transform.
-		 */
-		void set_localTransform(const Mat4f &v) { localTransform_ = v; }
-
-		/**
-		 * @return global transform in world space.
-		 */
-		auto &globalTransform() const { return globalTransform_; }
-
-		/**
-		 * @param v the global transform.
-		 */
-		void set_globalTransform(const Mat4f &v) { globalTransform_ = v; }
-
-		/**
-		 * @return offsetMatrix * nodeTransform * inverseTransform
-		 */
-		auto &boneTransformationMatrix() const { return boneTransformationMatrix_; }
-
-		/**
-		 * @return Matrix that transforms from mesh space to bone space in bind pose.
-		 */
-		auto &boneOffsetMatrix() const { return offsetMatrix_; }
-
-		/**
-		 * @param offsetMatrix Matrix that transforms from mesh space to bone space in bind pose.
-		 */
-		void set_boneOffsetMatrix(const Mat4f &offsetMatrix);
-
-		/**
-		 * Recursively updates the internal node transformations from the given matrix array.
-		 * @param transforms transformation matrices.
-		 */
-		void updateTransforms(const std::vector<Mat4f> &transforms);
-
-		/**
-		 * Concatenates all parent transforms to get the global transform for this node.
-		 */
-		void calculateGlobalTransform();
-
-		/**
-		 * Create a copy of this node.
-		 * Used for instanced animations.
-		 * @return a node copy.
-		 */
-		ref_ptr<AnimationNode> copy();
-
-	protected:
-		std::string name_;
-
-		ref_ptr<AnimationNode> parentNode_;
-		std::vector<ref_ptr<AnimationNode> > nodeChilds_;
-
-		Mat4f localTransform_;
-		Mat4f globalTransform_;
-		Mat4f offsetMatrix_;
-		Mat4f boneTransformationMatrix_;
-		GLint channelIndex_;
-
-		GLboolean isBoneNode_;
-	};
-
 	/**
 	 * \brief A skeletal animation.
 	 */
@@ -133,16 +19,18 @@ namespace regen {
 		 * \brief A key frame containing a 3 dimensional vector.
 		 */
 		struct KeyFrame3f {
-			GLdouble time; /**< frame timestamp. **/
+			double time; /**< frame timestamp. **/
 			Vec3f value; /**< frame value. **/
 		};
+
 		/**
 		 * \brief Key frame of bone rotation.
 		 */
 		struct KeyFrameQuaternion {
-			GLdouble time; /**< frame timestamp. **/
+			double time; /**< frame timestamp. **/
 			Quaternion value; /**< frame value. **/
 		};
+
 		/**
 		 * Defines behavior for first or last key frame.
 		 */
@@ -167,6 +55,7 @@ namespace regen {
 			 */
 			BEHAVIOR_REPEAT = 0x3
 		};
+
 		/**
 		 * \brief Each channel affects a single node.
 		 */
@@ -194,21 +83,73 @@ namespace regen {
 		};
 
 		/**
-		 * @param rootNode animation tree.
-		 * @param autoStart is true the animation adds itself to the AnimationManager.
+		 * \brief A node in a skeleton with parent and children.
 		 */
-		explicit NodeAnimation(const ref_ptr<AnimationNode> &rootNode);
+		class Node {
+		public:
+			// The node name.
+			std::string name;
+			// The parent node.
+			ref_ptr<Node> parent;
+			// The node children.
+			std::vector<ref_ptr<Node>> children;
+			// Local transformation matrix.
+			Mat4f localTransform;
+			Mat4f globalTransform; // temporary storage
+			// Matrix that transforms from mesh space to bone space in bind pose.
+			Mat4f offsetMatrix;
+			// per-instance offsetMatrix * nodeTransform * inverseTransform
+			std::vector<Mat4f> boneTransformationMatrix;
+			// The index of the currently active animation channel
+			int32_t channelIndex;
+			bool isBoneNode;
+
+			/**
+			 * @param name the node name.
+			 * @param parent the parent node.
+			 */
+			Node(const std::string &name, const ref_ptr<Node> &parent);
+
+			/**
+			 * Add a node child.
+			 * @param child
+			 */
+			void addChild(const ref_ptr<Node> &child);
+
+			/**
+			 * Recursively updates the internal node transformations from the given matrix array.
+			 * @param transforms transformation matrices.
+			 */
+			void updateTransforms(uint32_t instanceIdx, Mat4f *transforms);
+
+			/**
+			 * Concatenates all parent transforms to get the global transform for this node.
+			 */
+			void calculateGlobalTransform();
+
+		protected:
+			Stack<Node *> traversalStack;
+		};
+
+		/**
+		 * Event data for node animation events.
+		 */
+		class NodeEventData : public EventData {
+		public:
+			NodeEventData() = default;
+			~NodeEventData() override = default;
+			uint32_t instanceIdx = 0;
+		};
+
+		/**
+		 * @param rootNode animation tree.
+		 */
+		explicit NodeAnimation(const ref_ptr<Node> &rootNode, uint32_t numInstances = 1);
 
 		/**
 		 * @return true if the animation is active.
 		 */
-		bool isNodeAnimationActive() const;
-
-		/**
-		 * @param autoStart is true the animation adds itself to the AnimationManager.
-		 * @return a copy of this animation.
-		 */
-		ref_ptr<NodeAnimation> copy(GLboolean autoStart = GL_TRUE);
+		bool isNodeAnimationActive(uint32_t instanceIdx) const;
 
 		/**
 		 * Add an animation.
@@ -218,138 +159,135 @@ namespace regen {
 		 * @param ticksPerSecond number of animation ticks per second.
 		 * @return the animation index.
 		 */
-		GLint addChannels(
+		int32_t addChannels(
 				const std::string &animationName,
 				ref_ptr<std::vector<Channel> > &channels,
-				GLdouble duration,
-				GLdouble ticksPerSecond
-		);
+				double duration,
+				double ticksPerSecond);
 
 		/**
 		 * Sets animation tick range.
 		 * @param name the animation name.
 		 * @param tickRange the tick range.
 		 */
-		void setAnimationActive(const std::string &name, const Vec2d &tickRange);
+		void setAnimationActive(uint32_t instanceIdx, const std::string &name, const Vec2d &tickRange);
 
 		/**
 		 * Sets animation tick range.
 		 * @param index the animation index.
 		 * @param tickRange the tick range.
 		 */
-		void setAnimationIndexActive(GLint index, const Vec2d &tickRange);
+		void setAnimationIndexActive(uint32_t instanceIdx, int32_t index, const Vec2d &tickRange);
 
 		/**
 		 * Sets tick range for the currently activated
 		 * animation index.
 		 * @param forcedTickRange the tick range.
 		 */
-		void setTickRange(const Vec2d &forcedTickRange);
+		void setTickRange(uint32_t instanceIdx, const Vec2d &forcedTickRange);
 
 		/**
 		 * @param timeFactor the slow down (<1.0) / speed up (>1.0) factor.
 		 */
-		void set_timeFactor(GLdouble timeFactor) { timeFactor_ = timeFactor; }
+		void set_timeFactor(double timeFactor) { timeFactor_ = timeFactor * 0.001; }
 
 		/**
 		 * @return the slow down (<1.0) / speed up (>1.0) factor.
 		 */
-		auto timeFactor() const { return timeFactor_; }
+		double timeFactor() const { return timeFactor_ * 1000.0; }
 
 		/**
 		 * Find node with given name.
 		 * @param name the node name.
 		 * @return the node or a null reference.
 		 */
-		ref_ptr<AnimationNode> findNode(const std::string &name);
+		ref_ptr<Node> findNode(const std::string &name);
 
 		/**
 		 * Stop the node animation.
 		 */
-		void stopNodeAnimation();
+		void stopNodeAnimation(uint32_t instanceIdx);
 
 		/**
 		 * @return the number of animations.
 		 */
 		uint32_t numAnimations() const {
-			return (uint32_t) animData_.size();
+			return static_cast<uint32_t>(animData_.size());
 		}
 
-		double elapsedTime() const {
-			if (animationIndex_ < 0 || animationIndex_ >= (GLint) animData_.size()) {
-				return 0.0;
-			}
-			return animData_[animationIndex_]->elapsedTime_;
-		}
+		/**
+		 * @return the elapsed time of the currently active animation in milliseconds.
+		 */
+		double elapsedTime(uint32_t instanceIdx) const;
 
-		double ticksPerSecond(uint32_t animationIndex) const {
-			if (animationIndex >= animData_.size()) {
-				return 0;
-			}
-			return animData_[animationIndex]->ticksPerSecond_;
-		}
+		/**
+		 * @param animationIndex the animation index.
+		 * @return the ticks per second of the given animation.
+		 */
+		double ticksPerSecond(uint32_t animationIndex) const;
 
 		// override
-		void animate(GLdouble dt) override;
+		void animate(double dt) override;
 
 	protected:
-		// forward declaration
+		ref_ptr<Node> rootNode_;
+		uint32_t numInstances_ = 1;
+		double timeFactor_ = 0.001;
+
 		struct Data {
 			// string identifier for animation
 			std::string animationName_;
-			// flag indicating if this animation is active
-			GLboolean active_;
-			// milliseconds from start of animation
-			GLdouble elapsedTime_;
-			GLdouble ticksPerSecond_;
-			GLdouble lastTime_;
+			double ticksPerSecond_;
 			// Duration of the animation in ticks.
-			GLdouble duration_;
-			// local node transformation
+			double duration_;
+			// Static animation data
+			ref_ptr<std::vector<Channel>> channels_;
+			// per-instance + per-channel local node transformation
 			std::vector<Mat4f> transforms_;
-			// remember last frame for interpolation
+			// per-instance + per-channel remember last frame for interpolation
 			std::vector<Vec3ui> lastFramePosition_;
 			std::vector<Vec3ui> startFramePosition_;
-			ref_ptr<std::vector<NodeAnimation::Channel> > channels_;
 		};
+		std::vector<Data> animData_;
 
-		ref_ptr<AnimationNode> rootNode_;
+		struct InstanceData {
+			int32_t animationIndex_ = -1;
+			// config for currently active anim
+			double startTick_ = 0.0;
+			double duration_ = 0.0;
+			Vec2d tickRange_ = Vec2d(0.0, 0.0);
+			// milliseconds from start of animation
+			double elapsedTime_ = 0.0;
+			double lastTime_ = 0.0;
+			// flag indicating if an animation is active
+			bool active_ = false;
+		};
+		std::vector<InstanceData> instanceData_;
+		ref_ptr<NodeEventData> eventData_ = ref_ptr<NodeEventData>::alloc();
 
-		GLint animationIndex_;
-		std::vector<ref_ptr<NodeAnimation::Data> > animData_;
+		std::unordered_map<std::string, Node *> nameToNode_;
+		std::unordered_map<std::string, int32_t> animNameToIndex_;
 
-		std::map<std::string, AnimationNode *> nameToNode_;
-		std::map<std::string, GLint> animNameToIndex_;
-
-		// config for currently active anim
-		GLdouble startTick_;
-		GLdouble duration_;
-		GLdouble timeFactor_;
-		Vec2d tickRange_;
-
-		Quaternion nodeRotation(
-				NodeAnimation::Data &anim,
+		Quaternion nodeRotation(uint32_t instanceIdx, Data &anim,
 				const Channel &channel,
-				GLdouble timeInTicks,
-				GLuint i);
+				double timeInTicks,
+				uint32_t i) const;
 
-		Vec3f nodePosition(
-				NodeAnimation::Data &anim,
+		Vec3f nodePosition(uint32_t instanceIdx, Data &anim,
 				const Channel &channel,
-				GLdouble timeInTicks,
-				GLuint i);
+				double timeInTicks,
+				uint32_t i) const;
 
-		Vec3f nodeScaling(
-				NodeAnimation::Data &anim,
+		Vec3f nodeScaling(uint32_t instanceIdx, Data &anim,
 				const Channel &channel,
-				GLdouble timeInTicks,
-				GLuint i);
+				double timeInTicks,
+				uint32_t i) const;
 
-		ref_ptr<AnimationNode> findNode(ref_ptr<AnimationNode> &n, const std::string &name);
+		ref_ptr<Node> findNode(ref_ptr<Node> &n, const std::string &name);
 
-		void deallocateAnimationAtIndex(GLint animationIndex);
+		void deallocateAnimationAtIndex(uint32_t instanceIdx, int32_t animationIndex);
 
-		void stopNodeAnimation(NodeAnimation::Data &anim);
+		void stopNodeAnimation(uint32_t instanceIdx, Data &anim);
 	};
 
 	std::ostream &operator<<(std::ostream &out, const NodeAnimation::Behavior &v);
@@ -357,4 +295,4 @@ namespace regen {
 	std::istream &operator>>(std::istream &in, NodeAnimation::Behavior &v);
 } // namespace
 
-#endif /* ANIMATION_NODE_H_ */
+#endif /* REGEN_ANIMATION_NODE_H_ */

@@ -1,9 +1,12 @@
 #include "shape-processor.h"
+
+#include "resource-manager.h"
 #include "regen/shapes/aabb.h"
 #include "regen/shapes/obb.h"
 #include "regen/meshes/mesh-vector.h"
 #include "regen/shapes/spatial-index.h"
 #include "regen/shapes/cull-shape.h"
+#include "regen/textures/height-map.h"
 
 using namespace regen::scene;
 using namespace regen;
@@ -344,8 +347,8 @@ static ref_ptr<Mesh> getMesh(scene::SceneLoader *scene, SceneInputNode &input) {
 
 static ref_ptr<SpatialIndex> getSpatialIndex(scene::SceneLoader *scene, SceneInputNode &input) {
 	ref_ptr<SpatialIndex> spatialIndex;
-	if (input.hasAttribute("spatial-index-id")) {
-		auto spatialIndexID = input.getValue("spatial-index-id");
+	if (input.hasAttribute("spatial-index")) {
+		auto spatialIndexID = input.getValue("spatial-index");
 		spatialIndex = scene->getResource<SpatialIndex>(spatialIndexID);
 	} else {
 		auto indexNode = scene->getRoot()->getFirstChild("index");
@@ -400,6 +403,29 @@ void ShapeProcessor::processInput(
 	}
 	auto numInstances = 1u;
 
+	ref_ptr<HeightMap> heightMap;
+	auto heightMap2D = scene->getResources()->getTexture2D(scene, input.getValue("height-map"));
+	if (heightMap2D.get()) {
+		heightMap = ref_ptr<HeightMap>::dynamicCast(heightMap2D);
+		if (!heightMap) {
+			REGEN_WARN("Texture for height map is not a height map for " << input.getDescription() << ".");
+		} else {
+			heightMap->ensureTextureData();
+		}
+	} else if (input.hasAttribute("height-map")) {
+		REGEN_WARN("Ignoring height map for " << input.getDescription() << " without texture.");
+	}
+
+	uint32_t traversalMask = 1;
+	for (auto &child: input.getChildren("traversal-bit")) {
+		auto bit = child->getValue<uint32_t>("value", 0u);
+		if (child->getValue<bool>("enabled", true)) {
+			traversalMask |= (1 << bit);
+		} else {
+			traversalMask &= ~(1 << bit);
+		}
+	}
+
 	auto transform = scene->getResource<ModelTransformation>(transformID);
 	if(!transform.get()) {
 		auto offset = getOffset(input, mesh, parts);
@@ -451,10 +477,27 @@ void ShapeProcessor::processInput(
 				}
 				shape->setName(input.getName());
 				shape->setInstanceID(i);
+				shape->setTraversalMask(traversalMask);
 				if (transform.get()) {
 					shape->setTransform(transform, transform->numInstances() > 1 ? i : 0);
 				}
+				if (heightMap.get()) {
+					// apply per-instance height offset from height map
+					auto &initialPos = shape->translation();
+					float height = heightMap->sampleHeight(Vec2f(initialPos.x, initialPos.z));
+					shape->setBaseOffset(Vec3f(0.0f, height + 0.5f*heightMap->mapFactor(), 0.0f));
+				}
 				spatialIndex->insert(shape);
+			}
+
+			auto indexedShapes = spatialIndex->getShapes(input.getName());
+			if (indexedShapes.get()) {
+				if (mesh.get()) {
+					mesh->setIndexedShapes(indexedShapes);
+				}
+				for (auto &part: parts) {
+					part->setIndexedShapes(indexedShapes);
+				}
 			}
 
 			if (isCullShape) {

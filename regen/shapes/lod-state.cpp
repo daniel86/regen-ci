@@ -409,7 +409,7 @@ void LODState::traverseCPU() {
 				for (uint32_t layerIdx=0; layerIdx<numLayer; ++layerIdx) {
 					if (!shapeIndex_->isVisibleInLayer(layerIdx)) continue;
 					const Vec3f *camPos = getCameraPosition(shapeIndex_->sortCamera(), layerIdx);
-					const float distance = (shapeIndex_->shape()->getShapeOrigin() - *camPos).lengthSquared();
+					const float distance = (shapeIndex_->shape()->tfOrigin() - *camPos).lengthSquared();
 					const uint32_t activeLOD = mesh_->getLODLevel(distance, shapeIndex_->lodShift());
 
 					updateVisibility(layerIdx, activeLOD, 1, 0);
@@ -441,8 +441,8 @@ void LODState::traverseCPU() {
 				}
 			}
 
-			if (tfStamp_ != cullShape_->boundingShape()->transformStamp() || cameraStamp_ != camera_->stamp()) {
-				tfStamp_ = cullShape_->boundingShape()->transformStamp();
+			if (tfStamp_ != cullShape_->boundingShape()->tfStamp() || cameraStamp_ != camera_->stamp()) {
+				tfStamp_ = cullShape_->boundingShape()->tfStamp();
 				cameraStamp_ = camera_->stamp();
 
 				const uint32_t lastBinIdx = (numLODs_ * numLayer) - 1;
@@ -551,9 +551,9 @@ void LODState::createComputeShader() {
 		else if (boundingShape->shapeType() == BoundingShapeType::BOX) {
 			auto *box = dynamic_cast<BoundingBox*>(boundingShape.get());
 			cullPass_->setInput(createUniform<ShaderInput4f, Vec4f>(
-					"shapeAABBMin", Vec4f(box->bounds().min,0.0f)));
+					"shapeAABBMin", Vec4f(box->baseBounds().min,0.0f)));
 			cullPass_->setInput(createUniform<ShaderInput4f, Vec4f>(
-					"shapeAABBMax", Vec4f(box->bounds().max,0.0f)));
+					"shapeAABBMax", Vec4f(box->baseBounds().max,0.0f)));
 			if (box->isAABB()) {
 				shaderCfg.define("SHAPE_TYPE", "AABB");
 			} else {

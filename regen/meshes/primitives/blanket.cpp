@@ -1,5 +1,7 @@
 #include "blanket.h"
 
+#include "regen/shapes/bounding-shape.h"
+
 using namespace regen;
 
 static Rectangle::Config getRectangleConfig(const Blanket::BlanketConfig &cfg) {
@@ -47,6 +49,12 @@ Blanket::Blanket(const BlanketConfig &cfg, uint32_t numInstances)
 		deadBlankets_[i] = i;
 	}
 	blanketLifetime_.resize(numInstances, cfg.isInitiallyDead ? 0.0f : 1.0f);
+	// initialize traversal masks
+	if (boundingShape_.get()) {
+		blanketTraversalMask_ = boundingShape_->traversalMask();
+	} else {
+		blanketTraversalMask_ = BoundingShape::TRAVERSAL_BIT_DRAW;
+	}
 }
 
 void Blanket::updateAttributes() {
@@ -72,6 +80,11 @@ void Blanket::updateLifetime(float deltaSeconds) {
 		if (blanketLifetime_[i] <= 0.0f) {
 			blanketLifetime_[i] = 0.0f;
 			deadBlankets_[numDeadBlankets_++] = i;
+			if (boundingShape_.get()) {
+				// Disable rendering etc. of dead blankets.
+				//   - the spatial index will not report any intersections with them.
+				boundingShape_->setTraversalMask(0); // disable rendering etc.
+			}
 		}
 	}
 	auto lifetimeData = sh_blanketLifetime_->mapClientDataRaw(BUFFER_GPU_WRITE);
@@ -86,6 +99,10 @@ uint32_t Blanket::reviveBlanket() {
 		--numDeadBlankets_;
 		auto idx = deadBlankets_[numDeadBlankets_];
 		blanketLifetime_[idx] = 1.0f;
+		// reset traversal mask
+		if (boundingShape_.get()) {
+			boundingShape_->setTraversalMask(blanketTraversalMask_);
+		}
 		return idx;
 	}
 }

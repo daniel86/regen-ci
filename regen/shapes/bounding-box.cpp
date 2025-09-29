@@ -9,32 +9,38 @@ using namespace regen;
 BoundingBox::BoundingBox(BoundingBoxType type, const Bounds<Vec3f> &bounds)
 		: BoundingShape(BoundingShapeType::BOX),
 		  type_(type),
-		  bounds_(bounds),
+		  baseBounds_(bounds),
+		  tfBounds_(bounds),
 		  basePosition_((bounds.max + bounds.min) * 0.5f) {}
 
 BoundingBox::BoundingBox(BoundingBoxType type, const ref_ptr<Mesh> &mesh, const std::vector<ref_ptr<Mesh>> &parts)
 		: BoundingShape(BoundingShapeType::BOX, mesh, parts),
 		  type_(type),
-		  bounds_(mesh->minPosition(), mesh->maxPosition()) {
+		  baseBounds_(mesh->minPosition(), mesh->maxPosition()),
+		  tfBounds_(mesh->minPosition(), mesh->maxPosition()) {
 	for (const auto &part : parts) {
-		bounds_.min.setMin(part->minPosition());
-		bounds_.max.setMax(part->maxPosition());
+		baseBounds_.min.setMin(part->minPosition());
+		baseBounds_.max.setMax(part->maxPosition());
 	}
-	basePosition_ = (bounds_.max + bounds_.min) * 0.5f;
+	basePosition_ = (baseBounds_.max + baseBounds_.min) * 0.5f;
+	tfBounds_ = baseBounds_;
 }
 
-void BoundingBox::updateBounds(const Vec3f &min, const Vec3f &max) {
-	bounds_.min = mesh_->minPosition();
-	bounds_.max = mesh_->maxPosition();
+void BoundingBox::updateBaseBounds(const Vec3f &min, const Vec3f &max) {
+	baseBounds_.min = mesh_->minPosition();
+	baseBounds_.max = mesh_->maxPosition();
 	for (const auto &part : parts_) {
-		bounds_.min.setMin(part->minPosition());
-		bounds_.max.setMax(part->maxPosition());
+		baseBounds_.min.setMin(part->minPosition());
+		baseBounds_.max.setMax(part->maxPosition());
 	}
-	basePosition_ = (bounds_.max + bounds_.min) * 0.5f;
-}
-
-void BoundingBox::updateShapeOrigin() {
-	shapeOrigin_ = basePosition_ + translation();
+	baseBounds_.min += baseOffset_;
+	baseBounds_.max += baseOffset_;
+	basePosition_ = (baseBounds_.max + baseBounds_.min) * 0.5f;
+	if (!transform_ || !transform_->hasModelMat()) {
+		tfBounds_ = baseBounds_;
+	}
+	// reset TF stamp to force update
+	lastTransformStamp_ = 0;
 }
 
 std::pair<float, float> BoundingBox::project(const Vec3f &axis) const {

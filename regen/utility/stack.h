@@ -1,10 +1,3 @@
-/*
- * stack.h
- *
- *  Created on: 04.08.2012
- *      Author: daniel
- */
-
 #ifndef REGEN_STACK_H_
 #define REGEN_STACK_H_
 
@@ -22,21 +15,21 @@ namespace regen {
 		public:
 			/**
 			 * @param value node value
-			 * @param next next node or NULL
+			 * @param next next node or nullptr
 			 */
 			Node(const T &value, Node *next)
 					: value_(value), next_(next) {}
 
 			/** node value. */
 			T value_;
-			/** next node or NULL. */
+			/** next node or nullptr. */
 			Node *next_;
 		};
 
-		Stack() : top_(NULL) {}
+		Stack() : top_(nullptr) {}
 
 		~Stack() {
-			while (top_ != NULL) {
+			while (top_ != nullptr) {
 				Node *buf = top_;
 				top_ = top_->next_;
 				delete buf;
@@ -62,10 +55,10 @@ namespace regen {
 		 */
 		void pushBottom(const T &value) {
 			Node *root = bottomNode();
-			if (root == NULL) {
-				top_ = new Node(value, NULL);
+			if (root == nullptr) {
+				top_ = new Node(value, nullptr);
 			} else {
-				root->next_ = new Node(value, NULL);
+				root->next_ = new Node(value, nullptr);
 			}
 		}
 
@@ -73,7 +66,7 @@ namespace regen {
 		 * Pop the top value.
 		 */
 		void pop() {
-			if (top_ == NULL) { return; }
+			if (top_ == nullptr) { return; }
 			Node *buf = top_;
 			top_ = top_->next_;
 			delete buf;
@@ -84,7 +77,7 @@ namespace regen {
 		 * You have to free the top node yourself after calling this.
 		 */
 		void popKeepNode() {
-			if (top_ != NULL) { top_ = top_->next_; }
+			if (top_ != nullptr) { top_ = top_->next_; }
 		}
 
 		/**
@@ -96,10 +89,10 @@ namespace regen {
 				pop();
 				return;
 			}
-			for (Node *n = top_; n != NULL; n = n->next_) {
+			for (Node *n = top_; n != nullptr; n = n->next_) {
 				Node *root = n->next_;
 				if (!root->next_) {
-					n->next_ = NULL;
+					n->next_ = nullptr;
 					delete root;
 					break;
 				}
@@ -121,16 +114,16 @@ namespace regen {
 		 * @return bottom value node.
 		 */
 		Node *bottomNode() {
-			if (!top_) return NULL;
+			if (!top_) return nullptr;
 			Node *root = top_;
-			for (; root->next_ != NULL; root = root->next_) {}
+			for (; root->next_ != nullptr; root = root->next_) {}
 			return root;
 		}
 
 		/**
 		 * @return if the stack is empty.
 		 */
-		bool isEmpty() const { return top_ == NULL; }
+		bool isEmpty() const { return top_ == nullptr; }
 
 	private:
 		Node *top_;

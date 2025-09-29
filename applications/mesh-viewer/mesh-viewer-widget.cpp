@@ -330,7 +330,7 @@ void MeshViewerWidget::loadAnimation(const ref_ptr<Mesh> &mesh, uint32_t index) 
 	GLuint numBoneWeights = asset_->numBoneWeights(mesh.get());
 	GLuint numBones = 0u;
 	// Find bones influencing this mesh
-	for (auto &nodeAnim_i : asset_->getNodeAnimations()) {
+	for (auto &nodeAnim_i : asset_->getNodeAnimation()) {
 		auto boneNodes_i = asset_->loadMeshBones(mesh.get(), nodeAnim_i.get());
 		meshBones.insert(meshBones.end(), boneNodes_i.begin(), boneNodes_i.end());
 		numBones = boneNodes_i.size();
@@ -345,7 +345,7 @@ void MeshViewerWidget::loadAnimation(const ref_ptr<Mesh> &mesh, uint32_t index) 
 		mesh->joinStates(bonesState);
 	}
 
-	for (const auto &anim: asset_->getNodeAnimations()) {
+	for (const auto &anim: asset_->getNodeAnimation()) {
 		ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater2>::alloc(anim);
 		anim->connect(Animation::ANIMATION_STOPPED, animStopped);
 		{

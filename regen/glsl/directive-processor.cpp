@@ -299,7 +299,8 @@ bool DirectiveProcessor::process(PreProcessorState &state, string &line) {
 		lastStage_ = state.currStage;
 		tree_.clear();
 		continuedLine_.clear();
-		forBranches_.clear();
+		forBranch_.clear();
+		forLoopCounter_ = 0;
 		wasEmpty_ = GL_TRUE;
 	}
 
@@ -329,7 +330,7 @@ bool DirectiveProcessor::process(PreProcessorState &state, string &line) {
 	}
 
 	// evaluate ${..}
-	if (tree_.isDefined() && forBranches_.empty()) { parseVariables(line); }
+	if (tree_.isDefined() && forLoopCounter_==0) { parseVariables(line); }
 
 	string statement(line);
 	boost::trim(statement);
@@ -353,16 +354,22 @@ bool DirectiveProcessor::process(PreProcessorState &state, string &line) {
 	} else if (hasPrefix(statement, "#for ")) {
 		static const char *forPattern = "#for (.+) to (.+)";
 		static boost::regex forRegex(forPattern);
-		boost::sregex_iterator regexIt(statement.begin(), statement.end(), forRegex);
 
+		if (forLoopCounter_ > 0) {
+			// we are within a for that has not been evaluated yet
+			forLoopCounter_ += 1;
+			forBranch_.lines += line + "\n";
+			return DirectiveProcessor::getline(state, line);
+		}
+
+		boost::sregex_iterator regexIt(statement.begin(), statement.end(), forRegex);
 		if (regexIt != NO_REGEX_MATCH) {
-			ForBranch branch;
-			branch.variableName = (*regexIt)[1];
-			boost::trim(branch.variableName);
-			branch.upToValue = (*regexIt)[2];
-			boost::trim(branch.upToValue);
-			branch.lines = "";
-			forBranches_.push_front(branch);
+			forBranch_.variableName = (*regexIt)[1];
+			boost::trim(forBranch_.variableName);
+			forBranch_.upToValue = (*regexIt)[2];
+			boost::trim(forBranch_.upToValue);
+			forBranch_.lines = "";
+			forLoopCounter_ = 1;
 		} else {
 			line = "#warning Invalid Syntax: '" + statement + "'. Example: '#for INDEX to 9'.";
 			return true;
@@ -370,32 +377,36 @@ bool DirectiveProcessor::process(PreProcessorState &state, string &line) {
 
 		return DirectiveProcessor::getline(state, line);
 	} else if (hasPrefix(statement, "#endfor")) {
-		if (forBranches_.empty()) {
+		if (forLoopCounter_ == 0) {
 			line = "#warning Closing #endfor without opening #for.";
 			return true;
+		} else if (forLoopCounter_ > 1) {
+			// closing a nested for
+			forLoopCounter_ -= 1;
+			forBranch_.lines += line + "\n";
+			return DirectiveProcessor::getline(state, line);
 		}
-		ForBranch &branch = forBranches_.front();
-
 		ref_ptr<StreamProcessor> forLoop = ref_ptr<StreamProcessor>::alloc();
 		stringstream &ss = forLoop->stream();
 
-		const string &def = tree_.define(branch.upToValue);
+		const string &def = tree_.define(forBranch_.upToValue);
 		if (!isNumber(def)) {
-			ss << "#error '" << branch.upToValue << "' is not a number" << endl;
+			ss << "#error '" << forBranch_.upToValue << "' is not a number" << endl;
 		} else {
 			int count = boost::lexical_cast<int>(def);
 
 			for (int i = 0; i < count; ++i) {
-				ss << "#define2 " << branch.variableName << " " << i << endl;
-				ss << branch.lines;
+				ss << "#define2 " << forBranch_.variableName << " " << i << endl;
+				ss << forBranch_.lines;
 			}
 		}
-		forBranches_.pop_front();
+		forBranch_.clear();
+		forLoopCounter_ = 0;
 		inputs_.push_front(forLoop);
 
 		return DirectiveProcessor::getline(state, line);
-	} else if (!forBranches_.empty()) {
-		forBranches_.front().lines += line + "\n";
+	} else if (forLoopCounter_ > 0) {
+		forBranch_.lines += line + "\n";
 		return DirectiveProcessor::getline(state, line);
 	} else if (hasPrefix(statement, "#input ")) {
 		boost::replace_all(line, "#input ", "#include ");

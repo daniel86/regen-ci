@@ -15,79 +15,89 @@ OBB::OBB(const Bounds<Vec3f> &bounds)
 }
 
 bool OBB::updateTransform(bool forceUpdate) {
-	if (!forceUpdate && transformStamp() == lastTransformStamp_) {
+	auto stamp = tfStamp();
+	if (!forceUpdate && stamp == lastTransformStamp_) {
 		return false;
 	} else {
-		lastTransformStamp_ = transformStamp();
+		lastTransformStamp_ = stamp;
 		updateOBB();
 		return true;
 	}
 }
 
+void OBB::applyTransform(const Mat4f &tf) {
+	boxAxes_[0] = (tf ^ Vec4f(Vec3f::right(), 0.0f)).xyz_();
+	boxAxes_[1] = (tf ^ Vec4f(Vec3f::up(), 0.0f)).xyz_();
+	boxAxes_[2] = (tf ^ Vec4f(Vec3f::front(), 0.0f)).xyz_();
+	tfOrigin_ = (tf ^ Vec4f(tfOrigin_, 1.0f)).xyz_();
+}
+
 void OBB::updateOBB() {
-	updateShapeOrigin();
-	Vec3f offset = basePosition_;
+	tfOrigin_ = basePosition_;
+
+	Vec3f scaling = Vec3f::one();
 	// compute axes of the OBB based on the model transformation
-	const Vec3f &scaling = Vec3f::one();
 	if (transform_.get()) {
-		if (transform_->hasModelOffset()) {
-			offset += transform_->modelOffset()->getVertexClamped(transformIndex_).r.xyz_();
-		}
 		if (transform_->hasModelMat()) {
 			auto tf = transform_->modelMat()->getVertex(transformIndex_);
-			boxAxes_[0] = (tf.r ^ Vec4f(Vec3f::right(), 0.0f)).xyz_();
-			boxAxes_[1] = (tf.r ^ Vec4f(Vec3f::up(), 0.0f)).xyz_();
-			boxAxes_[2] = (tf.r ^ Vec4f(Vec3f::front(), 0.0f)).xyz_();
-			// transform base position offset
-			offset = (tf.r ^ Vec4f(offset, 0.0f)).xyz_();
-			offset += tf.r.position();
+			applyTransform(tf.r);
+			scaling = tf.r.scaling();
+		}
+		if (transform_->hasModelOffset()) {
+			tfOrigin_ += transform_->modelOffset()->getVertexClamped(transformIndex_).r.xyz_();
 		}
 	} else if (localStamp_ != 1) {
 		// use local transform if no model transformation is set.
 		// note: stamp!=1 indicates we do not have an identity transform.
-		auto &tf = localTransform_;
-		boxAxes_[0] = (tf ^ Vec4f(Vec3f::right(), 0.0f)).xyz_();
-		boxAxes_[1] = (tf ^ Vec4f(Vec3f::up(), 0.0f)).xyz_();
-		boxAxes_[2] = (tf ^ Vec4f(Vec3f::front(), 0.0f)).xyz_();
-		offset = (tf ^ Vec4f(offset, 0.0f)).xyz_();
-		offset += tf.position();
+		applyTransform(localTransform_);
+		scaling = localTransform_.scaling();
 	} else {
 		boxAxes_[0] = Vec3f::right();
 		boxAxes_[1] = Vec3f::up();
 		boxAxes_[2] = Vec3f::front();
 	}
+	if (scaling != Vec3f::one()) {
+		// normalize axes if scaling is applied
+		boxAxes_[0].normalize();
+		boxAxes_[1].normalize();
+		boxAxes_[2].normalize();
+	}
 
 	// compute vertices of the OBB
-	auto halfSize = (bounds_.max - bounds_.min) * scaling * 0.5f;
+	auto halfSize = (baseBounds_.max - baseBounds_.min) * scaling * 0.5f;
 	Vec3f x = boxAxes_[0] * halfSize.x;
 	Vec3f y = boxAxes_[1] * halfSize.y;
 	Vec3f z = boxAxes_[2] * halfSize.z;
-	vertices_[0] = offset - x - y - z;
-	vertices_[1] = offset - x - y + z;
-	vertices_[2] = offset - x + y - z;
-	vertices_[3] = offset - x + y + z;
-	vertices_[4] = offset + x - y - z;
-	vertices_[5] = offset + x - y + z;
-	vertices_[6] = offset + x + y - z;
-	vertices_[7] = offset + x + y + z;
+	vertices_[0] = tfOrigin_ - x - y - z;
+	vertices_[1] = tfOrigin_ - x - y + z;
+	vertices_[2] = tfOrigin_ - x + y - z;
+	vertices_[3] = tfOrigin_ - x + y + z;
+	vertices_[4] = tfOrigin_ + x - y - z;
+	vertices_[5] = tfOrigin_ + x - y + z;
+	vertices_[6] = tfOrigin_ + x + y - z;
+	vertices_[7] = tfOrigin_ + x + y + z;
+
+	// finally compute the bounds of the OBB
+	Vec3f extents =
+		Vec3f(fabs(boxAxes_[0].x), fabs(boxAxes_[0].y), fabs(boxAxes_[0].z)) * halfSize.x +
+		Vec3f(fabs(boxAxes_[1].x), fabs(boxAxes_[1].y), fabs(boxAxes_[1].z)) * halfSize.y +
+		Vec3f(fabs(boxAxes_[2].x), fabs(boxAxes_[2].y), fabs(boxAxes_[2].z)) * halfSize.z;
+	tfBounds_.min = tfOrigin_ - extents;
+	tfBounds_.max = tfOrigin_ + extents;
 }
 
 Vec3f OBB::closestPointOnSurface(const Vec3f &point) const {
-	auto halfSize = (bounds_.max - bounds_.min) * 0.5f;
-	const GLfloat *halfSizes = &halfSize.x;
+	auto halfSize = (baseBounds_.max - baseBounds_.min) * 0.5f;
+	const float *halfSizes = &halfSize.x;
 	const Vec3f *axes = boxAxes();
-	const Vec3f &obbCenter = getShapeOrigin();
+	const Vec3f &obbCenter = tfOrigin();
 	Vec3f d = point - obbCenter;
-	Vec3f closest = obbCenter;
 
+	Vec3f tf_closest = obbCenter;
 	for (int i = 0; i < 3; ++i) {
-		float distance = d.dot(axes[i]);
-		if (distance > halfSizes[i]) distance = halfSizes[i];
-		if (distance < -halfSizes[i]) distance = -halfSizes[i];
-		closest = closest + axes[i] * distance;
+		tf_closest = tf_closest + axes[i] * math::clamp(d.dot(axes[i]), -halfSizes[i], halfSizes[i]);
 	}
-
-	return closest;
+	return tf_closest;
 }
 
 bool OBB::overlapOnAxis(const BoundingBox &b, const Vec3f &axis) const {

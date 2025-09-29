@@ -3,14 +3,16 @@
 
 #include <list>
 #include <algorithm>
+#include <regen/animations/animation-node.h>
 
 void setAnimationRangeActive(
 			const ref_ptr<NodeAnimation> &anim,
-			const regen::scene::AnimRange &animRange) {
+			uint32_t instanceIdx,
+			const scene::AnimRange &animRange) {
 	if (animRange.channelName.empty()) {
-		anim->setAnimationIndexActive(animRange.channelIndex, animRange.range);
+		anim->setAnimationIndexActive(instanceIdx, animRange.channelIndex, animRange.range);
 	} else {
-		anim->setAnimationActive(animRange.channelName, animRange.range);
+		anim->setAnimationActive(instanceIdx, animRange.channelName, animRange.range);
 	}
 }
 
@@ -26,8 +28,9 @@ public:
 	~RandomAnimationRangeUpdater() override = default;
 
 	void call(EventObject *ev, EventData *data) override {
+		NodeAnimation::NodeEventData *evData = (NodeAnimation::NodeEventData *) data;
 		int index = rand() % animRanges_.size();
-		setAnimationRangeActive(anim_, animRanges_[index]);
+		setAnimationRangeActive(anim_, evData->instanceIdx, animRanges_[index]);
 	}
 
 protected:
@@ -46,7 +49,8 @@ public:
 
 	~FixedAnimationRangeUpdater() override = default;
 	void call(EventObject *ev, EventData *data) override {
-		setAnimationRangeActive(anim_, animRange_);
+		NodeAnimation::NodeEventData *evData = (NodeAnimation::NodeEventData *) data;
+		setAnimationRangeActive(anim_, evData->instanceIdx, animRange_);
 	}
 protected:
 	ref_ptr<NodeAnimation> anim_;
@@ -64,9 +68,10 @@ public:
 	~RandomAnimationRangeUpdater2() override = default;
 
 	void call(EventObject *ev, EventData *data) override {
+		NodeAnimation::NodeEventData *evData = (NodeAnimation::NodeEventData *) data;
 		static const Vec2d fullRange(-1.0, -1.0);
 		int index = rand() % anim_->numAnimations();
-		anim_->setAnimationIndexActive(index, fullRange);
+		anim_->setAnimationIndexActive(index, evData->instanceIdx, fullRange);
 	}
 
 protected:
@@ -95,10 +100,12 @@ public:
 			const ref_ptr<NodeAnimation> &anim,
 			const std::vector<regen::scene::AnimRange> &animRanges,
 			const std::map<std::string, KeyAnimationMapping> &mappings,
-			const std::string &idleAnimation)
+			const std::string &idleAnimation,
+			uint32_t instanceIdx = 0)
 			: EventHandler(),
 			  anim_(anim),
-			  mappings_(mappings) {
+			  mappings_(mappings),
+			  instanceIdx_(instanceIdx){
 		for (std::vector<regen::scene::AnimRange>::const_iterator it = animRanges.begin(); it != animRanges.end(); ++it) {
 			animRanges_[it->name] = *it;
 		}
@@ -113,12 +120,12 @@ public:
 		active_ = "";
 		if (toggles_.empty()) {
 			if (!idleAnimation_.empty()) {
-				setAnimationRangeActive(anim_, animRanges_[idleAnimation_]);
+				setAnimationRangeActive(anim_, instanceIdx_, animRanges_[idleAnimation_]);
 			}
 		} else {
 			KeyAnimationMapping &m0 = mappings_[*toggles_.begin()];
 			if (!m0.idle.empty()) {
-				setAnimationRangeActive(anim_, animRanges_[m0.idle]);
+				setAnimationRangeActive(anim_, instanceIdx_, animRanges_[m0.idle]);
 			}
 		}
 	}
@@ -147,7 +154,7 @@ public:
 		} else if (m.backwards) {
 			animRange = Vec2d(animRange.y, animRange.x);
 		}
-		setAnimationRangeActive(anim_, animRanges_[m.press]);
+		setAnimationRangeActive(anim_, instanceIdx_, animRanges_[m.press]);
 	}
 
 	void nextAnimation() {
@@ -221,6 +228,7 @@ protected:
 	std::set<std::string> toggles_;
 	std::string active_;
 	std::string idleAnimation_;
+	uint32_t instanceIdx_;
 };
 
 

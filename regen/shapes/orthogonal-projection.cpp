@@ -36,7 +36,7 @@ void OrthogonalProjection::update(const BoundingShape &shape) {
 			// sphere projection is a circle
 			type = OrthogonalProjection::Type::CIRCLE;
 			auto *sphere = dynamic_cast<const BoundingSphere *>(&shape);
-			auto &sphereCenter = sphere->getShapeOrigin();
+			auto &sphereCenter = sphere->tfOrigin();
 			points.resize(2);
 			points[0] = Vec2f(sphereCenter.x, sphereCenter.z);
 			// note: second point stores the squared radius

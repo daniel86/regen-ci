@@ -69,6 +69,7 @@ namespace regen {
 		ref_ptr<ShaderInput1f> sh_blanketLifetime_;
 		std::vector<uint32_t> deadBlankets_;
 		std::vector<float> blanketLifetime_;
+		uint32_t blanketTraversalMask_;
 		ref_ptr<Animation> lifetimeAnimation_;
 	};
 } // namespace

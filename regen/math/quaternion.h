@@ -280,9 +280,9 @@ namespace regen {
 		inline void interpolateLinear(
 				const Quaternion &pStart,
 				const Quaternion &pEnd,
-				GLfloat pFactor) {
+				float pFactor) {
 			// calc cosine theta
-			GLfloat cosom =
+			float cosom =
 					pStart.x * pEnd.x +
 					pStart.y * pEnd.y +
 					pStart.z * pEnd.z +
@@ -299,8 +299,8 @@ namespace regen {
 			}
 
 			// Very close, do linear interp (because it's faster)
-			GLfloat sclp = 1.0f - pFactor;
-			GLfloat sclq = pFactor;
+			float sclp = 1.0f - pFactor;
+			float sclq = pFactor;
 
 			x = sclp * pStart.x + sclq * end.x;
 			y = sclp * pStart.y + sclq * end.y;

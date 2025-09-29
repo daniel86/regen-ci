@@ -202,9 +202,10 @@ void Ground::updateAttributes() {
 	minPos.z -= patchSize_ * 0.5f;
 	maxPos.x += patchSize_ * 0.5f;
 	maxPos.z += patchSize_ * 0.5f;
-	// NOTE: vertex offset only pushes upwards.
-	maxPos.y += mapSize_.y;
 	minPos.y -= skirtSize_;
+	maxPos.y += 0.1f*mapSize_.y;
+	minPos.y -= 0.1f*mapSize_.y;
+
 	set_bounds(minPos, maxPos);
 	if(skirtMesh_.get()) {
 		skirtMesh_->set_bounds(minPos, maxPos);

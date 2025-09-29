@@ -435,6 +435,17 @@ namespace regen {
 		void setBoundingShape(const ref_ptr<BoundingShape> &shape);
 
 		/**
+		 * Set the indexed shape for this mesh.
+		 * @param shape the indexed shape.
+		 */
+		void setIndexedShapes(const ref_ptr<std::vector<ref_ptr<BoundingShape>>> &shapes);
+
+		/**
+		 * @return the indexed shape, if any.
+		 */
+		const ref_ptr<BoundingShape> &indexedShape(uint32_t instanceIdx) const;
+
+		/**
 		 * Create a bounding sphere or box for this mesh based on the
 		 * min and max positions of vertices.
 		 * @param uploadToGPU true if the shape should be uploaded to GPU.
@@ -664,6 +675,7 @@ namespace regen {
 
 		ref_ptr<State> cullShape_;
 		ref_ptr<BoundingShape> boundingShape_;
+		ref_ptr<std::vector<ref_ptr<BoundingShape>>> indexedShapes_;
 		int32_t shapeType_ = -1;
 
 		// indirect draw buffer data

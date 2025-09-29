@@ -486,21 +486,31 @@ ref_ptr<Camera> Camera::load(LoadingContext &ctx, scene::SceneInputNode &input) 
 		cam->setFixedLOD(input.getValue<LODQuality>("fixed-lod", LODQuality::HIGH));
 	}
 
-	if (input.hasAttribute("culling-index")) {
-		auto spatialIndex = ctx.scene()->getResource<SpatialIndex>(input.getValue("culling-index"));
-		ref_ptr<Camera> lodCamera;
-		if (input.hasAttribute("lod-camera")) {
-			lodCamera = ctx.scene()->getResource<Camera>(input.getValue("lod-camera"));
-			if (lodCamera.get() == nullptr) {
-				REGEN_WARN("Unable to find LOD Camera for '" << input.getDescription() << "'.");
+	for (auto &child: input.getChildren("culling")) {
+		if (child->hasAttribute("index")) {
+			auto spatialIndex = ctx.scene()->getResource<SpatialIndex>(child->getValue("index"));
+			if (spatialIndex.get() == nullptr) {
+				REGEN_WARN("Unable to find SpatialIndex for '" << input.getDescription() << "'.");
+				continue;
 			}
+
+			ref_ptr<Camera> lodCamera;
+			if (input.hasAttribute("lod-camera")) {
+				lodCamera = ctx.scene()->getResource<Camera>(input.getValue("lod-camera"));
+				if (lodCamera.get() == nullptr) {
+					REGEN_WARN("Unable to find LOD Camera for '" << input.getDescription() << "'.");
+				}
+			}
+			if (!lodCamera.get()) {
+				lodCamera = cam;
+			}
+
+			spatialIndex->addCamera(cam, lodCamera,
+				input.getValue<SortMode>("sort", SortMode::FRONT_TO_BACK),
+				input.getValue<Vec4i>("lod-shift", Vec4i::zero()));
+		} else {
+			REGEN_WARN("Ignoring culling node without index for '" << input.getDescription() << "'.");
 		}
-		if (!lodCamera.get()) {
-			lodCamera = cam;
-		}
-		spatialIndex->addCamera(cam, lodCamera,
-			input.getValue<SortMode>("sort", SortMode::FRONT_TO_BACK),
-			input.getValue<Vec4i>("lod-shift", Vec4i::zero()));
 	}
 
 	return cam;

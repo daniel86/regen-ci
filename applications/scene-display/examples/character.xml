@@ -111,23 +111,25 @@
             max-objects-per-node="4"/>
     <!-- Cameras -->
     <camera id="main-camera"
-            culling-index="main-index"
             fov="45.0" near="0.1" far="{{far-plane}}"
             position="25.0,2.5,2.0"
-            direction="1.0,0.0,-1.0"/>
+            direction="1.0,0.0,-1.0">
+        <culling index="main-index" />
+    </camera>
     <camera id="room-light-camera0"
-            culling-index="main-index"
             light="room-light0"
             camera="main-camera"
             camera-type="paraboloid"
             dual-paraboloid="0"
-            update-frequency="NEVER"/>
+            update-frequency="NEVER">
+    </camera>
     <!-- Orthogonal top-down camera used for collision map generation -->
     <camera id="collision-camera" type="orthogonal"
             width="90.0" height="90.0" far="2.0"
             position="0.0, -0.5, 0.0"
             direction="0.0,-1.0,0.0"
-            update-frequency="NEVER"/>
+            update-frequency="NEVER">
+    </camera>
     <!--
 <camera id="room-light-camera0"
     culling-index="main-index"

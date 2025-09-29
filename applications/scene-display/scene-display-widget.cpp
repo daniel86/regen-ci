@@ -877,7 +877,7 @@ static void handleAssetController(
 	scene::SceneLoader &sceneParser,
 	const ref_ptr<SceneInputNode> &animationNode,
 	std::list<ref_ptr<Animation> > &animations,
-	const std::vector<ref_ptr<NodeAnimation> > &nodeAnimations,
+	const ref_ptr<NodeAnimation> &nodeAnimation,
 	const std::vector<AnimRange> &ranges) {
 	auto controllerType = animationNode->getValue("type");
 	auto tf = sceneParser.getResources()->getTransform(
@@ -906,8 +906,7 @@ static void handleAssetController(
 
 	if (controllerType == "animal") {
 		uint32_t tfIdx = 0; // TODO: support multiple instances
-		auto animalController = ref_ptr<AnimalController>::alloc(
-			tf, tfIdx, nodeAnimations[instanceIndex], ranges);
+		auto animalController = ref_ptr<AnimalController>::alloc(tf, tfIdx, nodeAnimation, ranges);
 		controller.push_back(animalController);
 		animalController->setWorldTime(&sceneParser.application()->worldTime());
 		animalController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
@@ -960,7 +959,7 @@ static void handleAssetController(
 
 		for (int32_t tfIdx = 0; tfIdx < tf->numInstances(); tfIdx++) {
 			auto npcController = ref_ptr<NPCController>::alloc(
-				worldModel, tf, tfIdx, nodeAnimations[tfIdx], ranges);
+				worldModel, tf, tfIdx, nodeAnimation, ranges);
 			controller.push_back(npcController);
 			if (spatialIndex.get()) {
 				npcController->setSpatialIndex(spatialIndex, indexedShapeName);
@@ -972,6 +971,7 @@ static void handleAssetController(
 			npcController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
 			npcController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
 			npcController->setFloorHeight(animationNode->getValue<float>("floor-height", 0.0f));
+			npcController->setCollisionBit(animationNode->getValue<uint32_t>("collision-bit", 0));
 			if (animationNode->hasAttribute("base-orientation")) {
 				npcController->setBaseOrientation(
 					animationNode->getValue<GLfloat>("base-orientation", 0.0f));
@@ -1028,35 +1028,34 @@ static void handleAssetAnimationConfiguration(
 		REGEN_WARN("Unable to find animation ranges for animation with name '" << animationNode->getName() << "'.");
 		return;
 	}
-	std::vector<ref_ptr<NodeAnimation> > nodeAnimations_ = animAsset->getNodeAnimations();
-
-	for (const auto &anim: nodeAnimations_) {
-		anim->startAnimation();
+	ref_ptr<NodeAnimation> nodeAnimation = animAsset->getNodeAnimation();
+	if (nodeAnimation.get()) {
+		nodeAnimation->startAnimation();
 	}
 
 	if (animationNode->getValue("mode") == string("random")) {
-		for (const auto &anim: nodeAnimations_) {
-			ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater>::alloc(anim, ranges);
-			anim->connect(Animation::ANIMATION_STOPPED, animStopped);
+		if (nodeAnimation.get()) {
+			ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater>::alloc(nodeAnimation, ranges);
+			nodeAnimation->connect(Animation::ANIMATION_STOPPED, animStopped);
 			eventHandler.push_back(animStopped);
 
 			EventData evData;
 			evData.eventID = Animation::ANIMATION_STOPPED;
-			animStopped->call(anim.get(), &evData);
+			animStopped->call(nodeAnimation.get(), &evData);
 		}
 	} else if (animationNode->getValue("mode") == "fixed") {
-		for (const auto &anim: nodeAnimations_) {
+		if (nodeAnimation.get()) {
 			auto &fixedRange = ranges[0]; // TODO
-			ref_ptr<EventHandler> animStopped = ref_ptr<FixedAnimationRangeUpdater>::alloc(anim, fixedRange);
-			anim->connect(Animation::ANIMATION_STOPPED, animStopped);
+			ref_ptr<EventHandler> animStopped = ref_ptr<FixedAnimationRangeUpdater>::alloc(nodeAnimation, fixedRange);
+			nodeAnimation->connect(Animation::ANIMATION_STOPPED, animStopped);
 			eventHandler.push_back(animStopped);
 
 			EventData evData;
 			evData.eventID = Animation::ANIMATION_STOPPED;
-			animStopped->call(anim.get(), &evData);
+			animStopped->call(nodeAnimation.get(), &evData);
 		}
 	} else if (animationNode->getCategory() == "controller") {
-		handleAssetController(worldModel, sceneParser, animationNode, animations, nodeAnimations_, ranges);
+		handleAssetController(worldModel, sceneParser, animationNode, animations, nodeAnimation, ranges);
 	} else {
 		map<string, KeyAnimationMapping> keyMappings;
 		string idleAnimation = animationNode->getValue("idle");
@@ -1068,7 +1067,7 @@ static void handleAssetAnimationConfiguration(
 			} else if (x->getCategory() == string("mouse-mapping")) {
 				mapping.key = REGEN_STRING("button" << x->getValue<int>("button", 1));
 			} else if (x->getCategory() == string("controller")) {
-				handleAssetController(worldModel, sceneParser, x, animations, nodeAnimations_, ranges);
+				handleAssetController(worldModel, sceneParser, x, animations, nodeAnimation, ranges);
 				continue;
 			} else {
 				REGEN_WARN("Unhandled animation node " << x->getDescription() << ".");
@@ -1084,12 +1083,12 @@ static void handleAssetAnimationConfiguration(
 		}
 
 		if (!keyMappings.empty()) {
-			for (const auto &anim: nodeAnimations_) {
+			if (nodeAnimation.get()) {
 				auto keyHandler = ref_ptr<KeyAnimationRangeUpdater>::alloc(
-					anim, ranges, keyMappings, idleAnimation);
+					nodeAnimation, ranges, keyMappings, idleAnimation);
 				app_->connect(Scene::KEY_EVENT, keyHandler);
 				app_->connect(Scene::BUTTON_EVENT, keyHandler);
-				anim->connect(Animation::ANIMATION_STOPPED, keyHandler);
+				nodeAnimation->connect(Animation::ANIMATION_STOPPED, keyHandler);
 				eventHandler.emplace_back(keyHandler);
 			}
 		}

@@ -1,6 +1,7 @@
 #include "blanket-trail.h"
 
 #include "regen/meshes/mesh-vector.h"
+#include "regen/shapes/indexed-shape.h"
 
 using namespace regen;
 
@@ -51,11 +52,13 @@ void BlanketTrail::setModelTransform(const ref_ptr<ModelTransformation> &tf) {
 	if (tf_.get()) {
 		auto modelMat = tf_->modelMat();
 		modelMat->setInstanceData(numBlankets_, 1, nullptr);
-		// distribute initially along z axis
+		// distribute initially randomly
 		auto modelData = (Mat4f*)modelMat->clientData();
 		for (uint32_t i = 0; i < numBlankets_; ++i) {
 			modelData[i] = Mat4f::identity();
-			modelData[i].translate(Vec3f(0.0f, -32.0f, static_cast<float>(i) * 3.0f));
+			float randX = (math::random<float>() - 0.5f) * 2.0f * 1000.0f;
+			float randZ = (math::random<float>() - 0.5f) * 2.0f * 1000.0f;
+			modelData[i].translate(Vec3f(randX, insertHeight_, randZ));
 		}
 		tf_->set_numInstances(numBlankets_);
 	}
@@ -72,6 +75,20 @@ void BlanketTrail::insertBlanket(const Vec3f &pos, const Vec3f &dir, uint32_t ma
 	tmpMat_ = q.calculateMatrix();
 	tmpMat_.translate(Vec3f(pos.x, insertHeight_, pos.z));
 	tf_->setModelMat(instanceIdx, tmpMat_);
+	// TODO: it would be nice to keep track of *per-instance* stamps here.
+	//       these are used to determine if an object has moved e.g. in spatial index.
+	//       in the spatial index, this causes re-insert of each instance each time at least one
+	//       instance has moved. setModelMat will set the stamp.
+	//       - Instead we could set the stamp on the bounding shape as every instance has its own AFAIK.
+	//         then everyone using instance model matrix can use bounding shape stamp to check for movement.
+	//       - Will need some restructuring regarding bounding shapes.
+	// TODO: also we could mark instances as dirty to avoid full copy of data every time.
+	//       setModelMat marks the whole buffer as dirty.
+
+	if(indexedShapes_.get()) {
+		// Also update bounding shape position in spatial index.
+		indexedShape(instanceIdx)->setBaseOffset(Vec3f(0.0f, insertHeight_, 0.0f));
+	}
 
 	// update mask index
 	if (!maskIndex_.empty() && maskIndex_[instanceIdx] != maskIndex) {

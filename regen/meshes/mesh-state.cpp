@@ -748,6 +748,18 @@ void Mesh::setBoundingShape(const ref_ptr<BoundingShape> &shape) {
 	boundingShape_ = shape;
 }
 
+void Mesh::setIndexedShapes(const ref_ptr<std::vector<ref_ptr<BoundingShape>>> &shapes) {
+	indexedShapes_ = shapes;
+}
+
+const ref_ptr<BoundingShape> &Mesh::indexedShape(uint32_t instanceIdx) const {
+	if (!indexedShapes_) {
+		return boundingShape_;
+	} else {
+		return (*indexedShapes_.get())[instanceIdx];
+	}
+}
+
 void Mesh::createBoundingSphere() {
 	// create a sphere shape, compute radius from bounding box
 	float radius = (maxPosition_ - minPosition_).length() * 0.5f;

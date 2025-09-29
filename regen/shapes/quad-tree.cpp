@@ -6,19 +6,23 @@
 #include "quad-tree.h"
 #include "regen/math/simd.h"
 
-//#define QUAD_TREE_DEBUG
+//#define QUAD_TREE_DEBUG_TESTS
+//#define QUAD_TREE_DEBUG_TIME
 #define QUAD_TREE_EVER_GROWING
 #define QUAD_TREE_SQUARED
 //#define QUAD_TREE_DISABLE_SIMD
 #define QUAD_TREE_MASK_EARLY_EXIT
 //#define QUAD_TREE_DEFERRED_BATCH_STORE
-#define QUAD_TREE_SUBDIVIDE_THRESHOLD 4
-#define QUAD_TREE_COLLAPSE_THRESHOLD 2
 
 #ifdef QUAD_TREE_DISABLE_SIMD
 	#ifdef QUAD_TREE_DEFERRED_BATCH_STORE
 	#undef QUAD_TREE_DEFERRED_BATCH_STORE
 	#endif // QUAD_TREE_DEFERRED_BATCH_STORE
+#endif
+
+
+#ifdef QUAD_TREE_DEBUG_TIME
+#include "regen/gl-types/queries/elapsed-time.h"
 #endif
 
 // NOTE: this piece of code is performance critical! For many execution paths:
@@ -38,6 +42,7 @@ namespace regen {
 		std::array<Vec2f, 4> corners;
 		std::array<float, 4> projections;
 		void *userData;
+		uint32_t traversalBit = 0;
 
 		void (*callback)(const BoundingShape &, void *);
 
@@ -66,7 +71,7 @@ namespace regen {
 		uint32_t numSucceedingItems_ = 0;
 		uint32_t currIdx_ = 0;
 		uint32_t nextIdx_ = 1;
-#ifdef QUAD_TREE_DEBUG
+#ifdef QUAD_TREE_DEBUG_TESTS
 		uint32_t num2DTests_ = 0;
 		uint32_t num3DTests_ = 0;
 #endif
@@ -183,7 +188,7 @@ void QuadTree::freeItem(Item *item) {
 	item->shape = {};
 	item->projection.points.clear();
 	item->projection.axes.clear();
-	item->nodes.clear();
+	item->node = nullptr;
 	itemPool_.push(item);
 }
 
@@ -200,16 +205,34 @@ void QuadTree::insert(const ref_ptr<BoundingShape> &shape) {
 	addToIndex(shape);
 }
 
+bool QuadTree::reinsert(Item *shape, bool allowSubdivision) { // NOLINT(misc-no-recursion)
+	Node *m = removeFromNode(shape->node, shape, false);
+	shape->node = nullptr;
+
+	if (m->contains(shape->projection)) {
+		// the node fully contains the shape, try to insert it here
+		if (insert1(m, shape, allowSubdivision)) {
+			if (shape->node != m) collapse(m);
+			return true;
+		} else {
+			return false;
+		}
+	}
+	Node *n = m->parent;
+	while (n->parent && !n->contains(shape->projection)) {
+		n = n->parent;
+	}
+	n->shapes.push_back(shape);
+	shape->node = n;
+	if (shape->node != m) collapse(m);
+	return true;
+}
+
 bool QuadTree::insert(Node *node, Item *shape, bool allowSubdivision) { // NOLINT(misc-no-recursion)
 	if (!node->intersects(shape->projection)) {
 		return false;
 	} else {
-		// only subdivide if the node is larger than the shape
-		auto nodeSize = node->bounds.max - node->bounds.min;
-		auto shapeSize = shape->projection.bounds.max - shape->projection.bounds.min;
-		bool isNodeLargeEnough = (nodeSize.x > 2.0 * shapeSize.x && nodeSize.y > 2.0 * shapeSize.y);
-
-		return insert1(node, shape, isNodeLargeEnough && allowSubdivision);
+		return insert1(node, shape, allowSubdivision);
 	}
 }
 
@@ -221,30 +244,25 @@ bool QuadTree::insert1(Node *node, Item *newShape, bool allowSubdivision) { // N
 		// 2. the node has reached the minimum size and cannot be subdivided further
 		// 3. the node was just created by subdividing a parent node
 		if (!allowSubdivision ||
-			node->shapes.size() < QUAD_TREE_SUBDIVIDE_THRESHOLD ||
+			node->shapes.size() < subdivisionThreshold_ ||
 			node->bounds.size() < minNodeSize_) {
 			node->shapes.push_back(newShape);
-			newShape->nodes.push_back(node);
+			newShape->node = node;
 			return true;
 		} else {
 			// split the node into four children
 			subdivide(node);
-			bool inserted = false;
-			// remove the subdivided node from the list of nodes of the existing shapes
-			for (const auto &existingShape: node->shapes) {
-				existingShape->removeNode(node);
-			}
-			for (auto &child: node->children) {
-				// reinsert the existing shapes into the new children nodes
-				for (const auto &existingShape: node->shapes) {
-					insert(child, existingShape, true);
-				}
-				// also insert the new shape
-				inserted = insert(child, newShape, true) || inserted;
-			}
-			// subdivided node does not contain shapes anymore
+			// Keep a copy of the existing shapes in shapesTmp for iteration below.
+			node->shapesTmp = std::move(node->shapes);
 			node->shapes.clear();
-			return inserted;
+			// reinsert the existing shapes into the new children nodes
+			for (const auto &existingShape: node->shapesTmp) {
+				if (!insert(node, existingShape, true)) {
+					REGEN_WARN("Failed to reinsert shape into child node of quad tree.");
+				}
+			}
+			// also insert the new shape
+			return insert(node, newShape, true);
 		}
 	} else {
 		// the node has child nodes, must insert into (at least) one of them.
@@ -256,11 +274,9 @@ bool QuadTree::insert1(Node *node, Item *newShape, bool allowSubdivision) { // N
 				if (insert(child, newShape, allowSubdivision)) return true;
 			}
 		}
-		bool inserted = false;
-		for (auto &child: node->children) {
-			inserted = insert(child, newShape, allowSubdivision) || inserted;
-		}
-		return inserted;
+		node->shapes.push_back(newShape);
+		newShape->node = node;
+		return true;
 	}
 }
 
@@ -270,66 +286,32 @@ void QuadTree::remove(const ref_ptr<BoundingShape> &shape) {
 		REGEN_WARN("Shape not found in quad tree.");
 		return;
 	}
-	removeFromNodes(item);
+	removeFromNode(item->node, item);
+	item->node = nullptr;
 }
 
-void QuadTree::removeFromNodes(Item *item) {
-	auto nodes = item->nodes;
-	for (auto &node: nodes) {
-		removeFromNode(node, item);
-	}
-	item->nodes.clear();
-}
-
-void QuadTree::removeFromNode(Node *node, Item *shape) {
+QuadTree::Node* QuadTree::removeFromNode(Node *node, Item *shape, bool allowCollapse) {
 	auto it = std::find(node->shapes.begin(), node->shapes.end(), shape);
 	if (it == node->shapes.end()) {
-		return;
+		return node;
+	} else if (allowCollapse) {
+		node->shapes.erase(it);
+		return collapse(node);
+	} else {
+		node->shapes.erase(it);
+		return node;
 	}
-	node->shapes.erase(it);
-	collapse(node);
 }
 
-void QuadTree::collapse(Node *node) { // NOLINT(misc-no-recursion)
-	if (!node->parent) {
-		return;
-	}
+QuadTree::Node* QuadTree::collapse(Node *node) { // NOLINT(misc-no-recursion)
 	auto *parent = node->parent;
-	auto &firstShapes = parent->children[0]->shapes;
-	for (auto &child: parent->children) {
-		if (!child->isLeaf()) {
-			// at least one child is not a leaf -> no collapse
-			return;
-		}
-		if (child->shapes.size() != firstShapes.size()) {
-			// unequal number of shapes -> no collapse
-			return;
-		}
-	}
-	//if (parent->children[0]->shapes.size() > QUAD_TREE_COLLAPSE_THRESHOLD) {
-	// no collapse
-	//return;
-	//}
-	for (int i = 1; i < 4; i++) {
-		for (auto &shape: parent->children[i]->shapes) {
-			if (std::find(firstShapes.begin(), firstShapes.end(), shape) == firstShapes.end()) {
-				// not all children contain the same set of shapes -> no collapse
-				return;
-			}
-		}
-	}
-	// finally, collapse the node...
-	for (auto &shape: firstShapes) {
-		// remove the children nodes from the shape's list of nodes
-		for (int i = 0; i < 4; i++) {
-			auto it = std::find(shape->nodes.begin(), shape->nodes.end(), parent->children[i]);
-			shape->nodes.erase(it);
-		}
-		// add the parent node to the shape's list of nodes
-		shape->nodes.push_back(parent);
-		// add the shape to the parent node
-		parent->shapes.push_back(shape);
-	}
+	// parent can only be collapsed if all its children are leaf nodes without shapes
+	if (!parent ||
+		!parent->children[0]->isCollapsable() ||
+		!parent->children[1]->isCollapsable() ||
+		!parent->children[2]->isCollapsable() ||
+		!parent->children[3]->isCollapsable()) return node;
+
 	// free all children nodes
 	for (int i = 0; i < 4; i++) {
 		freeNode(parent->children[i]);
@@ -339,7 +321,7 @@ void QuadTree::collapse(Node *node) { // NOLINT(misc-no-recursion)
 	numNodes_ -= 4;
 	numLeaves_ -= 3;
 	// continue collapsing the parent node
-	collapse(parent);
+	return collapse(parent);
 }
 
 void QuadTree::subdivide(Node *node) {
@@ -377,13 +359,6 @@ QuadTree::Item::Item(const ref_ptr<BoundingShape> &shape) :
 		projection(*shape.get()) {
 }
 
-void QuadTree::Item::removeNode(Node *node) {
-	auto it = std::find(nodes.begin(), nodes.end(), node);
-	if (it != nodes.end()) {
-		nodes.erase(it);
-	}
-}
-
 QuadTree::Node::Node(const Vec2f &min, const Vec2f &max) : bounds(min, max), parent(nullptr) {
 	for (int i = 0; i < 4; i++) {
 		children[i] = nullptr;
@@ -399,6 +374,10 @@ QuadTree::Node::~Node() {
 
 bool QuadTree::Node::isLeaf() const {
 	return children[0] == nullptr;
+}
+
+bool QuadTree::Node::isCollapsable() const {
+	return children[0] == nullptr && shapes.empty();
 }
 
 bool QuadTree::Node::contains(const OrthogonalProjection &projection) const {
@@ -457,15 +436,15 @@ static void countIntersections(const BoundingShape &, void *userData) {
 	counter++;
 }
 
-bool QuadTree::hasIntersection(const BoundingShape &shape) {
+bool QuadTree::hasIntersection(const BoundingShape &shape, uint32_t traversalBit) {
 	int count = 0;
-	foreachIntersection(shape, countIntersections, &count);
+	foreachIntersection(shape, countIntersections, &count, traversalBit);
 	return count > 0;
 }
 
-int QuadTree::numIntersections(const BoundingShape &shape) {
+int QuadTree::numIntersections(const BoundingShape &shape, uint32_t traversalBit) {
 	int count = 0;
-	foreachIntersection(shape, countIntersections, &count);
+	foreachIntersection(shape, countIntersections, &count, traversalBit);
 	return count;
 }
 
@@ -618,7 +597,7 @@ void QuadTree::Private::processQueuedNodes(QuadTreeTraversal &td) {
 	}
 #endif
 	processQueuedNodes_scalar(td, nodeIdx);
-#ifdef QUAD_TREE_DEBUG
+#ifdef QUAD_TREE_DEBUG_TESTS
 	num2DTests_ += numQueuedItems_;
 #endif
 	numQueuedItems_ = 0;
@@ -769,12 +748,13 @@ void QuadTree::Private::processSuccessors(QuadTreeTraversal &td) {
 		auto successorIdx = successorIdx_[i];
 		auto successor = queuedNodes_[currIdx_][successorIdx];
 
-		if (successor->isLeaf()) {
-			// TODO: Consider using SIMD for processing quad tree leaf node batches.
-			//       One difficulty is that different shape types must be supported,
-			//       which also would use different code paths.
+		// TODO: Consider using SIMD for processing quad tree leaf node batches.
+		//       One difficulty is that different shape types must be supported,
+		//       which also would use different code paths.
+		if (successor->shapes.size() > 0) {
 			processLeafNode(td, successor);
-		} else {
+		}
+		if (!successor->isLeaf()) {
 			// add child nodes to the queue for the next iteration
 			addNodeToQueue(successor->children[0]);
 			addNodeToQueue(successor->children[1]);
@@ -785,29 +765,33 @@ void QuadTree::Private::processSuccessors(QuadTreeTraversal &td) {
 	numSucceedingItems_ = 0;
 }
 
+static bool isMasked(QuadTreeTraversal &td, const QuadTree::Item *item) {
+	// only include the item of the traversal bit is set
+	if (td.traversalBit != 0 &&
+		(item->shape->traversalMask() & td.traversalBit) == 0) {
+		return true;
+	}
+	return false;
+}
+
 void QuadTree::Private::processLeafNode(QuadTreeTraversal &td, Node *leaf) {
 	// 3D intersection test with the shapes in the node
 
 	if (td.tree->testMode3D_ == QUAD_TREE_3D_TEST_NONE) {
 		// no intersection test, just call the callback
 		for (const auto &quadShape: leaf->shapes) {
-			if (!quadShape->visited) {
-				quadShape->visited = true;
-				td.callback(*quadShape->shape.get(), td.userData);
-			}
+			if (isMasked(td, quadShape)) continue;
+			td.callback(*quadShape->shape.get(), td.userData);
 		}
 	} else if (td.tree->testMode3D_ == QUAD_TREE_3D_TEST_ALL) {
 		// test all shapes, even if they are not close to the shape's projection origin
 		for (const auto &quadShape: leaf->shapes) {
-			if (!quadShape->visited) {
-				quadShape->visited = true;
-				if (quadShape->shape->hasIntersectionWith(*td.shape)) {
-					td.callback(*quadShape->shape.get(), td.userData);
-				}
-#ifdef QUAD_TREE_DEBUG
-				num3DTests_ += 1;
-#endif
+			if (quadShape->shape->hasIntersectionWith(*td.shape)) {
+				td.callback(*quadShape->shape.get(), td.userData);
 			}
+#ifdef QUAD_TREE_DEBUG_TESTS
+			num3DTests_ += 1;
+#endif
 		}
 	} else if (td.tree->testMode3D_ == QUAD_TREE_3D_TEST_CLOSEST) {
 		// heuristic: only test shapes that are close to the shape's projection origin (e.g. camera position)
@@ -817,20 +801,16 @@ void QuadTree::Private::processLeafNode(QuadTreeTraversal &td, Node *leaf) {
 		float distSq = (td.basePoint - leaf->bounds.center()).lengthSquared();
 		if (distSq > td.tree->closeDistanceSquared_) {
 			for (const auto &quadShape: leaf->shapes) {
-				// skip shapes that are already visited in this frame
-				if (quadShape->visited) { continue; }
-				quadShape->visited = true;
+				if (isMasked(td, quadShape)) continue;
 				td.callback(*quadShape->shape.get(), td.userData);
 			}
 		} else {
 			for (const auto &quadShape: leaf->shapes) {
-				// skip shapes that are already visited in this frame
-				if (quadShape->visited) { continue; }
-				quadShape->visited = true;
 				if (quadShape->shape->hasIntersectionWith(*td.shape)) {
+					if (isMasked(td, quadShape)) continue;
 					td.callback(*quadShape->shape.get(), td.userData);
 				}
-#ifdef QUAD_TREE_DEBUG
+#ifdef QUAD_TREE_DEBUG_TESTS
 				num3DTests_ += 1;
 #endif
 			}
@@ -841,11 +821,12 @@ void QuadTree::Private::processLeafNode(QuadTreeTraversal &td, Node *leaf) {
 void QuadTree::foreachIntersection(
 		const BoundingShape &shape,
 		void (*callback)(const BoundingShape &, void *),
-		void *userData) {
+		void *userData,
+		uint32_t traversalBit) {
 	if (!root_) return;
 	if (root_->isLeaf() && root_->shapes.empty()) return;
 
-	auto &origin = shape.getShapeOrigin();
+	auto &origin = shape.tfOrigin();
 	// project the shape onto the xz-plane for faster intersection tests
 	// with the quad tree nodes.
 	OrthogonalProjection shape_projection(shape);
@@ -856,34 +837,20 @@ void QuadTree::foreachIntersection(
 	td.basePoint = Vec2f(origin.x, origin.z);
 	td.callback = callback;
 	td.userData = userData;
+	td.traversalBit = traversalBit;
 
-#ifdef QUAD_TREE_DEBUG
-	using std::chrono::high_resolution_clock;
-	using std::chrono::duration_cast;
-	using std::chrono::duration;
-	using std::chrono::milliseconds;
+#ifdef QUAD_TREE_DEBUG_TIME
+	static ElapsedTimeDebugger elapsedTime("Quad-Tree Update", 1000);
+	elapsedTime.beginFrame();
+#endif
+#ifdef QUAD_TREE_DEBUG_TESTS
 	priv_->num2DTests_ = 0;
 	priv_->num3DTests_ = 0;
-	auto t1 = high_resolution_clock::now();
 #endif
-
-	// reset intersection state of items.
-	// this is done to avoid duplicates as each item can be in multiple nodes.
-	for (const auto &item: items_) {
-		item->visited = false;
-	}
 
 	priv_->numQueuedItems_ = 0;
 	priv_->numSucceedingItems_ = 0;
-	if (root_->isLeaf()) {
-		priv_->addNodeToQueue(root_);
-	} else {
-		// add the root node's children to the queue
-		priv_->addNodeToQueue(root_->children[0]);
-		priv_->addNodeToQueue(root_->children[1]);
-		priv_->addNodeToQueue(root_->children[2]);
-		priv_->addNodeToQueue(root_->children[3]);
-	}
+	priv_->addNodeToQueue(root_);
 
 	if (shape_projection.type == OrthogonalProjection::Type::CIRCLE) {
 		priv_->intersectionLoop_sphere(td);
@@ -911,96 +878,36 @@ void QuadTree::foreachIntersection(
 		}
 	}
 
-#ifdef QUAD_TREE_DEBUG
-	static std::vector<long> times;
+#ifdef QUAD_TREE_DEBUG_TESTS
+	static uint32_t numFrames = 0;
 	static std::vector<uint32_t> numTests_2d;
 	static std::vector<uint32_t> numTests_3d;
-	auto t2 = std::chrono::high_resolution_clock::now();
-	auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-	times.push_back(dt);
+	numFrames++;
 	numTests_2d.push_back(priv_->num2DTests_);
 	numTests_3d.push_back(priv_->num3DTests_);
-	if (times.size() > 100) {
-		long avgTime = 0;
-		long totalTime = 0;
+	if (numFrames > 1000) {
 		uint32_t avg2DTests = 0;
 		uint32_t avg3DTests = 0;
-		for (size_t i = 0; i < times.size(); i++) {
-			totalTime += times[i];
+		for (size_t i = 0; i < numFrames; i++) {
 			avg2DTests += numTests_2d[i];
 			avg3DTests += numTests_3d[i];
 		}
-		avgTime = totalTime / times.size();
-		avg2DTests /= times.size();
-		avg3DTests /= times.size();
+		avg2DTests /= numFrames;
+		avg3DTests /= numFrames;
 		REGEN_INFO("QuadTree:"
-						   << " t0: " << std::fixed << std::setprecision(4)
-						   << static_cast<float>(avgTime) / 1000.0f << "ms"
-						   << " t0-t100: " << std::fixed << std::setprecision(2)
-						   << static_cast<float>(totalTime) / 1000.0f << "ms"
 						   << " #nodes: " << numNodes_
 						   << " #leaves: " << numLeaves_
 						   << " #avg-2d: " << avg2DTests
 						   << " #avg-3d: " << avg3DTests);
-		times.clear();
+		numFrames = 0;
 		numTests_2d.clear();
 		numTests_3d.clear();
 	}
 #endif
-}
-
-void QuadTree::foreachNeighbour(
-		const BoundingShape &shape,
-		float neighborhoodRadius,
-		void (*callback)(const BoundingShape &, void *),
-		void *userData) {
-	// The idea here is that we can simply traverse the tree starting from the node that
-	// contains the shape, and then we traverse towards root but we stop as soon a node
-	// is outside the radius.
-	// First get the node that contains the shape. We can do this by
-	// simple hash lookup.
-	auto it = shapeToItem_.find(&shape);
-	if (it == shapeToItem_.end()) {
-		REGEN_WARN("Shape not found in quad tree.");
-		return;
-	}
-
-	Item *shapeItem = it->second;
-	// reset intersection state of items.
-	// this is done to avoid duplicates as each item can be in multiple nodes.
-	for (const auto &xi: items_) {
-		xi->visited = false;
-	}
-	shapeItem->visited = true;
-
-	// Add all nodes that contain the shape to a stack.
-	std::stack<const Node *> stack;
-	for (const auto &node: shapeItem->nodes) {
-		stack.push(node);
-	}
-
-	const float radiusSqr = neighborhoodRadius * neighborhoodRadius;
-	const Vec3f &shapeOrigin = shape.getShapeOrigin();
-	const Vec2f shapeOrigin2D = Vec2f(shapeOrigin.x, shapeOrigin.z);
-
-	while (!stack.empty()) {
-		const Node *node = stack.top();
-		stack.pop();
-
-		// check all shapes in the node
-		for (const auto &quadShape: node->shapes) {
-			if (!quadShape->visited) {
-				quadShape->visited = true;
-				// check distance to shape origin
-				const Vec3f &otherOrigin = quadShape->shape->getShapeOrigin();
-				const Vec2f otherOrigin2D = Vec2f(otherOrigin.x, otherOrigin.z);
-				if ((otherOrigin2D - shapeOrigin2D).lengthSquared() <= radiusSqr) {
-					callback(*quadShape->shape.get(), userData);
-				}
-			}
-		}
-		// TODO: implement this
-	}
+#ifdef QUAD_TREE_DEBUG_TIME
+	elapsedTime.push("foreachIntersection");
+	elapsedTime.endFrame();
+#endif
 }
 
 void QuadTree::update(float dt) {
@@ -1020,6 +927,9 @@ void QuadTree::update(float dt) {
 
 	// go through all items and update their geometry and transform, and the new bounds
 	for (const auto &item: items_) {
+		// NOTE: items with traversalMask == 0 are currently disabled,
+		//       so we can skip updating them.
+		if (item->shape->traversalMask() == 0) continue;
 		hasChanged = item->shape->updateGeometry();
 		hasChanged = item->shape->updateTransform(hasChanged) || hasChanged;
 		if (hasChanged) {
@@ -1044,9 +954,9 @@ void QuadTree::update(float dt) {
 	newBounds_.max.x = std::max(newBounds_.max.x, newBounds_.max.y);
 	newBounds_.max.y = newBounds_.max.x;
 #endif
-	// if bounds have changed, re-initialize the tree
 	auto reInit = (root_ == nullptr || newBounds_ != root_->bounds);
 	if (reInit) {
+		// if bounds have changed, re-initialize the tree
 		// free the root node and start all over
 		if (root_) freeNode(root_);
 		root_ = createNode(newBounds_.min, newBounds_.max);
@@ -1054,17 +964,16 @@ void QuadTree::update(float dt) {
 		numLeaves_ = 1;
 
 		for (auto &item: items_) {
-			item->nodes.clear();
+			item->node = nullptr;
 			insert1(root_, item, true);
 		}
-	}
+	} else {
 		// else remove/insert the changed items
-	else {
-		for (auto item: changedItems_) {
-			removeFromNodes(item);
-			insert1(root_, item, true);
+		for (auto *item: changedItems_) {
+			reinsert(item, true);
 		}
 	}
+
 	// finally insert the new items
 	for (auto item: newItems_) {
 		if (insert1(root_, item, true)) {

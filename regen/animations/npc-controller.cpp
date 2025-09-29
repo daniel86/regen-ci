@@ -143,15 +143,35 @@ struct NPCNeighborData {
 	const BoundingShape *shape;
 	uint32_t neighborCount = 0;
 	Vec3f avoidance = Vec3f::zero();
+	float personalSpace = 2.0f;
 };
 
 void NPCController::handleNeighbour(const BoundingShape &other, void *userData) {
 	NPCNeighborData *data = static_cast<NPCNeighborData *>(userData);
 	if (data->shape == &other) return; // skip self
 
-	Vec3f offset = data->shape->getShapeOrigin() - other.getShapeOrigin();
-	float dist = offset.length();
+	Vec3f offset;
+	float dist;
+	const Vec3f &thisCenter = data->shape->tfOrigin();
+
+	if (data->shape->baseMesh().get() == other.baseMesh().get()) {
+		const Vec3f &otherCenter = other.tfOrigin();
+		offset = thisCenter - otherCenter;
+		dist = std::max(0.0f, offset.length() - data->personalSpace);
+	} else {
+		// TODO: rather enforce 3D test in spatial index query, this is effectively what happens then!
+		Vec3f otherClosest = other.closestPointOnSurface(thisCenter);
+
+		offset = thisCenter - otherClosest;
+		dist = offset.length();
+	}
 	if (dist < 0.01f) return;
+
+	if (dist > data->personalSpace) {
+		// FIXME: spatial index gives a lot of false positives, not sure why.
+		//REGEN_WARN("NOT INTERSECTING!");
+		return;
+	}
 
 	offset /= dist; // normalize
 	data->avoidance += offset / (dist * dist); // inverse-square falloff
@@ -160,21 +180,21 @@ void NPCController::handleNeighbour(const BoundingShape &other, void *userData) 
 
 Vec3f NPCController::computeNeighborAvoidance() {
 	// TODO: personal space param
-	const float personalSpace = 2.2 + 1.0 * (1.0f - bravery_);
+	const float personalSpace = 1.0 + 1.0 * (1.0f - bravery_);
 
 	NPCNeighborData data;
 	data.npc = this;
 	data.shape = indexedShape_.get();
+	data.personalSpace = personalSpace;
 
 	if (spatialIndex_.get() && indexedShape_.get()) {
-		// TODO: see if it is faster to start search with node that contains indexedShape_.
-		//spatialIndex_->foreachNeighbour(*indexedShape_.get(),
-		//	personalSpace, handleNeighbour, &data);
-
 		BoundingSphere querySphere(currentPos_, personalSpace);
 		querySphere.updateTransform(true);
 		spatialIndex_->foreachIntersection(
-			querySphere, handleNeighbour, &data);
+			querySphere,
+			handleNeighbour,
+			&data,
+			collisionMask_);
 	}
 
 	if (data.neighborCount > 0) {
@@ -416,7 +436,7 @@ void NPCController::startMotion() {
 	}
 	auto &range = ranges[rand() % ranges.size()];
 	lastRange_ = range;
-	animation_->setAnimationActive(range->channelName, range->range);
+	animation_->setAnimationActive(tfIdx_, range->channelName, range->range);
 	animation_->startAnimation();
 }
 
@@ -428,7 +448,7 @@ void NPCController::updateController(double dt) {
 
 	if (footstepTrail_.get() && isLastAnimationMovement_) {
 		auto movementTime = (currentBehaviour_.motion == MOTION_WALK ? walkTime_ : runTime_);
-		auto elapsed = animation_->elapsedTime();
+		auto elapsed = animation_->elapsedTime(tfIdx_);
 		if (!leftFootDown_ && elapsed > leftFootTime_ * movementTime) {
 			leftFootDown_ = true;
 			footstepTrail_->insertBlanket(currentPos_, currentDir_, leftFootIdx_);
@@ -441,19 +461,19 @@ void NPCController::updateController(double dt) {
 
 	if (it_ == frames_.end()) {
 		// currently no movement.
-		if (animation_->isNodeAnimationActive()) {
+		if (animation_->isNodeAnimationActive(tfIdx_)) {
 			if (isLastAnimationMovement_) {
 				// animation is movement, deactivate
-				animation_->stopNodeAnimation();
+				animation_->stopNodeAnimation(tfIdx_);
 			}
 			return;
 		}
 	} else {
 		// movement active
-		if (!animation_->isNodeAnimationActive()) {
+		if (!animation_->isNodeAnimationActive(tfIdx_)) {
 			// animation not active, activate
 			if (lastRange_) {
-				animation_->setAnimationActive(lastRange_->channelName, lastRange_->range);
+				animation_->setAnimationActive(tfIdx_, lastRange_->channelName, lastRange_->range);
 				animation_->startAnimation();
 				if (isLastAnimationMovement_) {
 					leftFootDown_ = false;

@@ -92,16 +92,23 @@ namespace regen {
       bool isDefined();
     };
     struct ForBranch {
-      std::string variableName;
-      std::string upToValue;
-      std::string lines;
+    	std::string variableName;
+    	std::string upToValue;
+    	std::string lines;
+    	void clear() {
+			variableName = "";
+			upToValue = "";
+			lines = "";
+		}
     };
 
     std::list< ref_ptr<GLSLProcessor> > inputs_;
     MacroTree tree_;
     std::string continuedLine_;
 
-    std::list<ForBranch> forBranches_;
+    ForBranch forBranch_;
+    uint32_t forLoopCounter_ = 0;
+
     GLboolean wasEmpty_;
     GLenum lastStage_;
 

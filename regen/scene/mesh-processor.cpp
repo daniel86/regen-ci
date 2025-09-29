@@ -43,6 +43,7 @@ static ref_ptr<LODState> createCullState(
 		// no need to create LOD state if the camera is not used by the spatial index
 		// TODO: still should reset to base LOD level? because maybe we get
 		//       LOD level configuration from previous pass?
+		REGEN_WARN("Camera for '" << input.getDescription() << "' is not registered in spatial index.");
 		return {};
 	}
 	auto lodState = ref_ptr<LODState>::alloc(cam, cullShape);

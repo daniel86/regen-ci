@@ -21,9 +21,14 @@ in int in_boneOffset;
 #define fetchBoneMatrix(i) in_boneMatrices[i]
 
 -- fetchBoneMatrixTBO
-#if HAS_INSTANCES && HAS_boneOffset
+#if HAS_INSTANCES
 int boneMatrixIndex(uint i) {
+    #ifdef HAS_boneOffset
     return (NUM_BONES_PER_MESH*in_boneOffset + int(i))*4;
+    #else
+    // TODO: use instance ID here?
+    return int(i)*4
+    #endif
 }
 #else
 #define boneMatrixIndex(i) int(i)*4

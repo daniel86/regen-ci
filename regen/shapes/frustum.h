@@ -93,7 +93,7 @@ namespace regen {
 		bool updateTransform(bool forceUpdate) final;
 
 		// BoundingShape interface
-		void updateBounds(const Vec3f &min, const Vec3f &max) override { }
+		void updateBaseBounds(const Vec3f &min, const Vec3f &max) override { }
 
 	protected:
 		ref_ptr<ShaderInput3f> direction_;

@@ -450,8 +450,8 @@ ref_ptr<MeshVector> MeshVector::createAssetMeshes(LoadingContext &ctx, scene::Sc
 	ref_ptr<MeshVector> out_ = ref_ptr<MeshVector>::alloc();
 	MeshVector &out = *out_.get();
 
-	const vector <ref_ptr<NodeAnimation>> &nodeAnims = importer->getNodeAnimations();
-	if (useAnimation && nodeAnims.empty()) {
+	ref_ptr<NodeAnimation> nodeAnim = importer->getNodeAnimation();
+	if (useAnimation && !nodeAnim) {
 		REGEN_WARN(input.getDescription() << " has use-animation=1 but Asset '" <<
 										  input.getValue("asset") << "' has not.");
 		useAnimation = false;
@@ -500,14 +500,14 @@ ref_ptr<MeshVector> MeshVector::createAssetMeshes(LoadingContext &ctx, scene::Sc
 		}
 
 		if (useAnimation) {
-			std::list<ref_ptr<AnimationNode> > meshBones;
+			std::list<ref_ptr<NodeAnimation::Node> > meshBones;
 			GLuint numBoneWeights = importer->numBoneWeights(mesh.get());
 			GLuint numBones = 0u;
 
 			// Find bones influencing this mesh
-			for (auto it = nodeAnims.begin(); it != nodeAnims.end(); ++it) {
-				std::list<ref_ptr<AnimationNode> > ibonNodes =
-						importer->loadMeshBones(mesh.get(), it->get());
+			if (nodeAnim.get()) {
+				std::list<ref_ptr<NodeAnimation::Node> > ibonNodes =
+						importer->loadMeshBones(mesh.get(), nodeAnim.get());
 				meshBones.insert(meshBones.end(), ibonNodes.begin(), ibonNodes.end());
 				numBones = ibonNodes.size();
 			}

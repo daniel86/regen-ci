@@ -20,17 +20,14 @@ namespace regen {
 		struct Node;
 		/**
 		 * An item in the quad tree, i.e. a shape with its orthogonal projection.
-		 * Eah item may appear in multiple nodes.
+		 * Each item appears in the smallest node that fully contains it.
 		 */
 		struct Item {
 			ref_ptr<BoundingShape> shape;
 			OrthogonalProjection projection;
-			std::vector<Node *> nodes;
-			bool visited = false; // used during intersection tests
+			Node *node = nullptr;
 
 			explicit Item(const ref_ptr<BoundingShape> &shape);
-
-			void removeNode(Node *node);
 		};
 
 		/**
@@ -43,12 +40,15 @@ namespace regen {
 			Node *parent;
 			Node *children[4];
 			std::vector<Item *> shapes;
+			std::vector<Item *> shapesTmp;
 
 			Node(const Vec2f &min, const Vec2f &max);
 
 			~Node();
 
 			inline bool isLeaf() const;
+
+			inline bool isCollapsable() const;
 
 			inline bool intersects(const OrthogonalProjection &projection) const;
 
@@ -95,6 +95,15 @@ namespace regen {
 		void setMinNodeSize(float size) { minNodeSize_ = size; }
 
 		/**
+		 * @brief Set the subdivision threshold, i.e. the maximum number of shapes
+		 * a node can contain before it is subdivided.
+		 * @param threshold The subdivision threshold
+		 */
+		void setSubdivisionThreshold(unsigned int threshold) {
+			subdivisionThreshold_ = threshold;
+		}
+
+		/**
 		 * Set the test mode for 3D intersection tests.
 		 * @param mode The test mode to set
 		 */
@@ -116,23 +125,17 @@ namespace regen {
 		void update(float dt) override;
 
 		// override SpatialIndex::hasIntersection
-		bool hasIntersection(const BoundingShape &shape) override;
+		bool hasIntersection(const BoundingShape &shape, uint32_t traversalBit) override;
 
 		// override SpatialIndex::numIntersections
-		int numIntersections(const BoundingShape &shape) override;
+		int numIntersections(const BoundingShape &shape, uint32_t traversalBit) override;
 
 		// override SpatialIndex::foreachIntersection
 		void foreachIntersection(
 				const BoundingShape &shape,
 				void (*callback)(const BoundingShape&, void*),
-				void *userData) override;
-
-		// override SpatialIndex::foreachIntersection
-		void foreachNeighbour(
-				const BoundingShape &shape,
-				float neighborhoodRadius,
-				void (*callback)(const BoundingShape&, void*),
-				void *userData) override;
+				void *userData,
+				uint32_t traversalBit) override;
 
 		// override SpatialIndex
 		void debugDraw(DebugInterface &debug) const override;
@@ -140,6 +143,8 @@ namespace regen {
 	protected:
 		struct Private;
 		Private *priv_;
+
+		uint32_t subdivisionThreshold_ = 4;
 
 		Node *root_ = nullptr;
 		std::unordered_map<const BoundingShape*, Item*> shapeToItem_;
@@ -167,15 +172,15 @@ namespace regen {
 
 		void freeItem(Item *item);
 
+		bool reinsert(Item *shape, bool allowSubdivision);
+
 		bool insert(Node *node, Item *shape, bool allowSubdivision);
 
 		bool insert1(Node *node, Item *shape, bool allowSubdivision);
 
-		void removeFromNodes(Item *shape);
+		Node* removeFromNode(Node *node, Item *shape, bool allowCollapse = true);
 
-		void removeFromNode(Node *node, Item *shape);
-
-		void collapse(Node *node);
+		Node* collapse(Node *node);
 
 		void subdivide(Node *node);
 

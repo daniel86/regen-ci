@@ -17,7 +17,14 @@ SpatialIndex::SpatialIndex() {
 }
 
 void SpatialIndex::addToIndex(const ref_ptr<BoundingShape> &shape) {
-	nameToShape_[shape->name()].push_back(shape);
+	auto it = nameToShape_.find(shape->name());
+	if (it == nameToShape_.end()) {
+		auto shapeVector = ref_ptr<std::vector<ref_ptr<BoundingShape>>>::alloc();
+		shapeVector->push_back(shape);
+		nameToShape_[shape->name()] = shapeVector;
+	} else {
+		it->second->push_back(shape);
+	}
 	for (auto &ic: cameras_) {
 		createIndexShape(ic.second, shape);
 	}
@@ -26,9 +33,9 @@ void SpatialIndex::addToIndex(const ref_ptr<BoundingShape> &shape) {
 void SpatialIndex::removeFromIndex(const ref_ptr<BoundingShape> &shape) {
 	auto it = nameToShape_.find(shape->name());
 	if (it != nameToShape_.end()) {
-		auto jt = std::find(it->second.begin(), it->second.end(), shape);
-		if (jt != it->second.end()) {
-			it->second.erase(jt);
+		auto jt = std::find(it->second->begin(), it->second->end(), shape);
+		if (jt != it->second->end()) {
+			it->second->erase(jt);
 		}
 	}
 }
@@ -44,7 +51,7 @@ void SpatialIndex::addCamera(
 	data.sortMode = sortMode;
 	data.lodShift = lodShift;
 	for (auto &pair: nameToShape_) {
-		for (auto &shape: pair.second) {
+		for (auto &shape: *pair.second.get()) {
 			createIndexShape(data, shape);
 		}
 	}
@@ -121,6 +128,14 @@ ref_ptr<IndexedShape> SpatialIndex::getIndexedShape(const ref_ptr<Camera> &camer
 	return it->second.nameToShape_[shapeName];
 }
 
+ref_ptr<std::vector<ref_ptr<BoundingShape>>> SpatialIndex::getShapes(std::string_view shapeName) const {
+	auto it = nameToShape_.find(shapeName);
+	if (it != nameToShape_.end()) {
+		return it->second;
+	}
+	return {};
+}
+
 bool SpatialIndex::isVisible(const Camera &camera, uint32_t layerIdx, std::string_view shapeID) {
 	auto it = cameras_.find(&camera);
 	if (it == cameras_.end()) {
@@ -143,16 +158,16 @@ GLuint SpatialIndex::numInstances(std::string_view shapeID) const {
 
 ref_ptr<BoundingShape> SpatialIndex::getShape(std::string_view shapeID) const {
 	auto it = nameToShape_.find(shapeID);
-	if (it != nameToShape_.end() && !it->second.empty()) {
-		return it->second.front();
+	if (it != nameToShape_.end() && !it->second->empty()) {
+		return it->second->front();
 	}
 	return {};
 }
 
 ref_ptr<BoundingShape> SpatialIndex::getShape(std::string_view shapeID, uint32_t instance) const {
 	auto it = nameToShape_.find(shapeID);
-	if (it != nameToShape_.end() && !it->second.empty()) {
-		for (auto &shape: it->second) {
+	if (it != nameToShape_.end() && !it->second->empty()) {
+		for (auto &shape: *it->second.get()) {
 			if (instance == shape->instanceID()) {
 				return shape;
 			}
@@ -180,7 +195,7 @@ void SpatialIndex::handleIntersection(const BoundingShape& b_shape, void* userDa
     // compute LOD level for this shape by distance to camera.
     // each mesh may have its own thresholds for switching LOD levels, so we need
     // to let the (base) mesh decide which LOD level to use.
-	const float lodDistance = (b_shape.getShapeOrigin() - *data->camPos).lengthSquared();
+	const float lodDistance = (b_shape.tfOrigin() - *data->camPos).lengthSquared();
 	const uint32_t k = getLODLevel(b_shape, i_shape, lodDistance);
 
 	// Finally bin the shape into the (lod, layer) bin
@@ -201,7 +216,11 @@ void SpatialIndex::updateLayerVisibility(
 	} else {
 		traversalData.camPos = &ic.sortCamera->position(0);
 	}
-	foreachIntersection(camera_shape, handleIntersection, &traversalData);
+	// TODO: support another traversal bit here?
+	foreachIntersection(camera_shape,
+		handleIntersection,
+		&traversalData,
+		BoundingShape::TRAVERSAL_BIT_DRAW);
 }
 
 void SpatialIndex::updateVisibility() {
@@ -315,7 +334,12 @@ ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputN
 			}
 		}
 		if (input.hasAttribute("close-distance")) {
-			quadTree->setCloseDistanceSquared(input.getValue<float>("close-distance", 20.0f));
+			auto dst = input.getValue<float>("close-distance", 20.0f);
+			dst = std::max(0.0f, dst);
+			quadTree->setCloseDistanceSquared(dst * dst);
+		}
+		if (input.hasAttribute("subdivision-threshold")) {
+			quadTree->setSubdivisionThreshold(input.getValue<GLuint>("subdivision-threshold", 4u));
 		}
 
 		index = quadTree;

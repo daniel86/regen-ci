@@ -41,7 +41,14 @@ namespace regen {
 		 * @param other The other shape
 		 * @return True if there is an intersection, false otherwise
 		 */
-		bool hasIntersectionWithSphere(const BoundingShape &other) const;
+		bool hasIntersectionWithShape(const BoundingShape &other) const;
+
+		/**
+		 * @brief Check if this sphere has intersection with another sphere
+		 * @param other The other sphere
+		 * @return True if there is an intersection, false otherwise
+		 */
+		bool hasIntersectionWithSphere(const BoundingSphere &other) const;
 
 		// override BoundingShape::closestPointOnSurface
 		Vec3f closestPointOnSurface(const Vec3f &point) const final;
@@ -50,13 +57,14 @@ namespace regen {
 		bool updateTransform(bool forceUpdate) final;
 
 		// BoundingShape interface
-		void updateBounds(const Vec3f &min, const Vec3f &max) override;
+		void updateBaseBounds(const Vec3f &min, const Vec3f &max) override;
 
 	protected:
 		Vec3f basePosition_;
-		GLfloat radius_;
+		float radius_;
+		float radiusSquared_;
 
-		float computeRadius(const Vec3f &min, const Vec3f &max);
+		float computeRadius(const ref_ptr<Mesh> &mesh, const std::vector<ref_ptr<Mesh>> &parts) const;
 
 		void updateShapeOrigin();
 	};

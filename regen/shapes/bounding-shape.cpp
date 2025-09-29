@@ -34,7 +34,7 @@ bool BoundingShape::updateGeometry() {
 			return false;
 		} else {
 			lastGeometryStamp_ = meshStamp;
-			updateBounds(mesh_->minPosition(), mesh_->maxPosition());
+			updateBaseBounds(mesh_->minPosition(), mesh_->maxPosition());
 			return true;
 		}
 	}
@@ -47,11 +47,20 @@ bool BoundingShape::updateGeometry() {
 	}
 }
 
+void BoundingShape::setBaseOffset(const Vec3f &offset) {
+	baseOffset_ = offset;
+	if (mesh_.get()) {
+		mesh_->nextGeometryStamp();
+	} else {
+		nextGeometryStamp_ += 1u;
+	}
+}
+
 uint32_t BoundingShape::numInstances() const {
 	return transform_.get() ? transform_->numInstances() : 1u;
 }
 
-uint32_t BoundingShape::transformStamp() const {
+uint32_t BoundingShape::tfStamp() const {
 	return transform_.get() ? transform_->stamp() : localStamp_;
 }
 
@@ -84,8 +93,9 @@ bool BoundingShape::hasIntersectionWith(const BoundingShape &other) const {
 		case BoundingShapeType::SPHERE:
 			switch (other.shapeType()) {
 				case BoundingShapeType::SPHERE:
+					return ((const BoundingSphere &) *this).hasIntersectionWithSphere((const BoundingSphere &) other);
 				case BoundingShapeType::BOX:
-					return ((const BoundingSphere &) *this).hasIntersectionWithSphere(other);
+					return ((const BoundingSphere &) *this).hasIntersectionWithShape((const BoundingBox &) other);
 				case BoundingShapeType::FRUSTUM:
 					return ((const Frustum &) other).hasIntersectionWithFrustum((const BoundingSphere &) *this);
 			}
@@ -93,7 +103,7 @@ bool BoundingShape::hasIntersectionWith(const BoundingShape &other) const {
 		case BoundingShapeType::BOX:
 			switch (other.shapeType()) {
 				case BoundingShapeType::SPHERE:
-					return ((const BoundingSphere &) other).hasIntersectionWithSphere(*this);
+					return ((const BoundingSphere &) other).hasIntersectionWithShape(*this);
 				case BoundingShapeType::BOX:
 					return ((const BoundingBox &) *this).hasIntersectionWithBox((const BoundingBox &) other);
 				case BoundingShapeType::FRUSTUM:

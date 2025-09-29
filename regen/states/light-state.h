@@ -200,7 +200,7 @@ namespace regen {
 		 */
 		LightNode(
 				const ref_ptr<Light> &light,
-				const ref_ptr<AnimationNode> &n);
+				const ref_ptr<NodeAnimation::Node> &n);
 
 		/**
 		 * @param dt update light position using the niamtion node.
@@ -210,7 +210,7 @@ namespace regen {
 	protected:
 		ref_ptr<Light> light_;
 		Vec3f lightPosition_; //!< the light position in local space
-		ref_ptr<AnimationNode> animNode_;
+		ref_ptr<NodeAnimation::Node> animNode_;
 	};
 
 	/**

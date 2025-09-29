@@ -86,7 +86,8 @@ void AnimalController::activateRandom() {
     );
 	auto &range = out[0];
 	// set the animation range
-	animation_->setAnimationActive(range->channelName, range->range);
+	const uint32_t instanceIdx = 0u;
+	animation_->setAnimationActive(instanceIdx, range->channelName, range->range);
 	lastRange_ = range;
 }
 
@@ -211,22 +212,23 @@ AnimalController::Behavior AnimalController::selectNextBehavior() {
 }
 
 void AnimalController::updateController(double dt) {
+	const uint32_t instanceIdx = 0u;
 	if (it_ == frames_.end()) {
 		// currently no movement.
-		if (animation_->isNodeAnimationActive()) {
+		if (animation_->isNodeAnimationActive(instanceIdx)) {
 			if (isLastAnimationMovement_) {
 				// animation is movement, deactivate
-				animation_->stopNodeAnimation();
+				animation_->stopNodeAnimation(instanceIdx);
 			}
 			return;
 		}
 	}
 	else {
 		// movement active
-		if (!animation_->isNodeAnimationActive()) {
+		if (!animation_->isNodeAnimationActive(instanceIdx)) {
 			// animation not active, activate
 			if (lastRange_) {
-				animation_->setAnimationActive(lastRange_->channelName, lastRange_->range);
+				animation_->setAnimationActive(instanceIdx, lastRange_->channelName, lastRange_->range);
 				animation_->startAnimation();
 			}
 		}

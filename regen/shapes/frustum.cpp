@@ -38,11 +38,13 @@ void Frustum::setOrtho(double left, double right, double bottom, double top, dou
 }
 
 bool Frustum::updateTransform(bool forceUpdate) {
-	if (!forceUpdate && lastTransformStamp_ == transformStamp() && lastDirectionStamp_ == directionStamp()) {
+	auto stamp0 = tfStamp();
+	auto stamp1 = directionStamp();
+	if (!forceUpdate && lastTransformStamp_ == stamp0 && lastDirectionStamp_ == stamp1) {
 		return false;
 	}
-	lastTransformStamp_ = transformStamp();
-	lastDirectionStamp_ = directionStamp();
+	lastTransformStamp_ = stamp0;
+	lastDirectionStamp_ = stamp1;
 	return true;
 }
 
@@ -67,7 +69,7 @@ void Frustum::update(const Vec3f &pos, const Vec3f &dir) {
 	d.normalize();
 	localTransform_.setPosition(pos);
 	direction_->setVertex(0, d);
-	shapeOrigin_ = pos;
+	tfOrigin_ = pos;
 
 	if (fov > 0.0) {
 		updatePointsPerspective(pos, d);

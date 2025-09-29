@@ -17,6 +17,10 @@ namespace regen {
 	 */
 	class BoundingShape {
 	public:
+		static constexpr uint32_t TRAVERSAL_BIT_SKIP = 0;
+		static constexpr uint32_t TRAVERSAL_BIT_DRAW = 1;
+		static constexpr uint32_t TRAVERSAL_BIT_COLLISION = 2;
+
 		/**
 		 * @brief Construct a new Bounding Shape object
 		 * @param shapeType The type of the shape
@@ -55,6 +59,31 @@ namespace regen {
 		 * @return The instance ID
 		 */
 		uint32_t instanceID() const { return instanceID_; }
+
+		/**
+		 * Set the bitmask used to skip the shape during traversal.
+		 * @param mask The traversal mask to set
+		 */
+		void setTraversalMask(uint32_t mask) { traversalMask_ = mask; }
+
+		/**
+		 * @brief Enable or disable a traversal bit
+		 * @param bit The bit to set
+		 * @param enabled True to enable, false to disable
+		 */
+		void setTraversalBit(uint32_t bit, bool enabled) {
+			if (enabled) {
+				traversalMask_ |= (1 << bit);
+			} else {
+				traversalMask_ &= ~(1 << bit);
+			}
+		}
+
+		/**
+		 * @brief Get the traversal mask
+		 * @return The traversal mask
+		 */
+		uint32_t traversalMask() const { return traversalMask_; }
 
 		/**
 		 * @brief Get the number of instances
@@ -113,16 +142,16 @@ namespace regen {
 
 		/**
 		 * @brief Get the center position of this shape
-		 * This is the geometric center position plus the translation
+		 * This is the geometric center position with applied TF
 		 * @return The center position
 		 */
-		const Vec3f& getShapeOrigin() const { return shapeOrigin_; }
+		const Vec3f& tfOrigin() const { return tfOrigin_; }
 
 		/**
 		 * @brief Get the stamp of the center
 		 * @return The stamp
 		 */
-		uint32_t transformStamp() const;
+		uint32_t tfStamp() const;
 
 		/**
 		 * @brief Get the mesh of this shape
@@ -167,9 +196,11 @@ namespace regen {
 		bool updateGeometry();
 
 		/**
-		 * @brief Update the geometry of this shape
+		 * @brief Update the geometry of this shape (without TF)
 		 */
-		virtual void updateBounds(const Vec3f &min, const Vec3f &max) = 0;
+		virtual void updateBaseBounds(const Vec3f &min, const Vec3f &max) = 0;
+
+		void setBaseOffset(const Vec3f &offset);
 
 		/**
 		 * @brief Check if this shape has intersection with another shape
@@ -194,7 +225,8 @@ namespace regen {
 		ref_ptr<ModelTransformation> transform_;
 		// only used in case no TF is set
 		Mat4f localTransform_ = Mat4f::identity();
-		Vec3f shapeOrigin_ = Vec3f::zero();
+		Vec3f tfOrigin_ = Vec3f::zero();
+		Vec3f baseOffset_ = Vec3f::zero();
 
 		uint32_t localStamp_ = 1u;
 		uint32_t lastTransformStamp_ = 0;
@@ -203,6 +235,7 @@ namespace regen {
 		uint32_t transformIndex_ = 0;
 		std::string name_;
 		uint32_t instanceID_ = 0;
+		uint32_t traversalMask_ = (1 << TRAVERSAL_BIT_DRAW); // default: draw
 		// custom data pointer used for spatial index intersection tests
 		void *spatialIndexData_ = nullptr;
 		friend class SpatialIndex;
