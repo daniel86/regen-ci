@@ -265,23 +265,27 @@ namespace regen {
 		std::vector<InstanceData> instanceData_;
 		ref_ptr<NodeEventData> eventData_ = ref_ptr<NodeEventData>::alloc();
 
+		KeyFrame3f tmpPos_;
+		KeyFrameQuaternion tmpRot_;
+		KeyFrame3f tmpScale_;
+
 		std::unordered_map<std::string, Node *> nameToNode_;
 		std::unordered_map<std::string, int32_t> animNameToIndex_;
 
 		Quaternion nodeRotation(uint32_t instanceIdx, Data &anim,
 				const Channel &channel,
 				double timeInTicks,
-				uint32_t i) const;
+				uint32_t i);
 
 		Vec3f nodePosition(uint32_t instanceIdx, Data &anim,
 				const Channel &channel,
 				double timeInTicks,
-				uint32_t i) const;
+				uint32_t i);
 
 		Vec3f nodeScaling(uint32_t instanceIdx, Data &anim,
 				const Channel &channel,
 				double timeInTicks,
-				uint32_t i) const;
+				uint32_t i);
 
 		ref_ptr<Node> findNode(ref_ptr<Node> &n, const std::string &name);
 

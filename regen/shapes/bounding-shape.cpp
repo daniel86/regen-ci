@@ -9,7 +9,9 @@ using namespace regen;
 
 BoundingShape::BoundingShape(BoundingShapeType shapeType)
 		: shapeType_(shapeType),
+		  useLocalStamp_(false),
 		  lastGeometryStamp_(0u) {
+	updateStampFunction();
 }
 
 BoundingShape::BoundingShape(BoundingShapeType shapeType,
@@ -18,12 +20,27 @@ BoundingShape::BoundingShape(BoundingShapeType shapeType,
 		: shapeType_(shapeType),
 		  mesh_(mesh),
 		  parts_(parts),
+		  useLocalStamp_(false),
 		  lastGeometryStamp_(mesh_->geometryStamp()) {
 	if (mesh_.get()) {
 		baseMesh_ = mesh_;
 	} else if (!parts_.empty()) {
 		baseMesh_ = parts_.front();
 	}
+	updateStampFunction();
+}
+
+void BoundingShape::updateStampFunction() {
+	if (!useLocalStamp_ && transform_.get()) {
+		stampFun_ = &BoundingShape::getTransformStamp;
+	} else {
+		stampFun_ = &BoundingShape::getLocalStamp;
+	}
+}
+
+void BoundingShape::setUseLocalStamp(bool useLocalStamp) {
+	useLocalStamp_ = useLocalStamp;
+	updateStampFunction();
 }
 
 bool BoundingShape::updateGeometry() {
@@ -61,13 +78,14 @@ uint32_t BoundingShape::numInstances() const {
 }
 
 uint32_t BoundingShape::tfStamp() const {
-	return transform_.get() ? transform_->stamp() : localStamp_;
+	return (this->*stampFun_)();
 }
 
 void BoundingShape::setTransform(const ref_ptr<ModelTransformation> &transform, uint32_t instanceIndex) {
 	transform_ = transform;
 	localTransform_ = Mat4f::identity();
 	transformIndex_ = instanceIndex;
+	updateStampFunction();
 }
 
 void BoundingShape::setTransform(const Mat4f &localTransform) {

@@ -31,7 +31,7 @@
     <include xml-file="scene-display/examples/templates/default.xml"/>
 
     <node id="configuration"
-          date="01-09-2014 06:00:00"
+          date="01-09-2014 11:00:00"
           time-scale="60.0">
         <!--
         <animation id="dwarf-asset-instanced" type="asset" mode="fixed"/>
@@ -628,6 +628,7 @@
         <blanket-mask fbo="footsteps-fbo1" attachment="0" />
         <shape id="dwarf-foot-shape" cull="1" index="1" type="aabb"
                spatial-index="clutter-index"
+               local-stamp="1"
                mesh-id="dwarf-foot" transform-id="dwarf-foot-tf" />
     </mesh>
 

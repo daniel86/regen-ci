@@ -21,12 +21,22 @@ static inline void project(const std::vector<Vec2f> &points, OrthogonalProjectio
 
 static inline Vec2f perpendicular(const Vec2f &v) {
 	Vec2f x(-v.y, v.x);
-	x.normalize();
+	//x.normalize();
 	return x;
 }
 
 OrthogonalProjection::OrthogonalProjection(const BoundingShape &shape)
 		: bounds(0.0f,0.0f) {
+	switch (shape.shapeType()) {
+		case BoundingShapeType::SPHERE:
+			points.resize(2);
+		case BoundingShapeType::BOX:
+			axes.resize(4, Axis(Vec2f(0,0)));
+			axes[0].dir = Vec2f(1, 0);
+			axes[1].dir = Vec2f(0, 1);
+		default:
+			break;
+	}
 	update(shape);
 }
 
@@ -37,7 +47,6 @@ void OrthogonalProjection::update(const BoundingShape &shape) {
 			type = OrthogonalProjection::Type::CIRCLE;
 			auto *sphere = static_cast<const BoundingSphere *>(&shape);
 			auto &sphereCenter = sphere->tfOrigin();
-			points.resize(2);
 			points[0] = Vec2f(sphereCenter.x, sphereCenter.z);
 			// note: second point stores the squared radius
 			points[1] = Vec2f(sphere->radius() * sphere->radius(), 0);
@@ -69,12 +78,9 @@ void OrthogonalProjection::update(const BoundingShape &shape) {
 			// top-left
 			points[3] = Vec2f(min.x, max.y);
 			// axes of the rectangle (and quad)
-			axes = {
-					Axis(Vec2f(1, 0)),
-					Axis(Vec2f(0, 1)),
-					Axis(perpendicular(points[1] - points[0])),
-					Axis(perpendicular(points[3] - points[0]))
-			};
+			axes[2].dir = perpendicular(points[1] - points[0]);
+			axes[3].dir = perpendicular(points[3] - points[0]);
+			// project along each axis
 			for (auto &axis: axes) {
 				project(points, axis);
 			}

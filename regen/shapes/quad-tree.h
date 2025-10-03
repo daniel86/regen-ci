@@ -37,8 +37,9 @@ namespace regen {
 		 */
 		struct Node {
 			Bounds<Vec2f> bounds;
-			Node *parent;
-			Node *children[4];
+			int32_t parentIdx = -1;
+			int32_t childrenIdx[4];
+			uint32_t nodeIdx = 0;
 			std::vector<Item *> shapes;
 			std::vector<Item *> shapesTmp;
 
@@ -146,6 +147,7 @@ namespace regen {
 
 		uint32_t subdivisionThreshold_ = 4;
 
+		std::vector<Node*> nodes_;
 		Node *root_ = nullptr;
 		std::unordered_map<const BoundingShape*, Item*> shapeToItem_;
 		std::vector<Item *> items_;

@@ -263,7 +263,6 @@ void NodeAnimation::animate(double milliSeconds) {
 	static ElapsedTimeDebugger elapsedTime("NodeAnimation Update", 300);
 	elapsedTime.beginFrame();
 #endif
-	// TODO: I get some alloc/free reported here, these should be avoided.
 
 	for (uint32_t instanceIdx = 0; instanceIdx < numInstances_; instanceIdx++) {
 		auto &instance = instanceData_[instanceIdx];
@@ -315,10 +314,10 @@ void NodeAnimation::animate(double milliSeconds) {
 				m.x[7] = pos.y;
 				m.x[11] = pos.z;
 			} else {
-				Vec3f pos = nodePosition(instanceIdx, anim, channel, timeInTicks, i);
-				m.x[3] = pos.x;
-				m.x[7] = pos.y;
-				m.x[11] = pos.z;
+				tmpPos_.value = nodePosition(instanceIdx, anim, channel, timeInTicks, i);
+				m.x[3] = tmpPos_.value.x;
+				m.x[7] = tmpPos_.value.y;
+				m.x[11] = tmpPos_.value.z;
 			}
 		}
 
@@ -334,14 +333,11 @@ void NodeAnimation::animate(double milliSeconds) {
 #endif
 }
 
-Vec3f NodeAnimation::nodePosition(uint32_t instanceIdx, Data &anim, const Channel &channel, double timeInTicks, uint32_t i) const {
+Vec3f NodeAnimation::nodePosition(uint32_t instanceIdx, Data &anim, const Channel &channel, double timeInTicks, uint32_t i) {
 	const uint32_t elementIdx = nodeIdx(instanceIdx,i,anim.channels_->size());
 	auto &instance = instanceData_[instanceIdx];
 	uint32_t keyCount = channel.positionKeys_->size();
 	const std::vector<KeyFrame3f> &keys = *channel.positionKeys_.get();
-	KeyFrame3f pos;
-
-	pos.value = Vec3f(0);
 
 	// Look for present frame number.
 	uint32_t lastFrame = anim.lastFramePosition_[elementIdx].x;
@@ -357,25 +353,23 @@ Vec3f NodeAnimation::nodePosition(uint32_t instanceIdx, Data &anim, const Channe
 
 	// lookup nearest two keys
 	const KeyFrame3f &key = keys[frame];
+	tmpPos_.value = Vec3f::zero();
 	// interpolate between this frame's value and next frame's value
-	if (!handleFrameLoop(pos, frame, lastFrame, channel, key, keys[0])) {
+	if (!handleFrameLoop(tmpPos_, frame, lastFrame, channel, key, keys[0])) {
 		const KeyFrame3f &nextKey = keys[(frame + 1) % keyCount];
 		double fac = interpolationFactor(key, nextKey, timeInTicks, instance.duration_);
 		if (fac <= 0) return key.value;
-		pos.value = key.value + (nextKey.value - key.value) * static_cast<float>(fac);
+		tmpPos_.value = key.value + (nextKey.value - key.value) * static_cast<float>(fac);
 	}
 
-	return pos.value;
+	return tmpPos_.value;
 }
 
-Quaternion NodeAnimation::nodeRotation(uint32_t instanceIdx, Data &anim, const Channel &channel, double timeInTicks, uint32_t i) const {
+Quaternion NodeAnimation::nodeRotation(uint32_t instanceIdx, Data &anim, const Channel &channel, double timeInTicks, uint32_t i) {
 	const uint32_t elementIdx = nodeIdx(instanceIdx,i,anim.channels_->size());
 	auto &instance = instanceData_[instanceIdx];
-	KeyFrameQuaternion rot;
 	uint32_t keyCount = channel.rotationKeys_->size();
 	const std::vector<KeyFrameQuaternion> &keys = *channel.rotationKeys_.get();
-
-	rot.value = Quaternion(1, 0, 0, 0);
 
 	// Look for present frame number.
 	uint32_t lastFrame = anim.lastFramePosition_[elementIdx].y;
@@ -391,26 +385,26 @@ Quaternion NodeAnimation::nodeRotation(uint32_t instanceIdx, Data &anim, const C
 
 	// lookup nearest two keys
 	const KeyFrameQuaternion &key = keys[frame];
+	tmpRot_.value = Quaternion(1, 0, 0, 0);
 	// interpolate between this frame's value and next frame's value
-	if (!handleFrameLoop(rot, frame, lastFrame, channel, key, keys[0])) {
+	if (!handleFrameLoop(tmpRot_, frame, lastFrame, channel, key, keys[0])) {
 		const KeyFrameQuaternion &nextKey = keys[(frame + 1) % keyCount];
 		double fac = interpolationFactor(key, nextKey, timeInTicks, instance.duration_);
 		if (fac <= 0) return key.value;
 #ifdef INTERPOLATE_QUATERNION_LINEAR
-		rot.value.interpolateLinear(key.value, nextKey.value, static_cast<float>(fac));
+		tmpRot_.value.interpolateLinear(key.value, nextKey.value, static_cast<float>(fac));
 #else
 		rot.value.interpolate(key.value, nextKey.value, fac);
 #endif
 	}
 
-	return rot.value;
+	return tmpRot_.value;
 }
 
-Vec3f NodeAnimation::nodeScaling(uint32_t instanceIdx, Data &anim, const Channel &channel, double timeInTicks, uint32_t i) const {
+Vec3f NodeAnimation::nodeScaling(uint32_t instanceIdx, Data &anim, const Channel &channel, double timeInTicks, uint32_t i) {
 	const uint32_t elementIdx = nodeIdx(instanceIdx,i,anim.channels_->size());
 	auto &instance = instanceData_[instanceIdx];
 	const std::vector<KeyFrame3f> &keys = *channel.scalingKeys_.get();
-	KeyFrame3f scale;
 
 	// Look for present frame number.
 	uint32_t lastFrame = anim.lastFramePosition_[elementIdx].z;
@@ -427,11 +421,11 @@ Vec3f NodeAnimation::nodeScaling(uint32_t instanceIdx, Data &anim, const Channel
 	// lookup nearest key
 	const KeyFrame3f &key = keys[frame];
 	// set current value
-	if (!handleFrameLoop(scale, frame, lastFrame, channel, key, keys[0])) {
-		scale.value = key.value;
+	if (!handleFrameLoop(tmpScale_, frame, lastFrame, channel, key, keys[0])) {
+		tmpScale_.value = key.value;
 	}
 
-	return scale.value;
+	return tmpScale_.value;
 }
 
 ref_ptr<NodeAnimation::Node> NodeAnimation::findNode(const std::string &name) {

@@ -82,19 +82,12 @@ void BlanketTrail::insertBlanket(const Vec3f &pos, const Vec3f &dir, uint32_t ma
 	tmpMat_ = q.calculateMatrix();
 	tmpMat_.translate(Vec3f(pos.x, insertHeight_, pos.z));
 	tf_->setModelMat(instanceIdx, tmpMat_);
-	// TODO: it would be nice to keep track of *per-instance* stamps here.
-	//       these are used to determine if an object has moved e.g. in spatial index.
-	//       in the spatial index, this causes re-insert of each instance each time at least one
-	//       instance has moved. setModelMat will set the stamp.
-	//       - Instead we could set the stamp on the bounding shape as every instance has its own AFAIK.
-	//         then everyone using instance model matrix can use bounding shape stamp to check for movement.
-	//       - Will need some restructuring regarding bounding shapes.
-	// TODO: also we could mark instances as dirty to avoid full copy of data every time.
-	//       setModelMat marks the whole buffer as dirty.
 
 	if(indexedShapes_.get()) {
 		// Also update bounding shape position in spatial index.
-		indexedShape(instanceIdx)->setBaseOffset(Vec3f(0.0f, pos.y - insertHeight_, 0.0f));
+		auto &iShape = indexedShape(instanceIdx);
+		iShape->setBaseOffset(Vec3f(0.0f, pos.y - insertHeight_, 0.0f));
+		iShape->nextLocalStamp();
 	}
 
 	// update mask index

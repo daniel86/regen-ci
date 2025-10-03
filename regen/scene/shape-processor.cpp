@@ -398,6 +398,7 @@ void ShapeProcessor::processInput(
 	auto isGPUShape = input.getValue<uint32_t>("gpu", 0u);
 	auto isPhysicalShape = input.getValue<uint32_t>("physics", 0u);
 	auto isCullShape = input.getValue<uint32_t>("cull", 0u);
+	auto useLocalStamp = input.getValue<bool>("local-stamp", false);
 	if (!isIndexShape && !isGPUShape && !isPhysicalShape) {
 		isMeshShape = 1;
 	}
@@ -475,6 +476,7 @@ void ShapeProcessor::processInput(
 					REGEN_WARN("Skipping shape node " << input.getDescription() << " without shape.");
 					continue;
 				}
+				shape->setUseLocalStamp(useLocalStamp);
 				shape->setName(input.getName());
 				shape->setInstanceID(i);
 				shape->setTraversalMask(traversalMask);

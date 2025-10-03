@@ -102,10 +102,6 @@ QuadTree::QuadTree()
 }
 
 QuadTree::~QuadTree() {
-	if (root_) {
-		delete root_;
-		root_ = nullptr;
-	}
 	for (auto item: items_) {
 		delete item;
 	}
@@ -119,10 +115,11 @@ QuadTree::~QuadTree() {
 		delete itemPool_.top();
 		itemPool_.pop();
 	}
-	while (!nodePool_.empty()) {
-		delete nodePool_.top();
-		nodePool_.pop();
+	root_ = nullptr;
+	for (uint32_t nodeIdx=0; nodeIdx < nodes_.size(); nodeIdx++) {
+		delete nodes_[nodeIdx];
 	}
+	nodes_.clear();
 	delete priv_;
 }
 
@@ -141,7 +138,7 @@ unsigned int QuadTree::numShapes() const {
 		}
 		if (!node->isLeaf()) {
 			for (int i = 0; i < 4; i++) {
-				stack.push(node->children[i]);
+				stack.push(nodes_[node->childrenIdx[i]]);
 			}
 		}
 	}
@@ -150,7 +147,10 @@ unsigned int QuadTree::numShapes() const {
 
 QuadTree::Node *QuadTree::createNode(const Vec2f &min, const Vec2f &max) {
 	if (nodePool_.empty()) {
-		return new Node(min, max);
+		Node *node = new Node(min, max);
+		node->nodeIdx = nodes_.size();
+		nodes_.push_back(node);
+		return node;
 	} else {
 		auto *node = nodePool_.top();
 		nodePool_.pop();
@@ -163,12 +163,12 @@ QuadTree::Node *QuadTree::createNode(const Vec2f &min, const Vec2f &max) {
 void QuadTree::freeNode(Node *node) { // NOLINT(misc-no-recursion)
 	if (!node->isLeaf()) {
 		for (int i = 0; i < 4; i++) {
-			freeNode(node->children[i]);
-			node->children[i] = nullptr;
+			freeNode(nodes_[node->childrenIdx[i]]);
+			node->childrenIdx[i] = -1;
 		}
 	}
 	node->shapes.clear();
-	node->parent = nullptr;
+	node->parentIdx = -1;
 	nodePool_.push(node);
 }
 
@@ -219,14 +219,14 @@ bool QuadTree::reinsert(Item *shape, bool allowSubdivision) { // NOLINT(misc-no-
 			return false;
 		}
 	}
-	if (!m->parent) {
+	if (m->parentIdx == -1) {
 		REGEN_WARN("Shape moved outside of quad tree bounds, reinserting failed. This should never happen.");
 		shape->node = m;
 		return false;
 	}
-	Node *n = m->parent;
-	while (n->parent && !n->contains(shape->projection)) {
-		n = n->parent;
+	Node *n = nodes_[m->parentIdx];
+	while (n->parentIdx != -1 && !n->contains(shape->projection)) {
+		n = nodes_[n->parentIdx];
 	}
 	n->shapes.push_back(shape);
 	shape->node = n;
@@ -274,7 +274,8 @@ bool QuadTree::insert1(Node *node, Item *newShape, bool allowSubdivision) { // N
 		// the node has child nodes, must insert into (at least) one of them.
 		// note: a shape can be inserted into multiple nodes, so we allways need to check all children
 		//       (at least on the next level)
-		for (auto &child: node->children) {
+		for (auto &childIdx: node->childrenIdx) {
+			auto *child = nodes_[childIdx];
 			if (child->contains(newShape->projection)) {
 				// the child node fully contains the shape, insert it
 				if (insert(child, newShape, allowSubdivision)) return true;
@@ -297,8 +298,8 @@ void QuadTree::remove(const ref_ptr<BoundingShape> &shape) {
 }
 
 QuadTree::Node* QuadTree::removeFromNode(Node *node, Item *shape, bool allowCollapse) {
-	// TODO: it would be good if we could avoid searching for the shape in the node.
-	// TODO: also avoid vector erase
+	// TODO: It would be good if we could avoid searching for the shape in the node, also avoid vector erase.
+	//        This can be done by storing index and introducing free/used index vectors.
 	auto it = std::find(node->shapes.begin(), node->shapes.end(), shape);
 	if (it == node->shapes.end()) {
 		return node;
@@ -312,18 +313,23 @@ QuadTree::Node* QuadTree::removeFromNode(Node *node, Item *shape, bool allowColl
 }
 
 QuadTree::Node* QuadTree::collapse(Node *node) { // NOLINT(misc-no-recursion)
-	auto *parent = node->parent;
+	auto *parent = (node->parentIdx == -1) ? nullptr : nodes_[node->parentIdx];
+	if (!parent) return node;
+	auto c0 = nodes_[parent->childrenIdx[0]];
+	auto c1 = nodes_[parent->childrenIdx[1]];
+	auto c2 = nodes_[parent->childrenIdx[2]];
+	auto c3 = nodes_[parent->childrenIdx[3]];
 	// parent can only be collapsed if all its children are leaf nodes without shapes
-	if (!parent ||
-		!parent->children[0]->isCollapsable() ||
-		!parent->children[1]->isCollapsable() ||
-		!parent->children[2]->isCollapsable() ||
-		!parent->children[3]->isCollapsable()) return node;
+	if (!c0->isCollapsable() || !c1->isCollapsable() ||
+		!c2->isCollapsable() || !c3->isCollapsable()) return node;
 
 	// free all children nodes
+	freeNode(c0);
+	freeNode(c1);
+	freeNode(c2);
+	freeNode(c3);
 	for (int i = 0; i < 4; i++) {
-		freeNode(parent->children[i]);
-		parent->children[i] = nullptr;
+		parent->childrenIdx[i] = -1;
 	}
 	// four nodes are removed, parent turns into a leaf node
 	numNodes_ -= 4;
@@ -338,20 +344,20 @@ void QuadTree::subdivide(Node *node) {
 	Node *child;
 	// bottom-left
 	child = createNode(node->bounds.min, center);
-	child->parent = node;
-	node->children[0] = child;
+	child->parentIdx = node->nodeIdx;
+	node->childrenIdx[0] = child->nodeIdx;
 	// bottom-right
 	child = createNode(Vec2f(center.x, node->bounds.min.y), Vec2f(node->bounds.max.x, center.y));
-	child->parent = node;
-	node->children[1] = child;
+	child->parentIdx = node->nodeIdx;
+	node->childrenIdx[1] = child->nodeIdx;
 	// top-right
 	child = createNode(center, node->bounds.max);
-	child->parent = node;
-	node->children[2] = child;
+	child->parentIdx = node->nodeIdx;
+	node->childrenIdx[2] = child->nodeIdx;
 	// top-left
 	child = createNode(Vec2f(node->bounds.min.x, center.y), Vec2f(center.x, node->bounds.max.y));
-	child->parent = node;
-	node->children[3] = child;
+	child->parentIdx = node->nodeIdx;
+	node->childrenIdx[3] = child->nodeIdx;
 	// four new nodes created, parent turns into an internal node
 	numNodes_ += 4;
 	numLeaves_ += 3;
@@ -367,25 +373,20 @@ QuadTree::Item::Item(const ref_ptr<BoundingShape> &shape) :
 		projection(*shape.get()) {
 }
 
-QuadTree::Node::Node(const Vec2f &min, const Vec2f &max) : bounds(min, max), parent(nullptr) {
+QuadTree::Node::Node(const Vec2f &min, const Vec2f &max) : bounds(min, max), parentIdx(-1) {
 	for (int i = 0; i < 4; i++) {
-		children[i] = nullptr;
+		childrenIdx[i] = -1;
 	}
 }
 
-QuadTree::Node::~Node() {
-	for (int i = 0; i < 4; i++) {
-		delete children[i];
-		children[i] = nullptr;
-	}
-}
+QuadTree::Node::~Node() = default;
 
 bool QuadTree::Node::isLeaf() const {
-	return children[0] == nullptr;
+	return childrenIdx[0] == -1;
 }
 
 bool QuadTree::Node::isCollapsable() const {
-	return children[0] == nullptr && shapes.empty();
+	return childrenIdx[0] == -1 && shapes.empty();
 }
 
 bool QuadTree::Node::contains(const OrthogonalProjection &projection) const {
@@ -764,10 +765,10 @@ void QuadTree::Private::processSuccessors(QuadTreeTraversal &td) {
 		}
 		if (!successor->isLeaf()) {
 			// add child nodes to the queue for the next iteration
-			addNodeToQueue(successor->children[0]);
-			addNodeToQueue(successor->children[1]);
-			addNodeToQueue(successor->children[2]);
-			addNodeToQueue(successor->children[3]);
+			addNodeToQueue(td.tree->nodes_[successor->childrenIdx[0]]);
+			addNodeToQueue(td.tree->nodes_[successor->childrenIdx[1]]);
+			addNodeToQueue(td.tree->nodes_[successor->childrenIdx[2]]);
+			addNodeToQueue(td.tree->nodes_[successor->childrenIdx[3]]);
 		}
 	}
 	numSucceedingItems_ = 0;
@@ -1053,7 +1054,7 @@ void QuadTree::debugDraw(DebugInterface &debug) const {
 				lineColor);
 		if (!node->isLeaf()) {
 			for (int i = 0; i < 4; i++) {
-				stack.push(node->children[i]);
+				stack.push(nodes_[node->childrenIdx[i]]);
 			}
 		}
 	}

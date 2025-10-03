@@ -61,6 +61,24 @@ namespace regen {
 		uint32_t instanceID() const { return instanceID_; }
 
 		/**
+		 * @brief Toggle use of local stamp.
+		 * If true, the local stamp is used, otherwise the stamp of the ModelTransformation.
+		 * @param useLocalStamp True to use local stamp, false to use ModelTransformation stamp
+		 */
+		void setUseLocalStamp(bool useLocalStamp);
+
+		/**
+		 * @return true if local stamp is used, false if ModelTransformation stamp is used
+		 */
+		bool useLocalStamp() const { return useLocalStamp_; }
+
+		/**
+		 * Advance the local stamp by one.
+		 * This is used when no ModelTransformation is set and the local transform is used
+		 */
+		void nextLocalStamp() { localStamp_ += 1u; }
+
+		/**
 		 * Set the bitmask used to skip the shape during traversal.
 		 * @param mask The traversal mask to set
 		 */
@@ -228,16 +246,32 @@ namespace regen {
 		Vec3f tfOrigin_ = Vec3f::zero();
 		Vec3f baseOffset_ = Vec3f::zero();
 
+		bool useLocalStamp_ = false;
+		// TODO: Check if we need to make this an atomic. I think we might.
 		uint32_t localStamp_ = 1u;
 		uint32_t lastTransformStamp_ = 0;
 		uint32_t lastGeometryStamp_;
 		uint32_t nextGeometryStamp_ = 0u;
 		uint32_t transformIndex_ = 0;
+		// a member function pointer that returns the current TF stamp
+		// this is either from the ModelTransformation or the local stamp
+		uint32_t (BoundingShape::*stampFun_)() const = &BoundingShape::getLocalStamp;
 		std::string name_;
 		uint32_t instanceID_ = 0;
 		uint32_t traversalMask_ = (1 << TRAVERSAL_BIT_DRAW); // default: draw
 		// custom data pointer used for spatial index intersection tests
 		void *spatialIndexData_ = nullptr;
+
+		uint32_t getTransformStamp() const {
+			return transform_->stamp();
+		}
+
+		uint32_t getLocalStamp() const {
+			return localStamp_;
+		}
+
+		void updateStampFunction();
+
 		friend class SpatialIndex;
 
 	};

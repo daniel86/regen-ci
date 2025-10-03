@@ -1,6 +1,8 @@
 #ifndef REGEN_STACK_H_
 #define REGEN_STACK_H_
 
+#include <stack>
+
 namespace regen {
 	/**
 	 * \brief A simple stack implementation.
@@ -34,6 +36,10 @@ namespace regen {
 				top_ = top_->next_;
 				delete buf;
 			}
+			while (!nodePool_.empty()) {
+				delete nodePool_.top();
+				nodePool_.pop();
+			}
 		}
 
 		/**
@@ -47,7 +53,7 @@ namespace regen {
 		 * Push value onto the stack.
 		 */
 		void push(const T &value) {
-			top_ = new Node(value, top_);
+			top_ = createNode(value, top_);
 		}
 
 		/**
@@ -56,9 +62,9 @@ namespace regen {
 		void pushBottom(const T &value) {
 			Node *root = bottomNode();
 			if (root == nullptr) {
-				top_ = new Node(value, nullptr);
+				top_ = createNode(value, nullptr);
 			} else {
-				root->next_ = new Node(value, nullptr);
+				root->next_ = createNode(value, nullptr);
 			}
 		}
 
@@ -69,7 +75,7 @@ namespace regen {
 			if (top_ == nullptr) { return; }
 			Node *buf = top_;
 			top_ = top_->next_;
-			delete buf;
+			freeNode(buf);
 		}
 
 		/**
@@ -93,7 +99,7 @@ namespace regen {
 				Node *root = n->next_;
 				if (!root->next_) {
 					n->next_ = nullptr;
-					delete root;
+					freeNode(root);
 					break;
 				}
 			}
@@ -127,6 +133,24 @@ namespace regen {
 
 	private:
 		Node *top_;
+		std::stack<Node *> nodePool_;
+
+		Node *createNode(const T &value, Node *next) {
+			if (nodePool_.empty()) {
+				Node *node = new Node(value, next);
+				return node;
+			} else {
+				auto *node = nodePool_.top();
+				nodePool_.pop();
+				node->value_ = value;
+				node->next_ = next;
+				return node;
+			}
+		}
+
+		void freeNode(Node *node) { // NOLINT(misc-no-recursion)
+			nodePool_.push(node);
+		}
 	};
 } // namespace
 
