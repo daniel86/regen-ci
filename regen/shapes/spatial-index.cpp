@@ -246,6 +246,9 @@ void SpatialIndex::updateVisibility() {
 			}
 		}
 
+		// TODO: do not re-create OrthogonalProjection of camera each time.
+		//         - we can store it here locally, but only quad tree uses it.
+		//         - could also store it centrally with camera
 		auto &frustumShapes = ic.first->frustum();
 		for (uint32_t layerIdx = 0; layerIdx < frustumShapes.size(); ++layerIdx) {
 			updateLayerVisibility(ic.second, layerIdx, frustumShapes[layerIdx]);

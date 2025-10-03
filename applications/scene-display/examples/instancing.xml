@@ -614,9 +614,8 @@
     <!--**************************-->
 
     <!-- NOTE: running is 10 ticks with 10 TPS, so 1.0 second for two steps. -->
-    <!-- TODO: compute this from the animation speed and run speed? -->
     <mesh id="dwarf-foot" type="blanket-trail"
-          ground-mesh="ground-mesh" tf="dwarf-foot-tf"
+          ground-mesh="ground-mesh"
           texco-scaling="1.0,1.0"
           lod-levels="1,0" lod-thresholds="40.0, 0.0, 0.0"
           blanket-size="{{dwarf-foot-width}},{{dwarf-foot-height}}"
@@ -627,12 +626,9 @@
         <shader mesh-index="0" key="regen.terrain.ground.blanket1"/>
         <transform id="dwarf-foot-tf" update-frequency="RARE"/>
         <blanket-mask fbo="footsteps-fbo1" attachment="0" />
-        <!--
         <shape id="dwarf-foot-shape" cull="1" index="1" type="aabb"
                spatial-index="clutter-index"
-               mesh-id="dwarf-foot" transform-id="dwarf-foot-tf">
-        </shape>
-        -->
+               mesh-id="dwarf-foot" transform-id="dwarf-foot-tf" />
     </mesh>
 
     <mesh id="apple" type="asset" asset="asset-apple"

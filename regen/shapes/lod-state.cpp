@@ -543,13 +543,13 @@ void LODState::createComputeShader() {
 		cullPass_->setInput(instanceBuffer_);
 		auto boundingShape = mesh_->boundingShape();
 		if (boundingShape->shapeType() == BoundingShapeType::SPHERE) {
-			auto *sphere = dynamic_cast<BoundingSphere*>(boundingShape.get());
+			auto *sphere = static_cast<BoundingSphere*>(boundingShape.get());
 			cullPass_->setInput(createUniform<ShaderInput1f, float>(
 					"shapeRadius", sphere->radius()));
 			shaderCfg.define("SHAPE_TYPE", "SPHERE");
 		}
 		else if (boundingShape->shapeType() == BoundingShapeType::BOX) {
-			auto *box = dynamic_cast<BoundingBox*>(boundingShape.get());
+			auto *box = static_cast<BoundingBox*>(boundingShape.get());
 			cullPass_->setInput(createUniform<ShaderInput4f, Vec4f>(
 					"shapeAABBMin", Vec4f(box->baseBounds().min,0.0f)));
 			cullPass_->setInput(createUniform<ShaderInput4f, Vec4f>(

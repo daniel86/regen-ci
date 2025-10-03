@@ -281,6 +281,28 @@ namespace regen {
 		}
 
 		/**
+		 * Set the identity matrix.
+		 */
+		void setIdentity() {
+			x[0] = 1.0f;
+			x[1] = 0.0f;
+			x[2] = 0.0f;
+			x[3] = 0.0f;
+			x[4] = 0.0f;
+			x[5] = 1.0f;
+			x[6] = 0.0f;
+			x[7] = 0.0f;
+			x[8] = 0.0f;
+			x[9] = 0.0f;
+			x[10] = 1.0f;
+			x[11] = 0.0f;
+			x[12] = 0.0f;
+			x[13] = 0.0f;
+			x[14] = 0.0f;
+			x[15] = 1.0f;
+		}
+
+		/**
 		 * Matrix that maps vectors from [-1,1] to [0,1].
 		 * @return the bias matrix.
 		 */

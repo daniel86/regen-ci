@@ -50,17 +50,24 @@ void BlanketTrail::setModelTransform(const ref_ptr<ModelTransformation> &tf) {
 
 	// initialize TF to num instances
 	if (tf_.get()) {
+		tf_->set_numInstances(numBlankets_);
 		auto modelMat = tf_->modelMat();
 		modelMat->setInstanceData(numBlankets_, 1, nullptr);
+
+		Mat4f *mat0 = (Mat4f*) modelMat->clientData(0);
+		Mat4f *mat1 = (Mat4f*) modelMat->clientData(1);
+		for (GLuint j = 0; j < numBlankets_; j += 1) {
+			mat0[j] = Mat4f::identity();
+			if(mat1) mat1[j] = Mat4f::identity();
+		}
+
 		// distribute initially randomly
-		auto modelData = (Mat4f*)modelMat->clientData();
 		for (uint32_t i = 0; i < numBlankets_; ++i) {
-			modelData[i] = Mat4f::identity();
 			float randX = (math::random<float>() - 0.5f) * 2.0f * 1000.0f;
 			float randZ = (math::random<float>() - 0.5f) * 2.0f * 1000.0f;
-			modelData[i].translate(Vec3f(randX, insertHeight_, randZ));
+			mat0[i].translate(Vec3f(randX, 2000.0f, randZ));
+			if(mat1) mat1[i].translate(Vec3f(randX, 2000.0f, randZ));
 		}
-		tf_->set_numInstances(numBlankets_);
 	}
 
 	joinStates(tf);
@@ -87,7 +94,7 @@ void BlanketTrail::insertBlanket(const Vec3f &pos, const Vec3f &dir, uint32_t ma
 
 	if(indexedShapes_.get()) {
 		// Also update bounding shape position in spatial index.
-		indexedShape(instanceIdx)->setBaseOffset(Vec3f(0.0f, insertHeight_, 0.0f));
+		indexedShape(instanceIdx)->setBaseOffset(Vec3f(0.0f, pos.y - insertHeight_, 0.0f));
 	}
 
 	// update mask index

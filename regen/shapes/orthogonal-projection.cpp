@@ -35,7 +35,7 @@ void OrthogonalProjection::update(const BoundingShape &shape) {
 		case BoundingShapeType::SPHERE: {
 			// sphere projection is a circle
 			type = OrthogonalProjection::Type::CIRCLE;
-			auto *sphere = dynamic_cast<const BoundingSphere *>(&shape);
+			auto *sphere = static_cast<const BoundingSphere *>(&shape);
 			auto &sphereCenter = sphere->tfOrigin();
 			points.resize(2);
 			points[0] = Vec2f(sphereCenter.x, sphereCenter.z);
@@ -46,7 +46,7 @@ void OrthogonalProjection::update(const BoundingShape &shape) {
 		case BoundingShapeType::BOX: {
 			// box projection is a rectangle
 			type = OrthogonalProjection::Type::RECTANGLE;
-			auto *box = dynamic_cast<const BoundingBox *>(&shape);
+			auto *box = static_cast<const BoundingBox *>(&shape);
 			// generate the 4 corners of the box in the xz-plane.
 			// for this just take min/max of the box vertices as bounds,
 			// this is not a perfect fit but fast.
@@ -81,7 +81,7 @@ void OrthogonalProjection::update(const BoundingShape &shape) {
 			break;
 		}
 		case BoundingShapeType::FRUSTUM: {
-			auto *frustum = dynamic_cast<const Frustum *>(&shape);
+			auto *frustum = static_cast<const Frustum *>(&shape);
 			// use the convex hull of the frustum points as projection
 			createConvexHull(frustum->points, 8);
 			break;

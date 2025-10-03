@@ -162,17 +162,17 @@ void SpatialIndexDebug::traverse(regen::RenderState *rs) {
 		for (auto &instance: *shape.second.get()) {
 			switch (instance->shapeType()) {
 				case BoundingShapeType::BOX: {
-					auto box = dynamic_cast<BoundingBox *>(instance.get());
+					auto box = static_cast<BoundingBox *>(instance.get());
 					drawBox(*box);
 					break;
 				}
 				case BoundingShapeType::SPHERE: {
-					auto sphere = dynamic_cast<BoundingSphere *>(instance.get());
+					auto sphere = static_cast<BoundingSphere *>(instance.get());
 					drawSphere(*sphere);
 					break;
 				}
 				case BoundingShapeType::FRUSTUM:
-					auto frustum = dynamic_cast<Frustum *>(instance.get());
+					auto frustum = static_cast<Frustum *>(instance.get());
 					drawFrustum(*frustum);
 					break;
 			}

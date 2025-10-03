@@ -208,10 +208,10 @@ void NodeAnimation::deallocateAnimationAtIndex(uint32_t instanceIdx, int32_t ani
 	if (instance.animationIndex_ < 0) return;
 	instance.active_ = false;
 
-	Data &anim = animData_[ANIM_INDEX(animationIndex)];
-	anim.transforms_.resize(0);
-	anim.startFramePosition_.resize(0);
-	anim.lastFramePosition_.resize(0);
+	//Data &anim = animData_[ANIM_INDEX(animationIndex)];
+	//anim.transforms_.resize(0);
+	//anim.startFramePosition_.resize(0);
+	//anim.lastFramePosition_.resize(0);
 }
 
 bool NodeAnimation::isNodeAnimationActive(uint32_t instanceIdx) const {
@@ -263,6 +263,7 @@ void NodeAnimation::animate(double milliSeconds) {
 	static ElapsedTimeDebugger elapsedTime("NodeAnimation Update", 300);
 	elapsedTime.beginFrame();
 #endif
+	// TODO: I get some alloc/free reported here, these should be avoided.
 
 	for (uint32_t instanceIdx = 0; instanceIdx < numInstances_; instanceIdx++) {
 		auto &instance = instanceData_[instanceIdx];
@@ -293,7 +294,7 @@ void NodeAnimation::animate(double milliSeconds) {
 			Mat4f &m = anim.transforms_[nodeIdx(instanceIdx,i,numChannels)];
 
 			if (channel.rotationKeys_->empty()) {
-				m = Mat4f::identity();
+				m.setIdentity();
 			} else if (channel.rotationKeys_->size() == 1) {
 				m = channel.rotationKeys_->data()[0].value.calculateMatrix();
 			} else {

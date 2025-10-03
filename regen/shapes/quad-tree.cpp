@@ -215,8 +215,14 @@ bool QuadTree::reinsert(Item *shape, bool allowSubdivision) { // NOLINT(misc-no-
 			if (shape->node != m) collapse(m);
 			return true;
 		} else {
+			shape->node = m;
 			return false;
 		}
+	}
+	if (!m->parent) {
+		REGEN_WARN("Shape moved outside of quad tree bounds, reinserting failed. This should never happen.");
+		shape->node = m;
+		return false;
 	}
 	Node *n = m->parent;
 	while (n->parent && !n->contains(shape->projection)) {
@@ -291,6 +297,8 @@ void QuadTree::remove(const ref_ptr<BoundingShape> &shape) {
 }
 
 QuadTree::Node* QuadTree::removeFromNode(Node *node, Item *shape, bool allowCollapse) {
+	// TODO: it would be good if we could avoid searching for the shape in the node.
+	// TODO: also avoid vector erase
 	auto it = std::find(node->shapes.begin(), node->shapes.end(), shape);
 	if (it == node->shapes.end()) {
 		return node;
@@ -913,6 +921,10 @@ void QuadTree::foreachIntersection(
 void QuadTree::update(float dt) {
 	static auto maxFloat = Vec2f(std::numeric_limits<float>::lowest());
 	static auto minFloat = Vec2f(std::numeric_limits<float>::max());
+	if (items_.empty() && newItems_.empty()) {
+		// nothing to do
+		return;
+	}
 	bool hasChanged;
 
 	changedItems_.clear();
