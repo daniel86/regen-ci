@@ -68,7 +68,7 @@ namespace regen {
 		/**
 		 * @return The indirect draw buffer used for this indexed shape
 		 */
-		const ref_ptr<SSBO> &indirectDrawBuffer(uint32_t partIdx) const { return indirectDrawBuffers_[partIdx]; }
+		ref_ptr<SSBO> getIndirectDrawBuffer(const ref_ptr<Mesh> &mesh) const;
 
 		/**
 		 * Note: Each part of a model has its own indirect draw buffer.

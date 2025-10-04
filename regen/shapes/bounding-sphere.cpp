@@ -1,5 +1,5 @@
 #include "bounding-sphere.h"
-#include "regen/meshes/primitives/sphere.h"
+#include "regen/objects/primitives/sphere.h"
 
 using namespace regen;
 

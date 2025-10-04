@@ -9,9 +9,9 @@
 #include <QtWidgets/QHBoxLayout>
 
 #include <regen/config.h>
-#include <regen/animations/animation-manager.h>
+#include <regen/animation/animation-manager.h>
 #include <regen/utility/threading.h>
-#include <regen/text/font.h>
+#include <regen/objects/text/font.h>
 
 #include "qt-application.h"
 #include "scene-widget.h"

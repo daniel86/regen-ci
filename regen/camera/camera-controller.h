@@ -4,8 +4,8 @@
 #include <regen/math/quaternion.h>
 #include <regen/camera/camera.h>
 #include <regen/camera/camera-controller-base.h>
-#include <regen/animations/animation.h>
-#include <regen/animations/bones.h>
+#include <regen/animation/animation.h>
+#include <regen/animation/bones.h>
 
 namespace regen {
 	/**

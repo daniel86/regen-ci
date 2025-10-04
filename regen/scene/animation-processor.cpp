@@ -1,6 +1,6 @@
 #include "animation-processor.h"
-#include "regen/animations/mesh-animation.h"
-#include "regen/animations/attribute-feedback.h"
+#include "regen/animation/mesh-animation.h"
+#include "regen/animation/attribute-feedback.h"
 
 using namespace regen::scene;
 using namespace regen;

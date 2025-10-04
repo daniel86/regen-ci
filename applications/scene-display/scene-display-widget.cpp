@@ -1,7 +1,7 @@
 #include <regen/camera/camera-controller.h>
-#include <regen/animations/animation-manager.h>
+#include <regen/animation/animation-manager.h>
 #include <regen/utility/filesystem.h>
-#include <regen/text/texture-mapped-text.h>
+#include <regen/objects/text/texture-mapped-text.h>
 #include <regen/textures/texture-binder.h>
 #include <QLineEdit>
 
@@ -12,8 +12,8 @@
 #include <regen/scene/resource-manager.h>
 #include <regen/scene/scene-input-xml.h>
 
-#include "regen/animations/npc-controller.h"
-#include "regen/meshes/terrain/blanket-trail.h"
+#include "../../regen/behavior/npc-controller.h"
+#include "regen/objects/terrain/blanket-trail.h"
 #include "regen/textures/height-map.h"
 
 using namespace regen::scene;
@@ -26,9 +26,9 @@ using namespace std;
 #include "interaction-manager.h"
 #include "interactions/video-toggle.h"
 #include "interactions/node-activation.h"
-#include "regen/physics/impulse-controller.h"
-#include "regen/physics/character-controller.h"
-#include "regen/animations/animal-controller.h"
+#include "../../regen/simulation/impulse-controller.h"
+#include "regen/behavior/character-controller.h"
+#include "../../regen/behavior/animal-controller.h"
 #include "regen/av/video-recorder.h"
 #include "regen/states/blit-state.h"
 
@@ -783,42 +783,66 @@ static ref_ptr<WorldModel> loadWorldModel(
 			Vec3f(placePos.x, placeHeight + 0.1f, placePos.y));
 		place->setRadius(placeRadius);
 		worldModel->places.push_back(place);
-		worldModel->wayPointMap[x->getName()] = place;
 
 		std::map<std::string, ref_ptr<WorldObject> > objMap;
 		// load objects that are part of this place
 		for (const auto &s: x->getChildren("object")) {
-			auto relPoint = s->getValue<Vec2f>("point", Vec2f(0.0f));
-			auto absPoint = relPoint + placePos;
-			auto objHeight = getHeight(absPoint, heightMap);
-			// place objects slightly above the ground to avoid z-fighting
-			ref_ptr<WorldObject> obj = ref_ptr<WorldObject>::alloc(
-				s->getName(),
-				Vec3f(absPoint.x, objHeight + 0.1f, absPoint.y));
-			obj->setRadius(s->getValue<float>("radius", 1.0f));
-			objMap[s->getName()] = obj;
-			// load affordances
-			for (const auto &a: s->getChildren("affordance")) {
-				auto affordanceType = a->getValue<AffordanceType>("type", AffordanceType::NONE);
-				if (affordanceType == AffordanceType::NONE) {
-					REGEN_WARN("Invalid affordance type in NPC controller.");
-					continue;
-				}
-				auto affordanceMinDistance = a->getValue<float>("min-distance", 0.0f);
-				if (a->hasAttribute("target")) {
-					auto targetName = a->getValue("target");
-					auto targetIt = objMap.find(targetName);
-					if (targetIt == objMap.end()) {
-						REGEN_WARN("Unable to find target '" << targetName << "' for affordance in NPC controller.");
-						continue;
-					}
-					obj->addAffordance(affordanceType, affordanceMinDistance, targetIt->second);
+			std::stack<ref_ptr<WorldObject>> obj_queue;
+
+			if (s->hasAttribute("mesh")) {
+				uint32_t meshIdx = s->getValue<uint32_t>("mesh-index", 0u);
+				auto meshes = sceneParser.getResources()->getMesh(&sceneParser, s->getValue("mesh"));
+				if (!meshes || meshes->empty()) {
+					REGEN_WARN("Cannot find mesh in `" << s->getDescription() << "`.");
+				} else if (meshIdx >= meshes->size()) {
+					REGEN_WARN("Invalid mesh index in `" << s->getDescription() << "`.");
 				} else {
-					obj->addAffordance(affordanceType, affordanceMinDistance);
+					auto mesh = (*meshes.get())[meshIdx];
+					auto shape = mesh->indexedShape(0);
+					uint32_t numInstances = shape->transform()->numInstances();
+
+					for (uint32_t instance = 0; instance < numInstances; instance++) {
+						obj_queue.push(ref_ptr<WorldObject>::alloc(s->getName(),
+							mesh->indexedShape(instance), instance));
+					}
 				}
 			}
-			place->addWorldObject(obj);
-			worldModel->addWorldObject(obj);
+			if (obj_queue.empty()) {
+				auto relPoint = s->getValue<Vec2f>("point", Vec2f(0.0f));
+				auto absObjPos = relPoint + placePos;
+				auto objHeight = getHeight(absObjPos, heightMap);
+				obj_queue.push(ref_ptr<WorldObject>::alloc(s->getName(),
+					Vec3f(absObjPos.x, objHeight + 0.1f, absObjPos.y)));
+			}
+
+			while (!obj_queue.empty()) {
+				ref_ptr<WorldObject> obj = obj_queue.top();
+				obj_queue.pop();
+
+				obj->setRadius(s->getValue<float>("radius", 1.0f));
+				objMap[s->getName()] = obj;
+				// load affordances
+				for (const auto &a: s->getChildren("affordance")) {
+					ref_ptr<Affordance> affordance = ref_ptr<Affordance>::alloc(obj);
+
+					affordance->type = a->getValue<AffordanceType>("type", AffordanceType::NONE);
+					if (affordance->type == AffordanceType::NONE) {
+						REGEN_WARN("Invalid affordance type in NPC controller.");
+						continue;
+					}
+					affordance->minDistance = a->getValue<float>("min-distance", 0.0f);
+					affordance->slotCount = a->getValue<int>("num-slots", 1);
+					affordance->spacing = a->getValue<float>("spacing", 2.0f);
+					affordance->layout = a->getValue<SlotLayout>("slot-layout", SlotLayout::CIRCULAR);
+					affordance->radius = a->getValue<float>("radius", 1.0f);
+					affordance->baseOffset = a->getValue<Vec3f>("base-offset", Vec3f(0.0f, 0.0f, 0.0f));
+
+					affordance->initialize();
+					obj->addAffordance(affordance);
+				}
+				place->addWorldObject(obj);
+				worldModel->addWorldObject(obj);
+			}
 		}
 
 		for (const auto &s: x->getChildren("path")) {
@@ -872,6 +896,15 @@ static ref_ptr<WorldModel> loadWorldModel(
 	return worldModel;
 }
 
+static float randomizeTrait(float baseValue, float variation) {
+	if (variation <= 0.0f) {
+		return baseValue;
+	}
+	float r = math::random<float>(); // random number in [0,1]
+	float delta = (r - 0.5f) * 2.0f * variation; // random number in [-variation, +variation]
+	return std::clamp(baseValue + delta, 0.0f, 1.0f);
+}
+
 static void handleAssetController(
 	const ref_ptr<WorldModel> &worldModel,
 	scene::SceneLoader &sceneParser,
@@ -882,7 +915,6 @@ static void handleAssetController(
 	auto controllerType = animationNode->getValue("type");
 	auto tf = sceneParser.getResources()->getTransform(
 		&sceneParser, animationNode->getValue("tf"));
-	auto instanceIndex = animationNode->getValue<int>("instance", 0);
 	std::vector<ref_ptr<AnimationController> > controller;
 	ref_ptr<SpatialIndex> spatialIndex;
 	if (animationNode->hasAttribute("spatial-index")) {
@@ -903,12 +935,37 @@ static void handleAssetController(
 			<< animationNode->getDescription() << "'.");
 		return;
 	}
+	ref_ptr<NodeAnimationItem> nodeAnimItem = ref_ptr<NodeAnimationItem>::alloc();
+	nodeAnimItem->animation = nodeAnimation;
+	nodeAnimItem->ranges = ranges;
+
+	auto meshVec = sceneParser.getResources()->getMesh(
+		&sceneParser, animationNode->getValue("mesh"));
+	ref_ptr<Mesh> mesh;
+	if (meshVec.get() != nullptr && !meshVec->empty()) {
+		uint32_t meshIdx = animationNode->getValue<uint32_t>("mesh-index", 0u);
+		if (meshIdx >= meshVec->size()) {
+			REGEN_WARN("Invalid mesh index for '" << animationNode->getDescription() << "'.");
+			meshIdx = 0;
+		}
+		mesh = (*meshVec.get())[meshIdx];
+		if (!mesh.get()) {
+			REGEN_WARN("Unable to find mesh for controller '" << animationNode->getDescription() << "'.");
+			return;
+		}
+	} else {
+		REGEN_WARN("Unable to find mesh for controller '" << animationNode->getDescription() << "'.");
+		return;
+	}
 
 	if (controllerType == "animal") {
-		uint32_t tfIdx = 0; // TODO: support multiple instances
-		auto animalController = ref_ptr<AnimalController>::alloc(tf, tfIdx, nodeAnimation, ranges);
+		// TODO: support multiple instances
+		Indexed<ref_ptr<ModelTransformation>> indexedTF(tf, 0);
+		auto animalController = ref_ptr<AnimalController>::alloc(
+			mesh, indexedTF, nodeAnimItem, worldModel);
 		controller.push_back(animalController);
 		animalController->setWorldTime(&sceneParser.application()->worldTime());
+		animalController->setMesh(mesh);
 		animalController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
 		animalController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
 		animalController->setFloorHeight(animationNode->getValue<float>("floor-height", 0.0f));
@@ -958,18 +1015,35 @@ static void handleAssetController(
 		}
 
 		for (int32_t tfIdx = 0; tfIdx < tf->numInstances(); tfIdx++) {
+			Indexed<ref_ptr<ModelTransformation>> indexedTF(tf, tfIdx);
 			auto npcController = ref_ptr<NPCController>::alloc(
-				worldModel, tf, tfIdx, nodeAnimation, ranges);
+				mesh, indexedTF, nodeAnimItem, worldModel);
+			npcController->setMesh(mesh);
 			controller.push_back(npcController);
 			if (spatialIndex.get()) {
 				npcController->setSpatialIndex(spatialIndex, indexedShapeName);
 			}
 			if (footstepTrail.get()) {
-				npcController->setFootstepTrail(footstepTrail);
+				float leftFootTime = animationNode->getValue<float>("left-foot-time", 0.2f);
+				float rightFootTime = animationNode->getValue<float>("right-foot-time", 0.8f);
+				npcController->setFootstepTrail(footstepTrail, leftFootTime, rightFootTime);
 			}
-			npcController->setWorldTime(&sceneParser.application()->worldTime());
 			npcController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
 			npcController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
+			npcController->setMaxTurnDegPerSecond(
+				animationNode->getValue<float>("max-turn-angle", 90.0f));
+			npcController->setPersonalSpace(
+				animationNode->getValue<float>("personal-space", 4.5f));
+			npcController->setAvoidanceWeight(
+				animationNode->getValue<float>("avoidance-weight", 0.5f));
+			npcController->setPushThroughDistance(
+				animationNode->getValue<float>("push-through-distance", 0.5f));
+			npcController->setLookAheadThreshold(
+				animationNode->getValue<float>("look-ahead-threshold", 6.0f));
+			npcController->setWallTangentWeight(
+				animationNode->getValue<float>("wall-tangent-weight", 0.5f));
+			npcController->setVelOrientationWeight(
+				animationNode->getValue<float>("velocity-orientation-weight", 0.5f));
 			npcController->setFloorHeight(animationNode->getValue<float>("floor-height", 0.0f));
 			npcController->setCollisionBit(animationNode->getValue<uint32_t>("collision-bit", 0));
 			if (animationNode->hasAttribute("base-orientation")) {
@@ -977,18 +1051,53 @@ static void handleAssetController(
 					animationNode->getValue<GLfloat>("base-orientation", 0.0f));
 			}
 
-			npcController->setLaziness(animationNode->getValue<float>("laziness", 0.5f));
-			npcController->setSpirituality(animationNode->getValue<float>("spirituality", 0.5f));
+			auto &kb = npcController->knowledgeBase();
+			kb.setWorldTime(&sceneParser.application()->worldTime());
+			// Set base time for actions/staying at a place
+			kb.setBaseTimeActivity(
+				animationNode->getValue<float>("base-time-activity", 120.0f));
+			kb.setBaseTimePlace(
+				animationNode->getValue<float>("base-time-place", 1200.0f));
+			// Set randomized character traits.
+			kb.setTraitStrength(Trait::LAZINESS, randomizeTrait(animationNode->getValue<float>(
+				"laziness", 0.5f), 0.25f));
+			kb.setTraitStrength(Trait::SPIRITUALITY, randomizeTrait(animationNode->getValue<float>(
+				"spirituality", 0.5f), 0.25f));
+			kb.setTraitStrength(Trait::ALERTNESS, randomizeTrait(animationNode->getValue<float>(
+				"alertness", 0.5f), 0.25f));
+			kb.setTraitStrength(Trait::BRAVERY, randomizeTrait(animationNode->getValue<float>(
+				"bravery", 0.5f), 0.25f));
+			kb.setTraitStrength(Trait::SOCIALABILITY, randomizeTrait(animationNode->getValue<float>(
+				"sociability", 0.5f), 0.25f));
 
 			//npcController->setHomeBounds(
 			//	animationNode->getValue<Vec2f>("territory-center", Vec2f(0.0)),
 			//	animationNode->getValue<Vec2f>("territory-size", Vec2f(10.0)));
 
+			// Set the weapon mesh is any.
+			auto weaponMeshVec = sceneParser.getResources()->getMesh(
+				&sceneParser, animationNode->getValue("weapon-mesh"));
+			if (weaponMeshVec.get() != nullptr && !weaponMeshVec->empty()) {
+				uint32_t weaponMeshIdx = animationNode->getValue<uint32_t>("weapon-mesh-index", 0u);
+				if (weaponMeshIdx >= weaponMeshVec->size()) {
+					REGEN_WARN("Invalid weapon mesh index for '" << animationNode->getDescription() << "'.");
+					weaponMeshIdx = 0;
+				}
+				auto weaponMesh = (*weaponMeshVec.get())[weaponMeshIdx];
+				if (weaponMesh.get()) {
+					npcController->setWeaponMesh(weaponMesh);
+				} else {
+					REGEN_WARN("Unable to find weapon mesh in '" << animationNode->getDescription() << "'.");
+				}
+			} else if (animationNode->hasAttribute("weapon-mesh")) {
+				REGEN_WARN("Unable to find weapon mesh in '" << animationNode->getDescription() << "'.");
+			}
+
 			if (animationNode->hasAttribute("height-map")) {
 				auto heightMap2d = sceneParser.getResources()->getTexture2D(
 					&sceneParser, animationNode->getValue("height-map"));
 				if (!heightMap2d) {
-					REGEN_WARN("Unable to find height map for NPC controller in '" << animationNode->getDescription() << "'.");
+					REGEN_WARN("Unable to find height map in '" << animationNode->getDescription() << "'.");
 				} else {
 					auto heightMap = ref_ptr<HeightMap>::dynamicCast(heightMap2d);
 					if (!heightMap) {
@@ -998,8 +1107,7 @@ static void handleAssetController(
 					}
 				}
 			}
-
-			npcController->startAnimation();
+			npcController->initializeController();
 		}
 	} else {
 		REGEN_WARN("Unhandled controller type in '" << animationNode->getDescription() << "'.");

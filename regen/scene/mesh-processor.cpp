@@ -114,7 +114,7 @@ void MeshNodeProvider::processInput(
 						meshCopy->setInstanceBuffer(lodState->instanceBuffer());
 						if (lodState->hasIndirectDrawBuffers()) {
 							meshCopy->setIndirectDrawBuffer(
-								lodState->indirectDrawBuffer(partIdx),
+								lodState->getIndirectDrawBuffer(meshOriginal),
 								0u,
 								lodState->numDrawLayers());
 						}
@@ -129,7 +129,7 @@ void MeshNodeProvider::processInput(
 				auto cam = ref_ptr<Camera>::dynamicCast(parent->getParentCamera());
 				if (cam.get() && cullShape.get()) {
 					if (cullShape->hasIndirectDrawBuffers()) {
-						auto dibo = cullShape->indirectDrawBuffer(partIdx);
+						auto dibo = cullShape->getIndirectDrawBuffer(meshOriginal);
 						meshCopy->setIndirectDrawBuffer(dibo, 0u, cam->numLayer());
 					}
 					if (cullShape->hasInstanceBuffer()) {

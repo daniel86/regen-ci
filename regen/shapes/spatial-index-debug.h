@@ -2,19 +2,12 @@
 #define REGEN_SPATIAL_INDEX_DEBUG_H
 
 #include <regen/states/state-node.h>
-#include "regen/glsl/shader-state.h"
+#include "regen/shader/shader-state.h"
 #include "regen/states/state-configurer.h"
 #include "spatial-index.h"
 #include "regen/utility/debug-interface.h"
-#include <btBulletDynamicsCommon.h>
 
 namespace regen {
-	/**
-	 * Debug drawer for Bullet physics engine.
-	 * This class is a StateNode that can be added to the scene graph.
-	 * It will draw the physics world using Bullet's debug drawing.
-	 * The physics world must be set using setDynamicsWorld().
-	 */
 	class SpatialIndexDebug : public StateNode, public HasShader, public DebugInterface {
 	public:
 		explicit SpatialIndexDebug(const ref_ptr<SpatialIndex> &index);
@@ -45,6 +38,8 @@ namespace regen {
 		ref_ptr<VAO> vao_;
 		GLuint vbo_{};
 		GLuint bufferSize_;
+
+		friend class SpatialIndex;
 	};
 }
 

@@ -4,7 +4,7 @@
 #include <string>
 #include <regen/gl-types/gl-rectangle.h>
 #include <regen/gl-types/render-state.h>
-#include "regen/glsl/shader-input.h"
+#include "regen/shader/shader-input.h"
 #include "regen/shapes/bounds.h"
 #include "regen/scene/scene-input.h"
 #include "regen/textures/texture-file.h"

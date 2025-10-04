@@ -2,7 +2,7 @@
 #define REGEN_POSITION_READER_H_
 
 #include <regen/buffer/client-buffer.h>
-#include <regen/glsl/shader-input.h>
+#include <regen/shader/shader-input.h>
 
 namespace regen {
 	/**

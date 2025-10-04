@@ -3,7 +3,7 @@
 #include "resource-manager.h"
 #include "regen/shapes/aabb.h"
 #include "regen/shapes/obb.h"
-#include "regen/meshes/mesh-vector.h"
+#include "regen/objects/mesh-vector.h"
 #include "regen/shapes/spatial-index.h"
 #include "regen/shapes/cull-shape.h"
 #include "regen/textures/height-map.h"

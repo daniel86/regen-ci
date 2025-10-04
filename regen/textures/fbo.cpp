@@ -1,6 +1,6 @@
 #include "regen/gl-types/render-state.h"
 #include "regen/gl-types/gl-util.h"
-#include "regen/glsl/shader-input.h"
+#include "regen/shader/shader-input.h"
 
 #include "fbo.h"
 #include "regen/scene/scene.h"

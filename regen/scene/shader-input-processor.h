@@ -6,7 +6,7 @@
 #include <regen/scene/scene-processors.h>
 #include <regen/scene/value-generator.h>
 #include <regen/scene/resource-manager.h>
-#include <regen/animations/input-animation.h>
+#include <regen/animation/input-animation.h>
 #include <regen/gl-types/render-state.h>
 
 #define REGEN_INPUT_STATE_CATEGORY "input"
@@ -39,7 +39,7 @@ namespace regen {
 	};
 } // namespace
 
-#include "regen/glsl/shader-input.h"
+#include "regen/shader/shader-input.h"
 #include <stack>
 #include "regen/buffer/ssbo.h"
 

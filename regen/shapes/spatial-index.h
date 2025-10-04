@@ -149,7 +149,11 @@ namespace regen {
 		 * @brief Draw debug information
 		 * @param debug The debug interface
 		 */
-		virtual void debugDraw(DebugInterface &debug) const = 0;
+		virtual void debugDraw(DebugInterface &debug) const;
+
+		void addDebugShape(const ref_ptr<BoundingShape> &shape);
+
+		void removeDebugShape(const ref_ptr<BoundingShape> &shape);
 
 	protected:
 		struct IndexCamera {
@@ -164,6 +168,8 @@ namespace regen {
 		};
 		std::unordered_map<std::string_view, ref_ptr<std::vector<ref_ptr<BoundingShape>>>> nameToShape_;
 		std::unordered_map<const Camera *, IndexCamera> cameras_;
+		// additional shapes for debugging only
+		std::vector<ref_ptr<BoundingShape>> debugShapes_;
 
 		void updateVisibility();
 
@@ -180,6 +186,8 @@ namespace regen {
 		 * @param shape The shape to remove
 		 */
 		void removeFromIndex(const ref_ptr<BoundingShape> &shape);
+
+		void debugBoundingShape(DebugInterface &debug, const BoundingShape &shape) const;
 
 		static void createIndexShape(IndexCamera &ic, const ref_ptr<BoundingShape> &shape);
 

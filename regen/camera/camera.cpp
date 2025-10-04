@@ -4,7 +4,7 @@
 #include "light-camera-cube.h"
 #include "light-camera-csm.h"
 #include "reflection-camera.h"
-#include "regen/meshes/mesh-vector.h"
+#include "regen/objects/mesh-vector.h"
 #include <regen/shapes/spatial-index.h>
 
 using namespace regen;

@@ -8,10 +8,10 @@
 #include <regen/states/state-node.h>
 #include "regen/states/pick-data.h"
 #include "regen/scene/scene-interaction.h"
-#include "regen/animations/animation.h"
+#include "regen/animation/animation.h"
 #include "regen/buffer/staging-system.h"
 #include "screen.h"
-#include "regen/animations/world-model.h"
+#include "../behavior/world/world-model.h"
 
 // Defeat evil windows defines...
 #ifdef KEY_EVENT

@@ -10,6 +10,7 @@ namespace regen::math {
 	struct ArcLengthLUT {
 		std::vector<float> s; // normalized arc length
 		std::vector<float> t; // curve parameter
+		float totalLength = 0.0f;
 	};
 
 	/**
@@ -106,21 +107,21 @@ namespace regen::math {
 			lut.s[0] = 0.0f;
 			lut.t[0] = 0.0f;
 
-			float totalLength = 0.0f;
+			lut.totalLength = 0.0f;
 			Vec2f prev = sample(0.0f);
 
 			for (int i = 1; i <= samples; i++) {
 				float ti = (float)i / samples;
 				Vec2f p = sample(ti);
-				totalLength += (p - prev).length();
+				lut.totalLength += (p - prev).length();
 				lut.t[i] = ti;
-				lut.s[i] = totalLength;
+				lut.s[i] = lut.totalLength;
 				prev = p;
 			}
 
 			// normalize s to [0,1]
 			for (int i = 0; i <= samples; i++) {
-				lut.s[i] /= totalLength;
+				lut.s[i] /= lut.totalLength;
 			}
 
 			return lut;

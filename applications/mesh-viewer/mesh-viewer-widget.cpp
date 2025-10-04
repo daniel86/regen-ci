@@ -8,13 +8,13 @@
 #include <boost/filesystem/path.hpp>
 #include <assimp/postprocess.h>
 
-#include "regen/glsl/shader-state.h"
+#include "regen/shader/shader-state.h"
 #include "regen/textures/fbo-state.h"
 #include <regen/states/blit-state.h>
 #include <regen/utility/filesystem.h>
-#include <regen/animations/animation-manager.h>
-#include <regen/meshes/lod/mesh-simplifier.h>
-#include <regen/meshes/lod/impostor-billboard.h>
+#include <regen/animation/animation-manager.h>
+#include <regen/objects/lod/mesh-simplifier.h>
+#include <regen/objects/lod/impostor-billboard.h>
 #include <regen/states/direct-shading.h>
 #include <applications/qt/qt-camera-events.h>
 #include <applications/qt/ColorWidget.h>
@@ -326,16 +326,16 @@ void MeshViewerWidget::loadResources_GL() {
 }
 
 void MeshViewerWidget::loadAnimation(const ref_ptr<Mesh> &mesh, uint32_t index) {
-	std::list<ref_ptr<AnimationNode> > meshBones;
-	GLuint numBoneWeights = asset_->numBoneWeights(mesh.get());
-	GLuint numBones = 0u;
+	std::list<ref_ptr<NodeAnimation::Node> > meshBones;
+	uint32_t numBoneWeights = asset_->numBoneWeights(mesh.get());
+
 	// Find bones influencing this mesh
-	for (auto &nodeAnim_i : asset_->getNodeAnimation()) {
-		auto boneNodes_i = asset_->loadMeshBones(mesh.get(), nodeAnim_i.get());
-		meshBones.insert(meshBones.end(), boneNodes_i.begin(), boneNodes_i.end());
-		numBones = boneNodes_i.size();
-		nodeAnim_i->startAnimation();
-	}
+	auto nodeAnim = asset_->getNodeAnimation();
+	auto boneNodes = asset_->loadMeshBones(mesh.get(), nodeAnim.get());
+	meshBones.insert(meshBones.end(), boneNodes.begin(), boneNodes.end());
+	uint32_t numBones = boneNodes.size();
+	nodeAnim->startAnimation();
+
 	// Create Bones state that is responsible for uploading animation data to GL.
 	if (!meshBones.empty()) {
 		ref_ptr<Bones> bonesState = ref_ptr<Bones>::alloc(numBoneWeights, numBones);
@@ -345,14 +345,12 @@ void MeshViewerWidget::loadAnimation(const ref_ptr<Mesh> &mesh, uint32_t index) 
 		mesh->joinStates(bonesState);
 	}
 
-	for (const auto &anim: asset_->getNodeAnimation()) {
-		ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater2>::alloc(anim);
-		anim->connect(Animation::ANIMATION_STOPPED, animStopped);
-		{
-			EventData evData;
-			evData.eventID = Animation::ANIMATION_STOPPED;
-			animStopped->call(anim.get(), &evData);
-		}
+	ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater2>::alloc(nodeAnim);
+	nodeAnim->connect(Animation::ANIMATION_STOPPED, animStopped);
+	{
+		EventData evData;
+		evData.eventID = Animation::ANIMATION_STOPPED;
+		animStopped->call(nodeAnim.get(), &evData);
 	}
 }
 

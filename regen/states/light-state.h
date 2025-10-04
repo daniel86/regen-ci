@@ -4,9 +4,9 @@
 #include <regen/states/model-transformation.h>
 #include <regen/camera/camera.h>
 #include <regen/math/vector.h>
-#include <regen/meshes/primitives/cone.h>
-#include <regen/animations/animation-node.h>
-#include <regen/animations/animation.h>
+#include <regen/objects/primitives/cone.h>
+#include <regen/animation/animation-node.h>
+#include <regen/animation/animation.h>
 
 namespace regen {
 	/**

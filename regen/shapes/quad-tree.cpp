@@ -206,8 +206,13 @@ void QuadTree::insert(const ref_ptr<BoundingShape> &shape) {
 }
 
 bool QuadTree::reinsert(Item *shape, bool allowSubdivision) { // NOLINT(misc-no-recursion)
-	Node *m = removeFromNode(shape->node, shape, false);
-	shape->node = nullptr;
+	Node *m;
+	if (shape->node) {
+		m = removeFromNode(shape->node, shape, false);
+		shape->node = nullptr;
+	} else {
+		m = root_;
+	}
 
 	if (m->contains(shape->projection)) {
 		// the node fully contains the shape, try to insert it here
@@ -220,7 +225,9 @@ bool QuadTree::reinsert(Item *shape, bool allowSubdivision) { // NOLINT(misc-no-
 		}
 	}
 	if (m->parentIdx == -1) {
-		REGEN_WARN("Shape moved outside of quad tree bounds, reinserting failed. This should never happen.");
+		REGEN_WARN("Shape '" << shape->shape->name() << "." <<
+			shape->shape->instanceID() << "' is out of bounds!");
+		// the shape is out of bounds, reinsert at root
 		shape->node = m;
 		return false;
 	}
@@ -263,9 +270,16 @@ bool QuadTree::insert1(Node *node, Item *newShape, bool allowSubdivision) { // N
 			node->shapes.clear();
 			// reinsert the existing shapes into the new children nodes
 			for (const auto &existingShape: node->shapesTmp) {
-				if (!insert(node, existingShape, true)) {
-					REGEN_WARN("Failed to reinsert shape into child node of quad tree.");
+				if (insert(node, existingShape, true)) {
+					continue;
 				}
+				// failed to insert, try root node instead
+				if (insert(root_, existingShape, true)) {
+					continue;
+				}
+				// still failed, this should never happen
+				REGEN_WARN("Shape '" << existingShape->shape->name() << "." <<
+					existingShape->shape->instanceID() << "' is out of bounds!");
 			}
 			// also insert the new shape
 			return insert(node, newShape, true);
@@ -941,8 +955,14 @@ void QuadTree::update(float dt) {
 	// go through all items and update their geometry and transform, and the new bounds
 	for (const auto &item: items_) {
 		// NOTE: items with traversalMask == 0 are currently disabled,
-		//       so we can skip updating them.
-		if (item->shape->traversalMask() == 0) continue;
+		//       so we can skip updating them, and remove them from the tree.
+		if (item->shape->traversalMask() == 0) {
+			if (item->node) {
+				removeFromNode(item->node, item, true);
+				item->node = nullptr;
+			}
+			continue;
+		}
 		hasChanged = item->shape->updateGeometry();
 		hasChanged = item->shape->updateTransform(hasChanged) || hasChanged;
 		if (hasChanged) {
@@ -977,6 +997,7 @@ void QuadTree::update(float dt) {
 		numLeaves_ = 1;
 
 		for (auto &item: items_) {
+			if (item->shape->traversalMask() == 0) continue;
 			item->node = nullptr;
 			insert1(root_, item, true);
 		}
@@ -1025,6 +1046,7 @@ inline Vec3f toVec3(const Vec2f &v, float y) {
 }
 
 void QuadTree::debugDraw(DebugInterface &debug) const {
+	SpatialIndex::debugDraw(debug);
 	// draw lines around the quad tree nodes
 	if (!root_) return;
 	static const float drawHeight = 5.5f;
@@ -1063,6 +1085,7 @@ void QuadTree::debugDraw(DebugInterface &debug) const {
 	lineColor = Vec3f(0, 1, 0);
 	const GLfloat h = 5.1f;
 	for (auto &item: items_) {
+		if (item->shape->traversalMask() == 0) continue;
 		auto &projection = item->projection;
 		auto &points = projection.points;
 		switch (projection.type) {

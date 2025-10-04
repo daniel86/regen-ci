@@ -3,12 +3,12 @@
 
 #include <list>
 #include <algorithm>
-#include <regen/animations/animation-node.h>
+#include <regen/animation/animation-node.h>
 
 void setAnimationRangeActive(
 			const ref_ptr<NodeAnimation> &anim,
 			uint32_t instanceIdx,
-			const scene::AnimRange &animRange) {
+			const AnimRange &animRange) {
 	if (animRange.channelName.empty()) {
 		anim->setAnimationIndexActive(instanceIdx, animRange.channelIndex, animRange.range);
 	} else {
@@ -20,7 +20,7 @@ class RandomAnimationRangeUpdater : public EventHandler {
 public:
 	RandomAnimationRangeUpdater(
 			const ref_ptr<NodeAnimation> &anim,
-			const std::vector<regen::scene::AnimRange> &animRanges)
+			const std::vector<AnimRange> &animRanges)
 			: EventHandler(),
 			  anim_(anim),
 			  animRanges_(animRanges) {}
@@ -35,14 +35,14 @@ public:
 
 protected:
 	ref_ptr<NodeAnimation> anim_;
-	std::vector<regen::scene::AnimRange> animRanges_;
+	std::vector<AnimRange> animRanges_;
 };
 
 class FixedAnimationRangeUpdater : public EventHandler {
 public:
 	FixedAnimationRangeUpdater(
 			const ref_ptr<NodeAnimation> &anim,
-			const regen::scene::AnimRange &animRange)
+			const AnimRange &animRange)
 			: EventHandler(),
 			  anim_(anim),
 			  animRange_(animRange) {}
@@ -54,7 +54,7 @@ public:
 	}
 protected:
 	ref_ptr<NodeAnimation> anim_;
-	regen::scene::AnimRange animRange_;
+	AnimRange animRange_;
 };
 
 
@@ -98,7 +98,7 @@ class KeyAnimationRangeUpdater : public EventHandler {
 public:
 	KeyAnimationRangeUpdater(
 			const ref_ptr<NodeAnimation> &anim,
-			const std::vector<regen::scene::AnimRange> &animRanges,
+			const std::vector<AnimRange> &animRanges,
 			const std::map<std::string, KeyAnimationMapping> &mappings,
 			const std::string &idleAnimation,
 			uint32_t instanceIdx = 0)
@@ -106,7 +106,7 @@ public:
 			  anim_(anim),
 			  mappings_(mappings),
 			  instanceIdx_(instanceIdx){
-		for (std::vector<regen::scene::AnimRange>::const_iterator it = animRanges.begin(); it != animRanges.end(); ++it) {
+		for (std::vector<AnimRange>::const_iterator it = animRanges.begin(); it != animRanges.end(); ++it) {
 			animRanges_[it->name] = *it;
 		}
 		active_ = "";
@@ -223,7 +223,7 @@ public:
 protected:
 	ref_ptr<NodeAnimation> anim_;
 	std::map<std::string, KeyAnimationMapping> mappings_;
-	std::map<std::string, regen::scene::AnimRange> animRanges_;
+	std::map<std::string, AnimRange> animRanges_;
 	std::list<std::string> pressed_;
 	std::set<std::string> toggles_;
 	std::string active_;

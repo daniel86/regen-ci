@@ -4,6 +4,7 @@
 #include "spatial-index.h"
 #include "quad-tree.h"
 #include "cull-shape.h"
+#include "spatial-index-debug.h"
 
 // NOTE: this piece of code is performance critical! For many execution paths:
 // - avoid the use of std::set, std::unordered_set, std::map, std::unordered_map, etc. here
@@ -315,6 +316,56 @@ void SpatialIndex::updateLOD_Major(IndexCamera &indexCamera, IndexedShape *index
 	}
 
 	indexShape->unmapInstanceData_internal();
+}
+
+void SpatialIndex::addDebugShape(const ref_ptr<BoundingShape> &shape) {
+	debugShapes_.push_back(shape);
+}
+
+void SpatialIndex::removeDebugShape(const ref_ptr<BoundingShape> &shape) {
+	auto it = std::find(debugShapes_.begin(), debugShapes_.end(), shape);
+	if (it != debugShapes_.end()) {
+		debugShapes_.erase(it);
+	}
+}
+
+void SpatialIndex::debugBoundingShape(DebugInterface &debug, const BoundingShape &shape) const {
+	SpatialIndexDebug &sid = static_cast<SpatialIndexDebug &>(debug);
+	switch (shape.shapeType()) {
+		case BoundingShapeType::BOX: {
+			auto box = static_cast<const BoundingBox *>(&shape);
+			sid.drawBox(*box);
+			break;
+		}
+		case BoundingShapeType::SPHERE: {
+			auto sphere = static_cast<const BoundingSphere *>(&shape);
+			sid.drawSphere(*sphere);
+			break;
+		}
+		case BoundingShapeType::FRUSTUM:
+			auto frustum = static_cast<const Frustum *>(&shape);
+			sid.drawFrustum(*frustum);
+			break;
+	}
+}
+
+void SpatialIndex::debugDraw(DebugInterface &debug) const {
+	SpatialIndexDebug &sid = static_cast<SpatialIndexDebug &>(debug);
+	for (auto &shape: shapes()) {
+		for (auto &instance: *shape.second.get()) {
+			if (instance->traversalMask() == 0) continue;
+			debugBoundingShape(debug, *instance.get());
+		}
+	}
+	for (auto &shape : debugShapes_) {
+		if (shape->traversalMask() == 0) continue;
+		debugBoundingShape(debug, *shape.get());
+	}
+	for (auto &camera: cameras()) {
+		for (auto &frustum: camera->frustum()) {
+			sid.debugFrustum(frustum, Vec3f(1.0f, 0.0f, 1.0f));
+		}
+	}
 }
 
 ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputNode &input) {

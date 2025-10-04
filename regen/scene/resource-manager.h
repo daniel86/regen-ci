@@ -1,18 +1,11 @@
-/*
- * resource-manager.h
- *
- *  Created on: Nov 4, 2013
- *      Author: daniel
- */
-
-#ifndef RESOURCE_MANAGER_H_
-#define RESOURCE_MANAGER_H_
+#ifndef REGEN_RESOURCE_MANAGER_H_
+#define REGEN_RESOURCE_MANAGER_H_
 
 #include "regen/shapes/spatial-index.h"
-#include "regen/meshes/mesh-vector.h"
+#include "regen/objects/mesh-vector.h"
 #include "scene-loader.h"
 #include "regen/textures/texture.h"
-#include "regen/sky/sky.h"
+#include "regen/objects/sky/sky.h"
 #include "loadable-input.h"
 
 namespace regen {
@@ -189,4 +182,4 @@ namespace regen {
 	}
 }
 
-#endif /* RESOURCE_MANAGER_H_ */
+#endif /* REGEN_RESOURCE_MANAGER_H_ */

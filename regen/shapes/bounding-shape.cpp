@@ -4,6 +4,7 @@
 #include "bounding-sphere.h"
 #include "bounding-box.h"
 #include "frustum.h"
+#include "regen/objects/mesh-state.h"
 
 using namespace regen;
 
@@ -28,6 +29,17 @@ BoundingShape::BoundingShape(BoundingShapeType shapeType,
 		baseMesh_ = parts_.front();
 	}
 	updateStampFunction();
+}
+
+BoundingShape::~BoundingShape() = default;
+
+void BoundingShape::addPart(const ref_ptr<Mesh> &part) {
+	if (part.get() != nullptr) {
+		parts_.push_back(part);
+	}
+	if (!baseMesh_.get()) {
+		baseMesh_ = part;
+	}
 }
 
 void BoundingShape::updateStampFunction() {

@@ -5,8 +5,8 @@
 #include <QtWidgets/QMainWindow>
 
 #include <regen/regen.h>
-#include "regen/glsl/shader-input.h"
-#include <regen/animations/animation.h>
+#include "regen/shader/shader-input.h"
+#include <regen/animation/animation.h>
 #include <regen/states/state-node.h>
 #include <QTreeWidgetItem>
 #include "qt-application.h"

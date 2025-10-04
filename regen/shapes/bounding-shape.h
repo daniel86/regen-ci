@@ -2,7 +2,6 @@
 #define REGEN_BOUNDING_SHAPE_H_
 
 #include "regen/states/model-transformation.h"
-#include "regen/meshes/mesh-state.h"
 #include "bounds.h"
 
 namespace regen {
@@ -11,6 +10,8 @@ namespace regen {
 		SPHERE,
 		FRUSTUM
 	};
+
+	class Mesh;
 
 	/**
 	 * @brief Bounding shape
@@ -34,7 +35,7 @@ namespace regen {
 		 */
 		BoundingShape(BoundingShapeType shapeType, const ref_ptr<Mesh> &mesh, const std::vector<ref_ptr<Mesh>> &parts);
 
-		virtual ~BoundingShape() = default;
+		virtual ~BoundingShape();
 
 		/**
 		 * @brief Set the name of this shape
@@ -194,14 +195,7 @@ namespace regen {
 		 * Add a part to this shape
 		 * @param part The part to add
 		 */
-		void addPart(const ref_ptr<Mesh> &part) {
-			if (part.get() != nullptr) {
-				parts_.push_back(part);
-			}
-			if (!baseMesh_.get()) {
-				baseMesh_ = part;
-			}
-		}
+		void addPart(const ref_ptr<Mesh> &part);
 
 		/**
 		 * @brief Update the transform

@@ -1,11 +1,11 @@
 #include <GL/glew.h>
-#include "regen/glsl/includer.h"
+#include "regen/shader/includer.h"
 #include <regen/config.h>
 #include <regen/gl-types/gl-param.h>
 #include <regen/buffer/binding-manager.h>
 #include <regen/textures/texture-binder.h>
 #include "scene.h"
-#include "regen/animations/animation-manager.h"
+#include "regen/animation/animation-manager.h"
 #include "regen/states/light-pass.h"
 #include "regen/textures/texture-loader.h"
 #include "regen/textures/devil-loader.h"
@@ -87,14 +87,14 @@ void Scene::setupShaderLoading() {
 	// try src directory first, might be more up to date then installation
 	boost::filesystem::path srcPath(REGEN_SOURCE_DIR);
 	srcPath /= REGEN_PROJECT_NAME;
-	srcPath /= "glsl";
+	srcPath /= "shader";
 	addShaderPath(srcPath.string());
 
 	// if nothing found in src dir, try install directory
 	boost::filesystem::path installPath(REGEN_INSTALL_PREFIX);
 	installPath /= "share";
 	installPath /= REGEN_PROJECT_NAME;
-	installPath /= "glsl";
+	installPath /= "shader";
 	addShaderPath(installPath.string());
 }
 

@@ -13,7 +13,7 @@
 #include <QtWidgets/QFileDialog>
 #include <QtCore/QString>
 
-#include <regen/physics/bullet-physics.h>
+#include <../../regen/simulation/bullet-physics.h>
 #include <regen/camera/camera-controller.h>
 #include <regen/camera/key-frame-controller.h>
 #include <regen/camera/camera-anchor.h>
@@ -21,7 +21,7 @@
 #include <regen/scene/scene-input.h>
 #include <regen/shapes/spatial-index.h>
 #include <regen/states/light-state.h>
-#include <regen/animations/animation-node.h>
+#include <regen/animation/animation-node.h>
 #include <applications/qt/qt-application.h>
 #include <applications/qt/qt-camera-events.h>
 #include <applications/qt/shader-input-widget.h>

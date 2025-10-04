@@ -8,7 +8,7 @@
 #include "regen/states/state-configurer.h"
 #include "regen/textures/fbo-state.h"
 #include "regen/states/fullscreen-pass.h"
-#include <regen/animations/animation-manager.h>
+#include <regen/animation/animation-manager.h>
 #include <QInputDialog>
 
 #include "noise-widget.h"

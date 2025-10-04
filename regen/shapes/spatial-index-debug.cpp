@@ -158,31 +158,6 @@ void SpatialIndexDebug::debugFrustum(const Frustum &frustum, const Vec3f &color)
 void SpatialIndexDebug::traverse(regen::RenderState *rs) {
 	state()->enable(rs);
 	rs->arrayBuffer().apply(vbo_);
-	for (auto &shape: index_->shapes()) {
-		for (auto &instance: *shape.second.get()) {
-			switch (instance->shapeType()) {
-				case BoundingShapeType::BOX: {
-					auto box = static_cast<BoundingBox *>(instance.get());
-					drawBox(*box);
-					break;
-				}
-				case BoundingShapeType::SPHERE: {
-					auto sphere = static_cast<BoundingSphere *>(instance.get());
-					drawSphere(*sphere);
-					break;
-				}
-				case BoundingShapeType::FRUSTUM:
-					auto frustum = static_cast<Frustum *>(instance.get());
-					drawFrustum(*frustum);
-					break;
-			}
-		}
-	}
-	for (auto &camera: index_->cameras()) {
-		for (auto &frustum: camera->frustum()) {
-			debugFrustum(frustum, Vec3f(1.0f, 0.0f, 1.0f));
-		}
-	}
 	index_->debugDraw(*this);
 	state()->disable(rs);
 }

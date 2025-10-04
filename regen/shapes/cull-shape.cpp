@@ -38,3 +38,13 @@ void CullShape::initCullShape(
 	boundingShape_ = boundingShape;
 	numInstances_ = boundingShape->numInstances();
 }
+
+ref_ptr<SSBO> CullShape::getIndirectDrawBuffer(const ref_ptr<Mesh> &mesh) const {
+	for (uint32_t idx=0; idx < parts_.size(); ++idx) {
+		auto &part = parts_[idx];
+		if (part.get() == mesh.get()) {
+			return indirectDrawBuffers_[idx];
+		}
+	}
+	return {};
+}

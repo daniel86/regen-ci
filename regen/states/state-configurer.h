@@ -11,8 +11,8 @@
 #include <regen/states/state-node.h>
 #include <regen/states/state.h>
 #include <regen/textures/texture-state.h>
-#include "regen/glsl/shader-state.h"
-#include "regen/glsl/shader-input.h"
+#include "regen/shader/shader-state.h"
+#include "regen/shader/shader-input.h"
 
 namespace regen {
 	/**

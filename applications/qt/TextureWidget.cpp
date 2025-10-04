@@ -3,9 +3,9 @@
 #include "regen/textures/fbo.h"
 #include "regen/textures/fbo-state.h"
 #include "regen/textures/texture-state.h"
-#include "regen/glsl/shader-state.h"
+#include "regen/shader/shader-state.h"
 #include "regen/states/state-configurer.h"
-#include "regen/meshes/primitives/rectangle.h"
+#include "regen/objects/primitives/rectangle.h"
 #include "regen/textures/texture-loader.h"
 #include <QLabel>
 #include <QTimer>

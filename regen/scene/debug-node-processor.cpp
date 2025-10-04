@@ -1,7 +1,7 @@
 #include "debug-node-processor.h"
 
-#include "regen/animations/world-model-debug.h"
-#include "regen/physics/bullet-debug-drawer.h"
+#include "../behavior/world/world-model-debug.h"
+#include "../simulation/bullet-debug-drawer.h"
 #include "regen/shapes/spatial-index-debug.h"
 
 using namespace regen::scene;

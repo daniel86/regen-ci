@@ -81,7 +81,7 @@ namespace regen {
 		 * @param partIdx the index of the mesh part
 		 * @return the indirect draw buffer for the mesh part
 		 */
-		ref_ptr<SSBO> indirectDrawBuffer(uint32_t partIdx) const { return indirectDrawBuffers_[partIdx]; }
+		ref_ptr<SSBO> getIndirectDrawBuffer(const ref_ptr<Mesh> &mesh) const;
 
 		// override
 		void enable(RenderState *rs) override;

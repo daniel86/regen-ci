@@ -17,7 +17,7 @@
 
 #define REGEN_MESH_NODE_CATEGORY "mesh"
 
-#include <regen/meshes/mesh-state.h>
+#include <regen/objects/mesh-state.h>
 
 namespace regen {
 	namespace scene {

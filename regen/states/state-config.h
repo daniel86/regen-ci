@@ -5,7 +5,7 @@
 #include <string>
 
 #include <regen/textures/texture.h>
-#include "regen/glsl/shader-input.h"
+#include "regen/shader/shader-input.h"
 
 namespace regen {
 	/**

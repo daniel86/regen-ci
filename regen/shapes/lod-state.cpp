@@ -1,6 +1,6 @@
 #include <regen/states/state-node.h>
 #include "lod-state.h"
-#include "regen/meshes/mesh-vector.h"
+#include "regen/objects/mesh-vector.h"
 #include "regen/gl-types/gl-param.h"
 #include "regen/utility/conversion.h"
 #include "regen/camera/light-camera.h"
@@ -290,6 +290,10 @@ void LODState::resetVisibility() {
 				indirectDrawBuffers_[partIdx]->inputSize());
 		}
 	}
+}
+
+ref_ptr<SSBO> LODState::getIndirectDrawBuffer(const ref_ptr<Mesh> &mesh) const {
+	return cullShape_->getIndirectDrawBuffer(mesh);
 }
 
 void LODState::enable(RenderState *rs) {

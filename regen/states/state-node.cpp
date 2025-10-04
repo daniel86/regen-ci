@@ -1,5 +1,5 @@
 #include <stack>
-#include <regen/animations/animation-manager.h>
+#include <regen/animation/animation-manager.h>
 
 #include "state-node.h"
 #include "regen/textures/fbo-state.h"

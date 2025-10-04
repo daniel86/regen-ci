@@ -18,6 +18,8 @@
     <constant name="village-center-b" value="{{village-center-b-x}},{{village-center-b-z}}"/>
     <constant name="market-x" value="8.0"/>
     <constant name="market-z" value="-240.0"/>
+    <constant name="market-training-x" value="-25.0"/>
+    <constant name="market-training-z" value="55.0"/>
     <constant name="statue-a-x" value="-20.75"/>
     <constant name="statue-a-z" value="0.99"/>
     <constant name="statue-b-x" value="-30.63"/>
@@ -38,19 +40,18 @@
         -->
         <world id="dwarf-rocks" height-map="ground-height">
             <place id="village-a" type="home" point="{{village-center-a}}" radius="40.0">
-                <object id="fireplace" point="0.0,0.0" radius="20.0">
-                    <affordance type="converse" min-distance="3.0"/>
-                    <affordance type="observe" target="fireplace" min-distance="3.0"/>
+                <object id="fireplace" point="0.0,0.0" radius="17.5">
+                    <affordance type="converse" num-slots="6" radius="7.5" min-distance="3.0"/>
+                    <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
                 </object>
                 <object id="meeting-point" point="35.0,45.0" radius="10.0">
-                    <affordance type="converse" min-distance="0.5"/>
+                    <affordance type="converse" num-slots="6" min-distance="0.5"/>
                 </object>
                 <object id="bench" point="25.0,25.0" radius="5.0">
-                    <affordance type="sit" min-distance="0.0"/>
-                    <affordance type="observe" target="fireplace" min-distance="1.0"/>
+                    <affordance type="sit" num-slots="2" layout="grid" min-distance="0.0"/>
                 </object>
                 <object id="crates" point="16.8,45.0" radius="5.0">
-                    <affordance type="observe" target="crates" min-distance="1.0"/>
+                    <affordance type="observe" num-slots="4" target="crates" min-distance="1.0"/>
                 </object>
                 <path type="stroll" radius="5.0">
                     <point value="28.0,0.0"/>
@@ -78,19 +79,18 @@
                 </path>
             </place>
             <place id="village-b" type="home" point="{{village-center-b}}" radius="40.0">
-                <object id="fireplace" point="0.0,0.0" radius="20.0">
-                    <affordance type="converse" min-distance="3.0"/>
-                    <affordance type="observe" target="fireplace" min-distance="3.0"/>
+                <object id="fireplace" point="0.0,0.0" radius="15.0">
+                    <affordance type="converse" num-slots="6" radius="7.5" min-distance="3.0"/>
+                    <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
                 </object>
                 <object id="meeting-point" point="35.0,45.0" radius="10.0">
-                    <affordance type="converse" min-distance="0.5"/>
+                    <affordance type="converse" num-slots="6" min-distance="0.5"/>
                 </object>
                 <object id="bench" point="-25.0,-25.0" radius="5.0">
-                    <affordance type="sit" min-distance="0.0"/>
-                    <affordance type="observe" target="fireplace" min-distance="1.0"/>
+                    <affordance type="sit" num-slots="2" slot-layout="grid" min-distance="0.0"/>
                 </object>
                 <object id="crates" point="35.0,-35.0" radius="5.0">
-                    <affordance type="observe" target="crates" min-distance="1.0"/>
+                    <affordance type="observe" num-slots="4" min-distance="1.0"/>
                 </object>
                 <path type="stroll" radius="5.0">
                     <point value="28.0,0.0"/>
@@ -113,14 +113,14 @@
             </place>
             <place id="shrine" type="spiritual" point="{{shrine-center}}" radius="120.0">
                 <object id="altar" point="0.0,0.0" radius="50.0">
-                    <affordance type="pray" min-distance="10.0"/>
-                    <affordance type="observe" target="altar" min-distance="25.0"/>
+                    <affordance type="pray" num-slots="20" slot-layout="concentric" spacing="6.0" min-distance="10.0"/>
+                    <affordance type="observe" num-slots="32" slot-layout="concentric" spacing="6.0" min-distance="25.0"/>
                 </object>
-                <object id="meeting-point" point="35.0,45.0" radius="20.0">
-                    <affordance type="converse" min-distance="0.5"/>
+                <object id="meeting-point" point="90.0,25.0" radius="15.0">
+                    <affordance type="converse" num-slots="16" min-distance="0.5"/>
                 </object>
-                <object id="meeting-point" point="-35.0,45.0" radius="20.0">
-                    <affordance type="converse" min-distance="0.5"/>
+                <object id="meeting-point" point="-90.0,25.0" radius="15.0">
+                    <affordance type="converse" num-slots="16" min-distance="0.5"/>
                 </object>
                 <path type="stroll" radius="5.0">
                     <point value="60.0,0.0"/>
@@ -144,24 +144,31 @@
                 </path>
             </place>
             <place id="market" type="gathering" point="{{market-x}},{{market-z}}" radius="40.0">
-                <object id="well" point="0.0,0.0" radius="20.0">
-                    <affordance type="converse" min-distance="4.0"/>
-                    <affordance type="observe" target="well" min-distance="4.0"/>
+                <object id="well" point="0.0,0.0" radius="20.0" shape="well-shape">
+                    <affordance type="converse" num-slots="8" radius="10.0" min-distance="4.0"/>
+                    <affordance type="observe" num-slots="14" radius="20.0" min-distance="4.0"/>
                 </object>
-                <object id="meeting-point1" point="35.0,-45.0" radius="10.0">
-                    <affordance type="converse" min-distance="0.5"/>
+                <object id="meeting-point1" point="45.0,-30.0" radius="10.0">
+                    <affordance type="converse" num-slots="8" radius="10.0" min-distance="0.5"/>
                 </object>
+                <object id="training-spectators" point="{{market-training-x}},{{market-training-z}}" radius="25.0">
+                    <affordance type="observe" num-slots="24" radius="25.0" min-distance="20.0"/>
+                </object>
+                <object id="training-manikin" mesh="manikin" mesh-index="0" radius="1.0">
+                    <affordance type="attack"
+                        num-slots="1" slot-layout="circular" spacing="2.0"
+                        radius="1.0" min-distance="0.0"
+                        base-offset="0.0,0.5,2.0"/>
+                </object>
+                <!--
                 <object id="meeting-point2" point="-35.0,40.0" radius="10.0">
-                    <affordance type="converse" min-distance="0.5"/>
+                    <affordance type="converse" num-slots="8" radius="10.0" min-distance="0.5"/>
                 </object>
-                <object id="shop-tent0" point="0.0,-45.0" radius="10.0">
-                    <affordance type="observe" target="shop-tent0" min-distance="0.0"/>
-                </object>
-                <object id="shop-tent1" point="20.0,-40.0" radius="10.0">
-                    <affordance type="observe" target="shop-tent1" min-distance="0.0"/>
-                </object>
-                <object id="shop-tent2" point="-20.0,-40.0" radius="10.0">
-                    <affordance type="observe" target="shop-tent2" min-distance="0.0"/>
+                -->
+                <object id="trade-tent" mesh="trade-tent" mesh-index="0" radius="10.0">
+                    <affordance type="observe" num-slots="6" slot-layout="grid"
+                        spacing="4.0" min-distance="0.0"
+                        base-offset="0.0,0.0,10.0"/>
                 </object>
                 <path type="stroll" radius="5.0">
                     <point value="35.0,0.0"/>
@@ -197,16 +204,20 @@
             <object id="wp12" type="waypoint" point="-227.0,-1.48" radius="5.0"/>
             <object id="wp13" type="waypoint" point="70.65,425.89" radius="5.0"/>
             <object id="wp14" type="waypoint" point="477.0,228.26" radius="5.0"/>
+            <!--
+            <path from="wp6" to="village-a"/>
             <path from="wp0" to="village-b"/>
+            <path from="wp3" to="market"/>
+            <path from="wp4" to="market"/>
+            <path from="wp13" to="shrine"/>
+            <path from="wp14" to="shrine"/>
+            -->
             <path from="wp0" to="wp1"/>
             <path from="wp1" to="wp2"/>
             <path from="wp2" to="wp3"/>
-            <path from="wp3" to="market"/>
             <path from="wp3" to="wp4"/>
-            <path from="wp4" to="market"/>
             <path from="wp4" to="wp5"/>
             <path from="wp5" to="wp6"/>
-            <path from="wp6" to="village-a"/>
             <path from="wp5" to="wp7"/>
             <path from="wp7" to="wp8"/>
             <path from="wp8" to="wp9"/>
@@ -216,18 +227,28 @@
             <path from="wp12" to="wp1"/>
             <path from="wp10" to="wp13"/>
             <path from="wp9" to="wp14"/>
-            <path from="wp13" to="shrine"/>
-            <path from="wp14" to="shrine"/>
         </world>
         <animation id="dwarf-asset-instanced" type="asset" idle="idle1">
-            <controller id="dwarf-controller" type="npc" tf="dwarf-tf"
+            <controller id="dwarf-controller" type="npc"
+                        mesh="dwarf" mesh-index="1"
+                        weapon-mesh="dwarf" weapon-mesh-index="0"
+                        tf="dwarf-tf"
                         indexed-shape="dwarf-shape"
                         spatial-index="main-index"
                         footstep-mesh="dwarf-foot"
-                        collision-bit="{{collision-bit}}"
                         height-map="ground-height"
+                        base-time-activity="60.0"
+                        base-time-place="300.0"
                         base-orientation="4.7124"
-                        run-speed="6.0" walk-speed="5.0">
+                        collision-bit="{{collision-bit}}"
+                        run-speed="6.0" walk-speed="5.0"
+                        max-turn-angle="90.0"
+                        avoidance-weight="0.4"
+                        push-through-distance="2.0"
+                        look-ahead-threshold="8.0"
+                        wall-tangent-weight="0.25"
+                        personal-space="2.5"
+                        velocity-orientation-weight="0.75">
             </controller>
         </animation>
         <camera id="main-camera"
@@ -450,7 +471,11 @@
            file="res/models/campfire/campfire.obj"
            texture-path="res/models/campfire"
            use-animation="0"/>
-    <asset id="asset-rack" type="asset" file="res/models/weapon-rack.obj" gen-normals="1"/>
+    <asset id="asset-manikin" type="asset"
+           file="res/models/manikin/manikin.obj"
+           gen-normals="1" />
+    <asset id="asset-rack" type="asset" file="res/models/weapon-rack.obj"
+           gen-normals="1"/>
     <asset id="asset-stool" type="asset" file="res/models/stool.obj"
            gen-normals="1" gen-uv="1" gen-tangents="1"/>
     <asset id="asset-statue" type="asset"
@@ -819,9 +844,14 @@
         </input>
         <!-- Use s sphere shape for culling -->
         <shape id="dwarf-shape" index="1" cull="1" type="sphere"
-               mesh-id="dwarf" mesh-index="0" transform-id="dwarf-tf">
-            <has-part mesh-id="dwarf" mesh-index="1"/>
+               mesh-id="dwarf" mesh-index="1" transform-id="dwarf-tf">
             <traversal-bit value="{{collision-bit}}"/>
+        </shape>
+        <shape id="weapon-shape" index="1" cull="1" type="obb"
+               mesh-id="dwarf" mesh-index="0" transform-id="dwarf-tf">
+            <!-- FIXME: Shape does not move with bones, and is wrong then.
+                But we need to use separate shape for hiding/drawing weapon.
+            -->
         </shape>
     </mesh>
 
@@ -1196,6 +1226,32 @@
         </shape>
     </mesh>
 
+    <mesh id="manikin" type="asset" asset="asset-manikin"
+          asset-indices="*" asset-animation="0"
+          scaling="1.5,1.5,1.5"
+          rotation="0.0,0.0,0.0"
+          translation="0.0,0.0,0.0"
+          update-frequency="NEVER"
+          num-instances="6">
+        <shader key="regen.models.mesh"/>
+        <transform id="manikin-tf" update-frequency="NEVER" is-instanced="1">
+            <translate value="-12.0, 0.0, -8.0"/>
+            <set mode="row" target="translate"
+                 x-step="12.0,0.0,0.0" z-step="0.0,0.0,16.0"
+                 x-count="3" />
+            <rotate value="4.71, 0.0, 0.0"/>
+
+            <translate value="{{market-training-x}}, 0.0, {{market-training-z}}"/>
+            <translate value="{{market-x}}, 0.0, {{market-z}}"/>
+            <height map="ground-height"/>
+            <translate value="0.0, -0.2, 0.0"/>
+        </transform>
+        <shape id="manikin-shape" index="1" cull="1" type="aabb"
+               mesh-id="manikin" transform-id="manikin-tf">
+            <traversal-bit value="{{collision-bit}}"/>
+        </shape>
+    </mesh>
+
     <mesh id="barrel" type="asset" asset="asset-barrel"
           asset-indices="*" asset-animation="0"
           scaling="0.05,0.05,0.05"
@@ -1314,6 +1370,9 @@
         <node id="Rack">
             <mesh id="rack" mesh-index="0"/>
         </node>
+        <node id="Manikin">
+            <mesh id="manikin" mesh-index="0"/>
+        </node>
         <node id="Statue">
             <texture name="snowTexture" id="snow" map-to="DIFFUSE"
                      mapping="TRIPLANAR" texco-scale="0.1" blend-factor="0.8"
@@ -1341,6 +1400,9 @@
         </node>
         <node id="Dwarf">
             <mesh id="dwarf" mesh-index="1" update-visibility="1"/>
+        </node>
+        <node id="Dwarf-Weapon">
+            <mesh id="dwarf" mesh-index="0" update-visibility="1"/>
         </node>
         <!--
         <node id="Market-Place">
@@ -1636,30 +1698,24 @@
         <node id="spatial-index-debug">
             <depth test="1" write="0" function="LEQUAL"/>
             <polygon offset-fill="1.1,4.0"/>
+            <view id="Main Index">
+                <node id="Main Index Debug">
+                    <debugger type="spatial-index" resource="main-index"/>
+                    <fbo id="g-buffer" draw-buffers="1"/>
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </node>
+            </view>
             <view id="Clutter Index">
-                <node id="Clutter Draw">
+                <node id="Clutter Index Debug">
                     <debugger type="spatial-index" resource="clutter-index"/>
                     <fbo id="g-buffer" draw-buffers="1"/>
-                </node>
-                <node id="Clutter Blit">
                     <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
                 </node>
             </view>
             <view id="Terrain Index">
-                <node id="Terrain Draw">
+                <node id="Terrain Index Debug">
                     <debugger type="spatial-index" resource="terrain-index"/>
                     <fbo id="g-buffer" draw-buffers="1"/>
-                </node>
-                <node id="Terrain Blit">
-                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
-                </node>
-            </view>
-            <view id="Main Index">
-                <node id="Main Draw">
-                    <debugger type="spatial-index" resource="main-index"/>
-                    <fbo id="g-buffer" draw-buffers="1"/>
-                </node>
-                <node>
                     <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
                 </node>
             </view>

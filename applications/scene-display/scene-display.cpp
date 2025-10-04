@@ -13,7 +13,7 @@
 #include <QtCore/QString>
 
 #include <regen/utility/filesystem.h>
-#include "regen/text/font.h"
+#include "regen/objects/text/font.h"
 
 #define CONFIG_FILE_NAME ".regen-scene-display.cfg"
 

@@ -9,7 +9,7 @@ extern "C" {
 }
 
 #include "regen/textures/fbo.h"
-#include <regen/animations/animation.h>
+#include <regen/animation/animation.h>
 #include "video-encoder.h"
 #include "regen/buffer/pbo.h"
 

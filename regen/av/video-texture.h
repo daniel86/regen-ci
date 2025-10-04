@@ -7,7 +7,7 @@
 #include <regen/textures/texture.h>
 #include <regen/gl-types/render-state.h>
 #include <regen/av/demuxer.h>
-#include <regen/animations/animation.h>
+#include <regen/animation/animation.h>
 
 namespace regen {
 	/**

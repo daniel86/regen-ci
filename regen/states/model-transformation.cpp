@@ -1,9 +1,9 @@
 #include <stack>
 #include "model-transformation.h"
-#include "regen/meshes/mesh-vector.h"
-#include "regen/animations/boids-cpu.h"
-#include "regen/animations/boids-gpu.h"
-#include "regen/animations/transform-animation.h"
+#include "regen/objects/mesh-vector.h"
+#include "../simulation/boids-cpu.h"
+#include "../simulation/boids-gpu.h"
+#include "regen/animation/transform-animation.h"
 #include "regen/scene/value-generator.h"
 #include "regen/textures/height-map.h"
 
@@ -588,6 +588,7 @@ static void transformAnimation(
 		}
 
 		transformAnimation->setAnimationName(child->getName());
+		transformAnimation->setLoopTransformAnimation(child->getValue<bool>("loop", true));
 		transformAnimation->startAnimation();
 		state->attach(transformAnimation);
 	}

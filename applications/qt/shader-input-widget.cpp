@@ -4,14 +4,14 @@
 #include <regen/utility/string-util.h>
 #include <regen/utility/logging.h>
 #include "regen/textures/fbo-state.h"
-#include "regen/glsl/shader-state.h"
+#include "regen/shader/shader-state.h"
 #include <regen/states/light-pass.h>
 #include <stack>
 #include <QPropertyAnimation>
 
 #include "shader-input-widget.h"
-#include "regen/animations/animation-manager.h"
-#include "regen/sky/sky.h"
+#include "regen/animation/animation-manager.h"
+#include "regen/objects/sky/sky.h"
 #include "VectorWidget.h"
 #include "ColorWidget.h"
 #include "TextureWidget.h"
