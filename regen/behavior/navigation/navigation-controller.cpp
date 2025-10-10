@@ -1,5 +1,5 @@
 #include <random>
-#include "motion-controller.h"
+#include "navigation-controller.h"
 #include "regen/shapes/obb.h"
 
 #define USE_HEIGHT_SMOOTHING
@@ -8,7 +8,7 @@
 
 using namespace regen;
 
-MotionController::MotionController(
+NavigationController::NavigationController(
 	const ref_ptr<Mesh> &mesh,
 	const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
 	const ref_ptr<WorldModel> &world)
@@ -26,7 +26,7 @@ MotionController::MotionController(
 	collisionShape_->updateTransform(true);
 }
 
-void MotionController::setSpatialIndex(const ref_ptr<SpatialIndex> &spatialIndex, std::string_view shapeName) {
+void NavigationController::setSpatialIndex(const ref_ptr<SpatialIndex> &spatialIndex, std::string_view shapeName) {
 	spatialIndex_ = spatialIndex;
 	indexedShape_ = spatialIndex_->getShape(shapeName, tfIdx_);
 	if (!indexedShape_.get()) {
@@ -35,12 +35,12 @@ void MotionController::setSpatialIndex(const ref_ptr<SpatialIndex> &spatialIndex
 	spatialIndex_->addDebugShape(collisionShape_);
 }
 
-void MotionController::setHeightMap(const ref_ptr<HeightMap> &heightMap) {
+void NavigationController::setHeightMap(const ref_ptr<HeightMap> &heightMap) {
 	heightMap_ = heightMap;
 	heightMap_->ensureTextureData();
 }
 
-float MotionController::getHeight(const Vec2f &pos) {
+float NavigationController::getHeight(const Vec2f &pos) {
 	if (heightMap_.get()) {
 		return heightMap_->sampleHeight(pos) - 0.25f; // offset a bit to avoid floating
 	} else {
@@ -55,7 +55,7 @@ static inline float wrapPi(float a) {
 	return a;
 }
 
-void MotionController::updatePathCurve(const Vec2f &source, const Vec2f &target) {
+void NavigationController::updatePathCurve(const Vec2f &source, const Vec2f &target) {
 	// Direction from source to target
 	Vec2f dir = target - source;
 	float len = dir.length();
@@ -85,7 +85,7 @@ void MotionController::updatePathCurve(const Vec2f &source, const Vec2f &target)
 	updatePathCurve(source, target, Vec3f(angle, 0.0f, 0.0f));
 }
 
-void MotionController::updateTransformFrame(const Vec2f &target, const Vec3f &desiredDir) {
+void NavigationController::updateTransformFrame(const Vec2f &target, const Vec3f &desiredDir) {
 	float bezierLength = bezierLUT_.totalLength;
 	// compute dt based on distance and speed
 	float dt = bezierLength / (isWalking_ ? walkSpeed_ : runSpeed_);
@@ -98,7 +98,7 @@ void MotionController::updateTransformFrame(const Vec2f &target, const Vec3f &de
 	if (!isRunning()) { startAnimation(); }
 }
 
-void MotionController::updatePathCurve(
+void NavigationController::updatePathCurve(
 		const Vec2f &source,
 		const Vec2f &target,
 		const Vec3f &desiredDir) {
@@ -122,7 +122,7 @@ void MotionController::updatePathCurve(
 	updateTransformFrame(target, desiredDir);
 }
 
-void MotionController::handleCharacterCollision(const BoundingShape &other, NPCNeighborData *data) {
+void NavigationController::handleCharacterCollision(const BoundingShape &other, NPCNeighborData *data) {
 	const Vec3f &thisCenter3D = indexedShape_->tfOrigin();
 	const Vec3f &otherCenter3D = other.tfOrigin();
 
@@ -141,7 +141,7 @@ void MotionController::handleCharacterCollision(const BoundingShape &other, NPCN
 	}
 }
 
-void MotionController::handleWallCollision(const BoundingShape &other, NPCNeighborData *data) {
+void NavigationController::handleWallCollision(const BoundingShape &other, NPCNeighborData *data) {
 	const Vec3f &thisCenter3D = indexedShape_->tfOrigin();
 	const Vec3f &otherCenter3D = other.tfOrigin();
 
@@ -184,12 +184,12 @@ void MotionController::handleWallCollision(const BoundingShape &other, NPCNeighb
 	data->neighborCount++;
 }
 
-void MotionController::handleNeighbourStatic(const BoundingShape &other, void *userData) {
+void NavigationController::handleNeighbourStatic(const BoundingShape &other, void *userData) {
 	NPCNeighborData *data = static_cast<NPCNeighborData *>(userData);
 	data->npc->handleNeighbour(other, data);
 }
 
-void MotionController::handleNeighbour(const BoundingShape &other, void *userData) {
+void NavigationController::handleNeighbour(const BoundingShape &other, void *userData) {
 	if (indexedShape_.get() == &other) return; // skip self
 	if (patientShape_.get() == &other) return; // skip patient
 	NPCNeighborData *data = static_cast<NPCNeighborData *>(userData);
@@ -204,12 +204,9 @@ void MotionController::handleNeighbour(const BoundingShape &other, void *userDat
 	}
 }
 
-Vec3f MotionController::computeNeighborAvoidance() {
-	Vec2f pos2D(currentPos_.x, currentPos_.z);
-	float distanceToGoal = (patientPos_ - pos2D).length();
-
+Vec3f NavigationController::computeNeighborAvoidance() {
 #ifdef USE_PUSH_THROUGH_OBSTACLES
-	if (distanceToGoal < pushThroughDistance_) {
+	if (distanceToTarget_ < pushThroughDistance_) {
 		// close to goal, no avoidance just push through.
 		return Vec3f::zero();
 	}
@@ -224,7 +221,7 @@ Vec3f MotionController::computeNeighborAvoidance() {
 	// This allows to better approach the goal without being pushed away by
 	// things that are located at the goal.
 	data.lookAhead = std::max(personalSpace_, lookAheadDistance_ *
-		std::clamp(distanceToGoal / lookAheadThreshold_, 0.0f, 1.0f));
+		std::clamp(distanceToTarget_ / lookAheadThreshold_, 0.0f, 1.0f));
 #endif
 
 	collisionShape_->updateTransform(false);
@@ -242,7 +239,7 @@ Vec3f MotionController::computeNeighborAvoidance() {
 	return data.avoidance;
 }
 
-void MotionController::updateControllerVelocity(double bezierTime) {
+void NavigationController::updateControllerVelocity(double bezierTime) {
 	const float desiredSpeed = (isWalking_ ? walkSpeed_ : runSpeed_);
 
 	auto bezierSample = bezierPath_.sample(bezierTime);
@@ -298,7 +295,7 @@ void MotionController::updateControllerVelocity(double bezierTime) {
 #endif
 }
 
-void MotionController::updateControllerOrientation(double bezierTime) {
+void NavigationController::updateControllerOrientation(double bezierTime) {
 	const float desiredSpeed = (isWalking_ ? walkSpeed_ : runSpeed_);
 	// compute path tangent (as 3D: x,z -> x,z)
 	Vec2f bezierTan2 = bezierPath_.tangent(bezierTime);
@@ -364,7 +361,7 @@ void MotionController::updateControllerOrientation(double bezierTime) {
 	currentDir_.x = prevYaw + deltaYaw - baseOrientation_;
 }
 
-void MotionController::updatePose(const TransformKeyFrame &currentFrame, double frameTime) {
+void NavigationController::updatePose(const TransformKeyFrame &currentFrame, double frameTime) {
 	float bezierTime = math::Bezier<Vec2f>::lookupParameter(bezierLUT_, frameTime);
 	if (currentFrame.pos.has_value()) {
 		updateControllerVelocity(bezierTime);

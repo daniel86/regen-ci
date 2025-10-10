@@ -12,7 +12,8 @@
 #include <regen/scene/resource-manager.h>
 #include <regen/scene/scene-input-xml.h>
 
-#include "../../regen/behavior/npc-controller.h"
+#include "../../regen/behavior/person-controller.h"
+#include "regen/behavior/behavior-tree.h"
 #include "regen/objects/terrain/blanket-trail.h"
 #include "regen/textures/height-map.h"
 
@@ -772,8 +773,7 @@ static ref_ptr<WorldModel> loadWorldModel(
 	for (const auto &x: worldNode->getChildren("place")) {
 		// Add place of interest to the controller.
 		// Here we distinguish between "HOME", "SPIRITUAL" and "GATHERING" places.
-		auto placeType = x->getValue<PlaceType>(
-			"type", PlaceType::PLACE_HOME);
+		auto placeType = x->getValue<PlaceType>("type", PlaceType::HOME);
 		auto placePos = x->getValue<Vec2f>("point", Vec2f(0.0f));
 		auto placeRadius = x->getValue<float>("radius", 1.0f);
 		auto placeHeight = getHeight(placePos, heightMap);
@@ -825,11 +825,7 @@ static ref_ptr<WorldModel> loadWorldModel(
 				for (const auto &a: s->getChildren("affordance")) {
 					ref_ptr<Affordance> affordance = ref_ptr<Affordance>::alloc(obj);
 
-					affordance->type = a->getValue<AffordanceType>("type", AffordanceType::NONE);
-					if (affordance->type == AffordanceType::NONE) {
-						REGEN_WARN("Invalid affordance type in NPC controller.");
-						continue;
-					}
+					affordance->type = a->getValue<ActionType>("type", ActionType::IDLE);
 					affordance->minDistance = a->getValue<float>("min-distance", 0.0f);
 					affordance->slotCount = a->getValue<int>("num-slots", 1);
 					affordance->spacing = a->getValue<float>("spacing", 2.0f);
@@ -859,7 +855,7 @@ static ref_ptr<WorldModel> loadWorldModel(
 				pathPoints.push_back(point);
 				worldModel->addWorldObject(point);
 			}
-			auto pathType = s->getValue<PathWayType>("type", PathWayType::STROLL);
+			auto pathType = s->getValue<PathwayType>("type", PathwayType::STROLL);
 			place->addPathWay(pathType, pathPoints);
 		}
 		worldModel->addWorldObject(place);
@@ -915,7 +911,7 @@ static void handleAssetController(
 	auto controllerType = animationNode->getValue("type");
 	auto tf = sceneParser.getResources()->getTransform(
 		&sceneParser, animationNode->getValue("tf"));
-	std::vector<ref_ptr<AnimationController> > controller;
+	std::vector<ref_ptr<NonPlayerCharacterController> > controller;
 	ref_ptr<SpatialIndex> spatialIndex;
 	if (animationNode->hasAttribute("spatial-index")) {
 		spatialIndex = sceneParser.getResources()->getIndex(
@@ -997,7 +993,7 @@ static void handleAssetController(
 		}
 
 		animalController->startAnimation();
-	} else if (controllerType == "npc") {
+	} else if (controllerType == "person") {
 		controller.reserve(tf->numInstances());
 
 		// load mesh for footsteps, if any
@@ -1016,42 +1012,42 @@ static void handleAssetController(
 
 		for (int32_t tfIdx = 0; tfIdx < tf->numInstances(); tfIdx++) {
 			Indexed<ref_ptr<ModelTransformation>> indexedTF(tf, tfIdx);
-			auto npcController = ref_ptr<NPCController>::alloc(
+			auto personController = ref_ptr<PersonController>::alloc(
 				mesh, indexedTF, nodeAnimItem, worldModel);
-			npcController->setMesh(mesh);
-			controller.push_back(npcController);
+			personController->setMesh(mesh);
+			controller.push_back(personController);
 			if (spatialIndex.get()) {
-				npcController->setSpatialIndex(spatialIndex, indexedShapeName);
+				personController->setSpatialIndex(spatialIndex, indexedShapeName);
 			}
 			if (footstepTrail.get()) {
 				float leftFootTime = animationNode->getValue<float>("left-foot-time", 0.2f);
 				float rightFootTime = animationNode->getValue<float>("right-foot-time", 0.8f);
-				npcController->setFootstepTrail(footstepTrail, leftFootTime, rightFootTime);
+				personController->setFootstepTrail(footstepTrail, leftFootTime, rightFootTime);
 			}
-			npcController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
-			npcController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
-			npcController->setMaxTurnDegPerSecond(
+			personController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
+			personController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
+			personController->setMaxTurnDegPerSecond(
 				animationNode->getValue<float>("max-turn-angle", 90.0f));
-			npcController->setPersonalSpace(
+			personController->setPersonalSpace(
 				animationNode->getValue<float>("personal-space", 4.5f));
-			npcController->setAvoidanceWeight(
+			personController->setAvoidanceWeight(
 				animationNode->getValue<float>("avoidance-weight", 0.5f));
-			npcController->setPushThroughDistance(
+			personController->setPushThroughDistance(
 				animationNode->getValue<float>("push-through-distance", 0.5f));
-			npcController->setLookAheadThreshold(
+			personController->setLookAheadThreshold(
 				animationNode->getValue<float>("look-ahead-threshold", 6.0f));
-			npcController->setWallTangentWeight(
+			personController->setWallTangentWeight(
 				animationNode->getValue<float>("wall-tangent-weight", 0.5f));
-			npcController->setVelOrientationWeight(
+			personController->setVelOrientationWeight(
 				animationNode->getValue<float>("velocity-orientation-weight", 0.5f));
-			npcController->setFloorHeight(animationNode->getValue<float>("floor-height", 0.0f));
-			npcController->setCollisionBit(animationNode->getValue<uint32_t>("collision-bit", 0));
+			personController->setFloorHeight(animationNode->getValue<float>("floor-height", 0.0f));
+			personController->setCollisionBit(animationNode->getValue<uint32_t>("collision-bit", 0));
 			if (animationNode->hasAttribute("base-orientation")) {
-				npcController->setBaseOrientation(
+				personController->setBaseOrientation(
 					animationNode->getValue<GLfloat>("base-orientation", 0.0f));
 			}
 
-			auto &kb = npcController->knowledgeBase();
+			auto &kb = personController->knowledgeBase();
 			kb.setWorldTime(&sceneParser.application()->worldTime());
 			// Set base time for actions/staying at a place
 			kb.setBaseTimeActivity(
@@ -1085,7 +1081,7 @@ static void handleAssetController(
 				}
 				auto weaponMesh = (*weaponMeshVec.get())[weaponMeshIdx];
 				if (weaponMesh.get()) {
-					npcController->setWeaponMesh(weaponMesh);
+					personController->setWeaponMesh(weaponMesh);
 				} else {
 					REGEN_WARN("Unable to find weapon mesh in '" << animationNode->getDescription() << "'.");
 				}
@@ -1103,11 +1099,27 @@ static void handleAssetController(
 					if (!heightMap) {
 						REGEN_WARN("Height map texture is not a height map in '" << animationNode->getDescription() << "'.");
 					} else {
-						npcController->setHeightMap(heightMap);
+						personController->setHeightMap(heightMap);
 					}
 				}
 			}
-			npcController->initializeController();
+
+			// Load a behavior tree.
+			// NOTE: XML scene may define different behavior trees for different instances.
+			LoadingContext ctx(&sceneParser, {});
+			for (const auto &btNodeXML: animationNode->getChildren("behavior-tree")) {
+				list<IndexRange> indices = btNodeXML->getIndexSequence(tf->numInstances());
+				for (auto &range : indices) {
+					if (range.isWithinRange(tfIdx) && !btNodeXML->getChildren().empty()) {
+						auto btRootXML = btNodeXML->getChildren().front();
+						auto btRoot = BehaviorTree::load(ctx, *btRootXML.get());
+						personController->setBehaviorTree(std::move(btRoot));
+						break;
+					}
+				}
+			}
+
+			personController->initializeController();
 		}
 	} else {
 		REGEN_WARN("Unhandled controller type in '" << animationNode->getDescription() << "'.");

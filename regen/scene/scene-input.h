@@ -50,6 +50,11 @@ namespace regen::scene {
 			: from(singleIndex), to(singleIndex), step(1) {}
 		IndexRange(uint32_t from, uint32_t to, uint32_t step = 1)
 			: from(from), to(to), step(step) {}
+		bool isWithinRange(uint32_t index) const {
+			if (index < from || index > to) return false;
+			if (((index - from) % step) != 0) return false;
+			return true;
+		}
 	};
 
 	/**

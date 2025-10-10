@@ -3,7 +3,7 @@
 
 #include <regen/math/vector.h>
 #include <regen/textures/texture.h>
-#include <regen/behavior/animation-controller.h>
+#include <regen/behavior/npc-controller.h>
 #include "../animation/animation-node.h"
 #include "regen/shapes/bounds.h"
 #include "regen/states/model-transformation.h"
@@ -13,7 +13,7 @@ namespace regen {
 	/**
 	 * A controller for animal animations.
 	 */
-	class AnimalController : public AnimationController {
+	class AnimalController : public NonPlayerCharacterController {
 	public:
 		/**
 		 * The behavior of the animal.

@@ -8,7 +8,7 @@ install(
     DESTINATION ${HEADER_INSTALL_PATH}/behavior
 )
 
-foreach(DIR perception world motion)
+foreach(DIR perception world navigation skeleton)
     add_subdirectory(${DIR})
     get_directory_property(BUFFER DIRECTORY ${DIR} DEFINITION SOURCES)
     list(APPEND SOURCES ${BUFFER})

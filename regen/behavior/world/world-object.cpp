@@ -169,59 +169,22 @@ void WorldObject::addAffordance(const ref_ptr<Affordance> &affordance) {
 	affordances_.push_back(affordance);
 }
 
-bool WorldObject::hasAffordance(AffordanceType affordanceType) const {
+bool WorldObject::hasAffordance(ActionType actionType) const {
 	for (const auto &aff: affordances_) {
-		if (aff->type == affordanceType) {
+		if (aff->type == actionType) {
 			return true;
 		}
 	}
 	return false;
 }
 
-ref_ptr<Affordance> WorldObject::getAffordance(AffordanceType affordanceType) const {
+ref_ptr<Affordance> WorldObject::getAffordance(ActionType actionType) const {
 	for (const auto &aff: affordances_) {
-		if (aff->type == affordanceType) {
+		if (aff->type == actionType) {
 			return aff;
 		}
 	}
 	return {};
-}
-
-std::ostream &regen::operator<<(std::ostream &out, const AffordanceType &v) {
-	switch (v) {
-		case AffordanceType::NONE:
-			return out << "NONE";
-		case AffordanceType::SIT:
-			return out << "SIT";
-		case AffordanceType::SLEEP:
-			return out << "SLEEP";
-		case AffordanceType::PRAY:
-			return out << "PRAY";
-		case AffordanceType::CONVERSE:
-			return out << "CONVERSE";
-		case AffordanceType::OBSERVE:
-			return out << "OBSERVE";
-		case AffordanceType::ATTACK:
-			return out << "ATTACK";
-	}
-	return out;
-}
-
-std::istream &regen::operator>>(std::istream &in, AffordanceType &v) {
-	std::string val;
-	in >> val;
-	boost::to_upper(val);
-	if (val == "SIT") v = AffordanceType::SIT;
-	else if (val == "SLEEP") v = AffordanceType::SLEEP;
-	else if (val == "PRAY") v = AffordanceType::PRAY;
-	else if (val == "CONVERSE" || val == "TALK") v = AffordanceType::CONVERSE;
-	else if (val == "OBSERVE" || val == "WATCH") v = AffordanceType::OBSERVE;
-	else if (val == "ATTACK" || val == "FIGHT") v = AffordanceType::ATTACK;
-	else {
-		REGEN_WARN("Unknown affordance type '" << val << "'. Using NONE.");
-		v = AffordanceType::NONE;
-	}
-	return in;
 }
 
 std::ostream &regen::operator<<(std::ostream &out, const SlotLayout &v) {

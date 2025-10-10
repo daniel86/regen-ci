@@ -11,6 +11,8 @@ namespace regen {
 		WALK,
 		// no movement, just standing around
 		IDLE,
+		// sitting, e.g. on a chair or on the ground
+		SIT,
 		YES,
 		NO,
 		// attacking, e.g. with a weapon

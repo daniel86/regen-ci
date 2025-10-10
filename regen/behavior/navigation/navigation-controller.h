@@ -1,5 +1,5 @@
-#ifndef REGEN_MOTION_CONTROLLER_H_
-#define REGEN_MOTION_CONTROLLER_H_
+#ifndef REGEN_NAVIGATION_CONTROLLER_H_
+#define REGEN_NAVIGATION_CONTROLLER_H_
 
 #include "../../animation/transform-animation.h"
 #include "regen/math/bezier.h"
@@ -8,9 +8,9 @@
 #include "regen/utility/indexed.h"
 
 namespace regen {
-	class MotionController : public TransformAnimation {
+	class NavigationController : public TransformAnimation {
 	public:
-		MotionController(
+		NavigationController(
 			const ref_ptr<Mesh> &mesh,
 			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
 			const ref_ptr<WorldModel> &world);
@@ -154,7 +154,7 @@ namespace regen {
 		bool isWalking_ = true;
 		// The current path of the NPC, if any.
 		std::vector<ref_ptr<WayPoint>> currentPath_;
-		Vec2f patientPos_ = Vec2f(std::numeric_limits<float>::max());
+		float distanceToTarget_ = std::numeric_limits<float>::max();
 		uint32_t currentPathIndex_ = 0;
 		math::Bezier<Vec2f> bezierPath_;
 		math::ArcLengthLUT bezierLUT_;
@@ -181,7 +181,7 @@ namespace regen {
 		void updateControllerVelocity(double bezierTime);
 
 		struct NPCNeighborData {
-			MotionController *npc;
+			NavigationController *npc;
 			float lookAhead = 10.0f;
 			uint32_t neighborCount = 0;
 			Vec3f avoidance = Vec3f::zero();
@@ -193,4 +193,4 @@ namespace regen {
 	};
 } // namespace
 
-#endif /* REGEN_MOTION_CONTROLLER_H_ */
+#endif /* REGEN_NAVIGATION_CONTROLLER_H_ */

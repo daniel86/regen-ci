@@ -2,7 +2,7 @@
 
 <node>
     <constant name="num-cascades" value="3"/>
-    <constant name="num-dwarves" value="100"/>
+    <constant name="num-dwarves" value="1"/>
     <constant name="map-y-min" value="-2.0"/>
     <constant name="map-size" value="1000.0"/>
     <constant name="map-height" value="64.0"/>
@@ -229,7 +229,7 @@
             <path from="wp9" to="wp14"/>
         </world>
         <animation id="dwarf-asset-instanced" type="asset" idle="idle1">
-            <controller id="dwarf-controller" type="npc"
+            <controller id="dwarf-controller" type="person"
                         mesh="dwarf" mesh-index="1"
                         weapon-mesh="dwarf" weapon-mesh-index="0"
                         tf="dwarf-tf"
@@ -249,6 +249,64 @@
                         wall-tangent-weight="0.25"
                         personal-space="2.5"
                         velocity-orientation-weight="0.75">
+                <!--
+                <behavior-tree instance="0">
+                </behavior-tree>
+                -->
+                <behavior-tree>
+                    <selector type="priority">
+                        <!--
+                        <sequence id="flee">
+                            <condition type="attribute" name="FEAR" min-value="0.5"/>
+                        </node>
+                        <sequence id="rescue" type="sequence">
+                            <condition type="attribute" name="HEALTH" max-value="0.5"/>
+                        </node>
+                        <sequence id="defend" type="sequence">
+                            <condition type="predicate" name="IsEnemyVisible"/>
+                        </node>
+                        <sequence id="protect" type="sequence">
+                            <condition type="predicate" name="IsDangerVisible"/>
+                        </node>
+                        -->
+                        <sequence id="place-activity">
+                            <action type="SelectTargetPlace"/>
+                            <selector id="engage-place">
+                                <sequence id="move-to-place">
+                                    <!-- Move to the selected place if not already there. -->
+                                    <condition type="predicate" id="IsAtTargetPlace" negate="1"/>
+                                    <action type="MoveToTargetPlace"/>
+                                </sequence>
+                                <sequence id="at-place">
+                                    <condition type="predicate" id="IsAtTargetPlace"/>
+                                    <!-- Set desired action based on environment affordances, traits etc. -->
+                                    <action type="SelectPlaceActivity"/>
+                                    <selector id="walking-or-affordance">
+                                        <sequence id="walk-around">
+                                            <!-- Walk around without specific goal besides the walking.
+                                                 For this we just need to make the action current, and the controller
+                                                 will pick up a navigation path at the current place. -->
+                                            <condition type="disjunction">
+                                                <condition type="predicate" id="HasDesiredActivity" value="STROLL"/>
+                                                <condition type="predicate" id="HasDesiredActivity" value="PATROL"/>
+                                                <condition type="predicate" id="HasDesiredActivity" value="IDLE"/>
+                                            </condition>
+                                            <action type="PerformDesiredAction"/>
+                                        </sequence>
+                                        <sequence id="use-affordance">
+                                            <!-- Engage with the environment by using an affordance. -->
+                                            <action type="SelectPlacePatient"/>
+                                            <selector id="engage-affordance">
+                                                <action type="PerformAffordedAction"/>
+                                                <action type="MoveToPatient" />
+                                            </selector>
+                                        </sequence>
+                                    </selector>
+                                </sequence>
+                            </selector>
+                        </sequence>
+                    </selector>
+                </behavior-tree>
             </controller>
         </animation>
         <camera id="main-camera"

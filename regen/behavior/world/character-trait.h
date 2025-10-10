@@ -4,6 +4,10 @@
 #include <iostream>
 
 namespace regen {
+	/**
+	 * The personality traits of a character.
+	 * Each trait is a normalized value between 0.0 and 1.0.
+	 */
 	enum class Trait {
 		// The (normalized) laziness (1 = very lazy, 0 = not at all).
 		LAZINESS = 0,

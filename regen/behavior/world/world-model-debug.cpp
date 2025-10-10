@@ -63,17 +63,17 @@ inline Vec3f toVec3(const Vec2f &v, float y) {
 	return {v.x, y, v.y};
 }
 
-static Vec3f getAffordanceColor(AffordanceType type) {
+static Vec3f getAffordanceColor(ActionType type) {
 	switch (type) {
-		case AffordanceType::CONVERSE:
+		case ActionType::CONVERSING:
 			return Vec3f(1.0f, 1.0f, 0.0f); // yellow
-		case AffordanceType::SIT:
+		case ActionType::SITTING:
 			return Vec3f(1.0f, 0.0f, 0.0f);
-		case AffordanceType::SLEEP:
+		case ActionType::SLEEPING:
 			return Vec3f(0.0f, 0.0f, 1.0f);
-		case AffordanceType::PRAY:
+		case ActionType::PRAYING:
 			return Vec3f(1.0f, 0.0f, 1.0f); // magenta
-		case AffordanceType::OBSERVE:
+		case ActionType::OBSERVING:
 			return Vec3f(0.0f, 1.0f, 1.0f); // cyan
 		default:
 			return Vec3f(1.0f, 1.0f, 1.0f); // white
@@ -112,14 +112,14 @@ void WorldModelDebug::traverse(regen::RenderState *rs) {
 	// Draw place-specific things
 	for (auto &place : world_->places) {
 		// Draw patrol and stroll paths
-		for (auto &patrolPath : place->getPathWays(PathWayType::PATROL)) {
+		for (auto &patrolPath : place->getPathWays(PathwayType::PATROL)) {
 			for (size_t i = 0; i < patrolPath.size(); i++) {
 				auto from = patrolPath[i]->position3D();
 				auto to = patrolPath[(i + 1) % patrolPath.size()]->position3D();
 				drawLine(from, to, Vec3f(0.0f, 0.0, 1.0f));
 			}
 		}
-		for (auto &strollPath : place->getPathWays(PathWayType::STROLL)) {
+		for (auto &strollPath : place->getPathWays(PathwayType::STROLL)) {
 			for (size_t i = 0; i < strollPath.size(); i++) {
 				auto from = strollPath[i]->position3D();
 				auto to = strollPath[(i + 1) % strollPath.size()]->position3D();

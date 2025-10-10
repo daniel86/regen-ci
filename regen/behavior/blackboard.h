@@ -1,121 +1,89 @@
 #ifndef REGEN_BLACKBOARD_H_
 #define REGEN_BLACKBOARD_H_
 #include "regen/utility/time.h"
+#include "world/character-attribute.h"
 #include "world/character-trait.h"
 #include "world/world-model.h"
+#include "world/place.h"
 
 namespace regen {
 	/**
-	 * @brief A blackboard encapsulates NPC state, in a way what the NPC "knows" about the world.
+	 * @brief A blackboard encapsulates NPC state, it represents what the NPC "knows" about the world.
 	 * This can be used to implement more complex behaviors, e.g. using a behavior tree
 	 * or a planning system.
 	 */
 	class Blackboard {
 	public:
-		Blackboard() {
-			for (int i = 0; i < static_cast<int>(Trait::LAST_TRAIT); i++) {
-				traits_[i] = 0.5f;
-			}
-		}
-
-		void setWorldTime(const WorldTime *worldTime) { worldTime_ = worldTime; }
-
-		const WorldTime *worldTime() const { return worldTime_; }
-
-		void advanceTime(float dt_s) {
-			lingerTime_ -= dt_s;
-			activityTime_ -= dt_s;
-		}
-
-		void setPatient(const ref_ptr<WorldObject> &patientObj,
-					const ref_ptr<Affordance> &aff,
-					int slotIdx) {
-			patient_.object = patientObj;
-			patient_.affordance = aff;
-			patient_.affordanceSlot = slotIdx;
-		}
-
-		void unsetPatient() {
-			if (patient_.affordance.get()) {
-				patient_.affordance->releaseSlot(patient_.affordanceSlot);
-				patient_.affordance = {};
-				patient_.affordanceSlot = -1;
-			}
-			patient_.object = {};
-		}
-
-		const Patient& patient() const { return patient_; }
-
-		bool hasPatient() const { return patient_.object.get() != nullptr; }
+		/**
+		 * Create a new blackboard.
+		 * @param currentPos pointer to the current position of the character.
+		 * @param currentDir pointer to the current direction of the character.
+		 */
+		Blackboard(uint32_t instanceId, const Vec3f *currentPos, const Vec3f *currentDir);
 
 		/**
-		 * Add a place of interest for the NPC.
-		 * @param place the place.
+		 * Get the instance ID of the character this blackboard belongs to.
+		 * @return the instance ID.
 		 */
-		void addPlaceOfInterest(const ref_ptr<Place> &place)  {
-			switch (place->placeType()) {
-				case PLACE_HOME:
-					homePlaces_.push_back(place);
-					break;
-				case PLACE_SPIRITUAL:
-					spiritualPlaces_.push_back(place);
-					break;
-				case PLACE_GATHERING:
-					gatheringPlaces_.push_back(place);
-					break;
-				case PLACE_PATROL_POINT:
-					patrolPoints_.push_back(place);
-					break;
-				default:
-					REGEN_WARN("Unhandled place type " << place->placeType() << ".");
-					break;
-			}
-		}
+		uint32_t instanceId() const { return instanceId_; }
 
-		const std::vector<ref_ptr<Place>> &homePlaces() const { return homePlaces_; }
+		/**
+		 * The object representing the character in the world.
+		 */
+		void setCharacterObject(const ref_ptr<WorldObject> &obj) { characterObject_ = obj; }
 
-		const std::vector<ref_ptr<Place>> &spiritualPlaces() const { return spiritualPlaces_; }
+		/**
+		 * @return the object representing the character in the world.
+		 */
+		const ref_ptr<WorldObject> &characterObject() const { return characterObject_; }
 
-		const std::vector<ref_ptr<Place>> &gatheringPlaces() const { return gatheringPlaces_; }
+		/**
+		 * Get the current position of the character.
+		 * @return the current position.
+		 */
+		const Vec3f& currentPosition() const { return *currentPos_; }
 
-		const ref_ptr<Place> &homePlace() const { return homePlace_; }
+		/**
+		 * Get the current direction of the character.
+		 * @return the current direction.
+		 */
+		const Vec3f& currentDirection() const { return *currentDir_; }
 
-		void setHomePlace(const ref_ptr<Place> &place) { homePlace_ = place; }
+		/**
+		 * Set the world time.
+		 * @param worldTime the world time.
+		 */
+		void setWorldTime(const WorldTime *worldTime) { worldTime_ = worldTime; }
 
-		const ref_ptr<Place> &currentPlace() const { return currentPlace_; }
+		/**
+		 * @return the world time.
+		 */
+		const WorldTime *worldTime() const { return worldTime_; }
 
-		void setCurrentPlace(const ref_ptr<Place> &place) { currentPlace_ = place; }
-
-		void unsetCurrentPlace() { currentPlace_ = {}; }
-
-		void setTargetPlace(const ref_ptr<Place> &place) { targetPlace_ = place; }
-
-		const ref_ptr<Place> &targetPlace() const { return targetPlace_; }
-
-		void setTraitStrength(Trait trait, float value) {
-			traits_[static_cast<int>(trait)] = value;
-		}
-
-		float traitStrength(Trait trait) const {
-			return traits_[static_cast<int>(trait)];
-		}
-
-		float laziness() const { return traits_[static_cast<int>(Trait::LAZINESS)]; }
-
-		float spirituality() const { return traits_[static_cast<int>(Trait::SPIRITUALITY)]; }
-
-		float alertness() const { return traits_[static_cast<int>(Trait::ALERTNESS)]; }
-
-		float bravery() const { return traits_[static_cast<int>(Trait::BRAVERY)]; }
-
-		float sociability() const { return traits_[static_cast<int>(Trait::SOCIALABILITY)]; }
-
+		/**
+		 * Set the time (in seconds) the NPC will linger at the current place.
+		 * This is typically set when the NPC arrives at a place.
+		 * @param time the time in seconds.
+		 */
 		void setLingerTime(double time) { lingerTime_ = time; }
 
+		/**
+		 * Get the remaining time (in seconds) the NPC will linger at the current place.
+		 * @return the time in seconds.
+		 */
 		float lingerTime() const { return lingerTime_; }
 
+		/**
+		 * Set the time (in seconds) the NPC will spend on the current activity.
+		 * This is typically set when the NPC starts a new activity.
+		 * @param time the time in seconds.
+		 */
 		void setActivityTime(double time) { activityTime_ = time; }
 
+		/**
+		 * Get the remaining time (in seconds) the NPC will spend on the current activity.
+		 * @return the time in seconds.
+		 */
 		float activityTime() const { return activityTime_; }
 
 		/**
@@ -125,6 +93,11 @@ namespace regen {
 		 */
 		void setBaseTimeActivity(float time) { baseTimeActivity_ = time; }
 
+		/**
+		 * Get the base time (in seconds) the NPC will spend on an activity.
+		 * This is then modulated by personality traits and the type of activity.
+		 * @return the base time in seconds.
+		 */
 		float baseTimeActivity() const { return baseTimeActivity_; }
 
 		/**
@@ -134,33 +107,398 @@ namespace regen {
 		 */
 		void setBaseTimePlace(float time) { baseTimePlace_ = time; }
 
+		/**
+		 * Get the base time (in seconds) the NPC will spend at a place.
+		 * This is then modulated by personality traits and the type of place.
+		 * @return the base time in seconds.
+		 */
 		float baseTimePlace() const { return baseTimePlace_; }
 
+		/**
+		 * Advance the internal time of the blackboard.
+		 * @param dt_s the time step in seconds.
+		 */
+		void advanceTime(float dt_s);
+
+		/**
+		 * Set the strength of a personality trait.
+		 * @param trait the trait.
+		 * @param value the strength of the trait, from 0.0 to 1.0.
+		 */
+		void setTraitStrength(Trait trait, float value) {
+			traits_[static_cast<int>(trait)] = value;
+		}
+
+		/**
+		 * Get the strength of a personality trait.
+		 * @param trait the trait.
+		 * @return the strength of the trait, from 0.0 to 1.0.
+		 */
+		float traitStrength(Trait trait) const {
+			return traits_[static_cast<int>(trait)];
+		}
+
+		/**
+		 * Get the strength of the laziness trait.
+		 * @return the strength of the trait, from 0.0 to 1.0.
+		 */
+		float laziness() const { return traits_[static_cast<int>(Trait::LAZINESS)]; }
+
+		/**
+		 * Get the strength of the spirituality trait.
+		 * @return the strength of the trait, from 0.0 to 1.0.
+		 */
+		float spirituality() const { return traits_[static_cast<int>(Trait::SPIRITUALITY)]; }
+
+		/**
+		 * Get the strength of the alertness trait.
+		 * @return the strength of the trait, from 0.0 to 1.0.
+		 */
+		float alertness() const { return traits_[static_cast<int>(Trait::ALERTNESS)]; }
+
+		/**
+		 * Get the strength of the bravery trait.
+		 * @return the strength of the trait, from 0.0 to 1.0.
+		 */
+		float bravery() const { return traits_[static_cast<int>(Trait::BRAVERY)]; }
+
+		/**
+		 * Get the strength of the sociability trait.
+		 * @return the strength of the trait, from 0.0 to 1.0.
+		 */
+		float sociability() const { return traits_[static_cast<int>(Trait::SOCIALABILITY)]; }
+
+		/**
+		 * Set a character attribute.
+		 * @param attr the attribute.
+		 * @param value the value of the attribute, typically from 0.0 to 1.0.
+		 */
+		void setAttribute(CharacterAttribute attr, float value);
+
+		/**
+		 * Get a character attribute.
+		 * @param attr the attribute.
+		 * @return the value of the attribute, typically from 0.0 to 1.0.
+		 */
+		float getAttribute(CharacterAttribute attr) const { return attributes_[static_cast<int>(attr)]; }
+
+		/**
+		 * Get the health attribute.
+		 * @return the health, from 0.0 (dead) to 1.0 (full health).
+		 */
+		float health() const { return getAttribute(CharacterAttribute::HEALTH); }
+
+		/**
+		 * Get the hunger attribute.
+		 * @return the hunger, from 0.0 (full) to 1.0 (starving).
+		 */
+		float hunger() const { return getAttribute(CharacterAttribute::HUNGER); }
+
+		/**
+		 * The rate at which hunger increases over time.
+		 * This is typically a small positive value, e.g. 0.01 means that hunger increases by 0.01 per second.
+		 * @return the hunger rate.
+		 */
+		void setHungerRate(float rate) { hungerRate_ = rate; }
+
+		/**
+		 * The rate at which fear decays over time.
+		 * This is typically a small positive value, e.g. 0.01 means that fear decreases by 0.01 per second.
+		 * @return the fear decay rate.
+		 */
+		void setFearDecayRate(float rate) { fearDecayRate_ = rate; }
+
+		/**
+		 * Get the stamina attribute.
+		 * @return the stamina, from 0.0 (exhausted) to 1.0 (full stamina).
+		 */
+		float stamina() const { return getAttribute(CharacterAttribute::STAMINA); }
+
+		/**
+		 * Get the fear attribute.
+		 * @return the fear, from 0.0 (no fear) to 1.0 (terrified).
+		 */
+		float fear() const { return getAttribute(CharacterAttribute::FEAR); }
+
+		/**
+		 * Set the current patient object the NPC is interacting with.
+		 * @param obj the patient object.
+		 * @param aff the affordance being used.
+		 * @param slot the slot index being used.
+		 */
+		void setInteractionTarget(const ref_ptr<WorldObject> &obj, const ref_ptr<Affordance> &aff, int slot);
+
+		/**
+		 * Set the current distance to the patient object the NPC is interacting with.
+		 * This is typically set by the motion controller.
+		 * @param distance the distance to the patient object.
+		 */
+		void setDistanceToPatient(float distance) { interactionTarget_.currentDistance = distance; }
+
+		/**
+		 * Get the current distance to the patient object the NPC is interacting with.
+		 * @return the distance to the patient object.
+		 */
+		float distanceToPatient() const { return interactionTarget_.currentDistance; }
+
+		/**
+		 * Set the current patient object the NPC is interacting with.
+		 * @param patient the patient object.
+		 */
+		void setInteractionTarget(const Patient &patient) {
+			setInteractionTarget(patient.object, patient.affordance, patient.affordanceSlot);
+		}
+
+		/**
+		 * Unset the current patient object the NPC is interacting with.
+		 */
+		void unsetInteractionTarget();
+
+		/**
+		 * Get the current patient object the NPC is interacting with.
+		 * @return the patient object.
+		 */
+		Patient& interactionTarget() { return interactionTarget_; }
+
+		/**
+		 * Check if the NPC has a patient object.
+		 * @return true if the NPC has a patient object, false otherwise.
+		 */
+		bool hasInteractionTarget() const { return interactionTarget_.object.get() != nullptr; }
+
+		/**
+		 * Set the current navigation target the NPC is moving towards.
+		 * @param target the target object.
+		 * @param aff the affordance being used, or nullptr if not applicable.
+		 * @param slotIdx the slot index being used, or -1 if not applicable.
+		 */
+		void setNavigationTarget(const ref_ptr<WorldObject> &target, const ref_ptr<Affordance> &aff, int slotIdx);
+
+		/**
+		 * Set the current distance to the navigation target the NPC is moving towards.
+		 * This is typically set by the motion controller.
+		 * @param distance the distance to the navigation target.
+		 */
+		void setDistanceToTarget(float distance) { navigationTarget_.currentDistance = distance; }
+
+		/**
+		 * Get the current distance to the navigation target the NPC is moving towards.
+		 * @return the distance to the navigation target.
+		 */
+		float distanceToTarget() const { return navigationTarget_.currentDistance; }
+
+		/**
+		 * Set the current navigation target the NPC is moving towards.
+		 * @param patient the target object.
+		 */
+		void setNavigationTarget(const Patient &patient) {
+			setNavigationTarget(patient.object, patient.affordance, patient.affordanceSlot);
+		}
+
+		/**
+		 * Unset the current navigation target the NPC is moving towards.
+		 */
+		void unsetNavigationTarget();
+
+		/**
+		 * Get the current navigation target the NPC is moving towards.
+		 * @return the navigation target.
+		 */
+		Patient& navigationTarget() { return navigationTarget_; }
+
+		/**
+		 * Check if the NPC has a navigation target.
+		 * @return true if the NPC has a navigation target, false otherwise.
+		 */
+		bool hasNavigationTarget() const { return navigationTarget_.object.get() != nullptr; }
+
+		/**
+		 * Set the desired activity the NPC wants to perform.
+		 * This is typically set when the NPC wants to perform an activity that requires
+		 * a specific affordance, e.g. sleeping on a bed.
+		 * @param action the desired activity.
+		 */
+		void setDesiredAction(ActionType action) { desiredAction_ = action; }
+
+		/**
+		 * Get the desired activity the NPC wants to perform.
+		 * @return the desired activity.
+		 */
+		ActionType desiredAction() const { return desiredAction_; }
+
+		/**
+		 * Unset the desired activity the NPC wants to perform.
+		 */
+		void unsetDesiredAction() { desiredAction_ = ActionType::IDLE; }
+
+		/**
+		 * Set the current action the NPC is performing.
+		 * This is typically set when the NPC starts an activity, e.g. navigating to a place.
+		 * @param action the current action.
+		 */
+		void setCurrentAction(ActionType action) { currentAction_ = action; }
+
+		/**
+		 * Get the current action the NPC is performing.
+		 * @return the current action.
+		 */
+		ActionType currentAction() const { return currentAction_; }
+
+		/**
+		 * Unset the current action the NPC is performing.
+		 */
+		void unsetCurrentAction() { currentAction_ = ActionType::IDLE; }
+
+		/**
+		 * Check if the NPC is performing a given action.
+		 * @param action the action to check.
+		 * @return true if the NPC is performing the given action, false otherwise.
+		 */
+		bool isCurrentAction(ActionType action) const { return currentAction_ == action; }
+
+		/**
+		 * Check if the NPC is currently performing a navigation related action.
+		 * This includes navigating, patrolling, and strolling.
+		 * @return true if the NPC is performing a navigation related action, false otherwise.
+		 */
+		bool isNavigationActive() const {
+			return isCurrentAction(ActionType::NAVIGATING) ||
+					isCurrentAction(ActionType::PATROLLING) ||
+					isCurrentAction(ActionType::STROLLING);
+		}
+
+		/**
+		 * Check if the NPC needs to have a weapon drawn for its current action.
+		 * This is true if the NPC is attacking or blocking.
+		 * @return true if the NPC needs a weapon, false otherwise.
+		 */
+		bool isWeaponRequired() const {
+			return isCurrentAction(ActionType::ATTACKING) || isCurrentAction(ActionType::BLOCKING);
+		}
+
+		/**
+		 * Add a place of interest for the NPC.
+		 * @param place the place.
+		 */
+		void addPlaceOfInterest(const ref_ptr<Place> &place);
+
+		/**
+		 * Get all places of interest of a given type.
+		 * @param type the place type.
+		 * @return a vector of places of the given type.
+		 */
+		const std::vector<ref_ptr<Place>> &getPlacesByType(PlaceType type) const {
+			return places_[static_cast<int>(type)];
+		}
+
+		/**
+		 * The NPC's home place.
+		 * @return the home place.
+		 */
+		const ref_ptr<Place> &homePlace() const { return homePlace_; }
+
+		/**
+		 * Set the NPC's home place.
+		 * @param place the home place.
+		 */
+		void setHomePlace(const ref_ptr<Place> &place) { homePlace_ = place; }
+
+		/**
+		 * Check if the NPC is at home.
+		 * @return true if the NPC is at home, false otherwise.
+		 */
+		bool atHome() const {
+			return (homePlace_.get() != nullptr && currentPlace_.get() == homePlace_.get());
+		}
+
+		/**
+		 * The current place the NPC is at.
+		 * @return the current place, or nullptr if the NPC is not at any place.
+		 */
+		const ref_ptr<Place> &currentPlace() const { return currentPlace_; }
+
+		/**
+		 * Set the current place the NPC is at.
+		 * @param place the current place.
+		 */
+		void setCurrentPlace(const ref_ptr<Place> &place) { currentPlace_ = place; }
+
+		/**
+		 * Unset the current place the NPC is at.
+		 */
+		void unsetCurrentPlace() { currentPlace_ = {}; }
+
+		/**
+		 * Check if the NPC is at a place of a given type.
+		 * @param type the place type.
+		 * @return true if the NPC is at a place of the given type, false otherwise.
+		 */
+		bool atPlaceWithType(PlaceType type) const {
+			return (currentPlace_.get() != nullptr && currentPlace_->placeType() == type);
+		}
+
+		/**
+		 * The target place the NPC is going to.
+		 * @return the target place, or nullptr if the NPC has no target place.
+		 */
+		void setTargetPlace(const ref_ptr<Place> &place) { targetPlace_ = place; }
+
+		/**
+		 * The target place the NPC is going to.
+		 * @return the target place, or nullptr if the NPC has no target place.
+		 */
+		const ref_ptr<Place> &targetPlace() const { return targetPlace_; }
+
 	protected:
+		const uint32_t instanceId_ = 0;
+		ref_ptr<WorldObject> characterObject_;
+		const Vec3f *currentPos_ = nullptr;
+		const Vec3f *currentDir_ = nullptr;
 		const WorldTime *worldTime_ = nullptr;
-
-		// Some high level character traits.
-		// These are used for weighting options.
-		std::array<float, static_cast<int>(Trait::LAST_TRAIT)> traits_;
-
-		// Places of interest.
-		std::vector<ref_ptr<Place>> homePlaces_;
-		std::vector<ref_ptr<Place>> spiritualPlaces_;
-		std::vector<ref_ptr<Place>> gatheringPlaces_;
-		std::vector<ref_ptr<Place>> patrolPoints_;
-
-		ref_ptr<Place> homePlace_;
-		ref_ptr<Place> targetPlace_;
-		ref_ptr<Place> currentPlace_;
 
 		// Base times for activities and places.
 		// The actual time spent is modulated by personality traits and the type of activity/place
 		float baseTimeActivity_ = 20.0f; // in seconds
 		float baseTimePlace_ = 240.0f; // in seconds
-
-		Patient patient_;
 		float lingerTime_ = 0.0f;
 		float activityTime_ = 0.0f;
+
+		// Some high level character traits. These are used for weighting options.
+		std::array<float, static_cast<int>(Trait::LAST_TRAIT)> traits_;
+		// The character attributes. These represent the current state of the character.
+		std::array<float, static_cast<int>(CharacterAttribute::LAST)> attributes_;
+		float hungerRate_ = 0.01f; // hunger increase per second
+		float fearDecayRate_ = 0.05f; // fear decay per second
+
+		// Places of interest.
+		std::array<std::vector<ref_ptr<Place>>, static_cast<int>(PlaceType::LAST)> places_;
+		// NPC's home place.
+		ref_ptr<Place> homePlace_;
+		// The place where the NPC is going to.
+		ref_ptr<Place> targetPlace_;
+		// The place where the NPC currently is.
+		ref_ptr<Place> currentPlace_;
+
+		// Perceived objects.
+		struct PerceivedObject {
+			ref_ptr<WorldObject> object;
+			float distance = std::numeric_limits<float>::max();
+		};
+		PerceivedObject closestEnemy_;
+		PerceivedObject closestFriend_;
+		PerceivedObject closestDanger_;
+		PerceivedObject closestPlayer_;
+
+		// The current patient the NPC is interacting with including
+		// the affordance used by the agent.
+		// Here this is used to imply intention of the NPC, e.g. that it wants to sleep is indicated
+		// by using an affordance for sleeping offered by some kind of bed object.
+		Patient interactionTarget_;
+		Patient navigationTarget_;
+		// The desired activity the NPC wants to perform next.
+		ActionType desiredAction_ = ActionType::IDLE;
+		// The action the NPC is currently performing.
+		ActionType currentAction_ = ActionType::IDLE;
 	};
 } // namespace
 

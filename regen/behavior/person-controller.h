@@ -1,0 +1,141 @@
+#ifndef REGEN_PERSON_CONTROLLER_H_
+#define REGEN_PERSON_CONTROLLER_H_
+
+#include <regen/math/vector.h>
+#include <regen/behavior/npc-controller.h>
+#include "world/world-model.h"
+#include <regen/behavior/path-planner.h>
+
+#include "behavior-tree.h"
+#include "blackboard.h"
+#include "../animation/animation-node.h"
+#include "skeleton/motion-type.h"
+#include "regen/states/model-transformation.h"
+#include "regen/objects/terrain/blanket-trail.h"
+
+namespace regen {
+	class PersonWorldObject : public WorldObject {
+	public:
+		PersonWorldObject(std::string_view name, const Vec3f &position) :
+			WorldObject(name, position) {}
+	};
+
+	class PersonController : public NonPlayerCharacterController {
+	public:
+		PersonController(
+			const ref_ptr<Mesh> &mesh,
+			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
+			const ref_ptr<NodeAnimationItem> &animItem,
+			const ref_ptr<WorldModel> &world);
+
+		/**
+		 * Get the knowledge base of the NPC.
+		 * @return the knowledge base.
+		 */
+		Blackboard& knowledgeBase() { return knowledgeBase_; }
+
+		/**
+		 * Set the behavior tree for the NPC.
+		 * @param rootNode the behavior tree.
+		 */
+		void setBehaviorTree(std::unique_ptr<BehaviorTree::Node> rootNode);
+
+		/**
+		 * @param mesh A mesh that is only seen when the NPC is holding a weapon.
+		 */
+		void setWeaponMesh(const ref_ptr<Mesh> &mesh);
+
+		/**
+		 * Set the footstep trail for visualizing footsteps.
+		 * @param trail the footstep trail.
+		 */
+		void setFootstepTrail(
+					const ref_ptr<BlanketTrail> &trail,
+					float leftFootTime, float rightFootTime) {
+			footstepTrail_ = trail;
+			footTime_[0] = leftFootTime;
+			footTime_[1] = rightFootTime;
+		}
+
+		/**
+		 * Add a waypoint to the path planner.
+		 * @param wp the waypoint.
+		 */
+		void addWayPoint(const ref_ptr<WayPoint> &wp);
+
+		/**
+		 * Add a connection between two waypoints to the path planner.
+		 * @param from the from waypoint.
+		 * @param to the to waypoint.
+		 * @param bidirectional if true, add a connection in both directions.
+		 */
+		void addConnection(
+				const ref_ptr<WayPoint> &from,
+				const ref_ptr<WayPoint> &to,
+				bool bidirectional = true);
+
+		// override
+		void initializeController() override;
+
+		// override
+		void updateController(double dt) override;
+
+	protected:
+		Blackboard knowledgeBase_;
+		std::unique_ptr<BehaviorTree> behaviorTree_;
+		ref_ptr<PersonWorldObject> npcWorldObject_;
+
+		ref_ptr<Mesh> weaponMesh_;
+		ref_ptr<BoundingShape> weaponShape_;
+		bool hasDrawnWeapon_ = false;
+		uint32_t weaponMask_ = 0;
+
+		ref_ptr<BlanketTrail> footstepTrail_;
+		uint32_t footIdx_[2] = { 0, 1 };
+		bool footDown_[2] = { false, false };
+		float footTime_[2] = { 0.2f, 0.8f };
+
+		ref_ptr<PathPlanner> pathPlanner_;
+		// All semantic movements the NPC can perform.
+		std::map<MotionType, std::vector<const AnimRange*>> motionRanges_;
+		// The current movement behavior of the NPC.
+		MotionType currentBoneAnimation_ = MotionType::IDLE;
+		ActionType lastNavAction_ = ActionType::IDLE;
+		WorldObject *lastNavTarget_ = nullptr;
+		// Flag is used for continuous movement.
+		bool isLastAnimationMovement_ = false;
+		// Walking behavior parameters.
+		float walkTime_ = 0.0f;
+		float runTime_ = 0.0f;
+
+		void updatePerceptionSystem(float dt_s);
+
+		void updateKnowledgeBase(float dt_s);
+
+		void initializeBoneAnimations();
+
+		void startBoneAnimation();
+
+		void updateBoneAnimations();
+
+		bool isCurrentBoneAnimation(MotionType type) const;
+
+		bool startNavigate(bool loopPath, bool advancePath);
+
+		void updateNavigationTarget();
+
+		Vec2f pickTargetPosition(const WorldObject &wp);
+
+		Vec2f pickTravelPosition(const WorldObject &wp) const;
+
+		bool updatePathNPC();
+
+		void setIdle();
+
+		void hideWeapon();
+
+		void drawWeapon();
+	};
+} // namespace
+
+#endif /* REGEN_PERSON_CONTROLLER_H_ */

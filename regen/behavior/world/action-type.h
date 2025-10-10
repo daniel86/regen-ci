@@ -4,6 +4,9 @@
 #include <iostream>
 
 namespace regen {
+	/**
+	 * The types of actions a character can perform.
+	 */
 	enum class ActionType {
 		IDLE = 0,
 		CONVERSING,
@@ -15,10 +18,13 @@ namespace regen {
 		ATTACKING,
 		BLOCKING,
 		FLEEING,
-		TRAVELING,
+		NAVIGATING,
 		SITTING
 	};
 
+	std::ostream &operator<<(std::ostream &out, const ActionType &v);
+
+	std::istream &operator>>(std::istream &in, ActionType &v);
 } // namespace
 
 #endif /* REGEN_MODEL_ACTION_TYPE_H_ */

@@ -43,11 +43,18 @@ void TransformAnimation::push_back(const std::optional<Vec3f> &pos,
 }
 
 void TransformAnimation::updatePose(const TransformKeyFrame &currentFrame, double t) {
+	Vec3f tmp;
 	if (currentFrame.pos.has_value()) {
-		currentPos_ = math::mix(lastFrame_.pos.value(), currentFrame.pos.value(), t);
+		tmp = math::mix(lastFrame_.pos.value(), currentFrame.pos.value(), t);
+		currentPos_.x = tmp.x;
+		currentPos_.y = tmp.y;
+		currentPos_.z = tmp.z;
 	}
 	if (currentFrame.rotation.has_value()) {
-		currentDir_ = math::slerp(lastFrame_.rotation.value(), currentFrame.rotation.value(), t);
+		tmp = math::slerp(lastFrame_.rotation.value(), currentFrame.rotation.value(), t);
+		currentDir_.x = tmp.x;
+		currentDir_.y = tmp.y;
+		currentDir_.z = tmp.z;
 	}
 }
 

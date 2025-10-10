@@ -1,19 +1,10 @@
 #ifndef REGEN_WORLD_OBJECT_H_
 #define REGEN_WORLD_OBJECT_H_
+#include "action-type.h"
 #include "regen/shader/shader-input.h"
 #include "regen/shapes/bounding-shape.h"
 
 namespace regen {
-	enum class AffordanceType {
-		NONE = 0,
-		SIT,
-		SLEEP,
-		PRAY,
-		CONVERSE,
-		OBSERVE,
-		ATTACK
-	};
-
 	enum class SlotLayout {
 		CIRCULAR = 0,
 		GRID,
@@ -23,7 +14,7 @@ namespace regen {
 	class WorldObject;
 
 	struct Affordance {
-		AffordanceType type = AffordanceType::NONE;
+		ActionType type = ActionType::IDLE;
 		SlotLayout layout = SlotLayout::CIRCULAR;
 		// number of NPCs that can use this affordance at the same time
 		int slotCount = 1;
@@ -87,9 +78,9 @@ namespace regen {
 
 		void addAffordance(const ref_ptr<Affordance> &affordance);
 
-		bool hasAffordance(AffordanceType affordanceType) const;
+		bool hasAffordance(ActionType actionType) const;
 
-		ref_ptr<Affordance> getAffordance(AffordanceType affordanceType) const;
+		ref_ptr<Affordance> getAffordance(ActionType actionType) const;
 
 	protected:
 		const std::string name_;
@@ -114,11 +105,8 @@ namespace regen {
 		ref_ptr<WorldObject> object;
 		ref_ptr<Affordance> affordance;
 		int affordanceSlot = -1;
+		float currentDistance = std::numeric_limits<float>::max();
 	};
-
-	std::ostream &operator<<(std::ostream &out, const AffordanceType &v);
-
-	std::istream &operator>>(std::istream &in, AffordanceType &v);
 
 	std::ostream &operator<<(std::ostream &out, const SlotLayout &v);
 
