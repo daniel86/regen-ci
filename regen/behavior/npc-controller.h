@@ -1,10 +1,11 @@
 #ifndef REGEN_NPC_CONTROLLER_H_
 #define REGEN_NPC_CONTROLLER_H_
 
-#include "../animation/animation-node.h"
+#include "../animation/bone-tree.h"
 #include "regen/states/model-transformation.h"
 #include "regen/utility/indexed.h"
 #include "navigation/navigation-controller.h"
+#include "skeleton/bone-controller.h"
 
 namespace regen {
 	/**
@@ -15,7 +16,7 @@ namespace regen {
 		NonPlayerCharacterController(
 			const ref_ptr<Mesh> &mesh,
 			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
-			const ref_ptr<NodeAnimationItem> &animItem,
+			const ref_ptr<BoneAnimationItem> &animItem,
 			const ref_ptr<WorldModel> &world);
 
 		/**
@@ -46,8 +47,7 @@ namespace regen {
 
 	protected:
 		ref_ptr<ModelTransformation> tf_;
-		ref_ptr<NodeAnimationItem> animItem_;
-		const AnimRange *lastRange_ = nullptr;
+		ref_ptr<BoneAnimationItem> animItem_;
 	};
 } // namespace
 

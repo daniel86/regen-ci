@@ -906,8 +906,7 @@ static void handleAssetController(
 	scene::SceneLoader &sceneParser,
 	const ref_ptr<SceneInputNode> &animationNode,
 	std::list<ref_ptr<Animation> > &animations,
-	const ref_ptr<NodeAnimation> &nodeAnimation,
-	const std::vector<AnimRange> &ranges) {
+	const ref_ptr<BoneAnimationItem> &nodeAnimItem) {
 	auto controllerType = animationNode->getValue("type");
 	auto tf = sceneParser.getResources()->getTransform(
 		&sceneParser, animationNode->getValue("tf"));
@@ -931,9 +930,6 @@ static void handleAssetController(
 			<< animationNode->getDescription() << "'.");
 		return;
 	}
-	ref_ptr<NodeAnimationItem> nodeAnimItem = ref_ptr<NodeAnimationItem>::alloc();
-	nodeAnimItem->animation = nodeAnimation;
-	nodeAnimItem->ranges = ranges;
 
 	auto meshVec = sceneParser.getResources()->getMesh(
 		&sceneParser, animationNode->getValue("mesh"));
@@ -1143,39 +1139,39 @@ static void handleAssetAnimationConfiguration(
 		REGEN_WARN("Unable to find animation with name '" << animationNode->getName() << "'.");
 		return;
 	}
-	vector<AnimRange> ranges = sceneParser.getAnimationRanges(animationNode->getName());
-	if (ranges.empty()) {
+	auto animItem = sceneParser.getAnimationRanges(animationNode->getName());
+	if (!animItem) {
 		REGEN_WARN("Unable to find animation ranges for animation with name '" << animationNode->getName() << "'.");
 		return;
 	}
-	ref_ptr<NodeAnimation> nodeAnimation = animAsset->getNodeAnimation();
-	if (nodeAnimation.get()) {
-		nodeAnimation->startAnimation();
+	animItem->animation = animAsset->getNodeAnimation();
+	if (animItem->animation.get()) {
+		animItem->animation->startAnimation();
 	}
 
 	if (animationNode->getValue("mode") == string("random")) {
-		if (nodeAnimation.get()) {
-			ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater>::alloc(nodeAnimation, ranges);
-			nodeAnimation->connect(Animation::ANIMATION_STOPPED, animStopped);
+		if (animItem->animation.get()) {
+			ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater>::alloc(animItem);
+			animItem->animation->connect(Animation::ANIMATION_STOPPED, animStopped);
 			eventHandler.push_back(animStopped);
 
 			EventData evData;
 			evData.eventID = Animation::ANIMATION_STOPPED;
-			animStopped->call(nodeAnimation.get(), &evData);
+			animStopped->call(animItem->animation.get(), &evData);
 		}
 	} else if (animationNode->getValue("mode") == "fixed") {
-		if (nodeAnimation.get()) {
-			auto &fixedRange = ranges[0]; // TODO
-			ref_ptr<EventHandler> animStopped = ref_ptr<FixedAnimationRangeUpdater>::alloc(nodeAnimation, fixedRange);
-			nodeAnimation->connect(Animation::ANIMATION_STOPPED, animStopped);
+		if (animItem->animation.get()) {
+			auto &fixedRange = animItem->ranges[0]; // TODO
+			ref_ptr<EventHandler> animStopped = ref_ptr<FixedAnimationRangeUpdater>::alloc(animItem->animation, fixedRange);
+			animItem->animation->connect(Animation::ANIMATION_STOPPED, animStopped);
 			eventHandler.push_back(animStopped);
 
 			EventData evData;
 			evData.eventID = Animation::ANIMATION_STOPPED;
-			animStopped->call(nodeAnimation.get(), &evData);
+			animStopped->call(animItem->animation.get(), &evData);
 		}
 	} else if (animationNode->getCategory() == "controller") {
-		handleAssetController(worldModel, sceneParser, animationNode, animations, nodeAnimation, ranges);
+		handleAssetController(worldModel, sceneParser, animationNode, animations, animItem);
 	} else {
 		map<string, KeyAnimationMapping> keyMappings;
 		string idleAnimation = animationNode->getValue("idle");
@@ -1187,7 +1183,7 @@ static void handleAssetAnimationConfiguration(
 			} else if (x->getCategory() == string("mouse-mapping")) {
 				mapping.key = REGEN_STRING("button" << x->getValue<int>("button", 1));
 			} else if (x->getCategory() == string("controller")) {
-				handleAssetController(worldModel, sceneParser, x, animations, nodeAnimation, ranges);
+				handleAssetController(worldModel, sceneParser, x, animations, animItem);
 				continue;
 			} else {
 				REGEN_WARN("Unhandled animation node " << x->getDescription() << ".");
@@ -1203,12 +1199,12 @@ static void handleAssetAnimationConfiguration(
 		}
 
 		if (!keyMappings.empty()) {
-			if (nodeAnimation.get()) {
+			if (animItem->animation.get()) {
 				auto keyHandler = ref_ptr<KeyAnimationRangeUpdater>::alloc(
-					nodeAnimation, ranges, keyMappings, idleAnimation);
+					animItem, keyMappings, idleAnimation);
 				app_->connect(Scene::KEY_EVENT, keyHandler);
 				app_->connect(Scene::BUTTON_EVENT, keyHandler);
-				nodeAnimation->connect(Animation::ANIMATION_STOPPED, keyHandler);
+				animItem->animation->connect(Animation::ANIMATION_STOPPED, keyHandler);
 				eventHandler.emplace_back(keyHandler);
 			}
 		}

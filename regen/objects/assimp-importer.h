@@ -18,7 +18,7 @@
 #include <regen/camera/camera.h>
 #include <regen/scene/loading-context.h>
 
-#include <regen/animation/animation-node.h>
+#include <regen/animation/bone-tree.h>
 #include <assimp/postprocess.h>
 
 namespace regen {
@@ -31,8 +31,8 @@ namespace regen {
 				  numInstances(1u),
 				  forceStates(GL_TRUE),
 				  ticksPerSecond(tps),
-				  postState(NodeAnimation::BEHAVIOR_LINEAR),
-				  preState(NodeAnimation::BEHAVIOR_LINEAR) {}
+				  postState(AnimationChannelBehavior::LINEAR),
+				  preState(AnimationChannelBehavior::LINEAR) {}
 
 		/**
 		 * If false animations are ignored n the asset.
@@ -56,11 +56,11 @@ namespace regen {
 		/**
 		 * Behavior when an animation stops.
 		 */
-		NodeAnimation::Behavior postState;
+		AnimationChannelBehavior postState;
 		/**
 		 * Behavior when an animation starts.
 		 */
-		NodeAnimation::Behavior preState;
+		AnimationChannelBehavior preState;
 	};
 
 	/**
@@ -160,7 +160,7 @@ namespace regen {
 		 */
 		void setAnimationConfig(const AssimpAnimationConfig &animationCfg) { animationCfg_ = animationCfg; }
 
-		const ref_ptr<NodeAnimation> &getNodeAnimation() { return nodeAnimation_; }
+		const ref_ptr<BoneTree> &getNodeAnimation() { return nodeAnimation_; }
 
 		/**
 		 * Load the asset file.
@@ -212,7 +212,7 @@ namespace regen {
 		/**
 		 * @return list of bone animation nodes associated to given mesh.
 		 */
-		std::list<ref_ptr<NodeAnimation::Node> > loadMeshBones(Mesh *meshState, NodeAnimation *anim);
+		std::list<ref_ptr<BoneNode>> loadMeshBones(Mesh *meshState, BoneTree *anim);
 
 		/**
 		 * @return number of weights used for bone animation.
@@ -228,13 +228,13 @@ namespace regen {
 		int aiProcessFlags_ = 0;
 		AssimpAnimationConfig animationCfg_;
 
-		ref_ptr<NodeAnimation> nodeAnimation_;
+		ref_ptr<BoneTree> nodeAnimation_;
 		// name to node map
 		std::map<std::string, struct aiNode *> nodes_;
 		// root node of skeleton
-		ref_ptr<NodeAnimation::Node> rootNode_;
+		ref_ptr<BoneNode> rootNode_;
 		// maps assimp bone nodes to Bone implementation
-		std::map<struct aiNode *, ref_ptr<NodeAnimation::Node> > aiNodeToNode_;
+		std::map<struct aiNode *, ref_ptr<BoneNode>> aiNodeToNode_;
 
 		// user specified texture path
 		std::string texturePath_;
@@ -272,11 +272,9 @@ namespace regen {
 
 		void loadNodeAnimation(const AssimpAnimationConfig &animConfig);
 
-		ref_ptr<NodeAnimation::Node> loadNodeTree();
+		ref_ptr<BoneNode> loadNodeTree();
 
-		ref_ptr<NodeAnimation::Node> loadNodeTree(
-				struct aiNode *assimpNode,
-				const ref_ptr<NodeAnimation::Node> &parent);
+		ref_ptr<BoneNode> loadNodeTree(struct aiNode *assimpNode, const ref_ptr<BoneNode> &parent);
 	};
 } // namespace
 

@@ -266,7 +266,7 @@ ref_ptr<Light> Light::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 
 LightNode::LightNode(
 		const ref_ptr<Light> &light,
-		const ref_ptr<NodeAnimation::Node> &n)
+		const ref_ptr<BoneNode> &n)
 		: State(), light_(light), animNode_(n) {
 	lightPosition_ = light->positionStaged(0).r.xyz_();
 }

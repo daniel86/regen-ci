@@ -19,6 +19,8 @@
 #include <regen/scene/loadable-input.h>
 #include <regen/scene/shader-define-processor.h>
 
+#include "regen/behavior/skeleton/bone-controller.h"
+
 using namespace regen::scene;
 using namespace regen;
 
@@ -274,33 +276,79 @@ void SceneLoader::processState(
 	processor->processInput(this, *input.get(), parentNode, parent);
 }
 
-std::vector<AnimRange> SceneLoader::getAnimationRanges(const std::string &assetID) {
+ref_ptr<BoneAnimationItem> SceneLoader::getAnimationRanges(const std::string &assetID) {
 	ref_ptr<SceneInputNode> root = getRoot();
 	ref_ptr<SceneInputNode> importer = root->getFirstChild("asset", assetID);
 	if (importer.get() == nullptr) {
 		REGEN_WARN("No asset with id '" << assetID << "' known.");
 		return {};
+	}
+	ref_ptr<SceneInputNode> boneAnimNode = importer->getFirstChild("bone-animation");
+	if (!boneAnimNode) {
+		return {};
 	} else {
-		const std::list<ref_ptr<SceneInputNode> > &childs = importer->getChildren();
+		ref_ptr<BoneAnimationItem> item = ref_ptr<BoneAnimationItem>::alloc();
+		auto clipsXML = boneAnimNode->getChildren("clip");
+		auto rangesXML = boneAnimNode->getChildren("range");
+		const uint32_t numRanges = static_cast<uint32_t>(rangesXML.size());
+		// create temporary name map for clip creation
+		std::unordered_map<std::string, AnimationRange*> rangeNameMap;
 
-		GLuint animRangeCount = 0u;
-		for (const auto & child : childs) {
-			if (child->getCategory() == "anim-range") animRangeCount += 1;
+		// first load ranges, some also define clips
+		item->ranges.resize(numRanges);
+		uint32_t rangeIdx = 0;
+		for (auto &rangeNode : rangesXML) {
+			auto &range = item->ranges[rangeIdx];
+			range.name = rangeNode->getValue("name");
+			range.range = rangeNode->getValue<Vec2d>("range", Vec2d(0.0));
+			range.trackName = rangeNode->getValue("track");
+			range.trackIndex = rangeNode->getValue<GLuint>("track-index", 0u);
+			rangeNameMap[range.name] = &range;
+			if (rangeNode->hasAttribute("motion")) {
+				auto &newClip = item->clips.emplace_back();
+				newClip.motion = rangeNode->getValue<MotionType>("motion", MotionType::IDLE);
+				newClip.range = &range;
+			}
+			rangeIdx += 1u;
 		}
 
-		std::vector<AnimRange> out(animRangeCount);
-		animRangeCount = 0u;
+		// finally also load clips defining some renaming, and composite motions
+		for (auto &clipNode : clipsXML) {
+			AnimationRange *clipRange = nullptr;
+			auto clipRangeName = clipNode->getValue("range");
+			auto it = rangeNameMap.find(clipRangeName);
+			if (it != rangeNameMap.end()) {
+				clipRange = it->second;
+			} else {
+				REGEN_WARN("Unable to find range with name '" << clipNode->getValue("range")
+					<< "' for clip in asset '" << assetID << "'.");
+				continue;
+			}
+			auto &newClip = item->clips.emplace_back();
+			newClip.motion = clipNode->getValue<MotionType>("motion", MotionType::IDLE);
+			newClip.range = clipRange;
 
-		for (const auto& n : childs) {
-			if (n->getCategory() != "anim-range") continue;
-			out[animRangeCount].name = n->getValue("name");
-			out[animRangeCount].range = n->getValue<Vec2d>("range", Vec2d(0.0));
-			out[animRangeCount].channelName = n->getValue("channel");
-			out[animRangeCount].channelIndex = n->getValue<GLuint>("index", 0u);
-			animRangeCount += 1u;
+			if (clipNode->hasAttribute("begin")) {
+				it = rangeNameMap.find(clipNode->getValue("begin"));
+				if (it == rangeNameMap.end()) {
+					REGEN_WARN("Unable to find begin-range with name '" << clipNode->getValue("begin")
+						<< "' for clip in asset '" << assetID << "'.");
+				} else {
+					newClip.begin = it->second;
+				}
+			}
+			if (clipNode->hasAttribute("end")) {
+				it = rangeNameMap.find(clipNode->getValue("end"));
+				if (it == rangeNameMap.end()) {
+					REGEN_WARN("Unable to find end-range with name '" << clipNode->getValue("end")
+						<< "' for clip in asset '" << assetID << "'.");
+				} else {
+					newClip.end = it->second;
+				}
+			}
 		}
 
-		return out;
+		return item;
 	}
 }
 

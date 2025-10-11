@@ -8,10 +8,9 @@
 
 #include "behavior-tree.h"
 #include "blackboard.h"
-#include "../animation/animation-node.h"
-#include "skeleton/motion-type.h"
 #include "regen/states/model-transformation.h"
 #include "regen/objects/terrain/blanket-trail.h"
+#include "skeleton/bone-controller.h"
 
 namespace regen {
 	class PersonWorldObject : public WorldObject {
@@ -25,7 +24,7 @@ namespace regen {
 		PersonController(
 			const ref_ptr<Mesh> &mesh,
 			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
-			const ref_ptr<NodeAnimationItem> &animItem,
+			const ref_ptr<BoneAnimationItem> &animItem,
 			const ref_ptr<WorldModel> &world);
 
 		/**
@@ -96,29 +95,16 @@ namespace regen {
 		float footTime_[2] = { 0.2f, 0.8f };
 
 		ref_ptr<PathPlanner> pathPlanner_;
-		// All semantic movements the NPC can perform.
-		std::map<MotionType, std::vector<const AnimRange*>> motionRanges_;
-		// The current movement behavior of the NPC.
-		MotionType currentBoneAnimation_ = MotionType::IDLE;
 		ActionType lastNavAction_ = ActionType::IDLE;
 		WorldObject *lastNavTarget_ = nullptr;
 		// Flag is used for continuous movement.
 		bool isLastAnimationMovement_ = false;
-		// Walking behavior parameters.
-		float walkTime_ = 0.0f;
-		float runTime_ = 0.0f;
+
+		ref_ptr<BoneController> boneController_;
 
 		void updatePerceptionSystem(float dt_s);
 
 		void updateKnowledgeBase(float dt_s);
-
-		void initializeBoneAnimations();
-
-		void startBoneAnimation();
-
-		void updateBoneAnimations();
-
-		bool isCurrentBoneAnimation(MotionType type) const;
 
 		bool startNavigate(bool loopPath, bool advancePath);
 

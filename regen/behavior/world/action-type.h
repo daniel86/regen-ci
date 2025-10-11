@@ -19,7 +19,8 @@ namespace regen {
 		BLOCKING,
 		FLEEING,
 		NAVIGATING,
-		SITTING
+		SITTING,
+		LAST_ACTION
 	};
 
 	std::ostream &operator<<(std::ostream &out, const ActionType &v);

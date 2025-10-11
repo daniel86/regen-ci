@@ -15,7 +15,8 @@
 #include "../simulation/bullet-physics.h"
 #include "regen/scene/scene.h"
 #include "screen.h"
-#include "regen/animation/animation-node.h"
+#include "regen/animation/bone-tree.h"
+#include "regen/behavior/skeleton/bone-controller.h"
 
 namespace regen::scene {
 	// forward declaration due to circular dependency.
@@ -155,7 +156,7 @@ namespace regen::scene {
 		 * @param assetID the AssetImporter resource id.
 		 * @return Animation ranges associated to asset.
 		 */
-		std::vector<AnimRange> getAnimationRanges(const std::string &assetID);
+		ref_ptr<BoneAnimationItem> getAnimationRanges(const std::string &assetID);
 
 		/**
 		 * @param id The StateNode ID.

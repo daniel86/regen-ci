@@ -5,7 +5,7 @@
 #include <regen/camera/camera.h>
 #include <regen/math/vector.h>
 #include <regen/objects/primitives/cone.h>
-#include <regen/animation/animation-node.h>
+#include <regen/animation/bone-tree.h>
 #include <regen/animation/animation.h>
 
 namespace regen {
@@ -200,7 +200,7 @@ namespace regen {
 		 */
 		LightNode(
 				const ref_ptr<Light> &light,
-				const ref_ptr<NodeAnimation::Node> &n);
+				const ref_ptr<BoneNode> &n);
 
 		/**
 		 * @param dt update light position using the niamtion node.
@@ -210,7 +210,7 @@ namespace regen {
 	protected:
 		ref_ptr<Light> light_;
 		Vec3f lightPosition_; //!< the light position in local space
-		ref_ptr<NodeAnimation::Node> animNode_;
+		ref_ptr<BoneNode> animNode_;
 	};
 
 	/**

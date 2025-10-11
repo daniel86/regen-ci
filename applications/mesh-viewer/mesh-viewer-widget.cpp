@@ -326,7 +326,7 @@ void MeshViewerWidget::loadResources_GL() {
 }
 
 void MeshViewerWidget::loadAnimation(const ref_ptr<Mesh> &mesh, uint32_t index) {
-	std::list<ref_ptr<NodeAnimation::Node> > meshBones;
+	std::list<ref_ptr<BoneTree::Node> > meshBones;
 	uint32_t numBoneWeights = asset_->numBoneWeights(mesh.get());
 
 	// Find bones influencing this mesh

@@ -3,79 +3,80 @@
 
 #include <list>
 #include <algorithm>
-#include <regen/animation/animation-node.h>
+#include <regen/animation/bone-tree.h>
 
 void setAnimationRangeActive(
-			const ref_ptr<NodeAnimation> &anim,
+			const ref_ptr<BoneTree> &anim,
 			uint32_t instanceIdx,
-			const AnimRange &animRange) {
-	if (animRange.channelName.empty()) {
-		anim->setAnimationIndexActive(instanceIdx, animRange.channelIndex, animRange.range);
+			const AnimationRange &animRange) {
+	if (animRange.trackName.empty()) {
+		anim->startBoneAnimation(instanceIdx, animRange.trackIndex, animRange.range);
 	} else {
-		anim->setAnimationActive(instanceIdx, animRange.channelName, animRange.range);
+		int32_t trackIndex = anim->getTrackIndex(animRange.trackName);
+		if (trackIndex < 0) {
+			REGEN_WARN("Unable to find track name '" << animRange.trackName
+				<< "' for animation range '" << animRange.name << "'.");
+			return;
+		}
+		anim->startBoneAnimation(instanceIdx, trackIndex, animRange.range);
 	}
 }
 
 class RandomAnimationRangeUpdater : public EventHandler {
 public:
-	RandomAnimationRangeUpdater(
-			const ref_ptr<NodeAnimation> &anim,
-			const std::vector<AnimRange> &animRanges)
-			: EventHandler(),
-			  anim_(anim),
-			  animRanges_(animRanges) {}
+	RandomAnimationRangeUpdater(const ref_ptr<BoneAnimationItem> &animItem)
+			: EventHandler(), animItem_(animItem) {}
 
 	~RandomAnimationRangeUpdater() override = default;
 
 	void call(EventObject *ev, EventData *data) override {
-		NodeAnimation::NodeEventData *evData = (NodeAnimation::NodeEventData *) data;
-		int index = rand() % animRanges_.size();
-		setAnimationRangeActive(anim_, evData->instanceIdx, animRanges_[index]);
+		BoneTree::BoneEvent *evData = (BoneTree::BoneEvent *) data;
+		int index = rand() % animItem_->ranges.size();
+		setAnimationRangeActive(animItem_->animation, evData->instanceIdx, animItem_->ranges[index]);
 	}
 
 protected:
-	ref_ptr<NodeAnimation> anim_;
-	std::vector<AnimRange> animRanges_;
+	ref_ptr<BoneAnimationItem> animItem_;
 };
 
 class FixedAnimationRangeUpdater : public EventHandler {
 public:
 	FixedAnimationRangeUpdater(
-			const ref_ptr<NodeAnimation> &anim,
-			const AnimRange &animRange)
+			const ref_ptr<BoneTree> &anim,
+			const AnimationRange &animRange)
 			: EventHandler(),
 			  anim_(anim),
 			  animRange_(animRange) {}
 
 	~FixedAnimationRangeUpdater() override = default;
 	void call(EventObject *ev, EventData *data) override {
-		NodeAnimation::NodeEventData *evData = (NodeAnimation::NodeEventData *) data;
+		BoneTree::BoneEvent *evData = (BoneTree::BoneEvent *) data;
 		setAnimationRangeActive(anim_, evData->instanceIdx, animRange_);
 	}
 protected:
-	ref_ptr<NodeAnimation> anim_;
-	AnimRange animRange_;
+	ref_ptr<BoneTree> anim_;
+	AnimationRange animRange_;
 };
 
 
 class RandomAnimationRangeUpdater2 : public EventHandler {
 public:
 	explicit RandomAnimationRangeUpdater2(
-			const ref_ptr<NodeAnimation> &anim)
+			const ref_ptr<BoneTree> &anim)
 			: EventHandler(),
 			  anim_(anim) {}
 
 	~RandomAnimationRangeUpdater2() override = default;
 
 	void call(EventObject *ev, EventData *data) override {
-		NodeAnimation::NodeEventData *evData = (NodeAnimation::NodeEventData *) data;
+		BoneTree::BoneEvent *evData = (BoneTree::BoneEvent *) data;
 		static const Vec2d fullRange(-1.0, -1.0);
-		int index = rand() % anim_->numAnimations();
-		anim_->setAnimationIndexActive(index, evData->instanceIdx, fullRange);
+		int index = rand() % anim_->numAnimationTracks();
+		anim_->startBoneAnimation(index, evData->instanceIdx, fullRange);
 	}
 
 protected:
-	ref_ptr<NodeAnimation> anim_;
+	ref_ptr<BoneTree> anim_;
 };
 
 struct KeyAnimationMapping {
@@ -97,16 +98,15 @@ struct KeyAnimationMapping {
 class KeyAnimationRangeUpdater : public EventHandler {
 public:
 	KeyAnimationRangeUpdater(
-			const ref_ptr<NodeAnimation> &anim,
-			const std::vector<AnimRange> &animRanges,
+			const ref_ptr<BoneAnimationItem> &animItem,
 			const std::map<std::string, KeyAnimationMapping> &mappings,
 			const std::string &idleAnimation,
 			uint32_t instanceIdx = 0)
 			: EventHandler(),
-			  anim_(anim),
+			  animItem_(animItem),
 			  mappings_(mappings),
 			  instanceIdx_(instanceIdx){
-		for (std::vector<AnimRange>::const_iterator it = animRanges.begin(); it != animRanges.end(); ++it) {
+		for (std::vector<AnimationRange>::const_iterator it = animItem_->ranges.begin(); it != animItem_->ranges.end(); ++it) {
 			animRanges_[it->name] = *it;
 		}
 		active_ = "";
@@ -120,12 +120,12 @@ public:
 		active_ = "";
 		if (toggles_.empty()) {
 			if (!idleAnimation_.empty()) {
-				setAnimationRangeActive(anim_, instanceIdx_, animRanges_[idleAnimation_]);
+				setAnimationRangeActive(animItem_->animation, instanceIdx_, animRanges_[idleAnimation_]);
 			}
 		} else {
 			KeyAnimationMapping &m0 = mappings_[*toggles_.begin()];
 			if (!m0.idle.empty()) {
-				setAnimationRangeActive(anim_, instanceIdx_, animRanges_[m0.idle]);
+				setAnimationRangeActive(animItem_->animation, instanceIdx_, animRanges_[m0.idle]);
 			}
 		}
 	}
@@ -154,7 +154,7 @@ public:
 		} else if (m.backwards) {
 			animRange = Vec2d(animRange.y, animRange.x);
 		}
-		setAnimationRangeActive(anim_, instanceIdx_, animRanges_[m.press]);
+		setAnimationRangeActive(animItem_->animation, instanceIdx_, animRanges_[m.press]);
 	}
 
 	void nextAnimation() {
@@ -221,9 +221,9 @@ public:
 
 
 protected:
-	ref_ptr<NodeAnimation> anim_;
+	ref_ptr<BoneAnimationItem> animItem_;
 	std::map<std::string, KeyAnimationMapping> mappings_;
-	std::map<std::string, AnimRange> animRanges_;
+	std::map<std::string, AnimationRange> animRanges_;
 	std::list<std::string> pressed_;
 	std::set<std::string> toggles_;
 	std::string active_;

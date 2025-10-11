@@ -21,7 +21,7 @@
 #include <regen/scene/scene-input.h>
 #include <regen/shapes/spatial-index.h>
 #include <regen/states/light-state.h>
-#include <regen/animation/animation-node.h>
+#include <regen/animation/bone-tree.h>
 #include <applications/qt/qt-application.h>
 #include <applications/qt/qt-camera-events.h>
 #include <applications/qt/shader-input-widget.h>

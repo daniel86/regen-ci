@@ -4,7 +4,7 @@
 #include <regen/math/vector.h>
 #include <regen/textures/texture.h>
 #include <regen/behavior/npc-controller.h>
-#include "../animation/animation-node.h"
+#include "../animation/bone-tree.h"
 #include "regen/shapes/bounds.h"
 #include "regen/states/model-transformation.h"
 #include "regen/math/bezier.h"
@@ -39,7 +39,7 @@ namespace regen {
 		AnimalController(
 			const ref_ptr<Mesh> &mesh,
 			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
-			const ref_ptr<NodeAnimationItem> &animItem,
+			const ref_ptr<BoneAnimationItem> &animItem,
 			const ref_ptr<WorldModel> &world);
 
 		/**
@@ -111,8 +111,9 @@ namespace regen {
 		float heightMapFactor_ = 8.0f;
 
 		Behavior behavior_ = BEHAVIOR_RUN;
-		std::map<Behavior, std::vector<const AnimRange*> > behaviorRanges_;
+		std::map<Behavior, std::vector<const AnimationRange*> > behaviorRanges_;
 		bool isLastAnimationMovement_ = false;
+		const AnimationRange *lastRange_ = nullptr;
 
 		const WorldTime *worldTime_ = nullptr;
 

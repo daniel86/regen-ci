@@ -10,11 +10,11 @@ using namespace regen;
 PersonController::PersonController(
 	const ref_ptr<Mesh> &mesh,
 	const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
-	const ref_ptr<NodeAnimationItem> &animItem,
+	const ref_ptr<BoneAnimationItem> &animItem,
 	const ref_ptr<WorldModel> &world)
 	: NonPlayerCharacterController(mesh, tfIndexed, animItem, world),
       knowledgeBase_(tfIndexed.index, &currentPos_, &currentDir_) {
-	initializeBoneAnimations();
+	boneController_ = ref_ptr<BoneController>::alloc(tfIndexed.index, animItem);
 	// create the initial collision shape
 	Bounds<Vec3f> collisionBounds(mesh->minPosition(), mesh->maxPosition());
 	collisionBounds.min.z -= 15.0f;
@@ -54,7 +54,6 @@ void PersonController::initializeController() {
 	knowledgeBase_.setActivityTime(initialIdleTime);
 	// Start with idle animation
 	setIdle();
-	startBoneAnimation();
 	startAnimation();
 }
 
@@ -64,45 +63,6 @@ void PersonController::setIdle() {
 	kb.setActivityTime(kb.baseTimeActivity() * 0.05f * math::random<float>());
 	kb.unsetInteractionTarget();
 	currentPath_.clear();
-	currentBoneAnimation_ = MotionType::IDLE;
-}
-
-void PersonController::initializeBoneAnimations() {
-	for (auto &range: animItem_->ranges) {
-		if (range.name.find("walk") == 0) {
-			motionRanges_[MotionType::WALK].push_back(&range);
-		} else if (range.name.find("run") == 0) {
-			motionRanges_[MotionType::RUN].push_back(&range);
-		} else if (range.name.find("idle") == 0) {
-			motionRanges_[MotionType::IDLE].push_back(&range);
-		} else if (range.name.find("yes") == 0) {
-			motionRanges_[MotionType::YES].push_back(&range);
-		} else if (range.name.find("no") == 0) {
-			motionRanges_[MotionType::NO].push_back(&range);
-		} else if (range.name.find("crouch") == 0) {
-			motionRanges_[MotionType::CROUCH].push_back(&range);
-		} else if (range.name.find("pray") == 0) {
-			motionRanges_[MotionType::PRAY].push_back(&range);
-		} else if (range.name.find("attack") == 0) {
-			motionRanges_[MotionType::ATTACK].push_back(&range);
-		} else if (range.name.find("up") == 0) {
-			motionRanges_[MotionType::STAND_UP].push_back(&range);
-		} else if (range.name.find("sleep") == 0) {
-			motionRanges_[MotionType::SLEEP].push_back(&range);
-		} else if (range.name.find("sit") == 0) {
-			motionRanges_[MotionType::SIT].push_back(&range);
-		}
-	}
-	if (!motionRanges_[MotionType::WALK].empty()) {
-		auto walkRange = motionRanges_[MotionType::WALK][0]->range;
-		auto walkTPS = animItem_->animation->ticksPerSecond(motionRanges_[MotionType::WALK][0]->channelIndex);
-		walkTime_ = 1000.0f * (walkRange.y - walkRange.x) / walkTPS;
-	}
-	if (!motionRanges_[MotionType::RUN].empty()) {
-		auto runRange = motionRanges_[MotionType::RUN][0]->range;
-		auto runTPS = animItem_->animation->ticksPerSecond(motionRanges_[MotionType::RUN][0]->channelIndex);
-		runTime_ = 1000.0f * (runRange.y - runRange.x) / runTPS;
-	}
 }
 
 void PersonController::setBehaviorTree(std::unique_ptr<BehaviorTree::Node> rootNode) {
@@ -160,12 +120,18 @@ void PersonController::updateController(double dt) {
 	updateKnowledgeBase(dt_s);
 
 	if (footstepTrail_.get() && isLastAnimationMovement_) {
-		auto movementTime = (isCurrentBoneAnimation(MotionType::WALK) ? walkTime_ : runTime_);
-		auto elapsed = anim->elapsedTime(tfIdx_);
-		for (int i = 0; i < 2; i++) {
-			if (!footDown_[i] && elapsed > footTime_[i] * movementTime) {
-				footDown_[i] = true;
-				footstepTrail_->insertBlanket(currentPos_, currentDir_, footIdx_[i]);
+		int32_t walkHandle = boneController_->getAnimationHandle(MotionType::WALK);
+		int32_t runHandle = boneController_->getAnimationHandle(MotionType::RUN);
+		int32_t rangeIdx = std::max(walkHandle, runHandle);
+		if (rangeIdx != -1) {
+			float movementTime = (walkHandle != -1 ?
+				boneController_->walkTime() : boneController_->runTime());
+			auto elapsed = anim->elapsedTime(tfIdx_, rangeIdx);
+			for (int i = 0; i < 2; i++) {
+				if (!footDown_[i] && elapsed > footTime_[i] * movementTime) {
+					footDown_[i] = true;
+					footstepTrail_->insertBlanket(currentPos_, currentDir_, footIdx_[i]);
+				}
 			}
 		}
 	}
@@ -176,16 +142,16 @@ void PersonController::updateController(double dt) {
 		REGEN_WARN("Behavior tree failed for NPC '" << npcWorldObject_->name() << "'.");
 		setIdle();
 	}
-	// Update the state of current bone animations based on current actions.
-	updateBoneAnimations();
+	// Update the state of current bone animations based on current actions, intends etc.
+	boneController_->updateBoneController(knowledgeBase_, dt_s);
 	// Update path etc. for navigation action.
 	updateNavigationTarget();
 
 	// Set flags for current bone animations
-	if (isCurrentBoneAnimation(MotionType::RUN)) {
+	if (boneController_->isCurrentBoneAnimation(MotionType::RUN)) {
 		isWalking_ = false;
 		isLastAnimationMovement_ = true;
-	} else if (isCurrentBoneAnimation(MotionType::WALK)) {
+	} else if (boneController_->isCurrentBoneAnimation(MotionType::WALK)) {
 		isWalking_ = true;
 		isLastAnimationMovement_ = true;
 	} else {
@@ -279,8 +245,10 @@ void PersonController::updateNavigationTarget() {
 	bool loop = (currentNavAction == ActionType::PATROLLING || currentNavAction == ActionType::STROLLING);
 	if (it_ != frames_.end()) {
 		// The TF animation has an active frame, continue navigation.
-		bool isNavAnim = isCurrentBoneAnimation(MotionType::WALK) || isCurrentBoneAnimation(MotionType::RUN);
-		if (isNavAnim && !anim->isNodeAnimationActive(tfIdx_)) {
+		int32_t walkHandle = boneController_->getAnimationHandle(MotionType::WALK);
+		int32_t runHandle = boneController_->getAnimationHandle(MotionType::RUN);
+		int32_t rangeIdx = std::max(walkHandle, runHandle);
+		if (rangeIdx != -1 && !anim->isBoneAnimationActive(tfIdx_, rangeIdx)) {
 			// one animation cycle is done, reset the footstep flags
 			footDown_[0] = false;
 			footDown_[1] = false;
@@ -458,78 +426,4 @@ bool PersonController::updatePathNPC() {
 		updatePathCurve(source, pickTravelPosition(*nextWP.get()));
 	}
 	return true;
-}
-
-void PersonController::startBoneAnimation() {
-	auto &ranges = motionRanges_[currentBoneAnimation_];
-	if (ranges.empty()) {
-		REGEN_WARN("No animation ranges for movement type " << (int)currentBoneAnimation_ << ".");
-		return;
-	}
-	auto &range = ranges[rand() % ranges.size()];
-	lastRange_ = range;
-#ifndef DISABLE_BONE_ANIMATION
-	animItem_->animation->setAnimationActive(tfIdx_, range->channelName, range->range);
-	animItem_->animation->startAnimation();
-#endif
-}
-
-bool PersonController::isCurrentBoneAnimation(MotionType type) const {
-	return currentBoneAnimation_ == type;
-}
-
-void PersonController::updateBoneAnimations() {
-	// For now do not allow update while a bone animation is active.
-	// TODO: support multiple simultaneous bone animations.
-	// TODO: support blending between animations.
-	if (animItem_->animation->isNodeAnimationActive(tfIdx_)) {
-		return;
-	}
-	// Update current motion based on current action.
-	switch (knowledgeBase_.currentAction()) {
-		case ActionType::OBSERVING:
-		case ActionType::IDLE:
-			currentBoneAnimation_ = MotionType::IDLE;
-			break;
-		case ActionType::SITTING:
-			currentBoneAnimation_ = MotionType::SIT;
-			break;
-		case ActionType::PRAYING:
-			currentBoneAnimation_ = MotionType::CROUCH;
-			break;
-		case ActionType::ATTACKING:
-			currentBoneAnimation_ = MotionType::ATTACK;
-			break;
-		case ActionType::BLOCKING:
-			currentBoneAnimation_ = MotionType::BLOCK;
-			break;
-		case ActionType::SLEEPING:
-			currentBoneAnimation_ = MotionType::SLEEP;
-			break;
-		case ActionType::NAVIGATING:
-		case ActionType::PATROLLING:
-		case ActionType::STROLLING:
-			currentBoneAnimation_ = MotionType::WALK;
-			break;
-		case ActionType::FLEEING:
-			currentBoneAnimation_ = MotionType::RUN;
-			break;
-		case ActionType::CONVERSING: {
-			std::vector<MotionType> possibleMotions;
-			if (motionRanges_.find(MotionType::IDLE) != motionRanges_.end()) {
-				possibleMotions.push_back(MotionType::IDLE);
-			}
-			if (motionRanges_.find(MotionType::YES) != motionRanges_.end()) {
-				possibleMotions.push_back(MotionType::YES);
-			}
-			if (motionRanges_.find(MotionType::NO) != motionRanges_.end()) {
-				possibleMotions.push_back(MotionType::NO);
-			}
-			if (!possibleMotions.empty()) {
-				currentBoneAnimation_ = possibleMotions[math::randomInt() % possibleMotions.size()];
-			}
-			break;
-		}
-	}
-	startBoneAnimation();
 }

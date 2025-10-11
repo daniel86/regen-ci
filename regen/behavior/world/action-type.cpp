@@ -30,6 +30,8 @@ std::ostream &regen::operator<<(std::ostream &out, const ActionType &v) {
 			return out << "NAVIGATING";
 		case ActionType::SITTING:
 			return out << "SIT";
+		case ActionType::LAST_ACTION:
+			return out << "LAST_ACTION";
 	}
 	return out;
 }

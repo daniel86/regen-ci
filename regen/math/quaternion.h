@@ -100,11 +100,30 @@ namespace regen {
 		 * @return the Quaternion product.
 		 */
 		inline Quaternion operator*(const Quaternion &b) const {
-			return Quaternion(
+			return {
 					w * b.w - x * b.x - y * b.y - z * b.z,
 					w * b.x + x * b.w + y * b.z - z * b.y,
 					w * b.y + y * b.w + z * b.x - x * b.z,
-					w * b.z + z * b.w + x * b.y - y * b.x);
+					w * b.z + z * b.w + x * b.y - y * b.x};
+		}
+
+		/**
+		 * @param scalar a scalar value.
+		 * @return the scaled Quaternion.
+		 */
+		inline Quaternion operator*(float scalar) const {
+			return {w * scalar, x * scalar, y * scalar, z * scalar};
+		}
+
+		/**
+		 * @param b another Quaternion.
+		 * @return the dot product.
+		 */
+		inline void operator+=(const Quaternion &b) {
+			w += b.w;
+			x += b.x;
+			y += b.y;
+			z += b.z;
 		}
 
 		/**
@@ -113,15 +132,15 @@ namespace regen {
 		 * @param fYaw the yaw angle.
 		 * @param fRoll the roll angle.
 		 */
-		inline void setEuler(GLfloat fPitch, GLfloat fYaw, GLfloat fRoll) {
-			const GLfloat fSinPitch(sin(fPitch * 0.5f));
-			const GLfloat fCosPitch(cos(fPitch * 0.5f));
-			const GLfloat fSinYaw(sin(fYaw * 0.5f));
-			const GLfloat fCosYaw(cos(fYaw * 0.5f));
-			const GLfloat fSinRoll(sin(fRoll * 0.5f));
-			const GLfloat fCosRoll(cos(fRoll * 0.5f));
-			const GLfloat fCosPitchCosYaw(fCosPitch * fCosYaw);
-			const GLfloat fSinPitchSinYaw(fSinPitch * fSinYaw);
+		inline void setEuler(float fPitch, float fYaw, float fRoll) {
+			const float fSinPitch(sinf(fPitch * 0.5f));
+			const float fCosPitch(cosf(fPitch * 0.5f));
+			const float fSinYaw(sinf(fYaw * 0.5f));
+			const float fCosYaw(cosf(fYaw * 0.5f));
+			const float fSinRoll(sinf(fRoll * 0.5f));
+			const float fCosRoll(cosf(fRoll * 0.5f));
+			const float fCosPitchCosYaw(fCosPitch * fCosYaw);
+			const float fSinPitchSinYaw(fSinPitch * fSinYaw);
 			x = fSinRoll * fCosPitchCosYaw - fCosRoll * fSinPitchSinYaw;
 			y = fCosRoll * fSinPitch * fCosYaw + fSinRoll * fCosPitch * fSinYaw;
 			z = fCosRoll * fCosPitch * fSinYaw - fSinRoll * fSinPitch * fCosYaw;
@@ -134,8 +153,8 @@ namespace regen {
 		 * @param angle the rotation angle.
 		 */
 		inline void setAxisAngle(const Vec3f &axis, GLfloat angle) {
-			const GLfloat sin_a = sin(angle / 2);
-			const GLfloat cos_a = cos(angle / 2);
+			const float sin_a = sinf(angle / 2);
+			const float cos_a = cosf(angle / 2);
 			x = axis.x * sin_a;
 			y = axis.y * sin_a;
 			z = axis.z * sin_a;
@@ -198,9 +217,9 @@ namespace regen {
 			y = normalized.y;
 			z = normalized.z;
 
-			const GLfloat t = 1.0f - (x * x) - (y * y) - (z * z);
+			const float t = 1.0f - (x * x) - (y * y) - (z * z);
 			if (t < 0.0f) w = 0.0f;
-			else w = sqrt(t);
+			else w = sqrtf(t);
 		}
 
 		/**
@@ -230,9 +249,9 @@ namespace regen {
 		inline void interpolate(
 				const Quaternion &pStart,
 				const Quaternion &pEnd,
-				GLfloat pFactor) {
+				float pFactor) {
 			// calc cosine theta
-			GLfloat cosom =
+			float cosom =
 					pStart.x * pEnd.x +
 					pStart.y * pEnd.y +
 					pStart.z * pEnd.z +
@@ -249,15 +268,15 @@ namespace regen {
 			}
 
 			// Calculate coefficients
-			GLfloat sclp, sclq;
+			float sclp, sclq;
 			if ((1.0f - cosom) > 0.0001f) // 0.0001 -> some epsillon
 			{
 				// Standard case (slerp)
 				float omega, sinom;
-				omega = acos(cosom); // extract theta from dot product's cos theta
-				sinom = sin(omega);
-				sclp = sin((1.0f - pFactor) * omega) / sinom;
-				sclq = sin(pFactor * omega) / sinom;
+				omega = acosf(cosom); // extract theta from dot product's cos theta
+				sinom = sinf(omega);
+				sclp = sinf((1.0f - pFactor) * omega) / sinom;
+				sclq = sinf(pFactor * omega) / sinom;
 			} else {
 				// Very close, do linear interp (because it's faster)
 				sclp = 1.0f - pFactor;
@@ -312,9 +331,9 @@ namespace regen {
 		 * Compute the magnitude and divide through it.
 		 */
 		inline void normalize() {
-			const GLfloat mag = sqrt(x * x + y * y + z * z + w * w);
+			const float mag = sqrtf(x * x + y * y + z * z + w * w);
 			if (mag) {
-				const GLfloat invMag = 1.0f / mag;
+				const float invMag = 1.0f / mag;
 				x *= invMag;
 				y *= invMag;
 				z *= invMag;
@@ -344,13 +363,13 @@ namespace regen {
 		}
 
 		/** Quaternion w-component. */
-		GLfloat w;
+		float w;
 		/** Quaternion x-component. */
-		GLfloat x;
+		float x;
 		/** Quaternion y-component. */
-		GLfloat y;
+		float y;
 		/** Quaternion z-component. */
-		GLfloat z;
+		float z;
 	};
 } // namespace
 

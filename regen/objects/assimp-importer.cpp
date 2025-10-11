@@ -197,7 +197,7 @@ ref_ptr<LightNode> AssetImporter::loadLightNode(const ref_ptr<Light> &light) {
 	aiNode *node = nodes_[string(assimpLight->mName.data)];
 	if (node == nullptr) { return {}; }
 
-	ref_ptr<NodeAnimation::Node> &animNode = aiNodeToNode_[node];
+	ref_ptr<BoneNode> &animNode = aiNodeToNode_[node];
 	if (animNode.get() == nullptr) { return {}; }
 
 	return ref_ptr<LightNode>::alloc(light, animNode);
@@ -1019,16 +1019,16 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 	return meshState;
 }
 
-list<ref_ptr<NodeAnimation::Node> > AssetImporter::loadMeshBones(
-		Mesh *meshState, NodeAnimation *anim) {
+list<ref_ptr<BoneNode>> AssetImporter::loadMeshBones(
+		Mesh *meshState, BoneTree *anim) {
 	const struct aiMesh *mesh = meshToAiMesh_[meshState];
 	if (mesh->mNumBones == 0) { return {}; }
 
-	list<ref_ptr<NodeAnimation::Node> > boneNodes;
+	list<ref_ptr<BoneNode>> boneNodes;
 	for (GLuint boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex) {
 		aiBone *assimpBone = mesh->mBones[boneIndex];
 		string nodeName = string(assimpBone->mName.data);
-		ref_ptr<NodeAnimation::Node> animNode = anim->findNode(nodeName);
+		ref_ptr<BoneNode> animNode = anim->findNode(nodeName);
 		// hoping that meshes do not share bones here....
 		// is there a usecase for bone sharing between meshes ?
 		// if so the offset matrix can only be used in BonesState class
@@ -1065,22 +1065,22 @@ ref_ptr<Material> AssetImporter::getMeshMaterial(Mesh *state) {
 
 ///////////// NODE ANIMATION
 
-static NodeAnimation::Behavior animState(aiAnimBehaviour b) {
+static AnimationChannelBehavior animState(aiAnimBehaviour b) {
 	switch (b) {
 		case aiAnimBehaviour_CONSTANT:
-			return NodeAnimation::BEHAVIOR_CONSTANT;
+			return AnimationChannelBehavior::CONSTANT;
 		case aiAnimBehaviour_LINEAR:
-			return NodeAnimation::BEHAVIOR_LINEAR;
+			return AnimationChannelBehavior::LINEAR;
 		case aiAnimBehaviour_REPEAT:
-			return NodeAnimation::BEHAVIOR_REPEAT;
+			return AnimationChannelBehavior::REPEAT;
 		case _aiAnimBehaviour_Force32Bit:
 		case aiAnimBehaviour_DEFAULT:
 		default:
-			return NodeAnimation::BEHAVIOR_DEFAULT;
+			return AnimationChannelBehavior::DEFAULT;
 	}
 }
 
-ref_ptr<NodeAnimation::Node> AssetImporter::loadNodeTree() {
+ref_ptr<BoneNode> AssetImporter::loadNodeTree() {
 	if (scene_->HasAnimations()) {
 		GLboolean hasAnimations = false;
 		for (GLuint i = 0; i < scene_->mNumAnimations; ++i) {
@@ -1090,16 +1090,14 @@ ref_ptr<NodeAnimation::Node> AssetImporter::loadNodeTree() {
 			}
 		}
 		if (hasAnimations) {
-			return loadNodeTree(scene_->mRootNode, ref_ptr<NodeAnimation::Node>());
+			return loadNodeTree(scene_->mRootNode, ref_ptr<BoneNode>());
 		}
 	}
 	return {};
 }
 
-ref_ptr<NodeAnimation::Node> AssetImporter::loadNodeTree(
-			aiNode *assimpNode,
-			const ref_ptr<NodeAnimation::Node> &parent) {
-	ref_ptr<NodeAnimation::Node> node = ref_ptr<NodeAnimation::Node>::alloc(string(assimpNode->mName.data), parent);
+ref_ptr<BoneNode> AssetImporter::loadNodeTree(aiNode *assimpNode, const ref_ptr<BoneNode> &parent) {
+	auto node = ref_ptr<BoneNode>::alloc(string(assimpNode->mName.data), parent);
 	aiNodeToNode_[assimpNode] = node;
 	nodes_[string(assimpNode->mName.data)] = assimpNode;
 
@@ -1108,7 +1106,7 @@ ref_ptr<NodeAnimation::Node> AssetImporter::loadNodeTree(
 
 	// continue for all child nodes and assign the created internal nodes as our children
 	for (GLuint i = 0; i < assimpNode->mNumChildren; ++i) {
-		ref_ptr<NodeAnimation::Node> subTree = loadNodeTree(assimpNode->mChildren[i], node);
+		ref_ptr<BoneNode> subTree = loadNodeTree(assimpNode->mChildren[i], node);
 		node->addChild(subTree);
 	}
 
@@ -1120,11 +1118,11 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 		return;
 	}
 
-	ref_ptr<NodeAnimation> anim = ref_ptr<NodeAnimation>::alloc(rootNode_, animConfig.numInstances);
-	ref_ptr<vector<NodeAnimation::Channel> > channels;
-	ref_ptr<vector<NodeAnimation::KeyFrame3f> > scalingKeys;
-	ref_ptr<vector<NodeAnimation::KeyFrame3f> > positionKeys;
-	ref_ptr<vector<NodeAnimation::KeyFrameQuaternion> > rotationKeys;
+	ref_ptr<BoneTree> anim = ref_ptr<BoneTree>::alloc(rootNode_, animConfig.numInstances);
+	ref_ptr<vector<AnimationChannel>> channels;
+	ref_ptr<vector<Stamped<Vec3f>>> scalingKeys;
+	ref_ptr<vector<Stamped<Vec3f>>> positionKeys;
+	ref_ptr<vector<Stamped<Quaternion>>> rotationKeys;
 
 	for (GLuint i = 0; i < scene_->mNumAnimations; ++i) {
 		aiAnimation *assimpAnim = scene_->mAnimations[i];
@@ -1142,17 +1140,17 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 
 		if (assimpAnim->mNumChannels <= 0) continue;
 
-		channels = ref_ptr<vector<NodeAnimation::Channel> >::alloc(assimpAnim->mNumChannels);
-		vector<NodeAnimation::Channel> &channelsPtr = *channels.get();
+		channels = ref_ptr<vector<AnimationChannel> >::alloc(assimpAnim->mNumChannels);
+		auto &channelsPtr = *channels.get();
 
 		for (GLuint j = 0; j < assimpAnim->mNumChannels; ++j) {
 			aiNodeAnim *nodeAnim = assimpAnim->mChannels[j];
 
-			auto scalingKeys = ref_ptr<vector<NodeAnimation::KeyFrame3f> >::alloc(nodeAnim->mNumScalingKeys);
-			vector<NodeAnimation::KeyFrame3f> &scalingKeys_ = *scalingKeys.get();
+			auto scalingKeys = ref_ptr<vector<Stamped<Vec3f>>>::alloc(nodeAnim->mNumScalingKeys);
+			auto &scalingKeys_ = *scalingKeys.get();
 			GLboolean useScale = false;
 			for (GLuint k = 0; k < nodeAnim->mNumScalingKeys; ++k) {
-				NodeAnimation::KeyFrame3f &key = scalingKeys_[k];
+				auto &key = scalingKeys_[k];
 				key.time = nodeAnim->mScalingKeys[k].mTime;
 				key.value = *((Vec3f *) &(nodeAnim->mScalingKeys[k].mValue.x));
 				if (key.time > 0.0001) useScale = true;
@@ -1168,12 +1166,12 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 
 			////////////
 
-			positionKeys = ref_ptr<vector<NodeAnimation::KeyFrame3f> >::alloc(nodeAnim->mNumPositionKeys);
-			vector<NodeAnimation::KeyFrame3f> &positionKeys_ = *positionKeys.get();
+			positionKeys = ref_ptr<vector<Stamped<Vec3f>>>::alloc(nodeAnim->mNumPositionKeys);
+			auto &positionKeys_ = *positionKeys.get();
 			GLboolean usePosition = false;
 
 			for (GLuint k = 0; k < nodeAnim->mNumPositionKeys; ++k) {
-				NodeAnimation::KeyFrame3f &key = positionKeys_[k];
+				auto &key = positionKeys_[k];
 				key.time = nodeAnim->mPositionKeys[k].mTime;
 				key.value = *((Vec3f *) &(nodeAnim->mPositionKeys[k].mValue.x));
 				if (key.time > 0.0001) usePosition = true;
@@ -1189,25 +1187,25 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 
 			///////////
 
-			rotationKeys = ref_ptr<vector<NodeAnimation::KeyFrameQuaternion> >::alloc(nodeAnim->mNumRotationKeys);
-			vector<NodeAnimation::KeyFrameQuaternion> &rotationKeyss_ = *rotationKeys.get();
+			rotationKeys = ref_ptr<vector<Stamped<Quaternion>>>::alloc(nodeAnim->mNumRotationKeys);
+			auto &rotationKeys_ = *rotationKeys.get();
 			GLboolean useRotation = false;
 			for (GLuint k = 0; k < nodeAnim->mNumRotationKeys; ++k) {
-				NodeAnimation::KeyFrameQuaternion &key = rotationKeyss_[k];
+				auto &key = rotationKeys_[k];
 				key.time = nodeAnim->mRotationKeys[k].mTime;
 				key.value = *((Quaternion *) &(nodeAnim->mRotationKeys[k].mValue.w));
 				if (key.time > 0.0001) useRotation = true;
 			}
 
-			if (!useRotation && !rotationKeyss_.empty()) {
-				if (rotationKeyss_[0].value == Quaternion(1, 0, 0, 0)) {
-					rotationKeyss_.resize(0);
+			if (!useRotation && !rotationKeys_.empty()) {
+				if (rotationKeys_[0].value == Quaternion(1, 0, 0, 0)) {
+					rotationKeys_.resize(0);
 				} else {
-					rotationKeyss_.resize(1, rotationKeyss_[0]);
+					rotationKeys_.resize(1, rotationKeys_[0]);
 				}
 			}
 
-			NodeAnimation::Channel &channel = channelsPtr[j];
+			auto &channel = channelsPtr[j];
 			channel.nodeName_ = string(nodeAnim->mNodeName.data);
 			if (animConfig.forceStates) {
 				channel.postState = animConfig.postState;
@@ -1247,12 +1245,12 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 			input.getValue<bool>("animation-force-states", true);
 	animConfig.ticksPerSecond =
 			input.getValue<GLfloat>("animation-tps", 20.0);
-	animConfig.postState = input.getValue<NodeAnimation::Behavior>(
+	animConfig.postState = input.getValue<AnimationChannelBehavior>(
 			"animation-post-state",
-			NodeAnimation::BEHAVIOR_LINEAR);
-	animConfig.preState = input.getValue<NodeAnimation::Behavior>(
+			AnimationChannelBehavior::LINEAR);
+	animConfig.preState = input.getValue<AnimationChannelBehavior>(
 			"animation-pre-state",
-			NodeAnimation::BEHAVIOR_LINEAR);
+			AnimationChannelBehavior::LINEAR);
 
 	try {
 		auto asset = ref_ptr<AssetImporter>::alloc(assetPath);

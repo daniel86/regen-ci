@@ -1,5 +1,6 @@
 #include <random>
 #include "animal-controller.h"
+#include "skeleton/bone-controller.h"
 
 using namespace regen;
 
@@ -8,7 +9,7 @@ using namespace regen;
 AnimalController::AnimalController(
 			const ref_ptr<Mesh> &mesh,
 			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
-			const ref_ptr<NodeAnimationItem> &animItem,
+			const ref_ptr<BoneAnimationItem> &animItem,
 			const ref_ptr<WorldModel> &world)
 				: NonPlayerCharacterController(mesh, tfIndexed, animItem, world),
 				  territoryBounds_(Vec2f::zero(), Vec2f::zero()),
@@ -22,6 +23,14 @@ AnimalController::AnimalController(
 	baseOrientation_ = M_PI_2;
 	floorHeight_ = 0.0f;
 	for (auto &range: animItem_->ranges) {
+		if (!range.trackName.empty()) {
+			range.trackIndex = animItem_->animation->getTrackIndex(range.trackName);
+			if (range.trackIndex < 0) {
+				REGEN_WARN("Unable to find track name '" << range.trackName
+					<< "' for animation range '" << range.name << "'.");
+				continue;
+			}
+		}
 		if (range.name.find("walk") == 0) {
 			behaviorRanges_[BEHAVIOR_WALK].push_back(&range);
 		}
@@ -76,7 +85,7 @@ void AnimalController::activateRandom() {
 	auto &ranges = behaviorRanges_[behavior_];
 	if (ranges.empty()) { return; }
 	// select a random range
-	std::vector<const AnimRange*> out;
+	std::vector<const AnimationRange*> out;
     std::sample(
         ranges.begin(),
         ranges.end(),
@@ -87,7 +96,7 @@ void AnimalController::activateRandom() {
 	auto &range = out[0];
 	// set the animation range
 	const uint32_t instanceIdx = 0u;
-	animItem_->animation->setAnimationActive(instanceIdx, range->channelName, range->range);
+	animItem_->animation->startBoneAnimation(instanceIdx, range->trackIndex, range->range);
 	lastRange_ = range;
 }
 
@@ -215,20 +224,17 @@ void AnimalController::updateController(double dt) {
 	const uint32_t instanceIdx = 0u;
 	if (it_ == frames_.end()) {
 		// currently no movement.
-		if (animItem_->animation->isNodeAnimationActive(instanceIdx)) {
-			if (isLastAnimationMovement_) {
-				// animation is movement, deactivate
-				animItem_->animation->stopNodeAnimation(instanceIdx);
-			}
+		if (animItem_->animation->numActiveRanges(instanceIdx) > 0) {
+			// animation active, wait until it finishes
 			return;
 		}
 	}
 	else {
 		// movement active
-		if (!animItem_->animation->isNodeAnimationActive(instanceIdx)) {
+		if (animItem_->animation->numActiveRanges(instanceIdx) == 0) {
 			// animation not active, activate
 			if (lastRange_) {
-				animItem_->animation->setAnimationActive(instanceIdx, lastRange_->channelName, lastRange_->range);
+				animItem_->animation->startBoneAnimation(instanceIdx, lastRange_->trackIndex, lastRange_->range);
 				animItem_->animation->startAnimation();
 			}
 		}

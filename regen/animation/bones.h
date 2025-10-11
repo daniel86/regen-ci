@@ -2,7 +2,7 @@
 #define REGEN_BONES_H
 
 #include <regen/states/state.h>
-#include <regen/animation/animation-node.h>
+#include <regen/animation/bone-tree.h>
 #include <regen/buffer/vbo.h>
 #include <regen/textures/texture-state.h>
 #include <regen/textures/texture-buffer.h>
@@ -24,7 +24,7 @@ namespace regen {
 		/**
 		 * @param bones  the bone list
 		 */
-		void setBones(const std::list<ref_ptr<NodeAnimation::Node> > &bones);
+		void setBones(const std::list<ref_ptr<BoneNode>> &bones);
 
 		/**
 		 * @return maximum number of weights influencing a single bone.
@@ -35,7 +35,7 @@ namespace regen {
 		void animate(GLdouble dt) override;
 
 	protected:
-		std::list<ref_ptr<NodeAnimation::Node> > bones_;
+		std::list<ref_ptr<BoneNode>> bones_;
 		ref_ptr<ShaderInput1i> numBoneWeights_;
 		uint32_t numInstances_;
 		uint32_t bufferSize_;

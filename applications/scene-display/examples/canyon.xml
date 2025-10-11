@@ -142,33 +142,35 @@
            animation-pre-state="LINEAR"
            animation-tps="60.0">
         <!-- define named animation ranges. -->
-        <anim-range name="walk" channel="Hyenas_A15_Walk" range="1.0,80.0" />
-        <anim-range name="up" channel="Hyenas_A15_Up" range="1.0,50.0" />
-        <anim-range name="tired" channel="Hyenas_A15_Tired" range="1.0,135.0" />
-        <anim-range name="swim2" channel="Hyenas_A15_Swim2" range="1.0,60.0" />
-        <anim-range name="swim1" channel="Hyenas_A15_Swim" range="1.0,100.0" />
-        <anim-range name="stretch" channel="Hyenas_A15_Stretch" range="1.0,300.0" />
-        <anim-range name="smell2" channel="Hyenas_A15_Smell2" range="1.0,300.0" />
-        <anim-range name="smell1" channel="Hyenas_A15_Smell" range="1.0,185.0" />
-        <anim-range name="sleep2" channel="Hyenas_A15_Sleep2" range="1.0,249.0" />
-        <anim-range name="sleep1" channel="Hyenas_A15_Sleep" range="1.0,60.0" />
-        <anim-range name="sit2" channel="Hyenas_A15_Sit2" range="1.0,430.0" />
-        <anim-range name="sit1" channel="Hyenas_A15_Sit" range="1.0,220.0" />
-        <anim-range name="run" channel="Hyenas_A15_Run" range="1.0,30.0" />
-        <anim-range name="roar3" channel="Hyenas_A15_Roar3" range="1.0,110.0" />
-        <anim-range name="roar2" channel="Hyenas_A15_Roar2" range="1.0,100.0" />
-        <anim-range name="roar1" channel="Hyenas_A15_Roar" range="1.0,130.0" />
-        <anim-range name="jump" channel="Hyenas_A15_jump" range="1.0,125.0" />
-        <anim-range name="idle3" channel="Hyenas_A15_Idle3" range="1.0,140.0" />
-        <anim-range name="idle2" channel="Hyenas_A15_Idle2" range="1.0,120.0" />
-        <anim-range name="idle1" channel="Hyenas_A15_Idle" range="1.0,150.0" />
-        <anim-range name="die" channel="Hyenas_A15_Die" range="1.0,100.0" />
-        <anim-range name="breadth" channel="Hyenas_A15_BreathFast" range="1.0,60.0" />
-        <anim-range name="bark" channel="Hyenas_A15_Bark" range="1.0,160.0" />
-        <anim-range name="lick" channel="Hyenas_A15_Atk4" range="1.0,150.0" />
-        <anim-range name="attack3" channel="Hyenas_A15_Atk3" range="1.0,80.0" />
-        <anim-range name="attack2" channel="Hyenas_A15_Atk2" range="1.0,120.0" />
-        <anim-range name="attack1" channel="Hyenas_A15_Atk" range="1.0,35.0" />
+        <bone-animation>
+            <range name="walk" track="Hyenas_A15_Walk" range="1.0,80.0" />
+            <range name="up" track="Hyenas_A15_Up" range="1.0,50.0" />
+            <range name="tired" track="Hyenas_A15_Tired" range="1.0,135.0" />
+            <range name="swim2" track="Hyenas_A15_Swim2" range="1.0,60.0" />
+            <range name="swim1" track="Hyenas_A15_Swim" range="1.0,100.0" />
+            <range name="stretch" track="Hyenas_A15_Stretch" range="1.0,300.0" />
+            <range name="smell2" track="Hyenas_A15_Smell2" range="1.0,300.0" />
+            <range name="smell1" track="Hyenas_A15_Smell" range="1.0,185.0" />
+            <range name="sleep2" track="Hyenas_A15_Sleep2" range="1.0,249.0" />
+            <range name="sleep1" track="Hyenas_A15_Sleep" range="1.0,60.0" />
+            <range name="sit2" track="Hyenas_A15_Sit2" range="1.0,430.0" />
+            <range name="sit1" track="Hyenas_A15_Sit" range="1.0,220.0" />
+            <range name="run" track="Hyenas_A15_Run" range="1.0,30.0" />
+            <range name="roar3" track="Hyenas_A15_Roar3" range="1.0,110.0" />
+            <range name="roar2" track="Hyenas_A15_Roar2" range="1.0,100.0" />
+            <range name="roar1" track="Hyenas_A15_Roar" range="1.0,130.0" />
+            <range name="jump" track="Hyenas_A15_jump" range="1.0,125.0" />
+            <range name="idle3" track="Hyenas_A15_Idle3" range="1.0,140.0" />
+            <range name="idle2" track="Hyenas_A15_Idle2" range="1.0,120.0" />
+            <range name="idle1" track="Hyenas_A15_Idle" range="1.0,150.0" />
+            <range name="die" track="Hyenas_A15_Die" range="1.0,100.0" />
+            <range name="breadth" track="Hyenas_A15_BreathFast" range="1.0,60.0" />
+            <range name="bark" track="Hyenas_A15_Bark" range="1.0,160.0" />
+            <range name="lick" track="Hyenas_A15_Atk4" range="1.0,150.0" />
+            <range name="attack3" track="Hyenas_A15_Atk3" range="1.0,80.0" />
+            <range name="attack2" track="Hyenas_A15_Atk2" range="1.0,120.0" />
+            <range name="attack1" track="Hyenas_A15_Atk" range="1.0,35.0" />
+        </bone-animation>
     </asset>
     <!-- Sky -->
     <sky id="sky" camera="main-camera" update-interval="200.0" >

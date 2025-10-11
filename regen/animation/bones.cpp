@@ -21,7 +21,7 @@ Bones::Bones(GLuint numBoneWeights, GLuint numBones)
 	shaderDefine("NUM_BONES_PER_MESH", REGEN_STRING(numBones));
 }
 
-void Bones::setBones(const std::list<ref_ptr<NodeAnimation::Node> > &bones) {
+void Bones::setBones(const std::list<ref_ptr<BoneNode>> &bones) {
 	bones_ = bones;
 	shaderDefine("NUM_BONES", REGEN_STRING(bones_.size()));
 	if (bones.empty()) {
