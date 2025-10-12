@@ -86,6 +86,11 @@ namespace regen {
 
 		~BehaviorTree() = default;
 
+		/**
+		 * Tick the behavior tree with the given blackboard.
+		 * @param bb the blackboard.
+		 * @return the behavior status.
+		 */
 		BehaviorStatus tick(Blackboard& bb) {
 			return root_->tick(bb);
 		}

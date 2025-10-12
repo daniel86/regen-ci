@@ -120,51 +120,59 @@ BehaviorStatus SetTargetPlace::tick(Blackboard& kb) {
 	return BehaviorStatus::SUCCESS;
 }
 
+static bool canUseAt(Blackboard& kb, ActionType action, const ref_ptr<Place> &place) {
+	return place->hasAffordance(action) && kb.canPerformAction(action);
+}
+
+static bool canWalkAt(Blackboard& kb, PathwayType pathway, const ref_ptr<Place> &place) {
+	return place->hasPathWay(pathway) && kb.canPerformAction(ActionType::PATROLLING);
+}
+
 void SelectPlaceActivity::updateActionPossibilities(Blackboard& kb) {
-	// TODO: Also check that we have the capability to perform the action!
+	// TODO: improve probability handling, make it more generic!
 	actionPossibilities_.clear();
 	actionPossibilities_.emplace_back(ActionType::IDLE, (
 			0.05f +
 			0.05f * math::random<float>() +
 			0.1f * traitStrength({kb.laziness()}, {kb.alertness(), kb.sociability()})));
 
-	if (lastPlace_->hasPathWay(PathwayType::PATROL)) {
+	if (canWalkAt(kb, PathwayType::PATROL, lastPlace_)) {
 		actionPossibilities_.emplace_back(ActionType::PATROLLING, (
 				0.1f +
 				0.1f * math::random<float>() +
 				0.4f * traitStrength({kb.alertness(), kb.bravery()}, {kb.laziness(), kb.sociability()})));
 	}
-	if (lastPlace_->hasPathWay(PathwayType::STROLL)) {
+	if (canWalkAt(kb, PathwayType::STROLL, lastPlace_)) {
 		actionPossibilities_.emplace_back(ActionType::STROLLING, (
 				0.15f +
 				0.15f * math::random<float>() +
 				0.4f * traitStrength({kb.laziness()}, {kb.sociability(), kb.alertness(), kb.bravery()})));
 	}
-	if (lastPlace_->hasAffordance(ActionType::OBSERVING)) {
+	if (canUseAt(kb, ActionType::OBSERVING, lastPlace_)) {
 		actionPossibilities_.emplace_back(ActionType::OBSERVING, (
 				0.25f +
 				0.25f * math::random<float>() +
 				0.5f * traitStrength({kb.alertness()}, {kb.sociability()})));
 	}
-	if (lastPlace_->hasAffordance(ActionType::CONVERSING)) {
+	if (canUseAt(kb, ActionType::CONVERSING, lastPlace_)) {
 		actionPossibilities_.emplace_back(ActionType::CONVERSING, (
 				0.25f +
 				0.25f * math::random<float>() +
 				0.5f * traitStrength({kb.sociability()}, {kb.laziness()})));
 	}
-	if (lastPlace_->hasAffordance(ActionType::PRAYING)) {
+	if (canUseAt(kb, ActionType::PRAYING, lastPlace_)) {
 		actionPossibilities_.emplace_back(ActionType::PRAYING, (
 				0.25f +
 				0.25f * math::random<float>() +
 				0.5f * traitStrength({kb.spirituality()}, {kb.laziness()})));
 	}
-	if (lastPlace_->hasAffordance(ActionType::SLEEPING)) {
+	if (canUseAt(kb, ActionType::SLEEPING, lastPlace_)) {
 		actionPossibilities_.emplace_back(ActionType::SLEEPING, (
 				0.1f +
 				0.1f * math::random<float>() +
 				0.5f * traitStrength({kb.laziness()}, {kb.alertness(), kb.sociability()})));
 	}
-	if (lastPlace_->hasAffordance(ActionType::ATTACKING)) {
+	if (canUseAt(kb, ActionType::ATTACKING, lastPlace_)) {
 		actionPossibilities_.emplace_back(ActionType::ATTACKING, (
 				0.15f +
 				0.15f * math::random<float>() +

@@ -357,6 +357,25 @@ namespace regen {
 		bool isCurrentAction(ActionType action) const { return currentAction_ == action; }
 
 		/**
+		 * Check if the NPC can perform a given action.
+		 * This checks if the action is valid and if the NPC is not already performing it.
+		 * @param action the action to check.
+		 * @return true if the NPC can perform the given action, false otherwise.
+		 */
+		bool canPerformAction(ActionType action) const {
+			return actionCapabilities_[static_cast<int>(action)];
+		}
+
+		/**
+		 * Set if the NPC can perform a given action.
+		 * @param action the action to set.
+		 * @param canPerform true if the NPC can perform the action, false otherwise.
+		 */
+		void setActionCapability(ActionType action, bool canPerform) {
+			actionCapabilities_[static_cast<int>(action)] = canPerform;
+		}
+
+		/**
 		 * Check if the NPC is currently performing a navigation related action.
 		 * This includes navigating, patrolling, and strolling.
 		 * @return true if the NPC is performing a navigation related action, false otherwise.
@@ -455,6 +474,9 @@ namespace regen {
 		const Vec3f *currentPos_ = nullptr;
 		const Vec3f *currentDir_ = nullptr;
 		const WorldTime *worldTime_ = nullptr;
+
+		// Capabilities of the NPC, i.e. which actions it can perform.
+		std::vector<bool> actionCapabilities_;
 
 		// Base times for activities and places.
 		// The actual time spent is modulated by personality traits and the type of activity/place

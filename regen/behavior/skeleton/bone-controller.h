@@ -56,6 +56,15 @@ namespace regen {
 		bool isCurrentBoneAnimation(MotionType type) const;
 
 		/**
+		 * @param action The action type.
+		 * @return true if the given action can be performed by this controller,
+		 *         i.e. if there is at least one motion type associated with the action.
+		 */
+		bool canPerformAction(ActionType action) const {
+			return actionToMotion_[static_cast<int>(action)].size() > 0;
+		}
+
+		/**
 		 * @param type The motion type.
 		 * @return The animation handle for the given motion type or -1 if not active.
 		 */

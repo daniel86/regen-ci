@@ -783,6 +783,8 @@ static ref_ptr<WorldModel> loadWorldModel(
 			Vec3f(placePos.x, placeHeight + 0.1f, placePos.y));
 		place->setRadius(placeRadius);
 		worldModel->places.push_back(place);
+		ref_ptr<WorldObject> placeWO = place;
+		sceneParser.putResource<WorldObject>(place->name(), placeWO);
 
 		std::map<std::string, ref_ptr<WorldObject> > objMap;
 		// load objects that are part of this place
@@ -838,6 +840,7 @@ static ref_ptr<WorldModel> loadWorldModel(
 				}
 				place->addWorldObject(obj);
 				worldModel->addWorldObject(obj);
+				sceneParser.putResource<WorldObject>(obj->name(), obj);
 			}
 		}
 
@@ -874,6 +877,7 @@ static ref_ptr<WorldModel> loadWorldModel(
 			worldModel->wayPoints.push_back(wp);
 			worldModel->wayPointMap[x->getName()] = wp;
 			worldModel->addWorldObject(wp);
+			sceneParser.putResource<WorldObject>(wp->name(), wp);
 		} else {
 			REGEN_WARN("Unhandled object type '" << objType << "' in NPC controller.");
 		}
@@ -1020,6 +1024,14 @@ static void handleAssetController(
 				float rightFootTime = animationNode->getValue<float>("right-foot-time", 0.8f);
 				personController->setFootstepTrail(footstepTrail, leftFootTime, rightFootTime);
 			}
+			if (animationNode->hasAttribute("decision-interval")) {
+				personController->setDecisionInterval(
+					animationNode->getValue<float>("decision-interval", 0.25f));
+			}
+			if (animationNode->hasAttribute("perception-interval")) {
+				personController->setPerceptionInterval(
+					animationNode->getValue<float>("perception-interval", 0.1f));
+			}
 			personController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
 			personController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
 			personController->setMaxTurnDegPerSecond(
@@ -1161,7 +1173,7 @@ static void handleAssetAnimationConfiguration(
 		}
 	} else if (animationNode->getValue("mode") == "fixed") {
 		if (animItem->animation.get()) {
-			auto &fixedRange = animItem->ranges[0]; // TODO
+			auto &fixedRange = animItem->ranges[0];
 			ref_ptr<EventHandler> animStopped = ref_ptr<FixedAnimationRangeUpdater>::alloc(animItem->animation, fixedRange);
 			animItem->animation->connect(Animation::ANIMATION_STOPPED, animStopped);
 			eventHandler.push_back(animStopped);

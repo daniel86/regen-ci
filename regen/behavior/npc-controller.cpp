@@ -12,10 +12,7 @@ NonPlayerCharacterController::NonPlayerCharacterController(
 		animItem_(animItem) {
 }
 
-void NonPlayerCharacterController::setTarget(
-			const Vec3f &target,
-			const std::optional<Vec3f> &rotation,
-			GLdouble dt) {
+void NonPlayerCharacterController::setTarget(const Vec3f &target, const std::optional<Vec3f> &rotation, double dt) {
 	frames_.clear();
 	TransformAnimation::push_back(target, rotation, dt);
 	if (!isRunning()) { startAnimation(); }

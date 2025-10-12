@@ -50,15 +50,19 @@ namespace regen {
 		Vec3f computeSlotPosition(int idx) const;
 	};
 
-	class WorldObject {
+	class WorldObject : public Resource {
 	public:
+		static constexpr const char *TYPE_NAME = "WorldObject";
+
 		WorldObject(std::string_view name, const ref_ptr<BoundingShape> &shape, uint32_t instanceIdx);
 
 		WorldObject(std::string_view name, const Vec3f &position);
 
 		WorldObject(std::string_view name, const ref_ptr<ShaderInput3f> &position);
 
-		virtual ~WorldObject();
+		~WorldObject() override;
+
+		uint32_t instanceIdx() const { return instanceIdx_; }
 
 		const std::string& name() const { return name_; }
 

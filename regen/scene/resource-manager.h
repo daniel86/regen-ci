@@ -159,6 +159,10 @@ namespace regen {
 
 			void putSky(const std::string &id, const ref_ptr<Sky> &sky);
 
+			void putWorldObject(const std::string &id, const ref_ptr<WorldObject> &obj);
+
+			ref_ptr<WorldObject> getWorldObject(SceneLoader *parser, const std::string &id);
+
 			/**
 			 * Load all resources with given id.
 			 * @param parser the SceneParser instance.
@@ -177,6 +181,7 @@ namespace regen {
 			LoadableResource<Camera> cameras_ = LoadableResource<Camera>("camera");
 			LoadableResource<MeshVector> meshes_ = LoadableResource<MeshVector>("mesh");
 			LoadableResource<Sky> skies_ = LoadableResource<Sky>("sky");
+			std::map<std::string, ref_ptr<WorldObject> > worldObjects_;
 			std::map<std::string, ref_ptr<ModelTransformation> > transforms_;
 		};
 	}

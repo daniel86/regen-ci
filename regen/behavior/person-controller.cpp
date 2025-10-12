@@ -5,7 +5,7 @@
 
 using namespace regen;
 
-//#define DISABLE_BONE_ANIMATION
+//#define NAV_CTRL_DEBUG_WPS
 
 PersonController::PersonController(
 	const ref_ptr<Mesh> &mesh,
@@ -29,6 +29,14 @@ PersonController::PersonController(
 	npcWorldObject_ = ref_ptr<PersonWorldObject>::alloc(
 		REGEN_STRING("npc-" << tfIndexed.index), Vec3f::zero());
 	knowledgeBase_.setCharacterObject(npcWorldObject_);
+
+	// initialize action capabilities
+	for (uint32_t actionIdx = 0; actionIdx < static_cast<uint32_t>(ActionType::LAST_ACTION); actionIdx++) {
+		ActionType action = static_cast<ActionType>(actionIdx);
+		if (boneController_->canPerformAction(action)) {
+			knowledgeBase_.setActionCapability(action, true);
+		}
+	}
 
 	pathPlanner_ = ref_ptr<PathPlanner>::alloc();
 	// add all places of interest and way points from the world model
@@ -114,8 +122,14 @@ void PersonController::updateController(double dt) {
 	auto anim = animItem_->animation;
 	float dt_s = dt / 1000.0f;
 	lastDT_ = dt_s;
-	// Insert new percepts into the knowledge base, and update existing ones.
-	updatePerceptionSystem(dt_s);
+	timeSinceLastDecision_s_ += dt_s;
+	timeSinceLastPerception_s_ += dt_s;
+
+	if (timeSinceLastPerception_s_ > perceptionInterval_s_) {
+		timeSinceLastPerception_s_ = 0.0f;
+		// Insert new percepts into the knowledge base, and update existing ones.
+		updatePerceptionSystem(dt_s);
+	}
 	// Do some controller specific updates to the knowledge base.
 	updateKnowledgeBase(dt_s);
 
@@ -127,6 +141,12 @@ void PersonController::updateController(double dt) {
 			float movementTime = (walkHandle != -1 ?
 				boneController_->walkTime() : boneController_->runTime());
 			auto elapsed = anim->elapsedTime(tfIdx_, rangeIdx);
+			if (elapsed < footLastElapsed_) {
+				// animation looped, reset footstep flags
+				footDown_[0] = false;
+				footDown_[1] = false;
+			}
+			footLastElapsed_ = elapsed;
 			for (int i = 0; i < 2; i++) {
 				if (!footDown_[i] && elapsed > footTime_[i] * movementTime) {
 					footDown_[i] = true;
@@ -136,11 +156,14 @@ void PersonController::updateController(double dt) {
 		}
 	}
 
-	// Update blackboard and make some actions current.
-	auto behaviorStatus = behaviorTree_->tick(kb);
-	if (behaviorStatus == BehaviorStatus::FAILURE) {
-		REGEN_WARN("Behavior tree failed for NPC '" << npcWorldObject_->name() << "'.");
-		setIdle();
+	if (timeSinceLastDecision_s_ > decisionInterval_s_) {
+		// Update blackboard and make some actions current.
+		timeSinceLastDecision_s_ = 0.0f;
+		auto behaviorStatus = behaviorTree_->tick(kb);
+		if (behaviorStatus == BehaviorStatus::FAILURE) {
+			REGEN_WARN("Behavior tree failed for NPC '" << npcWorldObject_->name() << "'.");
+			setIdle();
+		}
 	}
 	// Update the state of current bone animations based on current actions, intends etc.
 	boneController_->updateBoneController(knowledgeBase_, dt_s);
@@ -213,11 +236,25 @@ void PersonController::updateKnowledgeBase(float dt_s) {
 	}
 }
 
+uint32_t PersonController::findClosestWP(const std::vector<ref_ptr<WayPoint>> &wps) const {
+	if (wps.empty()) return 0;
+	float bestDist = std::numeric_limits<float>::max();
+	uint32_t bestIdx = 0;
+	for (uint32_t i = 0; i < wps.size(); i++) {
+		auto &wp = wps[i];
+		float dist = (wp->position2D() - Vec2f(currentPos_.x, currentPos_.z)).lengthSquared();
+		if (dist < bestDist) {
+			bestDist = dist;
+			bestIdx = i;
+		}
+	}
+	return bestIdx;
+}
+
 void PersonController::updateNavigationTarget() {
 	auto &kb = knowledgeBase_;
-	auto &anim = animItem_->animation;
 
-	ActionType currentNavAction = ActionType::IDLE;
+	ActionType currentNavAction = ActionType::LAST_ACTION;
 	if (kb.isCurrentAction(ActionType::NAVIGATING)) {
 		currentNavAction = ActionType::NAVIGATING;
 	} else if (kb.isCurrentAction(ActionType::PATROLLING)) {
@@ -226,7 +263,7 @@ void PersonController::updateNavigationTarget() {
 		currentNavAction = ActionType::STROLLING;
 	}
 
-	if (currentNavAction == ActionType::IDLE) {
+	if (currentNavAction == ActionType::LAST_ACTION) {
 		// No navigation action active, nothing to do.
 		it_ = frames_.end();
 		currentPath_.clear();
@@ -234,10 +271,17 @@ void PersonController::updateNavigationTarget() {
 		lastNavTarget_ = nullptr;
 		return;
 	}
+
 	if (currentNavAction != lastNavAction_ || lastNavTarget_ != kb.navigationTarget().object.get()) {
 		// Navigation action changed, or a new navigation target has been set.
 		// Reset path to avoid new action following the path of the old action.
+#ifdef NAV_CTRL_DEBUG_WPS
+		REGEN_INFO("[" << tfIdx_ << "] Force replanning, " <<
+			"target-changed: " << (lastNavTarget_ != kb.navigationTarget().object.get() ? "yes" : "no") <<
+			", action-changed: " << (currentNavAction != lastNavAction_ ? "yes" : "no"));
+#endif
 		currentPath_.clear();
+		it_ = frames_.end();
 	}
 	lastNavAction_ = currentNavAction;
 	lastNavTarget_ = kb.navigationTarget().object.get();
@@ -245,14 +289,6 @@ void PersonController::updateNavigationTarget() {
 	bool loop = (currentNavAction == ActionType::PATROLLING || currentNavAction == ActionType::STROLLING);
 	if (it_ != frames_.end()) {
 		// The TF animation has an active frame, continue navigation.
-		int32_t walkHandle = boneController_->getAnimationHandle(MotionType::WALK);
-		int32_t runHandle = boneController_->getAnimationHandle(MotionType::RUN);
-		int32_t rangeIdx = std::max(walkHandle, runHandle);
-		if (rangeIdx != -1 && !anim->isBoneAnimationActive(tfIdx_, rangeIdx)) {
-			// one animation cycle is done, reset the footstep flags
-			footDown_[0] = false;
-			footDown_[1] = false;
-		}
 	}
 	else if (loop && currentPath_.empty() && kb.currentPlace().get()) {
 		// We are patrolling or strolling, but have no path yet, so start one.
@@ -262,8 +298,7 @@ void PersonController::updateNavigationTarget() {
 		// Pick a random path
 		if (!loopPath.empty()) {
 			currentPath_ = loopPath[math::randomInt() % loopPath.size()];
-			// TODO: Select closest waypoint index to start with.
-			currentPathIndex_ = 0;
+			currentPathIndex_ = findClosestWP(currentPath_);
 			startNavigate(true, false);
 		} else {
 			REGEN_WARN("No pathways of type " << currentNavAction <<
@@ -273,8 +308,6 @@ void PersonController::updateNavigationTarget() {
 	}
 	else {
 		// The TF animation has no active frame, advance to next waypoint if any.
-		// TODO: If we got off rails a lot, maybe it could be worth re-planning? Could
-		//      check the distance here....
 		if (!currentPath_.empty() && (loop || currentPathIndex_ < currentPath_.size())) {
 			// Set next TF waypoint for movement
 			startNavigate(loop, true);
@@ -321,6 +354,11 @@ bool PersonController::startNavigate(bool loopPath, bool advancePath) {
 		}
 		if (currentPathIndex_ < currentPath_.size()) {
 			// Move to next point on path
+#ifdef NAV_CTRL_DEBUG_WPS
+			REGEN_INFO("[" << tfIdx_ << "] Navigating to waypoint " <<
+				currentPath_[currentPathIndex_]->name() <<
+				" (" << (currentPathIndex_+1) << "/" << currentPath_.size() << ")");
+#endif
 			return updatePathNPC();
 		} else if (advancePath) {
 			currentPathIndex_ = 0;
@@ -342,6 +380,9 @@ bool PersonController::startNavigate(bool loopPath, bool advancePath) {
 	}
 	auto currentPos2D = Vec2f(currentPos_.x, currentPos_.z);
 	// Compute a path to the target.
+#ifdef NAV_CTRL_DEBUG_WPS
+	REGEN_INFO("[" << tfIdx_ << "] Planning path to place " << targetPlace->name());
+#endif
 	currentPath_ = pathPlanner_->findPath(currentPos2D, targetPlace->position2D());
 	// Add a waypoint within the target place which is close to the last waypoint.
 	if (currentPath_.empty()) {
@@ -407,6 +448,9 @@ bool PersonController::updatePathNPC() {
 			// Travel to affordance
 			auto &target = knowledgeBase_.interactionTarget().object;
 			Vec2f affordancePos = pickTargetPosition(*target.get());
+#ifdef NAV_CTRL_DEBUG_WPS
+			REGEN_INFO("[" << tfIdx_ << "] Navigating to object " << target->name() << ".");
+#endif
 
 			// NPC shall look from affordance slot to center of attention
 			// (i.e. affordance target, or owner of affordance)

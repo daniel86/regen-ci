@@ -89,6 +89,16 @@ ref_ptr<Sky> ResourceManager::getSky(SceneLoader *parser, const std::string &id)
 	return skies_.getResource(parser, id);
 }
 
+ref_ptr<WorldObject> ResourceManager::getWorldObject(SceneLoader *parser, const std::string &id) {
+	auto it = worldObjects_.find(id);
+	if (it != worldObjects_.end()) {
+		return it->second;
+	} else {
+		REGEN_WARN("Unknown WorldObject with id '" << id << "'.");
+		return {};
+	}
+}
+
 void ResourceManager::putCamera(const std::string &id, const ref_ptr<Camera> &cam) {
 	cameras_.putResource(id, cam);
 }
@@ -119,6 +129,10 @@ void ResourceManager::putTexture(const std::string &id, const ref_ptr<Texture> &
 
 void ResourceManager::putMesh(const std::string &id, const ref_ptr<MeshVector> &meshes) {
 	meshes_.putResource(id, meshes);
+}
+
+void ResourceManager::putWorldObject(const std::string &id, const ref_ptr<WorldObject> &obj) {
+	worldObjects_[id] = obj;
 }
 
 void ResourceManager::putTransform(const std::string &id, const ref_ptr<ModelTransformation> &transform) {

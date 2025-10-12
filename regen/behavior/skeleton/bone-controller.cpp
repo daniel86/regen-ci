@@ -88,24 +88,31 @@ void BoneController::updateDesiredMotions(const std::vector<ActionType> &desired
 	for (uint32_t i = 0; i < desiredActions.size(); ++i) {
 		MotionType desiredMotion = MotionType::MOTION_LAST;
 		ActionType desiredAction = desiredActions[i];
+		bool selectNewClip = false;
 
 		// Check if the action is currently being performed.
 		for (uint32_t j = 0; j < numActiveMotions_; ++j) {
 			MotionType currentMotion = activeMotions_[j];
 			auto &motionData = motionToData_[static_cast<int>(currentMotion)];
-			bool isAnimationActive = anim->isBoneAnimationActive(instanceIdx_, motionData.handle);
 			if (motionData.action == desiredAction) {
-				if (isAnimationActive) {
-					// The current animation clip segment is still active, continue.
+				// For some action types, allow rapid changing of motion types.
+				// For now just allow that for ATTACK actions.
+				// Later, this should be defined in an ontology!
+				bool stickToCurrent = (desiredAction != ActionType::ATTACKING ||
+					anim->isBoneAnimationActive(instanceIdx_, motionData.handle));
+				if (stickToCurrent) {
+					// The current animation clip segment is still active, or should be
+					// repeated.
 					desiredMotion = currentMotion;
 				} else {
-					// The current animation clip segment just stopped.
 					// TODO: Interact with clips here?
 					//     - If clip was starting or looping, and there is an end segment, then
 					//       start the end segment, and set desiredMotion = currentMotion
 					//       before activating another motion.
+					selectNewClip = true;
+					break;
 				}
-				break;
+
 			}
 		}
 		// If not active, then select a motion for the action.
@@ -115,7 +122,7 @@ void BoneController::updateDesiredMotions(const std::vector<ActionType> &desired
 				if (possibleMotions.size() == 1) {
 					desiredMotion = possibleMotions[0];
 				} else {
-					desiredMotion = possibleMotions[rand() % possibleMotions.size()];
+					desiredMotion = possibleMotions[math::randomInt() % possibleMotions.size()];
 				}
 			} else {
 				REGEN_WARN("No motion defined for action " << desiredAction << ".");
@@ -126,6 +133,10 @@ void BoneController::updateDesiredMotions(const std::vector<ActionType> &desired
 		auto &motionData = motionToData_[static_cast<int>(desiredMotion)];
 		motionData.desired = true;
 		motionData.action = desiredAction;
+		if (selectNewClip && motionData.status != MOTION_INACTIVE) {
+			// Select a new clip for this motion type.
+			startMotionClip(motionData, 0.0f);
+		}
 		if (motionData.status == MOTION_FADING_OUT) {
 			// was fading out, but is now desired again, so make active again.
 			// note: we can keep the current weight and fade time.
@@ -155,7 +166,7 @@ bool BoneController::startMotionClip(MotionData &motion, float initialWeight) {
 	if (motion.clips.size() == 1) {
 		clipIndex = 0;
 	} else {
-		clipIndex = rand() % motion.clips.size();
+		clipIndex = math::randomInt() % motion.clips.size();
 	}
 	auto &clip = animItem_->clips[motion.clips[clipIndex]];
 	// begin range is optional, if not present we loop the clip directly.

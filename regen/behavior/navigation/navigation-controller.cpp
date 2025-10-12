@@ -252,6 +252,23 @@ void NavigationController::updateControllerVelocity(double bezierTime) {
 	if (tmpLen < 1e-4f) { return; }
 	desiredDir /= tmpLen;
 
+	// TODO: If we got off rails a lot, maybe it could be worth re-planning? Could
+	//      check the distance here....
+	/**
+	const float replanThresholdSq = 100.0f;
+	float distanceToBezier = (Vec2f(currentPos_.x, currentPos_.z) - bezierSample).lengthSquared();
+	if (distanceToBezier > replanThresholdSq) {
+		// We are too far away from the bezier curve, so re-plan.
+		if (currentPathIndex_ < currentPath_.size()) {
+			REGEN_WARN("[" << tfIdx_ << "] Re-planning path, distance to bezier: " << sqrtf(distanceToBezier) << "m");
+			Vec2f target = currentPath_.back()->position2D();
+			updatePathCurve(Vec2f(currentPos_.x, currentPos_.z), target);
+			// and return, we will update velocity next frame
+			return;
+		}
+	}
+	**/
+
 	// Compute avoidance from neighbors
 	Vec3f avoidance = computeNeighborAvoidance();
 

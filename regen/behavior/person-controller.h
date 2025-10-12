@@ -28,6 +28,18 @@ namespace regen {
 			const ref_ptr<WorldModel> &world);
 
 		/**
+		 * Set the decision interval for the NPC.
+		 * @param interval_s the decision interval in seconds.
+		 */
+		void setDecisionInterval(float interval_s) { decisionInterval_s_ = interval_s; }
+
+		/**
+		 * Set the perception interval for the NPC.
+		 * @param interval_s the perception interval in seconds.
+		 */
+		void setPerceptionInterval(float interval_s) { perceptionInterval_s_ = interval_s; }
+
+		/**
 		 * Get the knowledge base of the NPC.
 		 * @return the knowledge base.
 		 */
@@ -84,6 +96,12 @@ namespace regen {
 		std::unique_ptr<BehaviorTree> behaviorTree_;
 		ref_ptr<PersonWorldObject> npcWorldObject_;
 
+		float decisionInterval_s_ = 0.25f;
+		float perceptionInterval_s_ = 0.1f;
+
+		float timeSinceLastDecision_s_ = 100.0f;
+		float timeSinceLastPerception_s_ = 100.0f;
+
 		ref_ptr<Mesh> weaponMesh_;
 		ref_ptr<BoundingShape> weaponShape_;
 		bool hasDrawnWeapon_ = false;
@@ -93,6 +111,7 @@ namespace regen {
 		uint32_t footIdx_[2] = { 0, 1 };
 		bool footDown_[2] = { false, false };
 		float footTime_[2] = { 0.2f, 0.8f };
+		float footLastElapsed_ = 0.0f;
 
 		ref_ptr<PathPlanner> pathPlanner_;
 		ActionType lastNavAction_ = ActionType::IDLE;
@@ -121,6 +140,8 @@ namespace regen {
 		void hideWeapon();
 
 		void drawWeapon();
+
+		uint32_t findClosestWP(const std::vector<ref_ptr<WayPoint>> &wps) const;
 	};
 } // namespace
 

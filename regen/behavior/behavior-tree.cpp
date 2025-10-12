@@ -114,7 +114,6 @@ static BehaviorTree::Node* addConditionDecorator(
 		} else {
 			REGEN_WARN("Ignoring child condition in " << xmlNode.getDescription() << ".");
 		}
-		xmlNode.removeChild(xmlCond);
 	}
 	if (conditions.size() > 1) {
 		BehaviorConditionSequence *seq = new BehaviorConditionSequence();
@@ -140,6 +139,7 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 		auto seqNode = new BehaviorSequenceNode();
 		node = addConditionDecorator(ctx, xmlNode, seqNode);
 		for (auto &child : xmlNode.getChildren()) {
+			if (child->getCategory() == "condition") continue; // already processed
 			if (!loadNode(ctx, *child.get(), seqNode)) {
 				REGEN_WARN("Failed to load child node in '" << child->getDescription() << "'.");
 			}
@@ -150,6 +150,7 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 			auto priNode = new BehaviorPriorityNode();
 			node = addConditionDecorator(ctx, xmlNode, priNode);
 			for (auto &child : xmlNode.getChildren()) {
+				if (child->getCategory() == "condition") continue;
 				if (!loadNode(ctx, *child.get(), priNode)) {
 					REGEN_WARN("Failed to load child node in '" << child->getDescription() << "'.");
 				}
@@ -158,6 +159,7 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 			auto selNode = new BehaviorPriorityNode();
 			node = addConditionDecorator(ctx, xmlNode, selNode);
 			for (auto &child : xmlNode.getChildren()) {
+				if (child->getCategory() == "condition") continue;
 				if (!loadNode(ctx, *child.get(), selNode)) {
 					REGEN_WARN("Failed to load child node in '" << child->getDescription() << "'.");
 				}
@@ -166,58 +168,62 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 	}
 	else if (category == "action") {
 		auto actionType = xmlNode.getValue("type");
+		BehaviorActionNode *actNode = nullptr;
 		if (actionType == "SelectTargetPlace") {
 			auto placeType = xmlNode.getValue<PlaceType>("place-type", PlaceType::LAST);
-			node = new SelectTargetPlace(placeType);
+			actNode = new SelectTargetPlace(placeType);
 		}
 		else if (actionType == "SelectPlaceActivity") {
-			node = new SelectPlaceActivity();
+			actNode = new SelectPlaceActivity();
 		}
 		else if (actionType == "SetDesiredActivity") {
 			auto action = xmlNode.getValue<ActionType>("action", ActionType::IDLE);
-			node = new SetDesiredActivity(action);
+			actNode = new SetDesiredActivity(action);
 		}
 		else if (actionType == "SelectPlacePatient") {
-			node = new SelectPlacePatient();
+			actNode = new SelectPlacePatient();
 		}
 		else if (actionType == "UnsetPatient") {
-			node = new UnsetPatient();
+			actNode = new UnsetPatient();
 		}
-		// TODO: SetTargetPlace and SetPatient would need a by-name lookup.
-		/**
-		else if (actionType == "SetTargetPlace") {
-			auto placeName = xmlNode.getValue("place");
-			auto place = parser->getResource<Place>(placeName);
-			if (place.get() == nullptr) {
-				REGEN_WARN("Ignoring " << xmlNode.getDescription() << ", unknown place '" << placeName << "'.");
-			} else {
-				node = new SetTargetPlace(place);
-			}
-		}
-		else if (actionType == "SetPatient") {
-			auto objName = xmlNode.getValue("object");
-			auto obj = parser->getResource<WorldObject>(objName);
-			if (obj.get() == nullptr) {
-				REGEN_WARN("Ignoring " << xmlNode.getDescription() << ", unknown object '" << objName << "'.");
-			} else {
-				node = new SetPatient(obj);
-			}
-		}
-		**/
 		else if (actionType == "MoveToTargetPlace") {
-			node = new MoveToTargetPlace();
+			actNode = new MoveToTargetPlace();
 		}
 		else if (actionType == "MoveToPatient") {
-			node = new MoveToPatient();
+			actNode = new MoveToPatient();
 		}
 		else if (actionType == "PerformDesiredAction") {
-			node = new PerformDesiredAction();
+			actNode = new PerformDesiredAction();
 		}
 		else if (actionType == "PerformAffordedAction") {
-			node = new PerformAffordedAction();
+			actNode = new PerformAffordedAction();
+		}
+		else if (actionType == "SetTargetPlace") {
+			auto wo = ctx.scene()->getResource<WorldObject>(xmlNode.getValue("value"));
+			if (!wo) {
+				REGEN_WARN("Cannot find world object in '" << xmlNode.getDescription() << "'.");
+				return nullptr;
+			}
+			auto place = ref_ptr<Place>::dynamicCast(wo);
+			if (!place) {
+				REGEN_WARN("Ignoring " << xmlNode.getDescription() <<
+					", object '" << xmlNode.getValue("value") << "' is not a place.");
+				return nullptr;
+			}
+			node = new SetTargetPlace(place);
+		} else if (actionType == "SetPatient") {
+			auto wo = ctx.scene()->getResource<WorldObject>(xmlNode.getValue("value"));
+			if (!wo) {
+				REGEN_WARN("Cannot find world object in '" << xmlNode.getDescription() << "'.");
+				return nullptr;
+			}
+			node = new SetPatient(wo);
 		}
 		else {
 			REGEN_WARN("Ignoring " << xmlNode.getDescription() << ", unknown action type '" << actionType << "'.");
+		}
+		if (actNode != nullptr) {
+			node = addConditionDecorator(ctx, xmlNode, actNode);
 		}
 	}
 

@@ -25,10 +25,7 @@ namespace regen {
 		 * @param rotation the target rotation.
 		 * @param dt the time difference.
 		 */
-		void setTarget(
-					const Vec3f &target,
-					const std::optional<Vec3f> &rotation,
-					GLdouble dt);
+		void setTarget(const Vec3f &target, const std::optional<Vec3f> &rotation, double dt);
 
 		/**
 		 * Update animation and movement target.
