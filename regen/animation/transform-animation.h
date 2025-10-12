@@ -23,6 +23,8 @@ namespace regen {
 	public:
 		explicit TransformAnimation(const ref_ptr<ModelTransformation> &tf, uint32_t tfIdx);
 
+		~TransformAnimation() override = default;
+
 		/**
 		 * Set if the TF animation should loop, i.e. once reaching
 		 * the last key frame, it continues with the first one.

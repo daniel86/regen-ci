@@ -11,7 +11,7 @@ AnimalController::AnimalController(
 			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
 			const ref_ptr<BoneAnimationItem> &animItem,
 			const ref_ptr<WorldModel> &world)
-				: NonPlayerCharacterController(mesh, tfIndexed, animItem, world),
+				: NonPlayerCharacterController(tfIndexed, animItem, world),
 				  territoryBounds_(Vec2f::zero(), Vec2f::zero()),
 				  laziness_(0.5f),
 				  maxHeight_(std::numeric_limits<float>::max()),

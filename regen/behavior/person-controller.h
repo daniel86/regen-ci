@@ -8,6 +8,7 @@
 
 #include "behavior-tree.h"
 #include "blackboard.h"
+#include "perception/perception-system.h"
 #include "regen/states/model-transformation.h"
 #include "regen/objects/terrain/blanket-trail.h"
 #include "skeleton/bone-controller.h"
@@ -27,6 +28,8 @@ namespace regen {
 			const ref_ptr<BoneAnimationItem> &animItem,
 			const ref_ptr<WorldModel> &world);
 
+		~PersonController() override;
+
 		/**
 		 * Set the decision interval for the NPC.
 		 * @param interval_s the decision interval in seconds.
@@ -44,6 +47,12 @@ namespace regen {
 		 * @return the knowledge base.
 		 */
 		Blackboard& knowledgeBase() { return knowledgeBase_; }
+
+		/**
+		 * Set the perception system for the NPC.
+		 * @param ps the perception system.
+		 */
+		void setPerceptionSystem(std::unique_ptr<PerceptionSystem> ps);
 
 		/**
 		 * Set the behavior tree for the NPC.
@@ -94,6 +103,7 @@ namespace regen {
 	protected:
 		Blackboard knowledgeBase_;
 		std::unique_ptr<BehaviorTree> behaviorTree_;
+		std::unique_ptr<PerceptionSystem> perceptionSystem_;
 		ref_ptr<PersonWorldObject> npcWorldObject_;
 
 		float decisionInterval_s_ = 0.25f;
@@ -120,8 +130,6 @@ namespace regen {
 		bool isLastAnimationMovement_ = false;
 
 		ref_ptr<BoneController> boneController_;
-
-		void updatePerceptionSystem(float dt_s);
 
 		void updateKnowledgeBase(float dt_s);
 

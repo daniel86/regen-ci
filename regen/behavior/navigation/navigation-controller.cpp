@@ -1,6 +1,5 @@
 #include <random>
 #include "navigation-controller.h"
-#include "regen/shapes/obb.h"
 
 #define USE_HEIGHT_SMOOTHING
 #define USE_DYNAMIC_LOOKAHEAD
@@ -8,31 +7,24 @@
 
 using namespace regen;
 
+static void initPerception_s(void *userData) {
+	((NavigationController*)userData)->initPerception();
+}
+
+static void cleanupPerception_s(void *userData) {
+	((NavigationController*)userData)->cleanupPerception();
+}
+
+static void handlePerception_s(const PerceptionData &percept, void *userData) {
+	((NavigationController*)userData)->handlePerception(percept);
+}
+
 NavigationController::NavigationController(
-	const ref_ptr<Mesh> &mesh,
 	const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
 	const ref_ptr<WorldModel> &world)
 	: TransformAnimation(tfIndexed.value, tfIndexed.index),
+	  PerceptionMonitor(handlePerception_s, initPerception_s, cleanupPerception_s, this),
 	  worldModel_(world) {
-	// create the initial collision shape
-	Bounds<Vec3f> collisionBounds(mesh->minPosition(), mesh->maxPosition());
-	collisionBounds.min.z -= lookAheadDistance_;
-	collisionBounds.min.x -= 0.0f;
-	collisionBounds.max.x += 0.0f;
-	collisionBounds.min.y -= 1.0f;
-	collisionBounds.max.y += 1.0f;
-	collisionShape_ = ref_ptr<OBB>::alloc(collisionBounds);
-	collisionShape_->setTransform(tfIndexed.value, tfIndexed.index);
-	collisionShape_->updateTransform(true);
-}
-
-void NavigationController::setSpatialIndex(const ref_ptr<SpatialIndex> &spatialIndex, std::string_view shapeName) {
-	spatialIndex_ = spatialIndex;
-	indexedShape_ = spatialIndex_->getShape(shapeName, tfIdx_);
-	if (!indexedShape_.get()) {
-		REGEN_WARN("Unable to find indexed shape '" << shapeName << "' in spatial index.");
-	}
-	spatialIndex_->addDebugShape(collisionShape_);
 }
 
 void NavigationController::setHeightMap(const ref_ptr<HeightMap> &heightMap) {
@@ -122,125 +114,116 @@ void NavigationController::updatePathCurve(
 	updateTransformFrame(target, desiredDir);
 }
 
-void NavigationController::handleCharacterCollision(const BoundingShape &other, NPCNeighborData *data) {
-	const Vec3f &thisCenter3D = indexedShape_->tfOrigin();
-	const Vec3f &otherCenter3D = other.tfOrigin();
-
-	Vec2f thisCenter(thisCenter3D.x, thisCenter3D.z);
-	Vec2f otherCenter = Vec2f(otherCenter3D.x, otherCenter3D.z);
-	Vec2f delta = thisCenter - otherCenter;
-	const float dist = std::max(0.0f, delta.length() - personalSpace_);
-	if (dist < 0.01f) return;
-	if (dist < personalSpace_ * 2.0f) {
-		// inverse-square falloff
-		delta /= dist;
-		delta /= (dist * dist);
-		data->avoidance.x += delta.x;
-		data->avoidance.z += delta.y;
-		data->neighborCount++;
-	}
-}
-
-void NavigationController::handleWallCollision(const BoundingShape &other, NPCNeighborData *data) {
-	const Vec3f &thisCenter3D = indexedShape_->tfOrigin();
-	const Vec3f &otherCenter3D = other.tfOrigin();
-
-	Vec3f closest = other.closestPointOnSurface(thisCenter3D);
-	Vec3f delta = thisCenter3D - closest;
-	delta.y = 0.0f; // ignore height differences
-
-	const float dist = delta.length();
-	if (dist < 0.01f) return;
-#ifdef USE_DYNAMIC_LOOKAHEAD
-	const float influenceRadius = data->lookAhead;
-#else
-	const float influenceRadius = lookAheadDistance_;
-#endif
-	if (dist > influenceRadius) return;
-	delta /= dist;
-
-	Vec3f delta2 = closest - otherCenter3D;
-	delta2.y = 0.0f;
-	delta2.normalize();
-	// Compute tangent blend factor based on angle between delta and delta2. Here we set
-	// tangent max influence if the approach direction coincides with dir between the closest
-	// surface point and shape origin.
-	float tanBlend = std::clamp(wallTangentWeight_ + 0.5f * std::abs(delta.dot(delta2)), 0.0f, 1.0f);
-	Vec3f tangent = Vec3f(-delta.z, 0.0f, delta.x);
-	if (tangent.dot(currentVel_) < 0.0f) {
-		// Pick the tangent handedness that goes in the direction of current velocity
-		tangent = -tangent;
-	}
-	Vec3f combined = delta * (1.0f - tanBlend) + tangent * tanBlend;
-	combined.normalize();
-
-	//const float falloff = std::max(0.0f, 1.0f - dist / influenceRadius) * 10.0f;
-	//float falloff = expf(-dist * dist / (2.0f * sigma * sigma));
-	float falloff = (influenceRadius / (0.1f + dist));
-	// Cap falloff
-	// falloff = std::clamp(influenceRadius / (0.3f + dist), 0.0f, maxAvoidance_);
-
-	data->avoidance += combined * falloff;
-	data->neighborCount++;
-}
-
-void NavigationController::handleNeighbourStatic(const BoundingShape &other, void *userData) {
-	NPCNeighborData *data = static_cast<NPCNeighborData *>(userData);
-	data->npc->handleNeighbour(other, data);
-}
-
-void NavigationController::handleNeighbour(const BoundingShape &other, void *userData) {
-	if (indexedShape_.get() == &other) return; // skip self
-	if (patientShape_.get() == &other) return; // skip patient
-	NPCNeighborData *data = static_cast<NPCNeighborData *>(userData);
-
-	// TODO: improve this, currently only other instances of same mesh are recognized as NPCs
-	const bool isCollisionWithNPC = (other.baseMesh().get() == indexedShape_->baseMesh().get());
-
-	if (isCollisionWithNPC) {
-		data->npc->handleCharacterCollision(other, data);
-	} else { // static object
-		data->npc->handleWallCollision(other, data);
-	}
-}
-
-Vec3f NavigationController::computeNeighborAvoidance() {
-#ifdef USE_PUSH_THROUGH_OBSTACLES
-	if (distanceToTarget_ < pushThroughDistance_) {
-		// close to goal, no avoidance just push through.
-		return Vec3f::zero();
-	}
-#endif
-	// TODO: We could accumulate progress in distance to goal, and react in case
-	//         we are stuck (i.e. no progress for some time).
-
-	NPCNeighborData data;
-	data.npc = this;
+void NavigationController::initPerception() {
 #ifdef USE_DYNAMIC_LOOKAHEAD
 	// Dynamically decrease the lookahead distance when close to the goal.
 	// This allows to better approach the goal without being pushed away by
 	// things that are located at the goal.
-	data.lookAhead = std::max(personalSpace_, lookAheadDistance_ *
+	dynLookAheadDistance_ = std::max(personalSpace_, lookAheadDistance_ *
 		std::clamp(distanceToTarget_ / lookAheadThreshold_, 0.0f, 1.0f));
 #endif
+	navAvoidance_ = Vec3f::zero();
+	navCollisionCount_ = 0;
+	hasNewPerception_ = true;
+}
 
-	collisionShape_->updateTransform(false);
-	if (spatialIndex_.get()) {
-		spatialIndex_->foreachIntersection(
-			*collisionShape_.get(),
-			handleNeighbourStatic,
-			&data,
-			collisionMask_);
+void NavigationController::cleanupPerception() {
+	if (navCollisionCount_ > 0) {
+		navAvoidance_ /= static_cast<float>(navCollisionCount_);
+		avoidanceStrength_ = navAvoidance_.length();
+	} else {
+		avoidanceStrength_ = 0.0f;
 	}
-	if (data.neighborCount > 0) {
-		data.avoidance /= static_cast<float>(data.neighborCount);
+}
+
+void NavigationController::handlePerception(const PerceptionData &percept) {
+	if (patientShape_.get() == percept.other) return; // skip patient
+	// TODO: Use a taxonomy of objects instead.
+	const bool isCollisionWithNPC = (percept.other->baseMesh().get() == percept.self->baseMesh().get());
+	if (isCollisionWithNPC) {
+		handleCharacterCollision(percept);
+	} else { // static object
+		handleWallCollision(percept);
+	}
+}
+
+void NavigationController::handleCharacterCollision(const PerceptionData &percept) {
+	// Note: percept.distance measures center-to-center distance.
+	if (percept.distance < personalSpace_ * 3.0f) {
+		// The other character is close by, steer away.
+		// Use inverse square law for strength falloff.
+		float distSqInv = 1.0f / (percept.distance * percept.distance);
+		// scale to reasonable values
+		distSqInv *= personalSpace_ * 10.0f;
+		navAvoidance_.x += percept.dir.x * distSqInv;
+		navAvoidance_.z += percept.dir.z * distSqInv;
+		navCollisionCount_++;
+	}
+}
+
+void NavigationController::handleWallCollision(const PerceptionData &percept) {
+#ifdef USE_DYNAMIC_LOOKAHEAD
+	float influenceRadius = dynLookAheadDistance_;
+#else
+	float influenceRadius = lookAheadDistance_;
+#endif
+	const Vec3f &otherCenter3D = percept.other->tfOrigin();
+	const Vec3f &selfCenter3D = percept.self->tfOrigin();
+
+	// Find the closest point on the surface of the other shape.
+	// It could be a huge shape, so we can't just use center-to-center direction.
+	// Note: closestPointOnSurface() returns a point in world space.
+	// Note: If we are very close to the wall, closestDir might be numerically unstable,
+	//   so we need to handle this case.
+	const Vec3f closest = percept.other->closestPointOnSurface(selfCenter3D);
+	Vec3f closestDir = selfCenter3D - closest;
+	const float closestDistance = closestDir.length();
+	if (closestDistance > influenceRadius) return;
+	if (closestDistance < 1e-4f) {
+		// We are extremely close to the wall, use center-to-center direction instead.
+		closestDir = percept.dir;
+	} else {
+		closestDir /= closestDistance;
 	}
 
-	return data.avoidance;
+	// Compute direction from the closest point on the surface to the shape center.
+	Vec3f innerWallDir = closest - otherCenter3D;
+	innerWallDir.y = 0.0f;
+	innerWallDir.normalize();
+	float innerAngle = closestDir.dot(innerWallDir);
+	if (innerAngle < 0.0f) {
+		// We are inside the wall, use center direction instead.
+		closestDir = percept.dir;
+		innerAngle *= -1.0f;
+	}
+
+	// Compute tangent blend factor based on angle between delta and innerWallDelta. Here we set
+	// tangent max influence if the approach direction coincides with dir between the closest
+	// surface point and shape origin.
+	const float tanBlend = std::clamp(
+		wallTangentWeight_ + 0.5f*innerAngle, 0.0f, 1.0f);
+	Vec3f avoidance = Vec3f(-closestDir.z, 0.0f, closestDir.x);
+	if (avoidance.dot(currentVel_) < 0.0f) {
+		// Pick the tangent handedness that goes in the direction of current velocity
+		avoidance = -avoidance;
+	}
+	avoidance = closestDir * (1.0f - tanBlend) + avoidance * tanBlend;
+	avoidance.normalize();
+	// Scale avoidance strength based on distance.
+	// Here we use a simple linear falloff.
+	avoidance *= influenceRadius / (0.1f + closestDistance);
+	// Other falloff options:
+	//avoidance *= std::clamp(influenceRadius / (0.3f + dist), 0.0f, maxAvoidance_);
+	//avoidance *= std::max(0.0f, 1.0f - dist / influenceRadius) * 10.0f;
+	//avoidance *= expf(-dist * dist / (2.0f * sigma * sigma));
+
+	// Accumulate avoidance vector.
+	navAvoidance_ += avoidance;
+	navCollisionCount_++;
 }
 
 void NavigationController::updateControllerVelocity(double bezierTime) {
-	const float desiredSpeed = (isWalking_ ? walkSpeed_ : runSpeed_);
+	float desiredSpeed = (isWalking_ ? walkSpeed_ : runSpeed_);
 
 	auto bezierSample = bezierPath_.sample(bezierTime);
 	// Desired velocity toward Bezier point
@@ -252,9 +235,11 @@ void NavigationController::updateControllerVelocity(double bezierTime) {
 	if (tmpLen < 1e-4f) { return; }
 	desiredDir /= tmpLen;
 
-	// TODO: If we got off rails a lot, maybe it could be worth re-planning? Could
-	//      check the distance here....
-	/**
+#if 0
+	// If we got off rails a lot, do an early re-planning of the path.
+	// This can happen when we get stuck due to collisions.
+	// TODO: At least would need to get a "cooldown" to avoid too frequent re-planning
+	//   when we are in a really bad spot.
 	const float replanThresholdSq = 100.0f;
 	float distanceToBezier = (Vec2f(currentPos_.x, currentPos_.z) - bezierSample).lengthSquared();
 	if (distanceToBezier > replanThresholdSq) {
@@ -267,24 +252,23 @@ void NavigationController::updateControllerVelocity(double bezierTime) {
 			return;
 		}
 	}
-	**/
-
-	// Compute avoidance from neighbors
-	Vec3f avoidance = computeNeighborAvoidance();
+#endif
 
 	// Compute desired velocity by blending bezier tangent with avoidance.
 	Vec3f desiredVel;
-	float avoidanceStrength = avoidance.length();
-	if (avoidanceStrength > 1e-4f) {
+	if (avoidanceStrength_ > 1e-4f) {
 		// Blend desired with avoidance vector to avoid collisions.
-		desiredVel = (desiredDir + avoidance * avoidanceWeight_);
+		desiredVel = (desiredDir + navAvoidance_ * avoidanceWeight_);
 		tmpLen = desiredVel.length();
 		if (tmpLen < 1e-4f) {
 			desiredVel = desiredDir;
 		} else {
 			desiredVel /= tmpLen;
 		}
-		desiredVel *= desiredSpeed * std::clamp(1.0f - avoidanceStrength*0.05f, 0.5f, 1.0f);
+		// Slow down when avoidance is strong.
+		// TODO: We could instead try to only reduce the velocity component that
+		//       points into the avoidance direction.
+		desiredVel *= desiredSpeed * std::clamp(1.0f - avoidanceStrength_*0.05f, 0.5f, 1.0f);
 	} else {
 		desiredVel = desiredDir * desiredSpeed;
 	}
@@ -338,8 +322,6 @@ void NavigationController::updateControllerOrientation(double bezierTime) {
 #if 0
 	// Reduce influence of velocity when close to target, and
 	// when we are approaching the last waypoint of the current path.
-	// TODO: this does not appear to work well, I think the rotation change makes the NPC overshoot its position
-	//       often for some reason?
 	bool isAtLastWP = (currentPathIndex_ + 1 == currentPath_.size());
 	if (isAtLastWP) {
 		float distToGoal = (bezierPath_.p3 - Vec2f(currentPos_.x, currentPos_.z)).lengthSquared();
@@ -347,7 +329,7 @@ void NavigationController::updateControllerOrientation(double bezierTime) {
 		float goalProximity = std::clamp(1.0f - distToGoal / approachThresholdSq, 0.0f, 1.0f);
 		velBlend *= (1.0f - goalProximity);
 		// allow faster turning when close to goal
-		maxDeltaThisFrame += goalProximity * maxTurn_ * 2.0f * static_cast<float>(lastDT_);
+		maxDeltaThisFrame += 2.0f * goalProximity * maxDeltaThisFrame;
 	}
 #endif
 
@@ -380,6 +362,19 @@ void NavigationController::updateControllerOrientation(double bezierTime) {
 
 void NavigationController::updatePose(const TransformKeyFrame &currentFrame, double frameTime) {
 	float bezierTime = math::Bezier<Vec2f>::lookupParameter(bezierLUT_, frameTime);
+#ifdef USE_PUSH_THROUGH_OBSTACLES
+	if (distanceToTarget_ < pushThroughDistance_) {
+		// close to goal, no avoidance just push through.
+		navAvoidance_ = Vec3f::zero();
+	}
+#endif
+	if (hasNewPerception_) {
+		hasNewPerception_ = false;
+	} else {
+		// Blend-out avoidance with velocity over time when no new perception frame arrived.
+		// This avoids that avoidance "sticks" too long.
+		navAvoidance_ *= std::max(0.0f, 1.0f - avoidanceDecay_ * static_cast<float>(lastDT_));
+	}
 	if (currentFrame.pos.has_value()) {
 		updateControllerVelocity(bezierTime);
 	}

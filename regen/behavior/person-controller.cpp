@@ -12,19 +12,9 @@ PersonController::PersonController(
 	const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
 	const ref_ptr<BoneAnimationItem> &animItem,
 	const ref_ptr<WorldModel> &world)
-	: NonPlayerCharacterController(mesh, tfIndexed, animItem, world),
+	: NonPlayerCharacterController(tfIndexed, animItem, world),
       knowledgeBase_(tfIndexed.index, &currentPos_, &currentDir_) {
 	boneController_ = ref_ptr<BoneController>::alloc(tfIndexed.index, animItem);
-	// create the initial collision shape
-	Bounds<Vec3f> collisionBounds(mesh->minPosition(), mesh->maxPosition());
-	collisionBounds.min.z -= 15.0f;
-	collisionBounds.min.x -= 0.0f;
-	collisionBounds.max.x += 0.0f;
-	collisionBounds.min.y -= 1.0f;
-	collisionBounds.max.y += 1.0f;
-	collisionShape_ = ref_ptr<OBB>::alloc(collisionBounds);
-	collisionShape_->setTransform(tfIndexed.value, tfIndexed.index);
-	collisionShape_->updateTransform(true);
 	// and a world object that can use affordances
 	npcWorldObject_ = ref_ptr<PersonWorldObject>::alloc(
 		REGEN_STRING("npc-" << tfIndexed.index), Vec3f::zero());
@@ -56,6 +46,12 @@ PersonController::PersonController(
 	}
 }
 
+PersonController::~PersonController() {
+	if (perceptionSystem_.get()) {
+		perceptionSystem_->removeMonitor(this);
+	}
+}
+
 void PersonController::initializeController() {
 	uint32_t initialIdleTime = math::random<float>() * 10.0f + 1.0f;
 	knowledgeBase_.setLingerTime(initialIdleTime);
@@ -63,6 +59,14 @@ void PersonController::initializeController() {
 	// Start with idle animation
 	setIdle();
 	startAnimation();
+}
+
+void PersonController::setPerceptionSystem(std::unique_ptr<PerceptionSystem> ps) {
+	if (perceptionSystem_.get()) {
+		perceptionSystem_->removeMonitor(this);
+	}
+	perceptionSystem_ = std::move(ps);
+	perceptionSystem_->addMonitor(this);
 }
 
 void PersonController::setIdle() {
@@ -125,10 +129,10 @@ void PersonController::updateController(double dt) {
 	timeSinceLastDecision_s_ += dt_s;
 	timeSinceLastPerception_s_ += dt_s;
 
-	if (timeSinceLastPerception_s_ > perceptionInterval_s_) {
-		timeSinceLastPerception_s_ = 0.0f;
+	if (perceptionSystem_.get() && timeSinceLastPerception_s_ > perceptionInterval_s_) {
 		// Insert new percepts into the knowledge base, and update existing ones.
-		updatePerceptionSystem(dt_s);
+		perceptionSystem_->update(timeSinceLastPerception_s_);
+		timeSinceLastPerception_s_ = 0.0f;
 	}
 	// Do some controller specific updates to the knowledge base.
 	updateKnowledgeBase(dt_s);
@@ -189,10 +193,6 @@ void PersonController::updateController(double dt) {
 			hideWeapon();
 		}
 	}
-}
-
-void PersonController::updatePerceptionSystem(float dt_s) {
-	// TODO: implement perception updates
 }
 
 void PersonController::updateKnowledgeBase(float dt_s) {

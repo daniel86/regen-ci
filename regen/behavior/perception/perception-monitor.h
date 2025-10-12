@@ -1,32 +1,62 @@
 #ifndef REGEN_PERCEPTION_MONITOR_H_
 #define REGEN_PERCEPTION_MONITOR_H_
 
-#include "regen/utility/ref-ptr.h"
-#include "../blackboard.h"
-#include "../world/world-model.h"
+#include <functional>
+#include "perception-data.h"
 
 namespace regen {
+	/**
+	 * A perception monitor that can be registered with a perception system.
+	 * It provides callbacks for perception events.
+	 */
 	class PerceptionMonitor {
 	public:
-		PerceptionMonitor(
-			const ref_ptr<Blackboard> &board,
-			const ref_ptr<WorldModel> &world);
+		// Callback types.
+		using Handler = std::function<void(const PerceptionData&, void*)>;
+		using Init = std::function<void(void*)>;
+		using Cleanup = std::function<void(void*)>;
 
-		void setSensorRate(float rate) { sensorRate_ = rate; }
+		/**
+		 * Constructor.
+		 * @param handle the handler function for perception events.
+		 * @param init the initialization function called when the monitor is added to a perception system.
+		 * @param cleanup the cleanup function called when the monitor is removed from a perception system.
+		 */
+		PerceptionMonitor(Handler handle, Init init, Cleanup cleanup, void *userData = nullptr) :
+			onPerception_(handle),
+			onPerceptionInit_(init),
+			onPerceptionCleanup_(cleanup),
+			userData_(userData) {}
 
 		virtual ~PerceptionMonitor() = default;
 
-		virtual void initialize() {}
+		/**
+		 * Call the initialization callback.
+		 */
+		void callOnPerceptionInit() {
+			onPerceptionInit_(userData_);
+		}
 
-		void update(float dt_s);
+		/**
+		 * Call the cleanup callback.
+		 */
+		void callOnPerceptionCleanup() {
+			onPerceptionCleanup_(userData_);
+		}
 
-	protected:
-		ref_ptr<Blackboard> board_;
-		ref_ptr<WorldModel> world_;
-		float sensorRate_ = 1.0f; // in Hz
-		float lastPerceptionTime_ = 0.0f;
+		/**
+		 * Call the perception handler with the given perception data.
+		 * @param perceptionData the perception data.
+		 */
+		void callOnPerception(const PerceptionData& perceptionData) {
+			onPerception_(perceptionData, userData_);
+		}
 
-		virtual void perceive() = 0;
+	private:
+		Handler onPerception_ = [](const PerceptionData&, void*) {};
+		Init onPerceptionInit_ = [](void*) {};
+		Cleanup onPerceptionCleanup_ = [](void*) {};
+		void *userData_ = nullptr;
 	};
 } // namespace
 

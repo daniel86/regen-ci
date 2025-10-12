@@ -14,10 +14,11 @@ namespace regen {
 	class NonPlayerCharacterController : public NavigationController {
 	public:
 		NonPlayerCharacterController(
-			const ref_ptr<Mesh> &mesh,
 			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
 			const ref_ptr<BoneAnimationItem> &animItem,
 			const ref_ptr<WorldModel> &world);
+
+		~NonPlayerCharacterController() override = default;
 
 		/**
 		 * Set the target for movement.

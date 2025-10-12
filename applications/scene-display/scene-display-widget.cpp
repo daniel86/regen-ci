@@ -1016,8 +1016,17 @@ static void handleAssetController(
 				mesh, indexedTF, nodeAnimItem, worldModel);
 			personController->setMesh(mesh);
 			controller.push_back(personController);
+
 			if (spatialIndex.get()) {
-				personController->setSpatialIndex(spatialIndex, indexedShapeName);
+				auto indexedShape = spatialIndex->getShape(indexedShapeName, tfIdx);
+				if (!indexedShape) {
+					REGEN_WARN("Unable to find indexed shape '" << indexedShapeName
+						<< "' in spatial index for controller '" << animationNode->getDescription() << "'.");
+				} else {
+					auto perceptionSystem = std::make_unique<PerceptionSystem>(spatialIndex, indexedShape);
+					perceptionSystem->setCollisionBit(animationNode->getValue<uint32_t>("collision-bit", 0));
+					personController->setPerceptionSystem(std::move(perceptionSystem));
+				}
 			}
 			if (footstepTrail.get()) {
 				float leftFootTime = animationNode->getValue<float>("left-foot-time", 0.2f);
@@ -1044,12 +1053,13 @@ static void handleAssetController(
 				animationNode->getValue<float>("push-through-distance", 0.5f));
 			personController->setLookAheadThreshold(
 				animationNode->getValue<float>("look-ahead-threshold", 6.0f));
+			personController->setAvoidanceDecay(
+				animationNode->getValue<float>("avoidance-decay", 0.5f));
 			personController->setWallTangentWeight(
 				animationNode->getValue<float>("wall-tangent-weight", 0.5f));
 			personController->setVelOrientationWeight(
 				animationNode->getValue<float>("velocity-orientation-weight", 0.5f));
 			personController->setFloorHeight(animationNode->getValue<float>("floor-height", 0.0f));
-			personController->setCollisionBit(animationNode->getValue<uint32_t>("collision-bit", 0));
 			if (animationNode->hasAttribute("base-orientation")) {
 				personController->setBaseOrientation(
 					animationNode->getValue<GLfloat>("base-orientation", 0.0f));

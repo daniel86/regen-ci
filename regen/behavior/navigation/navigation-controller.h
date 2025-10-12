@@ -2,18 +2,20 @@
 #define REGEN_NAVIGATION_CONTROLLER_H_
 
 #include "../../animation/transform-animation.h"
+#include "regen/behavior/perception/perception-monitor.h"
 #include "regen/math/bezier.h"
 #include "regen/states/model-transformation.h"
 #include "regen/textures/height-map.h"
 #include "regen/utility/indexed.h"
 
 namespace regen {
-	class NavigationController : public TransformAnimation {
+	class NavigationController : public TransformAnimation, public PerceptionMonitor {
 	public:
 		NavigationController(
-			const ref_ptr<Mesh> &mesh,
 			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
 			const ref_ptr<WorldModel> &world);
+
+		~NavigationController() override = default;
 
 		/**
 		 * @param numEntries The number of entries in the Bezier arc length lookup table.
@@ -21,12 +23,6 @@ namespace regen {
 		void setNumBezierLUTEntries(uint32_t numEntries) {
 			numLUTEntries_ = numEntries;
 		}
-
-		/**
-		 * Set the spatial index for path finding.
-		 * @param spatialIndex the spatial index.
-		 */
-		void setSpatialIndex(const ref_ptr<SpatialIndex> &spatialIndex, std::string_view shapeName);
 
 		/**
 		 * Set the walk speed.
@@ -76,6 +72,13 @@ namespace regen {
 		void setLookAheadThreshold(float threshold) { lookAheadThreshold_ = threshold; }
 
 		/**
+		 * Set the decay factor for avoidance strength that influences how fast
+		 * avoidance is blended out when no new perception frame arrives.
+		 * @param decay the decay factor.
+		 */
+		void setAvoidanceDecay(float decay) { avoidanceDecay_ = decay; }
+
+		/**
 		 * Set the weight for wall tangent steering (0 = no wall following, 1 = full wall following).
 		 * @param weight the weight.
 		 */
@@ -100,12 +103,6 @@ namespace regen {
 		void setFloorHeight(float floorHeight) { floorHeight_ = floorHeight; }
 
 		/**
-		 * Set the collision bit for avoiding collisions with other NPCs.
-		 * @param bit the collision bit.
-		 */
-		void setCollisionBit(uint32_t bit) { collisionMask_ = (1 << bit); }
-
-		/**
 		 * @return the look ahead distance for the collision shape.
 		 */
 		float lookAheadDistance() const { return lookAheadDistance_; }
@@ -119,15 +116,26 @@ namespace regen {
 		// override
 		void updatePose(const TransformKeyFrame &currentFrame, double t) override;
 
+		/**
+		 * Initialize a perception frame.
+		 */
+		void initPerception();
+
+		/**
+		 * Cleanup a perception frame.
+		 */
+		void cleanupPerception();
+
+		/**
+		 * Handle a perception event within a perception frame.
+		 * @param percept the perception data.
+		 */
+		void handlePerception(const PerceptionData &percept);
+
 	protected:
 		ref_ptr<WorldModel> worldModel_;
-		ref_ptr<SpatialIndex> spatialIndex_;
-		ref_ptr<BoundingShape> indexedShape_;
-		// shape used for collision avoidance, it extends in walk direction
-		ref_ptr<BoundingShape> collisionShape_;
 		// if set, we will ignore collisions with this shape
 		ref_ptr<BoundingShape> patientShape_;
-		uint32_t collisionMask_ = 0;
 		// Base orientation of the mesh around y axis
 		float baseOrientation_ = M_PI_2;
 
@@ -140,6 +148,7 @@ namespace regen {
 		float affordanceSlotRadius_ = 0.75f;
 		float pushThroughDistance_ = 1.0f;
 		float lookAheadThreshold_ = 6.0f;
+		float avoidanceDecay_ = 0.1f;
 		uint32_t numLUTEntries_ = 100;
 
 		// Terrain information.
@@ -159,19 +168,22 @@ namespace regen {
 		math::Bezier<Vec2f> bezierPath_;
 		math::ArcLengthLUT bezierLUT_;
 
-		double lastDT_ = 0.0;
+		// Number of collisions counted in last perception update.
+		uint32_t navCollisionCount_ = 0;
+		// Avoidance vector computed in last perception update.
+		Vec3f navAvoidance_ = Vec3f::zero();
+		float avoidanceStrength_ = 0.0f;
+		// Dynamic look ahead distance for collision shape.
+		float dynLookAheadDistance_ = lookAheadDistance_;
+		bool hasNewPerception_ = false;
 
-		Vec3f computeNeighborAvoidance();
+		double lastDT_ = 0.0;
 
 		float getHeight(const Vec2f &pos);
 
 		void updatePathCurve(const Vec2f &source, const Vec2f &target);
 
 		void updatePathCurve(const Vec2f &source, const Vec2f &target, const Vec3f &orientation);
-
-		static void handleNeighbourStatic(const BoundingShape &b_shape, void *userData);
-
-		void handleNeighbour(const BoundingShape &other, void *userData);
 
 		void updateTransformFrame(const Vec2f &target, const Vec3f &desiredDir);
 
@@ -187,9 +199,9 @@ namespace regen {
 			Vec3f avoidance = Vec3f::zero();
 		};
 
-		void handleCharacterCollision(const BoundingShape &other, NPCNeighborData *data);
+		void handleCharacterCollision(const PerceptionData &percept);
 
-		void handleWallCollision(const BoundingShape &other, NPCNeighborData *data);
+		void handleWallCollision(const PerceptionData &percept);
 	};
 } // namespace
 

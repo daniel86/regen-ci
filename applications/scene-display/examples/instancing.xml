@@ -246,6 +246,7 @@
                         run-speed="6.0" walk-speed="5.0"
                         max-turn-angle="90.0"
                         avoidance-weight="0.4"
+                        avoidance-decay="0.1"
                         push-through-distance="2.0"
                         look-ahead-threshold="8.0"
                         wall-tangent-weight="0.25"
