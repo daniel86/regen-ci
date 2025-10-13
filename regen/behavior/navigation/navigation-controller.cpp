@@ -138,12 +138,16 @@ void NavigationController::cleanupPerception() {
 
 void NavigationController::handlePerception(const PerceptionData &percept) {
 	if (patientShape_.get() == percept.other) return; // skip patient
-	// TODO: Use a taxonomy of objects instead.
-	const bool isCollisionWithNPC = (percept.other->baseMesh().get() == percept.self->baseMesh().get());
-	if (isCollisionWithNPC) {
+	auto *otherRes = percept.other->worldObject();
+	bool isStaticObject = true;
+	if (otherRes) {
+		auto otherWO = static_cast<const WorldObject*>(otherRes);
+		isStaticObject = otherWO->isStatic();
+	}
+	if (isStaticObject) {
+		handleStaticCollision(percept);
+	} else {
 		handleCharacterCollision(percept);
-	} else { // static object
-		handleWallCollision(percept);
 	}
 }
 
@@ -161,7 +165,7 @@ void NavigationController::handleCharacterCollision(const PerceptionData &percep
 	}
 }
 
-void NavigationController::handleWallCollision(const PerceptionData &percept) {
+void NavigationController::handleStaticCollision(const PerceptionData &percept) {
 #ifdef USE_DYNAMIC_LOOKAHEAD
 	float influenceRadius = dynLookAheadDistance_;
 #else

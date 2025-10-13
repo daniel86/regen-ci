@@ -228,11 +228,42 @@ namespace regen {
 		 */
 		virtual Vec3f closestPointOnSurface(const Vec3f &point) const = 0;
 
+		/**
+		 * Assign a world object to this shape.
+		 * This is used to link the shape to a world object.
+		 * @param obj The world object
+		 */
+		void setWorldObject(Resource *obj) { worldObject_ = obj; }
+
+		/**
+		 * Unset the world object from this shape if it matches the given object.
+		 * This is used to unlink the shape from a world object.
+		 * @param obj The world object
+		 */
+		void unsetWorldObject(Resource *obj) {
+			if (worldObject_ == obj) {
+				worldObject_ = nullptr;
+			}
+		}
+
+		/**
+		 * Unset the world object from this shape.
+		 * This is used to unlink the shape from a world object.
+		 * @param obj The world object
+		 */
+		Resource *worldObject() const { return worldObject_; }
+
+		/**
+		 * @return true if a world object is assigned, false otherwise
+		 */
+		bool hasWorldObject() const { return worldObject_ != nullptr; }
+
 	protected:
 		const BoundingShapeType shapeType_;
 		ref_ptr<Mesh> mesh_;
 		ref_ptr<Mesh> baseMesh_;
 		std::vector<ref_ptr<Mesh>> parts_;
+		Resource *worldObject_ = nullptr;
 
 		ref_ptr<ModelTransformation> transform_;
 		// only used in case no TF is set

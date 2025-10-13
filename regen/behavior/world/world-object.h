@@ -11,6 +11,15 @@ namespace regen {
 		CIRCULAR_GRID
 	};
 
+	enum class ObjectType {
+		THING = 0,
+		PLACE,
+		WAYPOINT,
+		CHARACTER,
+		ANIMAL,
+		PLAYER
+	};
+
 	class WorldObject;
 
 	struct Affordance {
@@ -52,23 +61,53 @@ namespace regen {
 
 	class WorldObject : public Resource {
 	public:
-		static constexpr const char *TYPE_NAME = "WorldObject";
-
-		WorldObject(std::string_view name, const ref_ptr<BoundingShape> &shape, uint32_t instanceIdx);
-
-		WorldObject(std::string_view name, const Vec3f &position);
-
-		WorldObject(std::string_view name, const ref_ptr<ShaderInput3f> &position);
+		explicit WorldObject(std::string_view name);
 
 		~WorldObject() override;
 
+		const std::string& name() const { return name_; }
+
 		uint32_t instanceIdx() const { return instanceIdx_; }
 
-		const std::string& name() const { return name_; }
+		void setPosition(const Vec3f &position);
+
+		void setPosition(const ref_ptr<ShaderInput3f> &position);
+
+		void setShape(const ref_ptr<BoundingShape> &shape, uint32_t instanceIdx);
 
 		bool hasShape() const { return shape_.get() != nullptr; }
 
 		const ref_ptr<BoundingShape> &shape() const { return shape_; }
+
+		ObjectType objectType() const { return objectType_; }
+
+		void setObjectType(ObjectType type) { objectType_ = type; }
+
+		uint32_t factionMask() const { return factionMask_; }
+
+		bool hasFaction(uint32_t faction) const { return (factionMask_ & faction) != 0; }
+
+		bool isFriendly(const WorldObject &other) const {
+			return (factionMask_ & other.factionMask_) != 0;
+		}
+
+		void addFaction(uint32_t faction) { factionMask_ |= faction; }
+
+		void removeFaction(uint32_t faction) { factionMask_ &= ~faction; }
+
+		const ref_ptr<WorldObject> &placeOfObject() const { return placeOfObject_; }
+
+		void setPlaceOfObject(const ref_ptr<WorldObject> &place) { placeOfObject_ = place; }
+
+		bool isStatic() const { return isStatic_; }
+
+		bool isDynamic() const { return !isStatic_; }
+
+		void setStatic(bool isStatic) { isStatic_ = isStatic; }
+
+		float danger() const { return danger_; }
+
+		void setDanger(float danger) { danger_ = danger; }
 
 		void setRadius(float radius) { radius_ = radius; }
 
@@ -86,13 +125,33 @@ namespace regen {
 
 		ref_ptr<Affordance> getAffordance(ActionType actionType) const;
 
+		static  ref_ptr<WorldObject> load(LoadingContext &ctx, scene::SceneInputNode &n);
+
 	protected:
 		const std::string name_;
-		ref_ptr<BoundingShape> shape_;
 		uint32_t instanceIdx_ = 0;
-		ref_ptr<ShaderInput3f> pos_;
 		float radius_ = 1.0f;
+
+		ref_ptr<BoundingShape> shape_;
+		ref_ptr<ShaderInput3f> pos_;
+
+		// The broad type of the object.
+		ObjectType objectType_ = ObjectType::THING;
+		// Normalized danger level [0,1], where 1 is very dangerous
+		// and 0 is safe.
+		float danger_ = 0.0f;
+		// Flag indicating if the object is static (not moving)
+		// or dynamic (moving).
+		bool isStatic_ = true;
+		// Bitfield for faction membership, up to 32 factions supported.
+		// Default is 0, meaning no faction.
+		// Factions can be used to determine friend/foe relationships.
+		// Two objects are considered friends if they share at least
+		// one faction.
+		uint32_t factionMask_ = 0;
+
 		std::vector<ref_ptr<Affordance>> affordances_;
+		ref_ptr<WorldObject> placeOfObject_;
 
 		// function pointer for reading position
 		Vec3f (WorldObject::*getPosition3D_)() const;
@@ -105,12 +164,71 @@ namespace regen {
 		Vec3f position3D_local() const;
 	};
 
+	class WorldObjectVec : public std::vector<ref_ptr<WorldObject>>, public Resource {
+	public:
+		static constexpr const char *TYPE_NAME = "WorldObject";
+
+		WorldObjectVec() = default;
+
+		explicit WorldObjectVec(uint32_t numInstances) :
+			std::vector<ref_ptr<WorldObject>>(numInstances) {}
+
+		WorldObjectVec &operator=(const std::vector<ref_ptr<WorldObject>> &rhs) {
+			std::vector<ref_ptr<WorldObject>>::operator=(rhs);
+			return *this;
+		}
+
+		/**
+		 * Load world objects from scene input.
+		 * Note that each item may create multiple world objects,
+		 * e.g. when a shape with multiple instances is used.
+		 * @param ctx the loading context.
+		 * @param input the scene input node.
+		 * @return a vector of loaded world objects.
+		 */
+		static ref_ptr<WorldObjectVec> load(LoadingContext &ctx, scene::SceneInputNode &input);
+	};
+
 	struct Patient {
 		ref_ptr<WorldObject> object;
 		ref_ptr<Affordance> affordance;
 		int affordanceSlot = -1;
 		float currentDistance = std::numeric_limits<float>::max();
 	};
+
+	class CharacterObject : public WorldObject {
+	public:
+		explicit CharacterObject(std::string_view name) :
+			WorldObject(name) {
+			objectType_ = ObjectType::CHARACTER;
+			isStatic_ = false;
+		}
+		~CharacterObject() override = default;
+	};
+
+	class AnimalObject : public WorldObject {
+	public:
+		explicit AnimalObject(std::string_view name) :
+			WorldObject(name) {
+			objectType_ = ObjectType::ANIMAL;
+			isStatic_ = false;
+		}
+		~AnimalObject() override = default;
+	};
+
+	class PlayerObject : public WorldObject {
+	public:
+		explicit PlayerObject(std::string_view name) :
+			WorldObject(name) {
+			objectType_ = ObjectType::PLAYER;
+			isStatic_ = false;
+		}
+		~PlayerObject() override = default;
+	};
+
+	std::ostream &operator<<(std::ostream &out, const ObjectType &v);
+
+	std::istream &operator>>(std::istream &in, ObjectType &v);
 
 	std::ostream &operator<<(std::ostream &out, const SlotLayout &v);
 

@@ -251,32 +251,12 @@ namespace regen {
 		}
 	};
 
-	// TODO: Support more conditions, e.g. visible enemies, dangers, players.
-	/**
-	class IsEnemyVisible : public BehaviorTree::Condition {
-	public:
-		IsEnemyVisible() = default;
-		bool evaluate(const Blackboard& bb) const override {
-			return bb.hasVisibleEnemy();
-		}
-	};
-
-	class IsDangerVisible : public BehaviorTree::Condition {
-	public:
-		IsDangerVisible() = default;
-		bool evaluate(const Blackboard& bb) const override {
-			return bb.hasVisibleDanger();
-		}
-	};
-
-	class IsPlayerVisible : public BehaviorTree::Condition {
-	public:
-		IsPlayerVisible() = default;
-		bool evaluate(const Blackboard& bb) const override {
-			return bb.hasVisiblePlayer();
-		}
-	};
-	**/
+	// TODO: Support more conditions
+	//	- IsEnemyVisible, IsDangerVisible, IsPlayerVisible
+	//  - HasFaction, IsEnemy, IsAlly, IsNeutral
+	//  - IsMorning, IsAfternoon, IsEvening, IsNight, IsTimeBetween
+	//  - IsSunny, IsRainy, IsSnowy, etc
+	//  - IsSpring, IsSummer, IsFall, IsWinter
 } // namespace
 
 #endif /* REGEN_BEHAVIOR_CONDITIONS_H_ */

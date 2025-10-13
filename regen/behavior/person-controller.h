@@ -14,12 +14,6 @@
 #include "skeleton/bone-controller.h"
 
 namespace regen {
-	class PersonWorldObject : public WorldObject {
-	public:
-		PersonWorldObject(std::string_view name, const Vec3f &position) :
-			WorldObject(name, position) {}
-	};
-
 	class PersonController : public NonPlayerCharacterController {
 	public:
 		PersonController(
@@ -104,7 +98,7 @@ namespace regen {
 		Blackboard knowledgeBase_;
 		std::unique_ptr<BehaviorTree> behaviorTree_;
 		std::unique_ptr<PerceptionSystem> perceptionSystem_;
-		ref_ptr<PersonWorldObject> npcWorldObject_;
+		ref_ptr<CharacterObject> npcWorldObject_;
 
 		float decisionInterval_s_ = 0.25f;
 		float perceptionInterval_s_ = 0.1f;

@@ -2,7 +2,30 @@
 
 using namespace regen;
 
+//#define BONE_CONTROLLER_DEBUG_ACTION ActionType::ATTACKING
 //#define BONE_CONTROLLER_DEBUG_STATE
+#if defined(BONE_CONTROLLER_DEBUG_ACTION) && !defined(BONE_CONTROLLER_DEBUG_STATE)
+#define BONE_CONTROLLER_DEBUG_STATE
+#endif
+
+#ifdef BONE_CONTROLLER_DEBUG_ACTION
+#define BONE_CTRL_DEBUG(act, ...) do { if (act == BONE_CONTROLLER_DEBUG_ACTION) {\
+	std::stringstream ctrl_ss;\
+	ctrl_ss << "[" << instanceIdx_ << "] ";\
+	ctrl_ss << "Action " << act << " ";\
+	ctrl_ss << __VA_ARGS__;\
+	Logging::log(Logging::INFO, ctrl_ss.str(), __FILE__, __LINE__);\
+	}} while(0)
+#elif BONE_CONTROLLER_DEBUG_STATE
+#define BONE_CTRL_DEBUG(act, ...) do {\
+	std::stringstream ctrl_ss;\
+	ctrl_ss << "[" << instanceIdx_ << "] ";\
+	ctrl_ss << "Action " << act << " " << __VA_ARGS__;\
+	Logging::log(Logging::INFO, ctrl_ss.str(), __FILE__, __LINE__);\
+	} while(0)
+#else
+#define BONE_CTRL_DEBUG(act, ...)
+#endif
 
 // FIXME: I think there might be a rare edge case bug when multiple actions that map
 //         to the same motion type are active at the same time.
@@ -136,19 +159,16 @@ void BoneController::updateDesiredMotions(const std::vector<ActionType> &desired
 		if (selectNewClip && motionData.status != MOTION_INACTIVE) {
 			// Select a new clip for this motion type.
 			startMotionClip(motionData, 0.0f);
+			BONE_CTRL_DEBUG(desiredAction, "selecting new clip");
 		}
 		if (motionData.status == MOTION_FADING_OUT) {
 			// was fading out, but is now desired again, so make active again.
 			// note: we can keep the current weight and fade time.
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-			REGEN_INFO("Motion " << desiredMotion << " now FADING_IN again.");
-#endif
+			BONE_CTRL_DEBUG(desiredAction, "fading in");
 			motionData.status = MOTION_FADING_IN;
 		} else if (motionData.status == MOTION_INACTIVE) {
 			// was inactive, so we can start it right away.
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-			REGEN_INFO("Motion " << desiredMotion << " now STARTING.");
-#endif
+			BONE_CTRL_DEBUG(desiredAction, "is now starting");
 			motionData.status = MOTION_STARTING;
 			addActiveMotion(desiredMotion);
 		} else { // ACTIVE, STARTING, FADING_IN
@@ -215,16 +235,12 @@ void BoneController::updateMotionClip(MotionData &motion, MotionClip &clip) {
 			// In that case we skip the looping segment and go directly to the end segment.
 			motion.handle = anim->startBoneAnimation(instanceIdx_, clip.range->trackIndex, clip.range->range);
 			motion.clipStatus = CLIP_LOOPING;
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-			REGEN_INFO("Motion " << clip.motion << " now LOOPING.");
-#endif
+			BONE_CTRL_DEBUG(motion.action, "is now looping");
 		} else if (clip.end) {
 			// Start the ending segment directly.
 			motion.handle = anim->startBoneAnimation(instanceIdx_, clip.end->trackIndex, clip.end->range);
 			motion.clipStatus = CLIP_ENDING;
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-			REGEN_INFO("Motion " << clip.motion << " now ENDING.");
-#endif
+			BONE_CTRL_DEBUG(motion.action, "is now ending");
 		} else if (!isFadingOut) {
 			// Switch back to beginning.
 			motion.handle = anim->startBoneAnimation(instanceIdx_, clip.begin->trackIndex, clip.begin->range);
@@ -233,37 +249,30 @@ void BoneController::updateMotionClip(MotionData &motion, MotionClip &clip) {
 			// TODO: Make BoneTree return the last transform until faded out?
 			//           Or just deactivate the motion early?
 			motion.status = MOTION_INACTIVE;
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-			REGEN_INFO("Motion " << clip.motion << " now INACTIVE.");
-#endif
+			BONE_CTRL_DEBUG(motion.action, "is now inactive");
 		}
 	}
 	else if (motion.clipStatus == CLIP_LOOPING) {
 		// Looping segment is done.
 		if (!isFadingOut) {
 			// Restart the looping segment.
+			//BONE_CTRL_DEBUG(motion.action, "is now restarting");
 			motion.handle = anim->startBoneAnimation(instanceIdx_, clip.range->trackIndex, clip.range->range);
 		} else if (clip.end) {
 			// Switch to ending segment if we are fading out, i.e. if the motion is no longer desired.
 			motion.handle = anim->startBoneAnimation(instanceIdx_, clip.end->trackIndex, clip.end->range);
 			motion.clipStatus = CLIP_ENDING;
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-			REGEN_INFO("Motion " << clip.motion << " now ENDING.");
-#endif
+			BONE_CTRL_DEBUG(motion.action, "is now ending");
 		} else {
 			// No ending segment, so toggle the motion off.
 			motion.status = MOTION_INACTIVE;
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-			REGEN_INFO("Motion " << clip.motion << " now INACTIVE.");
-#endif
+			BONE_CTRL_DEBUG(motion.action, "is now active");
 		}
 	}
 	else if (motion.clipStatus == CLIP_ENDING) {
 		// Ending segment is done, so toggle the motion off.
 		motion.status = MOTION_INACTIVE;
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-		REGEN_INFO("Motion " << clip.motion << " now INACTIVE.");
-#endif
+		BONE_CTRL_DEBUG(motion.action, "is now inactive");
 	}
 }
 
@@ -274,9 +283,6 @@ void BoneController::updateMotionClip(MotionData &motion, float dt_s) {
 		updateMotionClip(motion, clip);
 	}
 	// Update the motion state machine and blend weights.
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-	const uint32_t lastClipIdx = motion.clips[motion.lastClip];
-#endif
 	switch (motion.status) {
 		case MOTION_ACTIVE:
 		case MOTION_INACTIVE:
@@ -284,16 +290,12 @@ void BoneController::updateMotionClip(MotionData &motion, float dt_s) {
 			break;
 		case MOTION_STARTING:
 			startMotionClip(motion, 0.0f);
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-			REGEN_INFO("Motion " << animItem_->clips[lastClipIdx].motion << " started.");
-#endif
+			BONE_CTRL_DEBUG(motion.action, "started");
 			break;
 		case MOTION_FADING_IN:
 			motion.fadeTime += dt_s;
 			if (motion.fadeTime >= motionFadeDuration_) {
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-				REGEN_INFO("Motion " << animItem_->clips[lastClipIdx].motion << " fully faded in.");
-#endif
+				BONE_CTRL_DEBUG(motion.action, "fully faded in");
 				motion.status = MOTION_ACTIVE;
 				setMotionWeight(motion, 1.0f);
 			} else {
@@ -304,9 +306,7 @@ void BoneController::updateMotionClip(MotionData &motion, float dt_s) {
 			motion.fadeTime -= dt_s;
 			if (motion.fadeTime <= 0.0f) {
 				stopMotionClip(motion);
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-				REGEN_INFO("Motion " << animItem_->clips[lastClipIdx].motion << " stopped after fade out.");
-#endif
+				BONE_CTRL_DEBUG(motion.action, "stopped after fade out");
 			} else {
 				setMotionWeight(motion, motion.fadeTime / motionFadeDuration_);
 			}
@@ -332,9 +332,7 @@ void BoneController::updateBoneController(const Blackboard &kb, float dt_s) {
 		// Flip some motion state before update
 		if (!motion.desired && motion.status != MOTION_FADING_OUT) {
 			// Not desired anymore, so fade out.
-#ifdef BONE_CONTROLLER_DEBUG_STATE
-			REGEN_INFO("Motion " << activeMotions_[activeIdx] << " fading out.");
-#endif
+			BONE_CTRL_DEBUG(motion.action, "fading out");
 			motion.status = MOTION_FADING_OUT;
 			motion.fadeTime = motionFadeDuration_;
 		}

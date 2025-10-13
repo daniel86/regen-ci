@@ -68,8 +68,20 @@ list<IndexRange> SceneInputNode::getIndexSequence(GLuint numIndices) {
 		auto step = getValue<GLuint>("index-step", 1u);
 		pushIndexToSequence(numIndices, indices,
 			IndexRange(from, to, step));
+	} else if (hasAttribute("from-instance") || hasAttribute("to-instance")) {
+		auto from = getValue<GLuint>("from-instance", 0u);
+		auto to = getValue<GLuint>("to-instance", numIndices - 1);
+		auto step = getValue<GLuint>("instance-step", 1u);
+		pushIndexToSequence(numIndices, indices,
+			IndexRange(from, to, step));
 	} else if (hasAttribute("indices")) {
 		const auto indicesAtt = getValue<string>("indices", "0");
+		vector<string> indicesStr;
+		boost::split(indicesStr, indicesAtt, boost::is_any_of(","));
+		for (auto & it : indicesStr)
+			pushIndexToSequence(numIndices, indices, IndexRange(atoi(it.c_str())));
+	} else if (hasAttribute("instances")) {
+		const auto indicesAtt = getValue<string>("instances", "0");
 		vector<string> indicesStr;
 		boost::split(indicesStr, indicesAtt, boost::is_any_of(","));
 		for (auto & it : indicesStr)

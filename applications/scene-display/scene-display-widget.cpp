@@ -750,11 +750,10 @@ float getHeight(const Vec2f &pos, const ref_ptr<HeightMap> &heightMap) {
 static ref_ptr<WorldModel> loadWorldModel(
 	scene::SceneLoader &sceneParser,
 	const ref_ptr<SceneInputNode> &configNode) {
+	ref_ptr<WorldModel> worldModel = sceneParser.getResources()->getWorldModel();
+
 	auto worldNode = configNode->getFirstChild("world");
-	if (!worldNode.get()) {
-		return {};
-	}
-	ref_ptr<WorldModel> worldModel = ref_ptr<WorldModel>::alloc();
+	if (!worldNode.get()) return worldModel;
 
 	ref_ptr<HeightMap> heightMap;
 	if (worldNode->hasAttribute("height-map")) {
@@ -770,81 +769,55 @@ static ref_ptr<WorldModel> loadWorldModel(
 		}
 	}
 
-	for (const auto &x: worldNode->getChildren("place")) {
+	for (const auto &placeNode: worldNode->getChildren("place")) {
 		// Add place of interest to the controller.
 		// Here we distinguish between "HOME", "SPIRITUAL" and "GATHERING" places.
-		auto placeType = x->getValue<PlaceType>("type", PlaceType::HOME);
-		auto placePos = x->getValue<Vec2f>("point", Vec2f(0.0f));
-		auto placeRadius = x->getValue<float>("radius", 1.0f);
+		auto placeType = placeNode->getValue<PlaceType>("type", PlaceType::HOME);
+		auto placePos = placeNode->getValue<Vec2f>("point", Vec2f(0.0f));
+		auto placeRadius = placeNode->getValue<float>("radius", 1.0f);
+		float placeRadiusSq = placeRadius * placeRadius;
 		auto placeHeight = getHeight(placePos, heightMap);
-		auto place = ref_ptr<Place>::alloc(
-			x->getName(),
-			placeType,
-			Vec3f(placePos.x, placeHeight + 0.1f, placePos.y));
+		auto place = ref_ptr<Place>::alloc(placeNode->getName(), placeType);
 		place->setRadius(placeRadius);
+		place->setPosition(Vec3f(placePos.x, placeHeight + 0.1f, placePos.y));
 		worldModel->places.push_back(place);
 		ref_ptr<WorldObject> placeWO = place;
-		sceneParser.putResource<WorldObject>(place->name(), placeWO);
+		ref_ptr<WorldObjectVec> placeWOVec = ref_ptr<WorldObjectVec>::alloc();
+		placeWOVec->push_back(placeWO);
+		sceneParser.putResource<WorldObjectVec>(place->name(), placeWOVec);
 
-		std::map<std::string, ref_ptr<WorldObject> > objMap;
-		// load objects that are part of this place
-		for (const auto &s: x->getChildren("object")) {
-			std::stack<ref_ptr<WorldObject>> obj_queue;
-
-			if (s->hasAttribute("mesh")) {
-				uint32_t meshIdx = s->getValue<uint32_t>("mesh-index", 0u);
-				auto meshes = sceneParser.getResources()->getMesh(&sceneParser, s->getValue("mesh"));
-				if (!meshes || meshes->empty()) {
-					REGEN_WARN("Cannot find mesh in `" << s->getDescription() << "`.");
-				} else if (meshIdx >= meshes->size()) {
-					REGEN_WARN("Invalid mesh index in `" << s->getDescription() << "`.");
-				} else {
-					auto mesh = (*meshes.get())[meshIdx];
-					auto shape = mesh->indexedShape(0);
-					uint32_t numInstances = shape->transform()->numInstances();
-
-					for (uint32_t instance = 0; instance < numInstances; instance++) {
-						obj_queue.push(ref_ptr<WorldObject>::alloc(s->getName(),
-							mesh->indexedShape(instance), instance));
-					}
-				}
-			}
-			if (obj_queue.empty()) {
-				auto relPoint = s->getValue<Vec2f>("point", Vec2f(0.0f));
-				auto absObjPos = relPoint + placePos;
-				auto objHeight = getHeight(absObjPos, heightMap);
-				obj_queue.push(ref_ptr<WorldObject>::alloc(s->getName(),
-					Vec3f(absObjPos.x, objHeight + 0.1f, absObjPos.y)));
-			}
-
-			while (!obj_queue.empty()) {
-				ref_ptr<WorldObject> obj = obj_queue.top();
-				obj_queue.pop();
-
-				obj->setRadius(s->getValue<float>("radius", 1.0f));
-				objMap[s->getName()] = obj;
-				// load affordances
-				for (const auto &a: s->getChildren("affordance")) {
-					ref_ptr<Affordance> affordance = ref_ptr<Affordance>::alloc(obj);
-
-					affordance->type = a->getValue<ActionType>("type", ActionType::IDLE);
-					affordance->minDistance = a->getValue<float>("min-distance", 0.0f);
-					affordance->slotCount = a->getValue<int>("num-slots", 1);
-					affordance->spacing = a->getValue<float>("spacing", 2.0f);
-					affordance->layout = a->getValue<SlotLayout>("slot-layout", SlotLayout::CIRCULAR);
-					affordance->radius = a->getValue<float>("radius", 1.0f);
-					affordance->baseOffset = a->getValue<Vec3f>("base-offset", Vec3f(0.0f, 0.0f, 0.0f));
-
-					affordance->initialize();
-					obj->addAffordance(affordance);
-				}
+		// Iterate over all existing world objects, and if they were not added to a place yet,
+		// check if they are within the radius of this place. If yes, add them to this place.
+		for (auto &obj: worldModel->worldObjects()) {
+			// Only add things to places
+			if (obj->objectType() != ObjectType::THING) continue;
+			if (obj->placeOfObject().get() != nullptr) continue;
+			if ((obj->position2D() - placePos).lengthSquared() <= placeRadiusSq) {
 				place->addWorldObject(obj);
-				worldModel->addWorldObject(obj);
-				sceneParser.putResource<WorldObject>(obj->name(), obj);
+				obj->setPlaceOfObject(place);
 			}
 		}
 
-		for (const auto &s: x->getChildren("path")) {
+		LoadingContext ctx(&sceneParser, {});
+		// load objects that are part of this place
+		for (const auto &s: placeNode->getChildren("object")) {
+			auto objVec = WorldObjectVec::load(ctx, *s.get());
+			if (!objVec || objVec->empty()) {
+				auto relPoint = s->getValue<Vec2f>("point", Vec2f(0.0f));
+				auto absObjPos = relPoint + placePos;
+				auto objHeight = getHeight(absObjPos, heightMap);
+				auto wo = WorldObject::load(ctx, *s.get());
+				wo->setPosition(Vec3f(absObjPos.x, objHeight + 0.1f, absObjPos.y));
+				place->addWorldObject(wo);
+				worldModel->addWorldObject(wo);
+			} else {
+				for (const auto &obj: *objVec.get()) {
+					place->addWorldObject(obj);
+				}
+			}
+		}
+
+		for (const auto &s: placeNode->getChildren("path")) {
 			std::vector<ref_ptr<WayPoint> > pathPoints;
 			for (const auto &t: s->getChildren("point")) {
 				auto relPoint = t->getValue<Vec2f>("value", Vec2f(0.0f));
@@ -855,6 +828,7 @@ static ref_ptr<WorldModel> loadWorldModel(
 					t->getName(),
 					Vec3f(absPoint.x, pointHeight + 0.1f, absPoint.y));
 				point->setRadius(t->getValue<float>("radius", 1.0f));
+				point->setObjectType(ObjectType::WAYPOINT);
 				pathPoints.push_back(point);
 				worldModel->addWorldObject(point);
 			}
@@ -874,10 +848,13 @@ static ref_ptr<WorldModel> loadWorldModel(
 				x->getName(),
 				Vec3f(wpPos.x, wpHeight + 0.1f, wpPos.y));
 			wp->setRadius(x->getValue<float>("radius", 1.0f));
+			wp->setObjectType(ObjectType::WAYPOINT);
 			worldModel->wayPoints.push_back(wp);
 			worldModel->wayPointMap[x->getName()] = wp;
 			worldModel->addWorldObject(wp);
-			sceneParser.putResource<WorldObject>(wp->name(), wp);
+			auto wpVec = ref_ptr<WorldObjectVec>::alloc();
+			wpVec->push_back(wp);
+			sceneParser.putResource<WorldObjectVec>(wp->name(), wpVec);
 		} else {
 			REGEN_WARN("Unhandled object type '" << objType << "' in NPC controller.");
 		}

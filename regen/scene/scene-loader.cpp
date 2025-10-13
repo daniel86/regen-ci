@@ -237,10 +237,14 @@ void SceneLoader::putResource(const std::string &category, const std::string &na
 	} else if (category == "State") {
 		putState(name, ref_ptr<State>::dynamicCast(v));
 	} else if (category == "WorldObject") {
-		resources_->putWorldObject(name, ref_ptr<WorldObject>::dynamicCast(v));
+		resources_->putWorldObject(name, ref_ptr<WorldObjectVec>::dynamicCast(v));
 	} else {
 		REGEN_WARN("Unknown resource category '" << category << "'.");
 	}
+}
+
+ref_ptr<Resource> SceneLoader::createResource(scene::SceneInputNode &input) {
+	return resources_->createResource(this, input);
 }
 
 void SceneLoader::loadResources(const std::string &name) {

@@ -23,16 +23,14 @@ namespace regen {
 	class Place : public WorldObject {
 	public:
 		Place(std::string_view name, PlaceType type) :
-			WorldObject(name, Vec3f::zero()),
-			type(type) {}
-		Place(std::string_view name, PlaceType type, const Vec3f &position) :
-			WorldObject(name, position),
-			type(type) {}
-		Place(std::string_view name, PlaceType type, const ref_ptr<ShaderInput3f> &position) :
-			WorldObject(name, position),
-			type(type) {}
+			WorldObject(name),
+			placeType_(type) {
+			objectType_ = ObjectType::PLACE;
+		}
 
-		PlaceType placeType() const { return type; }
+		~Place() override = default;
+
+		PlaceType placeType() const { return placeType_; }
 
 		const std::vector<ref_ptr<WorldObject>> &worldObjects() const {
 			return objects_;
@@ -67,7 +65,7 @@ namespace regen {
 			return pathWays_[pathWayType];
 		}
 	protected:
-		const PlaceType type;
+		const PlaceType placeType_;
 		std::vector<ref_ptr<WorldObject>> objects_;
 
 		std::map<PathwayType, std::vector<std::vector<ref_ptr<WayPoint>>>> pathWays_;

@@ -40,15 +40,8 @@
         -->
         <world id="dwarf-rocks" height-map="ground-height">
             <place id="village-a" type="home" point="{{village-center-a}}" radius="40.0">
-                <object id="fireplace" point="0.0,0.0" radius="17.5">
-                    <affordance type="converse" num-slots="6" radius="7.5" min-distance="3.0"/>
-                    <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
-                </object>
                 <object id="meeting-point" point="35.0,45.0" radius="10.0">
                     <affordance type="converse" num-slots="6" min-distance="0.5"/>
-                </object>
-                <object id="bench" point="25.0,25.0" radius="5.0">
-                    <affordance type="sit" num-slots="2" layout="grid" min-distance="0.0"/>
                 </object>
                 <object id="crates" point="16.8,45.0" radius="5.0">
                     <affordance type="observe" num-slots="4" target="crates" min-distance="1.0"/>
@@ -79,15 +72,8 @@
                 </path>
             </place>
             <place id="village-b" type="home" point="{{village-center-b}}" radius="40.0">
-                <object id="fireplace" point="0.0,0.0" radius="15.0">
-                    <affordance type="converse" num-slots="6" radius="7.5" min-distance="3.0"/>
-                    <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
-                </object>
                 <object id="meeting-point" point="35.0,45.0" radius="10.0">
                     <affordance type="converse" num-slots="6" min-distance="0.5"/>
-                </object>
-                <object id="bench" point="-25.0,-25.0" radius="5.0">
-                    <affordance type="sit" num-slots="2" slot-layout="grid" min-distance="0.0"/>
                 </object>
                 <object id="crates" point="35.0,-35.0" radius="5.0">
                     <affordance type="observe" num-slots="4" min-distance="1.0"/>
@@ -112,10 +98,6 @@
                 </path>
             </place>
             <place id="shrine" type="spiritual" point="{{shrine-center}}" radius="120.0">
-                <object id="altar" point="0.0,0.0" radius="50.0">
-                    <affordance type="pray" num-slots="20" slot-layout="concentric" spacing="6.0" min-distance="10.0"/>
-                    <affordance type="observe" num-slots="32" slot-layout="concentric" spacing="6.0" min-distance="25.0"/>
-                </object>
                 <object id="meeting-point" point="90.0,25.0" radius="15.0">
                     <affordance type="converse" num-slots="16" min-distance="0.5"/>
                 </object>
@@ -143,32 +125,12 @@
                     <point value="65.0,-65.0"/>
                 </path>
             </place>
-            <place id="market" type="gathering" point="{{market-x}},{{market-z}}" radius="40.0">
-                <object id="well" point="0.0,0.0" radius="20.0" shape="well-shape">
-                    <affordance type="converse" num-slots="8" radius="10.0" min-distance="4.0"/>
-                    <affordance type="observe" num-slots="14" radius="20.0" min-distance="4.0"/>
-                </object>
+            <place id="market" type="gathering" point="{{market-x}},{{market-z}}" radius="80.0">
                 <object id="meeting-point1" point="45.0,-30.0" radius="10.0">
                     <affordance type="converse" num-slots="8" radius="10.0" min-distance="0.5"/>
                 </object>
                 <object id="training-spectators" point="{{market-training-x}},{{market-training-z}}" radius="25.0">
                     <affordance type="observe" num-slots="24" radius="25.0" min-distance="20.0"/>
-                </object>
-                <object id="training-manikin" mesh="manikin" mesh-index="0" radius="1.0">
-                    <affordance type="attack"
-                        num-slots="1" slot-layout="circular" spacing="2.0"
-                        radius="1.0" min-distance="0.0"
-                        base-offset="0.0,0.5,2.0"/>
-                </object>
-                <!--
-                <object id="meeting-point2" point="-35.0,40.0" radius="10.0">
-                    <affordance type="converse" num-slots="8" radius="10.0" min-distance="0.5"/>
-                </object>
-                -->
-                <object id="trade-tent" mesh="trade-tent" mesh-index="0" radius="10.0">
-                    <affordance type="observe" num-slots="6" slot-layout="grid"
-                        spacing="4.0" min-distance="0.0"
-                        base-offset="0.0,0.0,10.0"/>
                 </object>
                 <path type="stroll" radius="5.0">
                     <point value="35.0,0.0"/>
@@ -204,14 +166,6 @@
             <object id="wp12" type="waypoint" point="-227.0,-1.48" radius="5.0"/>
             <object id="wp13" type="waypoint" point="70.65,425.89" radius="5.0"/>
             <object id="wp14" type="waypoint" point="477.0,228.26" radius="5.0"/>
-            <!--
-            <path from="wp6" to="village-a"/>
-            <path from="wp0" to="village-b"/>
-            <path from="wp3" to="market"/>
-            <path from="wp4" to="market"/>
-            <path from="wp13" to="shrine"/>
-            <path from="wp14" to="shrine"/>
-            -->
             <path from="wp0" to="wp1"/>
             <path from="wp1" to="wp2"/>
             <path from="wp2" to="wp3"/>
@@ -1045,6 +999,11 @@
                mesh-id="trade-tent" transform-id="trade-tent-tf">
             <traversal-bit value="{{collision-bit}}"/>
         </shape>
+        <object id="trade-tent" mesh="trade-tent" radius="10.0">
+            <affordance type="observe" num-slots="6" slot-layout="grid"
+                spacing="4.0" min-distance="0.0"
+                base-offset="0.0,0.0,10.0"/>
+        </object>
     </mesh>
 
     <mesh id="market-place" type="disc"
@@ -1080,6 +1039,10 @@
             <has-part mesh-id="well" mesh-index="2"/>
             <traversal-bit value="{{collision-bit}}"/>
         </shape>
+        <object id="well" mesh="well" radius="20.0">
+            <affordance type="converse" num-slots="8" radius="10.0" min-distance="4.0"/>
+            <affordance type="observe" num-slots="14" radius="20.0" min-distance="4.0"/>
+        </object>
     </mesh>
 
     <mesh id="campfire" type="asset" asset="asset-campfire"
@@ -1103,6 +1066,10 @@
             <has-part mesh-id="campfire" mesh-index="2"/>
             <traversal-bit value="{{collision-bit}}"/>
         </shape>
+        <object id="campfire" mesh="campfire" radius="17.5" danger="0.2" base-offset="4.0,0.0,0.0">
+            <affordance type="converse" num-slots="6" radius="7.5" min-distance="3.0"/>
+            <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
+        </object>
     </mesh>
 
     <mesh id="woodpile" type="asset" asset="asset-woodpile"
@@ -1195,6 +1162,9 @@
                mesh-id="old-bench" transform-id="old-bench-tf">
             <traversal-bit value="{{collision-bit}}"/>
         </shape>
+        <object id="old-bench" radius="5.0" mesh="old-bench"  base-offset="0.0,0.0,0.0">
+            <affordance type="sit" num-slots="2" slot-layout="grid" min-distance="0.0"/>
+        </object>
     </mesh>
 
     <mesh id="altar" type="asset" asset="asset-altar"
@@ -1214,6 +1184,10 @@
                mesh-id="altar" transform-id="altar-tf">
             <traversal-bit value="{{collision-bit}}"/>
         </shape>
+        <object id="altar" mesh="altar" radius="50.0">
+            <affordance type="pray" num-slots="20" slot-layout="concentric" spacing="6.0" min-distance="10.0"/>
+            <affordance type="observe" num-slots="32" slot-layout="concentric" spacing="6.0" min-distance="25.0"/>
+        </object>
     </mesh>
 
     <mesh id="sphinx" type="asset" asset="asset-sphinx"
@@ -1322,6 +1296,12 @@
                mesh-id="manikin" transform-id="manikin-tf">
             <traversal-bit value="{{collision-bit}}"/>
         </shape>
+        <object id="training-manikin" mesh="manikin" radius="1.0">
+            <affordance type="attack"
+                num-slots="1" slot-layout="circular" spacing="2.0"
+                radius="1.0" min-distance="0.0"
+                base-offset="0.0,0.5,2.0"/>
+        </object>
     </mesh>
 
     <mesh id="barrel" type="asset" asset="asset-barrel"

@@ -12,15 +12,15 @@ namespace regen {
 
 	class WayPoint : public WorldObject {
 	public:
-		WayPoint(std::string_view name, const Vec3f &position) :
-			WorldObject(name, position) {}
+		explicit WayPoint(std::string_view name) : WorldObject(name) {}
 
-		WayPoint(std::string_view name, const ref_ptr<ShaderInput3f> &position) :
-			WorldObject(name, position) {}
+		WayPoint(std::string_view name, const Vec3f &position) : WorldObject(name) {
+			setPosition(position);
+		}
 
-		explicit WayPoint(const ref_ptr<WorldObject> &obj) :
-			WorldObject(obj->name(), obj->position3D()) {
+		explicit WayPoint(const ref_ptr<WorldObject> &obj) : WorldObject(obj->name()) {
 			setRadius(obj->radius());
+			setPosition(obj->position3D());
 		}
 	};
 

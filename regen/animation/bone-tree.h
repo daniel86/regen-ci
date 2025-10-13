@@ -32,8 +32,10 @@ namespace regen {
 		Mat4f offsetMatrix;
 		// per-instance offsetMatrix * nodeTransform * inverseTransform
 		std::vector<Mat4f> boneTransformationMatrix;
-		// The index of the currently active animation channel
-		int32_t channelIndex = -1;
+		// per-instance count of active animations affecting this node.
+		std::vector<uint32_t> numActive;
+		// The index of the node in the BoneTree node array.
+		uint32_t nodeIdx;
 		bool isBoneNode;
 		bool localDirty = true;
 		bool globalDirty = true;
@@ -212,7 +214,7 @@ namespace regen {
 
 		struct ActiveRange {
 			// -1 indicates that the range is inactive
-			int32_t animationIndex_ = -1;
+			int32_t trackIdx_ = -1;
 			// config for currently active anim
 			double startTick_ = 0.0;
 			double duration_ = 0.0;
@@ -236,6 +238,8 @@ namespace regen {
 		/**
 		 * A track in the bone animation.
 		 * One animation may have different tracks, each with its own set of channels.
+		 * Multiple tracks may be active at the same time, in which case their
+		 * they are blended according to their weights.
 		 */
 		struct Track {
 			// string identifier for animation
@@ -245,12 +249,8 @@ namespace regen {
 			double duration_;
 			// Static animation data
 			ref_ptr<std::vector<AnimationChannel>> channels_;
-			// per-instance + per-channel local node transformation
-			std::vector<Mat4f> transforms_;
 		};
 		std::vector<Track> animTracks_;
-		// The animation track which is currently in use.
-		Track *currentTrack_ = nullptr;
 
 		struct InstanceData {
 			// An array of active ranges, however the array only grows so we may have
@@ -263,6 +263,8 @@ namespace regen {
 			float lastWeightSum_ = 0.0f;
 		};
 		std::vector<InstanceData> instanceData_;
+		// per-instance + per-node local node transformation
+		std::vector<Mat4f> blendedTransforms_;
 		ref_ptr<BoneEvent> eventData_ = ref_ptr<BoneEvent>::alloc();
 
 		// tmp storage

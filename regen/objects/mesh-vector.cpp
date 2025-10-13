@@ -30,7 +30,10 @@ static void processMeshChildren(LoadingContext &ctx, scene::SceneInputNode &inpu
 	for (auto &child: input.getChildren()) {
 		auto processor = parser->getStateProcessor(child->getCategory());
 		if (processor.get() == nullptr) {
-			REGEN_WARN("No processor registered for '" << child->getDescription() << "'.");
+			auto res = parser->createResource(*child.get());
+			if (!res) {
+				REGEN_WARN("No processor registered for '" << child->getDescription() << "'.");
+			}
 			continue;
 		}
 		if (x.size() > 1) {

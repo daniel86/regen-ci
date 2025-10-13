@@ -1,8 +1,6 @@
 #include <random>
 #include "person-controller.h"
 
-#include "regen/shapes/obb.h"
-
 using namespace regen;
 
 //#define NAV_CTRL_DEBUG_WPS
@@ -16,9 +14,17 @@ PersonController::PersonController(
       knowledgeBase_(tfIndexed.index, &currentPos_, &currentDir_) {
 	boneController_ = ref_ptr<BoneController>::alloc(tfIndexed.index, animItem);
 	// and a world object that can use affordances
-	npcWorldObject_ = ref_ptr<PersonWorldObject>::alloc(
-		REGEN_STRING("npc-" << tfIndexed.index), Vec3f::zero());
+	npcWorldObject_ = ref_ptr<CharacterObject>::alloc(REGEN_STRING("npc-" << tfIndexed.index));
+	npcWorldObject_->setPosition(Vec3f::zero());
 	knowledgeBase_.setCharacterObject(npcWorldObject_);
+	if (mesh->hasIndexedShapes()) {
+		mesh->indexedShape(tfIndexed.index)->setWorldObject(npcWorldObject_.get());
+	}
+
+	// randomize a bit to avoid all NPCs deciding and perceiving in
+	// the same frame.
+	timeSinceLastDecision_s_ = math::random<float>() * decisionInterval_s_;
+	timeSinceLastPerception_s_ = math::random<float>() * perceptionInterval_s_;
 
 	// initialize action capabilities
 	for (uint32_t actionIdx = 0; actionIdx < static_cast<uint32_t>(ActionType::LAST_ACTION); actionIdx++) {

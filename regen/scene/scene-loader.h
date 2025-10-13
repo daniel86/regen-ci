@@ -203,6 +203,8 @@ namespace regen::scene {
 			return putResource(ResourceType::TYPE_NAME, name, v);
 		}
 
+		ref_ptr<Resource> createResource(scene::SceneInputNode &input);
+
 		void loadResources(const std::string &name);
 
 		void loadShapes();

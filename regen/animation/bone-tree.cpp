@@ -51,7 +51,12 @@ BoneTree::BoneTree(const ref_ptr<BoneNode> &rootNode, uint32_t numInstances)
 	for (uint32_t n = 0; n < numNodes; n++) {
 		nameToNode_[nodes_[n]->name] = n;
 		nodes_[n]->boneTransformationMatrix.resize(numInstances_, Mat4f::identity());
+		nodes_[n]->numActive.resize(numInstances_, 0);
+		nodes_[n]->nodeIdx = n;
 	}
+
+	// Make sure data is allocated.
+	blendedTransforms_.resize(numInstances_ * nodes_.size(), Mat4f::identity());
 }
 
 int32_t BoneTree::addChannels(
@@ -91,25 +96,18 @@ int32_t BoneTree::getTrackIndex(const std::string &trackName) const {
 	return it->second;
 }
 
-BoneTree::AnimationHandle BoneTree::startBoneAnimation(uint32_t instanceIdx, int32_t animationIdx, const Vec2d &forcedTickRange) {
+BoneTree::AnimationHandle BoneTree::startBoneAnimation(uint32_t instanceIdx, int32_t trackIdx, const Vec2d &forcedTickRange) {
 	auto &instance = instanceData_[instanceIdx];
 	AnimationHandle animHandle = -1;
 	for (uint32_t idx = 0; idx < instance.ranges_.size(); idx++) {
 		auto &n = instance.ranges_[idx];
-		if (n.animationIndex_ == animationIdx) {
-			// already active
-			setTickRange(n, forcedTickRange);
-			return static_cast<int32_t>(idx);
-		}
-		if (animHandle == -1 && n.animationIndex_ == -1) {
+		// note: It is fine if multiple ranges on the same track are active,
+		//       and also multiple ranges on different tracks.
+		//       We just look for an inactive range slot here.
+		if (animHandle == -1 && n.trackIdx_ == -1) {
 			animHandle = static_cast<int32_t>(idx);
 		}
 	}
-
-	// FIXME: It won't work to activate an animation in one channel if one in another is active.
-	//		- nodes have a channel index attribute.
-	//		- matrix data currently exists per channel, maybe better move per instance
-
 	// resize vectors if needed
 	if (animHandle==-1) {
 		instance.ranges_.resize(instance.numActiveRanges_ + 1);
@@ -119,23 +117,17 @@ BoneTree::AnimationHandle BoneTree::startBoneAnimation(uint32_t instanceIdx, int
 
 	// Initialize the new range.
 	auto &range = instance.ranges_[animHandle];
-	range.animationIndex_ = animationIdx;
+	range.trackIdx_ = trackIdx;
 	range.tickRange_.x = -1.0;
 	range.tickRange_.y = -1.0;
 	range.weight_ = 1.0;
 	setTickRange(range, forcedTickRange);
-	// Make sure data is allocated.
-	Track &anim = animTracks_[range.animationIndex_];
-	anim.transforms_.resize(numInstances_ * anim.channels_->size(), Mat4f::identity());
 
-	// Set matching channel index on the nodes in case animation track changed.
-	if (currentTrack_ != &anim) {
-		for (uint32_t a = 0; a < anim.channels_->size(); a++) {
-			auto nodeIdx = anim.channels_->data()[a].nodeIndex_;
-			nodes_[nodeIdx]->channelIndex = static_cast<int32_t>(a);
-		}
+	// Count number of animations affecting a node.
+	Track &anim = animTracks_[range.trackIdx_];
+	for (uint32_t a = 0; a < anim.channels_->size(); a++) {
+		nodes_[anim.channels_->data()[a].nodeIndex_]->numActive[instanceIdx]++;
 	}
-	currentTrack_ = &anim;
 
 	return animHandle;
 }
@@ -143,17 +135,23 @@ BoneTree::AnimationHandle BoneTree::startBoneAnimation(uint32_t instanceIdx, int
 void BoneTree::stopBoneAnimation(uint32_t instanceIdx, AnimationHandle animHandle) {
 	auto &instance = instanceData_[instanceIdx];
 	auto &ar = instance.ranges_[animHandle];
-	if (ar.animationIndex_ < 0) return;
+	if (ar.trackIdx_ == -1) return;
 
-	int32_t currIndex = ar.animationIndex_;
-	ar.animationIndex_ = -1;
+	// Count number of animations affecting a node.
+	Track &anim = animTracks_[ar.trackIdx_];
+	for (uint32_t a = 0; a < anim.channels_->size(); a++) {
+		nodes_[anim.channels_->data()[a].nodeIndex_]->numActive[instanceIdx]--;
+	}
+
+	auto currTrack = ar.trackIdx_;
+	ar.trackIdx_ = -1;
 	eventData_->instanceIdx = instanceIdx;
 	eventData_->rangeIdx = animHandle;
 	emitEvent(ANIMATION_STOPPED, eventData_);
 	ar.elapsedTime_ = 0.0;
 	ar.lastTime_ = 0;
 
-	if (ar.animationIndex_ == currIndex) {
+	if (ar.trackIdx_ == currTrack) {
 		// repeat, signal handler set animationIndex_=currIndex again
 	} else {
 		instanceData_[instanceIdx].numActiveRanges_--;
@@ -163,7 +161,7 @@ void BoneTree::stopBoneAnimation(uint32_t instanceIdx, AnimationHandle animHandl
 bool BoneTree::isBoneAnimationActive(uint32_t instanceIdx, AnimationHandle animHandle) const {
 	auto &instance = instanceData_[instanceIdx];
 	auto &ar = instance.ranges_[animHandle];
-	return ar.animationIndex_ >= 0;
+	return ar.trackIdx_ != -1;
 }
 
 float BoneTree::animationWeight(uint32_t instanceIdx, AnimationHandle animHandle) const {
@@ -206,11 +204,11 @@ static void findFrameBeforeTick(double &tick, uint32_t &frame, const std::vector
 }
 
 void BoneTree::setTickRange(ActiveRange &ar, const Vec2d &forcedTickRange) {
-	if (ar.animationIndex_ < 0) {
-		REGEN_WARN("can not set tick range without animation index set.");
+	if (ar.trackIdx_ == -1) {
+		REGEN_WARN("can not set tick range without animation track set.");
 		return;
 	}
-	Track &anim = animTracks_[ar.animationIndex_];
+	Track &anim = animTracks_[ar.trackIdx_];
 	const uint32_t numChannels = anim.channels_->size();
 
 	// Ensure that startFramePosition and lastFramePosition are allocated.
@@ -267,10 +265,11 @@ void BoneTree::setTickRange(ActiveRange &ar, const Vec2d &forcedTickRange) {
 double BoneTree::elapsedTime(uint32_t instanceIdx, AnimationHandle animHandle) const {
 	auto &instance = instanceData_[instanceIdx];
 	auto &ar = instance.ranges_[animHandle];
-	if (ar.animationIndex_ < 0 || ar.animationIndex_ >= static_cast<int32_t>(animTracks_.size())) {
+	if (ar.trackIdx_ == -1) {
 		return 0.0;
+	} else {
+		return ar.elapsedTime_;
 	}
-	return ar.elapsedTime_;
 }
 
 double BoneTree::ticksPerSecond(uint32_t trackIdx) const {
@@ -285,6 +284,7 @@ void BoneTree::animate(double dt_ms) {
 	static ElapsedTimeDebugger elapsedTime("NodeAnimation Update", 300);
 	elapsedTime.beginFrame();
 #endif
+	const auto numNodes = static_cast<uint32_t>(nodes_.size());
 
 	for (uint32_t instanceIdx = 0; instanceIdx < numInstances_; instanceIdx++) {
 		auto &instance = instanceData_[instanceIdx];
@@ -296,9 +296,9 @@ void BoneTree::animate(double dt_ms) {
 				rangeIdx < static_cast<AnimationHandle>(instance.ranges_.size());
 				rangeIdx++) {
 			ActiveRange &range = instance.ranges_[rangeIdx];
-			if (range.animationIndex_ < 0) continue;
+			if (range.trackIdx_ == -1) continue;
 
-			Track &track = animTracks_[range.animationIndex_];
+			Track &track = animTracks_[range.trackIdx_];
 			if (animationTrack == nullptr) {
 				animationTrack = &track;
 			}
@@ -333,18 +333,19 @@ void BoneTree::animate(double dt_ms) {
 			bool isDirty = (hasWeightChanged);
 
 			for (auto & range : instance.ranges_) {
-				if (range.animationIndex_ < 0) continue;
+				if (range.trackIdx_ == -1) continue;
 				// Normalized weight
 				float weight = range.weight_ / weightSum;
 
 				if (channel.rotationKeys_->empty()) {
+					accRot_ += (Quaternion(1, 0, 0, 0) * weight);
 				} else if (channel.rotationKeys_->size() == 1) {
 					accRot_ += (channel.rotationKeys_->data()[0].value * weight);
 				} else {
 					accRot_ += (nodeRotation(range, channel, isDirty, i) * weight);
 				}
 				if (channel.scalingKeys_->empty()) {
-					accScale_ += (Vec3f(1, 1, 1) * weight);
+					accScale_ += (Vec3f::one() * weight);
 				} else if (channel.scalingKeys_->size() == 1) {
 					accScale_ += (channel.scalingKeys_->data()[0].value * weight);
 				} else {
@@ -362,7 +363,7 @@ void BoneTree::animate(double dt_ms) {
 				if (instance.numActiveRanges_ > 1) {
 					accRot_.normalize();
 				}
-				Mat4f &m = animationTrack->transforms_[instanceIdx * numChannels + i];
+				Mat4f &m = blendedTransforms_[instanceIdx * numNodes + channel.nodeIndex_];
 				m = accRot_.calculateMatrix();
 				m.scale(accScale_);
 				m.x[3] = accPos_.x;
@@ -372,7 +373,7 @@ void BoneTree::animate(double dt_ms) {
 		}
 
 		rootNode_->updateTransforms(instanceIdx,
-			animationTrack->transforms_.data() + instanceIdx * animationTrack->channels_->size());
+			blendedTransforms_.data() + instanceIdx * numNodes);
 	}
 
 #ifdef BONE_TREE_DEBUG_TIME
@@ -547,9 +548,9 @@ BoneNode::BoneNode(const std::string &name, const ref_ptr<BoneNode> &parent)
 		  localTransform(Mat4f::identity()),
 		  globalTransform(Mat4f::identity()),
 		  offsetMatrix(Mat4f::identity()),
-		  channelIndex(-1),
 		  isBoneNode(false) {
 	boneTransformationMatrix.resize(1, Mat4f::identity());
+	numActive.resize(1, 0);
 }
 
 void BoneNode::addChild(const ref_ptr<BoneNode> &child) {
@@ -596,7 +597,11 @@ void BoneNode::updateTransforms(uint32_t instanceIdx, Mat4f *transforms) {
 #endif
 
 		// update node global transform
-		n->globalTransform = (n->channelIndex != -1) ? transforms[n->channelIndex] : n->localTransform;
+		// note: An alternative to this conditional could be to store base transform into transforms
+		// array for nodes that have no active animation, but that would be more IO so might
+		// not be worth it.
+		n->globalTransform = n->numActive[instanceIdx] == 0 ?
+			n->localTransform : transforms[n->nodeIdx];
 		n->globalTransform.multiplyr(n->parent->globalTransform);
 		n->globalDirty = true;
 		n->localDirty = false;

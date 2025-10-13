@@ -199,12 +199,12 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 			actNode = new PerformAffordedAction();
 		}
 		else if (actionType == "SetTargetPlace") {
-			auto wo = ctx.scene()->getResource<WorldObject>(xmlNode.getValue("value"));
-			if (!wo) {
+			auto wo = ctx.scene()->getResource<WorldObjectVec>(xmlNode.getValue("value"));
+			if (!wo || wo->empty()) {
 				REGEN_WARN("Cannot find world object in '" << xmlNode.getDescription() << "'.");
 				return nullptr;
 			}
-			auto place = ref_ptr<Place>::dynamicCast(wo);
+			auto place = ref_ptr<Place>::dynamicCast(wo->front());
 			if (!place) {
 				REGEN_WARN("Ignoring " << xmlNode.getDescription() <<
 					", object '" << xmlNode.getValue("value") << "' is not a place.");
@@ -212,12 +212,12 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 			}
 			node = new SetTargetPlace(place);
 		} else if (actionType == "SetPatient") {
-			auto wo = ctx.scene()->getResource<WorldObject>(xmlNode.getValue("value"));
-			if (!wo) {
+			auto wo = ctx.scene()->getResource<WorldObjectVec>(xmlNode.getValue("value"));
+			if (!wo || wo->empty()) {
 				REGEN_WARN("Cannot find world object in '" << xmlNode.getDescription() << "'.");
 				return nullptr;
 			}
-			node = new SetPatient(wo);
+			node = new SetPatient(wo->front());
 		}
 		else {
 			REGEN_WARN("Ignoring " << xmlNode.getDescription() << ", unknown action type '" << actionType << "'.");

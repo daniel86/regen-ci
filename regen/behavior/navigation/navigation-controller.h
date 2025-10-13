@@ -201,7 +201,7 @@ namespace regen {
 
 		void handleCharacterCollision(const PerceptionData &percept);
 
-		void handleWallCollision(const PerceptionData &percept);
+		void handleStaticCollision(const PerceptionData &percept);
 	};
 } // namespace
 

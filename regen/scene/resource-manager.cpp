@@ -11,17 +11,64 @@ using namespace regen::scene;
 using namespace regen;
 using namespace std;
 
+ResourceManager::ResourceManager() {
+	worldModel_ = ref_ptr<WorldModel>::alloc();
+}
+
+template <typename T> bool tryGet(SceneLoader *parser, const std::string &id, T &out) {
+	auto x = out.getResource(parser, id);
+	return (x.get() != nullptr);
+}
+
 void ResourceManager::loadResources(SceneLoader *parser, const std::string &id) {
-	assets_.getResource(parser, id);
-	cameras_.getResource(parser, id);
-	fbos_.getResource(parser, id);
-	bufferBlocks_.getResource(parser, id);
-	fonts_.getResource(parser, id);
-	indices_.getResource(parser, id);
-	lights_.getResource(parser, id);
-	meshes_.getResource(parser, id);
-	textures_.getResource(parser, id);
-	skies_.getResource(parser, id);
+	if (tryGet(parser, id, assets_)) return;
+	if (tryGet(parser, id, cameras_)) return;
+	if (tryGet(parser, id, fbos_)) return;
+	if (tryGet(parser, id, bufferBlocks_)) return;
+	if (tryGet(parser, id, fonts_)) return;
+	if (tryGet(parser, id, indices_)) return;
+	if (tryGet(parser, id, lights_)) return;
+	if (tryGet(parser, id, meshes_)) return;
+	if (tryGet(parser, id, textures_)) return;
+	if (tryGet(parser, id, skies_)) return;
+	if (tryGet(parser, id, worldObjects_)) return;
+}
+
+ref_ptr<Resource> ResourceManager::createResource(SceneLoader *parser, SceneInputNode &input) {
+	if (input.getCategory() == worldObjects_.category()) {
+		return worldObjects_.createResource(parser, input);
+	}
+	if (input.getCategory() == assets_.category()) {
+		return assets_.createResource(parser, input);
+	}
+	if (input.getCategory() == cameras_.category()) {
+		return cameras_.createResource(parser, input);
+	}
+	if (input.getCategory() == fbos_.category()) {
+		return fbos_.createResource(parser, input);
+	}
+	if (input.getCategory() == bufferBlocks_.category()) {
+		return bufferBlocks_.createResource(parser, input);
+	}
+	if (input.getCategory() == fonts_.category()) {
+		return fonts_.createResource(parser, input);
+	}
+	if (input.getCategory() == indices_.category()) {
+		return indices_.createResource(parser, input);
+	}
+	if (input.getCategory() == lights_.category()) {
+		return lights_.createResource(parser, input);
+	}
+	if (input.getCategory() == meshes_.category()) {
+		return meshes_.createResource(parser, input);
+	}
+	if (input.getCategory() == textures_.category()) {
+		return textures_.createResource(parser, input);
+	}
+	if (input.getCategory() == skies_.category()) {
+		return skies_.createResource(parser, input);
+	}
+	return {};
 }
 
 ref_ptr<Camera> ResourceManager::getCamera(SceneLoader *parser, const std::string &id) {
@@ -89,14 +136,9 @@ ref_ptr<Sky> ResourceManager::getSky(SceneLoader *parser, const std::string &id)
 	return skies_.getResource(parser, id);
 }
 
-ref_ptr<WorldObject> ResourceManager::getWorldObject(SceneLoader *parser, const std::string &id) {
-	auto it = worldObjects_.find(id);
-	if (it != worldObjects_.end()) {
-		return it->second;
-	} else {
-		REGEN_WARN("Unknown WorldObject with id '" << id << "'.");
-		return {};
-	}
+ref_ptr<WorldObjectVec> ResourceManager::getWorldObject(SceneLoader *parser, const std::string &id) {
+	loadResources(parser, id);
+	return worldObjects_.getResource(parser, id);
 }
 
 void ResourceManager::putCamera(const std::string &id, const ref_ptr<Camera> &cam) {
@@ -131,8 +173,8 @@ void ResourceManager::putMesh(const std::string &id, const ref_ptr<MeshVector> &
 	meshes_.putResource(id, meshes);
 }
 
-void ResourceManager::putWorldObject(const std::string &id, const ref_ptr<WorldObject> &obj) {
-	worldObjects_[id] = obj;
+void ResourceManager::putWorldObject(const std::string &id, const ref_ptr<WorldObjectVec> &obj) {
+	worldObjects_.putResource(id, obj);
 }
 
 void ResourceManager::putTransform(const std::string &id, const ref_ptr<ModelTransformation> &transform) {
