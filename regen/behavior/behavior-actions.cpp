@@ -292,7 +292,7 @@ BehaviorStatus SetDesiredActivity::tick(Blackboard& kb) {
 static int reserveAffordanceSlot(Blackboard &kb, const ref_ptr<Affordance> &aff) {
 	if (!aff->hasFreeSlot()) return -1;
 	bool randomizeSlot = (aff->layout != SlotLayout::GRID);
-	return aff->reserveSlot(kb.characterObject().get(), randomizeSlot);
+	return aff->reserveSlot(kb.characterObject(), randomizeSlot);
 }
 
 static BehaviorStatus selectPatient(Blackboard &kb,

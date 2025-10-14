@@ -98,7 +98,6 @@ namespace regen {
 		Blackboard knowledgeBase_;
 		std::unique_ptr<BehaviorTree> behaviorTree_;
 		std::unique_ptr<PerceptionSystem> perceptionSystem_;
-		ref_ptr<CharacterObject> npcWorldObject_;
 
 		float decisionInterval_s_ = 0.25f;
 		float perceptionInterval_s_ = 0.1f;

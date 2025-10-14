@@ -322,8 +322,10 @@ void BoneController::updateBoneController(const Blackboard &kb, float dt_s) {
 	}
 
 	// Map current actions to motions, mark only these as desired.
-	const std::vector<ActionType> desiredActions = { kb.currentAction() };
-	updateDesiredMotions(desiredActions);
+	if (kb.currentAction() != ActionType::LAST_ACTION) {
+		const std::vector<ActionType> desiredActions = { kb.currentAction() };
+		updateDesiredMotions(desiredActions);
+	}
 
 	// Update the state of all active motions.
 	uint32_t newNumActiveMotions = 0;

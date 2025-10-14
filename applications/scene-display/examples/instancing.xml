@@ -226,42 +226,49 @@
                             <condition type="predicate" name="IsDangerVisible"/>
                         </node>
                         -->
-                        <sequence id="place-activity">
-                            <action type="SelectTargetPlace"/>
-                            <selector id="engage-place">
-                                <sequence id="move-to-place">
-                                    <!-- Move to the selected place if not already there. -->
-                                    <condition type="predicate" id="IsAtTargetPlace" negate="1"/>
-                                    <action type="MoveToTargetPlace"/>
-                                </sequence>
-                                <sequence id="at-place">
-                                    <condition type="predicate" id="IsAtTargetPlace"/>
-                                    <!-- Set desired action based on environment affordances, traits etc. -->
-                                    <action type="SelectPlaceActivity"/>
-                                    <selector id="walking-or-affordance">
-                                        <sequence id="walk-around">
-                                            <!-- Walk around without specific goal besides the walking.
-                                                 For this we just need to make the action current, and the controller
-                                                 will pick up a navigation path at the current place. -->
-                                            <condition type="disjunction">
-                                                <condition type="predicate" id="HasDesiredActivity" value="STROLL"/>
-                                                <condition type="predicate" id="HasDesiredActivity" value="PATROL"/>
-                                                <condition type="predicate" id="HasDesiredActivity" value="IDLE"/>
-                                            </condition>
-                                            <action type="PerformDesiredAction"/>
-                                        </sequence>
-                                        <sequence id="use-affordance">
-                                            <!-- Engage with the environment by using an affordance. -->
-                                            <action type="SelectPlacePatient"/>
-                                            <selector id="engage-affordance">
-                                                <action type="PerformAffordedAction"/>
-                                                <action type="MoveToPatient" />
-                                            </selector>
-                                        </sequence>
-                                    </selector>
-                                </sequence>
-                            </selector>
-                        </sequence>
+                        <selector id="main">
+                            <sequence type="initial">
+                                <condition type="predicate" id="HasDesire" negate="1"/>
+                                <action type="SetDesiredAction" value="IDLE"/>
+                                <action type="PerformDesiredAction"/>
+                            </sequence>
+                            <sequence id="place-activity">
+                                <action type="SelectTargetPlace"/>
+                                <selector id="engage-place">
+                                    <sequence id="move-to-place">
+                                        <!-- Move to the selected place if not already there. -->
+                                        <condition type="predicate" id="IsAtTargetPlace" negate="1"/>
+                                        <action type="MoveToTargetPlace"/>
+                                    </sequence>
+                                    <sequence id="at-place">
+                                        <condition type="predicate" id="IsAtTargetPlace"/>
+                                        <!-- Set desired action based on environment affordances, traits etc. -->
+                                        <action type="SelectPlaceActivity"/>
+                                        <selector id="walking-or-affordance">
+                                            <sequence id="walk-around">
+                                                <!-- Walk around without specific goal besides the walking.
+                                                     For this we just need to make the action current, and the controller
+                                                     will pick up a navigation path at the current place. -->
+                                                <condition type="disjunction">
+                                                    <condition type="predicate" id="HasDesiredActivity" value="STROLL"/>
+                                                    <condition type="predicate" id="HasDesiredActivity" value="PATROL"/>
+                                                    <condition type="predicate" id="HasDesiredActivity" value="IDLE"/>
+                                                </condition>
+                                                <action type="PerformDesiredAction"/>
+                                            </sequence>
+                                            <sequence id="use-affordance">
+                                                <!-- Engage with the environment by using an affordance. -->
+                                                <action type="SelectPlacePatient"/>
+                                                <selector id="engage-affordance">
+                                                    <action type="PerformAffordedAction"/>
+                                                    <action type="MoveToPatient" />
+                                                </selector>
+                                            </sequence>
+                                        </selector>
+                                    </sequence>
+                                </selector>
+                            </sequence>
+                        </selector>
                     </selector>
                 </behavior-tree>
             </controller>
@@ -879,6 +886,11 @@
                 But we need to use separate shape for hiding/drawing weapon.
             -->
         </shape>
+        <object id="dwarf" type="character" mesh="dwarf" mesh-index="1" radius="5.0">
+            <!--
+            <affordance type="attack" num-slots="8" radius="10.0" min-distance="4.0"/>
+            -->
+        </object>
     </mesh>
 
     <mesh id="dwarf-base" type="asset" asset="dwarf-asset-instanced"
@@ -1000,9 +1012,11 @@
             <traversal-bit value="{{collision-bit}}"/>
         </shape>
         <object id="trade-tent" mesh="trade-tent" radius="10.0">
-            <affordance type="observe" num-slots="6" slot-layout="grid"
+            <affordance id="shopper" type="observe" num-slots="6" slot-layout="grid"
                 spacing="4.0" min-distance="0.0"
                 base-offset="0.0,0.0,10.0"/>
+            <affordance id="shop-keeper" type="observe" num-slots="1" radius="0.1"
+                base-offset="0.0,0.0,-3.0" />
         </object>
     </mesh>
 

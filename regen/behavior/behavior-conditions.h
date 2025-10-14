@@ -251,6 +251,21 @@ namespace regen {
 		}
 	};
 
+	/**
+	 * A condition that checks if the NPC has been initialized with a desire.
+	 * This is useful to ensure that the NPC has a valid state before performing actions.
+	 */
+	class HasDesire : public BehaviorTree::Condition {
+	public:
+		constexpr HasDesire() noexcept = default;
+		~HasDesire() override = default;
+	protected:
+		// Evaluate to true if the agent has some desire, else false.
+		bool doEvaluate(const Blackboard& bb) const override {
+			return bb.desiredAction() != ActionType::LAST_ACTION;
+		}
+	};
+
 	// TODO: Support more conditions
 	//	- IsEnemyVisible, IsDangerVisible, IsPlayerVisible
 	//  - HasFaction, IsEnemy, IsAlly, IsNeutral

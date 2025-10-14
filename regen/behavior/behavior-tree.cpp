@@ -28,20 +28,9 @@ static std::unique_ptr<BehaviorTree::Condition> makeCondition(scene::SceneInputN
 			const ActionType actionType = xmlCond->getValue<ActionType>("value", ActionType::IDLE);
 			cond = std::make_unique<HasDesiredActivity>(actionType);
 		}
-		// TODO: support more conditions
-		/**
-			<condition type="visible" object-type="ENEMY"/>
-			<condition type="visible" object-type="DANGER"/>
-			else if (predicateName == "IsEnemyVisible") {
-				conditions.push_back(std::make_unique<IsEnemyVisible>());
-			}
-			else if (predicateName == "IsDangerVisible") {
-				conditions.push_back(std::make_unique<IsDangerVisible>());
-			}
-			else if (predicateName == "IsPlayerVisible") {
-				conditions.push_back(std::make_unique<IsPlayerVisible>());
-			}
-		**/
+		else if (predicateName == "HasDesire") {
+			cond = std::make_unique<HasDesire>();
+		}
 		else {
 			REGEN_WARN("Ignoring " << xmlCond->getDescription() << ", unknown predicate '" << predicateName << "'.");
 			return {};
@@ -176,7 +165,7 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 		else if (actionType == "SelectPlaceActivity") {
 			actNode = new SelectPlaceActivity();
 		}
-		else if (actionType == "SetDesiredActivity") {
+		else if (actionType == "SetDesiredAction" || actionType == "SetDesiredActivity") {
 			auto action = xmlNode.getValue<ActionType>("action", ActionType::IDLE);
 			actNode = new SetDesiredActivity(action);
 		}

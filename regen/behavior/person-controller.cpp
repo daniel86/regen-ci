@@ -13,12 +13,28 @@ PersonController::PersonController(
 	: NonPlayerCharacterController(tfIndexed, animItem, world),
       knowledgeBase_(tfIndexed.index, &currentPos_, &currentDir_) {
 	boneController_ = ref_ptr<BoneController>::alloc(tfIndexed.index, animItem);
-	// and a world object that can use affordances
-	npcWorldObject_ = ref_ptr<CharacterObject>::alloc(REGEN_STRING("npc-" << tfIndexed.index));
-	npcWorldObject_->setPosition(Vec3f::zero());
-	knowledgeBase_.setCharacterObject(npcWorldObject_);
+
+	// Try to get the world object representing this character.
 	if (mesh->hasIndexedShapes()) {
-		mesh->indexedShape(tfIndexed.index)->setWorldObject(npcWorldObject_.get());
+		auto i_shape = mesh->indexedShape(tfIndexed.index);
+		Resource *objRes = i_shape->worldObject();
+		if (objRes) {
+			WorldObject *wo = dynamic_cast<WorldObject*>(objRes);
+			if (!wo) {
+				REGEN_WARN("World object resource is not a WorldObject in NPC controller.");
+			} else {
+				wo->setObjectType(ObjectType::CHARACTER);
+				wo->setStatic(false);
+				knowledgeBase_.setCharacterObject(wo);
+			}
+		}
+	}
+	if (!knowledgeBase_.characterObject()) {
+		// auto create a world object for this character
+		auto wo = ref_ptr<CharacterObject>::alloc(REGEN_STRING("npc-" << tfIndexed.index));
+		wo->setPosition(Vec3f::zero());
+		knowledgeBase_.setCharacterObject(wo.get());
+		worldModel_->addWorldObject(wo);
 	}
 
 	// randomize a bit to avoid all NPCs deciding and perceiving in
@@ -171,7 +187,7 @@ void PersonController::updateController(double dt) {
 		timeSinceLastDecision_s_ = 0.0f;
 		auto behaviorStatus = behaviorTree_->tick(kb);
 		if (behaviorStatus == BehaviorStatus::FAILURE) {
-			REGEN_WARN("Behavior tree failed for NPC '" << npcWorldObject_->name() << "'.");
+			REGEN_WARN("Behavior tree failed.");
 			setIdle();
 		}
 	}

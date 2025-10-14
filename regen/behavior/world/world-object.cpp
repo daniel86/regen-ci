@@ -96,7 +96,7 @@ bool Affordance::hasFreeSlot() const {
 	return freeSlots > 0;
 }
 
-int Affordance::reserveSlot(WorldObject *user, bool randomizeSlot) {
+int Affordance::reserveSlot(const WorldObject *user, bool randomizeSlot) {
 	int randomOffset = randomizeSlot ? math::randomInt() % slotCount : 0;
 	for (int i = 0; i < slotCount; ++i) {
 		int idx = (i + randomOffset) % slotCount;
@@ -221,11 +221,24 @@ ref_ptr<Affordance> WorldObject::getAffordance(ActionType actionType) const {
 }
 
 ref_ptr<WorldObject> WorldObject::load(LoadingContext &ctx, scene::SceneInputNode &n) {
-	ref_ptr<WorldObject> wo = ref_ptr<WorldObject>::alloc(n.getName());
+	ObjectType type = ObjectType::THING;
 	if (n.hasAttribute("type")) {
-		wo->setObjectType(n.getValue<ObjectType>("type", ObjectType::THING));
+		type = n.getValue<ObjectType>("type", ObjectType::THING);
 	}
-	wo->setStatic(n.getValue<bool>("static", true));
+	ref_ptr<WorldObject> wo;
+	if (type == ObjectType::CHARACTER) {
+		wo = ref_ptr<CharacterObject>::alloc(n.getName());
+	} else if (type == ObjectType::ANIMAL) {
+		wo = ref_ptr<AnimalObject>::alloc(n.getName());
+	} else if (type == ObjectType::PLAYER) {
+		wo = ref_ptr<PlayerObject>::alloc(n.getName());
+	} else {
+		wo = ref_ptr<WorldObject>::alloc(n.getName());
+		wo->setObjectType(type);
+	}
+	if (n.hasAttribute("static")) {
+		wo->setStatic(n.getValue<bool>("static", true));
+	}
 	wo->setDanger(n.getValue<float>("danger", 0.0f));
 	wo->setRadius(n.getValue<float>("radius", 1.0f));
 

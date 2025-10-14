@@ -38,7 +38,7 @@ namespace regen {
 		// The owner of the affordance
 		ref_ptr<WorldObject> owner;
 		// Current users of this affordance, size of vector is slotCount
-		std::vector<WorldObject*> users;
+		std::vector<const WorldObject*> users;
 		Vec3f baseOffset = Vec3f::zero();
 		// Precomputed slot positions in world space.
 		std::vector<Vec3f> slotPositions;
@@ -49,7 +49,7 @@ namespace regen {
 
 		bool hasFreeSlot() const;
 
-		int reserveSlot(WorldObject *user, bool randomizeSlot=false);
+		int reserveSlot(const WorldObject *user, bool randomizeSlot=false);
 
 		void releaseSlot(int slotIdx);
 

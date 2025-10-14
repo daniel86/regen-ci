@@ -30,12 +30,12 @@ namespace regen {
 		/**
 		 * The object representing the character in the world.
 		 */
-		void setCharacterObject(const ref_ptr<WorldObject> &obj) { characterObject_ = obj; }
+		void setCharacterObject(const WorldObject *obj) { characterObject_ = obj; }
 
 		/**
 		 * @return the object representing the character in the world.
 		 */
-		const ref_ptr<WorldObject> &characterObject() const { return characterObject_; }
+		const WorldObject* characterObject() const { return characterObject_; }
 
 		/**
 		 * Get the current position of the character.
@@ -470,7 +470,7 @@ namespace regen {
 
 	protected:
 		const uint32_t instanceId_ = 0;
-		ref_ptr<WorldObject> characterObject_;
+		const WorldObject *characterObject_;
 		const Vec3f *currentPos_ = nullptr;
 		const Vec3f *currentDir_ = nullptr;
 		const WorldTime *worldTime_ = nullptr;
@@ -518,9 +518,9 @@ namespace regen {
 		Patient interactionTarget_;
 		Patient navigationTarget_;
 		// The desired activity the NPC wants to perform next.
-		ActionType desiredAction_ = ActionType::IDLE;
+		ActionType desiredAction_ = ActionType::LAST_ACTION;
 		// The action the NPC is currently performing.
-		ActionType currentAction_ = ActionType::IDLE;
+		ActionType currentAction_ = ActionType::LAST_ACTION;
 	};
 } // namespace
 
