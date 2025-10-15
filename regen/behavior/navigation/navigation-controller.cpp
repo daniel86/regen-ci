@@ -7,23 +7,26 @@
 
 using namespace regen;
 
-static void initPerception_s(void *userData) {
-	((NavigationController*)userData)->initPerception();
+static void initCollisionFrame_s(void *userData) {
+	// set avoidance force to zero
+	((NavigationController*)userData)->initCollisionFrame();
 }
 
-static void cleanupPerception_s(void *userData) {
-	((NavigationController*)userData)->cleanupPerception();
+static void finalizeCollisionFrame_s(void *userData) {
+	// finalize avoidance after all perception events have been handled
+	((NavigationController*)userData)->finalizeCollisionFrame();
 }
 
-static void handlePerception_s(const PerceptionData &percept, void *userData) {
-	((NavigationController*)userData)->handlePerception(percept);
+static void handlePerception_s(const CollisionEvent &evt, void *userData) {
+	// accumulate avoidance forces
+	((NavigationController*)userData)->handleCollisionEvent(evt);
 }
 
 NavigationController::NavigationController(
 	const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
 	const ref_ptr<WorldModel> &world)
 	: TransformAnimation(tfIndexed.value, tfIndexed.index),
-	  PerceptionMonitor(handlePerception_s, initPerception_s, cleanupPerception_s, this),
+	  CollisionMonitor(handlePerception_s, initCollisionFrame_s, finalizeCollisionFrame_s, this),
 	  worldModel_(world) {
 }
 
@@ -114,7 +117,7 @@ void NavigationController::updatePathCurve(
 	updateTransformFrame(target, desiredDir);
 }
 
-void NavigationController::initPerception() {
+void NavigationController::initCollisionFrame() {
 #ifdef USE_DYNAMIC_LOOKAHEAD
 	// Dynamically decrease the lookahead distance when close to the goal.
 	// This allows to better approach the goal without being pushed away by
@@ -127,7 +130,7 @@ void NavigationController::initPerception() {
 	hasNewPerception_ = true;
 }
 
-void NavigationController::cleanupPerception() {
+void NavigationController::finalizeCollisionFrame() {
 	if (navCollisionCount_ > 0) {
 		navAvoidance_ /= static_cast<float>(navCollisionCount_);
 		avoidanceStrength_ = navAvoidance_.length();
@@ -136,22 +139,22 @@ void NavigationController::cleanupPerception() {
 	}
 }
 
-void NavigationController::handlePerception(const PerceptionData &percept) {
-	if (patientShape_.get() == percept.other) return; // skip patient
-	auto *otherRes = percept.other->worldObject();
+void NavigationController::handleCollisionEvent(const CollisionEvent &evt) {
+	if (patientShape_.get() == evt.data.other) return; // skip patient
+	auto *otherRes = evt.data.other->worldObject();
 	bool isStaticObject = true;
 	if (otherRes) {
 		auto otherWO = static_cast<const WorldObject*>(otherRes);
 		isStaticObject = otherWO->isStatic();
 	}
 	if (isStaticObject) {
-		handleStaticCollision(percept);
+		handleStaticCollision(evt.data);
 	} else {
-		handleCharacterCollision(percept);
+		handleCharacterCollision(evt.data);
 	}
 }
 
-void NavigationController::handleCharacterCollision(const PerceptionData &percept) {
+void NavigationController::handleCharacterCollision(const CollisionData &percept) {
 	// Note: percept.distance measures center-to-center distance.
 	if (percept.distance < personalSpace_ * 3.0f) {
 		// The other character is close by, steer away.
@@ -165,7 +168,7 @@ void NavigationController::handleCharacterCollision(const PerceptionData &percep
 	}
 }
 
-void NavigationController::handleStaticCollision(const PerceptionData &percept) {
+void NavigationController::handleStaticCollision(const CollisionData &percept) {
 #ifdef USE_DYNAMIC_LOOKAHEAD
 	float influenceRadius = dynLookAheadDistance_;
 #else

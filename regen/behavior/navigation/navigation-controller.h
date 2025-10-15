@@ -2,14 +2,14 @@
 #define REGEN_NAVIGATION_CONTROLLER_H_
 
 #include "../../animation/transform-animation.h"
-#include "regen/behavior/perception/perception-monitor.h"
+#include "regen/behavior/perception/collision-monitor.h"
 #include "regen/math/bezier.h"
 #include "regen/states/model-transformation.h"
 #include "regen/textures/height-map.h"
 #include "regen/utility/indexed.h"
 
 namespace regen {
-	class NavigationController : public TransformAnimation, public PerceptionMonitor {
+	class NavigationController : public TransformAnimation, public CollisionMonitor {
 	public:
 		NavigationController(
 			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
@@ -119,18 +119,18 @@ namespace regen {
 		/**
 		 * Initialize a perception frame.
 		 */
-		void initPerception();
+		void initCollisionFrame();
 
 		/**
 		 * Cleanup a perception frame.
 		 */
-		void cleanupPerception();
+		void finalizeCollisionFrame();
 
 		/**
 		 * Handle a perception event within a perception frame.
-		 * @param percept the perception data.
+		 * @param evt the perception data.
 		 */
-		void handlePerception(const PerceptionData &percept);
+		void handleCollisionEvent(const CollisionEvent &evt);
 
 	protected:
 		ref_ptr<WorldModel> worldModel_;
@@ -199,9 +199,9 @@ namespace regen {
 			Vec3f avoidance = Vec3f::zero();
 		};
 
-		void handleCharacterCollision(const PerceptionData &percept);
+		void handleCharacterCollision(const CollisionData &percept);
 
-		void handleStaticCollision(const PerceptionData &percept);
+		void handleStaticCollision(const CollisionData &percept);
 	};
 } // namespace
 

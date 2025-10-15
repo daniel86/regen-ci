@@ -153,7 +153,7 @@ void PersonController::updateController(double dt) {
 
 	if (perceptionSystem_.get() && timeSinceLastPerception_s_ > perceptionInterval_s_) {
 		// Insert new percepts into the knowledge base, and update existing ones.
-		perceptionSystem_->update(timeSinceLastPerception_s_);
+		perceptionSystem_->update(knowledgeBase_, timeSinceLastPerception_s_);
 		timeSinceLastPerception_s_ = 0.0f;
 	}
 	// Do some controller specific updates to the knowledge base.

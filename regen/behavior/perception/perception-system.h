@@ -1,9 +1,10 @@
 #ifndef REGEN_PERCEPTION_SYSTEM_H_
 #define REGEN_PERCEPTION_SYSTEM_H_
 
-#include "perception-monitor.h"
 #include "regen/shapes/spatial-index.h"
 #include "regen/shapes/bounding-shape.h"
+#include "collision-monitor.h"
+#include "detection-monitor.h"
 
 namespace regen {
 	/**
@@ -36,7 +37,7 @@ namespace regen {
 		void removeMonitor(PerceptionMonitor *monitor);
 
 		/**
-		 * Set the collision bit for avoiding collisions with other NPCs.
+		 * Set the collision bit for spatial index traversal.
 		 * @param bit the collision bit.
 		 */
 		void setCollisionBit(uint32_t bit) { collisionMask_ = (1 << bit); }
@@ -46,14 +47,13 @@ namespace regen {
 		 * This should be called periodically to update the perception data and notify monitors.
 		 * @param dt_s the time difference in seconds.
 		 */
-		void update(double dt_s);
+		void update(const Blackboard &kb, double dt_s);
 
 		/**
 		 * Handle an intersection with another shape.
 		 * @param other the other shape.
-		 * @param userData user data passed to the handler.
 		 */
-		void handleIntersection(const BoundingShape &other, void *userData);
+		void handleIntersection(const BoundingShape &other);
 
 	protected:
 		// The spatial index used for perception.
@@ -65,9 +65,15 @@ namespace regen {
 		// collision mask to ignore collisions with other NPCs
 		uint32_t collisionMask_ = 0;
 		// The perception data computed during intersection handling.
-		PerceptionData perceptionData_;
-		// The list of registered perception monitors.
-		std::vector<PerceptionMonitor*> monitors_;
+		CollisionEvent collisionEvt_;
+		DetectionEvent detectionEvt_;
+		// The list of registered monitors.
+		std::vector<CollisionMonitor*> collisionMonitors_;
+		std::vector<DetectionMonitor*> detectionMonitors_;
+
+		void updateCollisions();
+
+		void updateDetections();
 	};
 } // namespace
 
