@@ -938,7 +938,6 @@ static void handleAssetController(
 			mesh, indexedTF, nodeAnimItem, worldModel);
 		controller.push_back(animalController);
 		animalController->setWorldTime(&sceneParser.application()->worldTime());
-		animalController->setMesh(mesh);
 		animalController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
 		animalController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
 		animalController->setFloorHeight(animationNode->getValue<float>("floor-height", 0.0f));
@@ -991,7 +990,6 @@ static void handleAssetController(
 			Indexed<ref_ptr<ModelTransformation>> indexedTF(tf, tfIdx);
 			auto personController = ref_ptr<PersonController>::alloc(
 				mesh, indexedTF, nodeAnimItem, worldModel);
-			personController->setMesh(mesh);
 			controller.push_back(personController);
 
 			if (spatialIndex.get()) {
@@ -1022,10 +1020,34 @@ static void handleAssetController(
 			personController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
 			personController->setMaxTurnDegPerSecond(
 				animationNode->getValue<float>("max-turn-angle", 90.0f));
-			personController->setPersonalSpace(
-				animationNode->getValue<float>("personal-space", 4.5f));
-			personController->setAvoidanceWeight(
-				animationNode->getValue<float>("avoidance-weight", 0.5f));
+			if (animationNode->hasAttribute("personal-space")) {
+				personController->setPersonalSpace(
+					animationNode->getValue<float>("personal-space", 4.5f));
+			}
+			if (animationNode->hasAttribute("wall-avoidance")) {
+				personController->setAvoidanceWeight(
+					animationNode->getValue<float>("avoidance-weight", 0.5f));
+			}
+			if (animationNode->hasAttribute("wall-avoidance")) {
+				personController->setWallAvoidance(
+					animationNode->getValue<float>("wall-avoidance", 1.0f));
+			}
+			if (animationNode->hasAttribute("character-avoidance")) {
+				personController->setCharacterAvoidance(
+					animationNode->getValue<float>("character-avoidance", 10.0f));
+			}
+			if (animationNode->hasAttribute("cohesion-weight")) {
+				personController->setCohesionWeight(
+					animationNode->getValue<float>("cohesion-weight", 1.0f));
+			}
+			if (animationNode->hasAttribute("member-separation-weight")) {
+				personController->setMemberSeparationWeight(
+					animationNode->getValue<float>("member-separation-weight", 1.0f));
+			}
+			if (animationNode->hasAttribute("group-separation-weight")) {
+				personController->setGroupSeparationWeight(
+					animationNode->getValue<float>("group-separation-weight", 5.0f));
+			}
 			personController->setPushThroughDistance(
 				animationNode->getValue<float>("push-through-distance", 0.5f));
 			personController->setLookAheadThreshold(

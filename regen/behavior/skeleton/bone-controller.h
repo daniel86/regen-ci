@@ -146,7 +146,7 @@ namespace regen {
 
 		void addActiveMotion(MotionType motion);
 
-		void updateDesiredMotions(const std::vector<ActionType> &desiredActions);
+		void updateDesiredMotions(const ActionType *desiredActions, uint32_t numDesiredActions);
 
 		void updateMotionClip(MotionData &motion, float dt_s);
 

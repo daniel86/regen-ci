@@ -102,6 +102,18 @@ void WorldModelDebug::traverse(regen::RenderState *rs) {
 				drawCrossXZ(slotPos, 0.1f, slotColor);
 			}
 		}
+		// draw group center positions
+		if (shape->objectType() == ObjectType::LOCATION) {
+			auto &loc = static_cast<Location&>(*shape.get());
+			for (int32_t groupIdx = 0; groupIdx < loc.numGroups(); groupIdx++) {
+				auto *group = loc.group(groupIdx);
+				if (group->numMembers() == 0) {
+					REGEN_WARN("Location '" << loc.name() << "' has group with zero members.");
+					continue;
+				}
+				drawCrossXZ(group->position3D(), 0.2f, Vec3f(1.0f, 0.0f, 1.0f));
+			}
+		}
 	}
 	// Draw global navigation paths
 	for (auto &path : world_->wayPointConnections) {

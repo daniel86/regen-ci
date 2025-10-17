@@ -40,8 +40,12 @@
         -->
         <world id="dwarf-rocks" height-map="ground-height">
             <place id="village-a" type="home" point="{{village-center-a}}" radius="40.0">
-                <object id="meeting-point" point="35.0,45.0" radius="10.0">
-                    <affordance type="converse" num-slots="6" min-distance="0.5"/>
+                <object id="at-campfire" type="location" point="0.0,0.0" radius="17.5">
+                    <affordance type="converse" max-participants="8" max-group-size="3" />
+                    <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
+                </object>
+                <object id="meeting-point1" type="location" point="35.0,45.0" radius="10.0">
+                    <affordance type="converse" max-participants="6" max-group-size="6" />
                 </object>
                 <object id="crates" point="16.8,45.0" radius="5.0">
                     <affordance type="observe" num-slots="4" target="crates" min-distance="1.0"/>
@@ -72,8 +76,12 @@
                 </path>
             </place>
             <place id="village-b" type="home" point="{{village-center-b}}" radius="40.0">
-                <object id="meeting-point" point="35.0,45.0" radius="10.0">
-                    <affordance type="converse" num-slots="6" min-distance="0.5"/>
+                <object id="at-campfire" type="location" point="0.0,0.0" radius="17.5">
+                    <affordance type="converse" max-participants="8" max-group-size="3" />
+                    <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
+                </object>
+                <object id="meeting-point1" type="location" point="35.0,45.0" radius="10.0">
+                    <affordance type="converse" max-participants="6" max-group-size="6" />
                 </object>
                 <object id="crates" point="35.0,-35.0" radius="5.0">
                     <affordance type="observe" num-slots="4" min-distance="1.0"/>
@@ -98,11 +106,11 @@
                 </path>
             </place>
             <place id="shrine" type="spiritual" point="{{shrine-center}}" radius="120.0">
-                <object id="meeting-point" point="90.0,25.0" radius="15.0">
-                    <affordance type="converse" num-slots="16" min-distance="0.5"/>
+                <object id="meeting-point1" type="location" point="90.0,25.0" radius="15.0">
+                    <affordance type="converse" max-participants="12" max-group-size="4" />
                 </object>
-                <object id="meeting-point" point="-90.0,25.0" radius="15.0">
-                    <affordance type="converse" num-slots="16" min-distance="0.5"/>
+                <object id="meeting-point2" type="location" point="-90.0,25.0" radius="15.0">
+                    <affordance type="converse" max-participants="12" max-group-size="4" />
                 </object>
                 <path type="stroll" radius="5.0">
                     <point value="60.0,0.0"/>
@@ -126,8 +134,12 @@
                 </path>
             </place>
             <place id="market" type="gathering" point="{{market-x}},{{market-z}}" radius="80.0">
-                <object id="meeting-point1" point="45.0,-30.0" radius="10.0">
-                    <affordance type="converse" num-slots="8" radius="10.0" min-distance="0.5"/>
+                <object id="market-square" type="location" point="0.0,0.0" radius="20.0">
+                    <affordance type="converse" max-participants="12" max-group-size="4" />
+                    <affordance type="observe" num-slots="14" radius="20.0" min-distance="4.0"/>
+                </object>
+                <object id="meeting-point1" type="location" point="40.0,-35.0" radius="10.0">
+                    <affordance type="converse" max-participants="6" max-group-size="6" />
                 </object>
                 <object id="training-spectators" point="{{market-training-x}},{{market-training-z}}" radius="25.0">
                     <affordance type="observe" num-slots="24" radius="25.0" min-distance="20.0"/>
@@ -199,11 +211,16 @@
                         collision-bit="{{collision-bit}}"
                         run-speed="6.0" walk-speed="5.0"
                         max-turn-angle="90.0"
-                        avoidance-weight="0.4"
+                        avoidance-weight="1.0"
                         avoidance-decay="0.1"
+                        wall-avoidance="1.0"
+                        wall-tangent-weight="0.25"
+                        character-avoidance="4.0"
+                        cohesion-weight="1.0"
+                        member-separation-weight="0.4"
+                        group-separation-weight="0.2"
                         push-through-distance="2.0"
                         look-ahead-threshold="8.0"
-                        wall-tangent-weight="0.25"
                         personal-space="2.5"
                         velocity-orientation-weight="0.75">
                 <!--
@@ -229,8 +246,8 @@
                         <selector id="main">
                             <sequence type="initial">
                                 <condition type="predicate" id="HasDesire" negate="1"/>
+                                <action type="PerformAction" value="IDLE" max-duration="3.0" />
                                 <action type="SetDesiredAction" value="IDLE"/>
-                                <action type="PerformDesiredAction"/>
                             </sequence>
                             <sequence id="place-activity">
                                 <action type="SelectTargetPlace"/>
@@ -254,10 +271,40 @@
                                                     <condition type="predicate" id="HasDesiredActivity" value="PATROL"/>
                                                     <condition type="predicate" id="HasDesiredActivity" value="IDLE"/>
                                                 </condition>
+                                                <action type="LeaveLocation" />
                                                 <action type="PerformDesiredAction"/>
+                                            </sequence>
+                                            <sequence id="socialize">
+                                                <condition type="predicate" id="HasDesiredActivity" value="CONVERSE" />
+                                                <!-- <condition type="isSocialAffordance"/> -->
+                                                <action type="SelectPlaceLocation"/>
+                                                <selector>
+                                                    <action type="MoveToLocation">
+                                                        <condition type="predicate" id="IsAtDesiredLocation" negate="1"/>
+                                                    </action>
+                                                    <selector>
+                                                        <condition type="predicate" id="IsAtDesiredLocation"/>
+                                                        <sequence>
+                                                            <action type="FormLocationGroup"/>
+                                                            <sequence>
+                                                                <condition type="predicate" id="IsPartOfGroup" />
+                                                                <action type="MoveToGroup" />
+                                                                <parallel success="all" failure="any">
+                                                                    <action type="PerformAction" value="FLOCKING"/>
+                                                                    <action type="PerformDesiredAction"/>
+                                                                </parallel>
+                                                            </sequence>
+                                                        </sequence>
+                                                        <sequence>
+                                                            <action type="LeaveGroup"/>
+                                                            <action type="PerformAction" value="IDLE" max-duration="5.0" />
+                                                        </sequence>
+                                                    </selector>
+                                                </selector>
                                             </sequence>
                                             <sequence id="use-affordance">
                                                 <!-- Engage with the environment by using an affordance. -->
+                                                <action type="LeaveGroup" />
                                                 <action type="SelectPlacePatient"/>
                                                 <selector id="engage-affordance">
                                                     <action type="PerformAffordedAction"/>
@@ -629,6 +676,21 @@
         <define key="USE_VERTEX_NOISE" value="TRUE"/>
         <input type="float" name="noiseScale" value="0.005"/>
         <texture name="noiseTexture" id="ground-noise"/>
+        <!--
+        <node id="Ground-Depth">
+            <depth write="1" test="1" />
+            <define key="OUTPUT_TYPE" value="DEPTH"/>
+            <input name="modelOffset" type="vec3" value="0.0,-2.0,0.0"/>
+            <mesh id="ground-mesh" mesh-index="0" update-visibility="1"/>
+        </node>
+        <node id="Ground-Skirt">
+            <mesh id="ground-mesh" mesh-index="1" update-visibility="0"/>
+        </node>
+        <node id="Ground-Albedo">
+            <depth write="0" test="1" />
+            <mesh id="ground-mesh" mesh-index="0" update-visibility="0"/>
+        </node>
+        -->
         <node id="Ground">
             <mesh id="ground-mesh" mesh-index="0" update-visibility="1"/>
         </node>
@@ -637,35 +699,14 @@
         </node>
     </node>
 
-    <!--
-    <mesh id="dwarf-footsteps" type="footsteps"
-            ground-mesh="ground-mesh"
-            num-npcs="{{num-dwarves}}">
-        <shader mesh-index="0" key="regen.terrain.ground"/>
-        <transform id="dwarf-footsteps-tf" is-instanced="1">
-        </transform>
-        <shape id="dwarf-footsteps-shape" cull="1" index="1" type="aabb"
-                box-size="20.0,{{map-height}},20.0"
-                box-center="0.0,32.0,0.0"
-                transform-id="dwarf-footsteps-tf">
-            <has-part mesh-id="dwarf-footsteps" mesh-index="0"/>
-        </shape>
-    </mesh>
-    -->
-
     <node id="Scene-Geometry">
+        <node import="Ground"/>
         <node id="Blanket">
             <input name="planeSize" type="vec2" value="{{map-size}},{{map-size}}"/>
             <texture name="heightTexture" id="ground-height" map-to="HEIGHT"
                      mapping="xz_plane" blend-mode="ADD" blend-factor="{{map-height}}"/>
             <mesh id="ground-blanket"/>
         </node>
-        <!--
-        <node id="Footsteps">
-            <mesh id="dwarf-footsteps"/>
-        </node>
-        -->
-        <node import="Ground"/>
     </node>
 
     <!--**************************-->
@@ -1053,9 +1094,7 @@
             <has-part mesh-id="well" mesh-index="2"/>
             <traversal-bit value="{{collision-bit}}"/>
         </shape>
-        <object id="well" mesh="well" radius="20.0">
-            <affordance type="converse" num-slots="8" radius="10.0" min-distance="4.0"/>
-            <affordance type="observe" num-slots="14" radius="20.0" min-distance="4.0"/>
+        <object id="well" mesh="well" radius="2.0">
         </object>
     </mesh>
 
@@ -1080,9 +1119,7 @@
             <has-part mesh-id="campfire" mesh-index="2"/>
             <traversal-bit value="{{collision-bit}}"/>
         </shape>
-        <object id="campfire" mesh="campfire" radius="17.5" danger="0.2" base-offset="4.0,0.0,0.0">
-            <affordance type="converse" num-slots="6" radius="7.5" min-distance="3.0"/>
-            <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
+        <object id="campfire" mesh="campfire" radius="4.0" danger="0.2" base-offset="4.0,0.0,0.0">
         </object>
     </mesh>
 
@@ -1299,7 +1336,7 @@
             <set mode="row" target="translate"
                  x-step="12.0,0.0,0.0" z-step="0.0,0.0,16.0"
                  x-count="3" />
-            <rotate value="4.71, 0.0, 0.0"/>
+            <rotate value="4.0, 0.0, 0.0"/>
 
             <translate value="{{market-training-x}}, 0.0, {{market-training-z}}"/>
             <translate value="{{market-x}}, 0.0, {{market-z}}"/>
@@ -1464,18 +1501,21 @@
             <toggle key="CULL_FACE" value="0"/>
             <mesh id="house"/>
         </node>
-        <node id="Dwarf">
-            <mesh id="dwarf" mesh-index="1" update-visibility="1"/>
-        </node>
-        <node id="Dwarf-Weapon">
-            <mesh id="dwarf" mesh-index="0" update-visibility="1"/>
-        </node>
         <!--
         <node id="Market-Place">
             <mesh id="market-place"/>
         </node>
         -->
         <!-- TODO: render axe when fighting etc -->
+    </node>
+
+    <node id="Dwarf">
+        <node id="Dwarf-Body">
+            <mesh id="dwarf" mesh-index="1" update-visibility="1"/>
+        </node>
+        <node id="Dwarf-Weapon">
+            <mesh id="dwarf" mesh-index="0" update-visibility="1"/>
+        </node>
     </node>
 
     <!--**************************-->
@@ -1798,6 +1838,7 @@
                 <fbo id="sun-shadow" clear-depth="1"/>
                 <camera id="sun-camera"/>
                 <node import="Shadow-Caster"/>
+                <node import="Dwarf"/>
             </node>
         </node>
         <node id="Render">
@@ -1811,6 +1852,7 @@
                 <depth test="1" write="1"/>
 
                 <node import="Shadow-Caster"/>
+                <node import="Dwarf"/>
                 <node import="Decals-No-Shadow"/>
                 <node import="Scene-Geometry"/>
                 <view id="G-Buffer: Emission">

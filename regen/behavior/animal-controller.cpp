@@ -174,12 +174,15 @@ void AnimalController::activateMovement() {
 
 	// compute dt based on distance and speed
 	float dt = bezierLength / (behavior_==BEHAVIOR_RUN ? runSpeed_ : walkSpeed_);
+	// FIXME: broken
+	/**
 	// set the target position
 	setTarget(
 		Vec3f(target.x, getHeight2(target), target.y),
 		orientation,
 		dt);
 	activateRandom();
+	**/
 }
 
 void AnimalController::updatePose(const TransformKeyFrame &currentFrame, double t) {
@@ -221,6 +224,8 @@ AnimalController::Behavior AnimalController::selectNextBehavior() {
 }
 
 void AnimalController::updateController(double dt) {
+	// FIXME: broken
+	/**
 	const uint32_t instanceIdx = 0u;
 	if (it_ == frames_.end()) {
 		// currently no movement.
@@ -264,4 +269,5 @@ void AnimalController::updateController(double dt) {
 			activateRandom();
 			break;
 	}
+	**/
 }

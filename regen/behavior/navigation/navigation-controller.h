@@ -9,8 +9,23 @@
 #include "regen/utility/indexed.h"
 
 namespace regen {
-	class NavigationController : public TransformAnimation, public CollisionMonitor {
+	class NavigationController : public Animation, public CollisionMonitor {
 	public:
+		static constexpr uint32_t NO_NAVIGATION = 0;
+		enum NavigationState {
+			// Approaching a target position.
+			APPROACHING = 1 << 0,
+			// Aligning with a group.
+			FLOCKING    = 1 << 1,
+		};
+
+		enum ApproachingMode {
+			// Direct path to target.
+			DIRECT_PATH,
+			// Curved path to target using Bezier curves.
+			CURVE_PATH
+		};
+
 		NavigationController(
 			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
 			const ref_ptr<WorldModel> &world);
@@ -79,6 +94,36 @@ namespace regen {
 		void setAvoidanceDecay(float decay) { avoidanceDecay_ = decay; }
 
 		/**
+		 * Set the weight for wall avoidance steering.
+		 * @param weight the weight.
+		 */
+		void setWallAvoidance(float weight) { wallAvoidance_ = weight; }
+
+		/**
+		 * Set the weight for character avoidance steering.
+		 * @param weight the weight.
+		 */
+		void setCharacterAvoidance(float weight) { characterAvoidance_ = weight; }
+
+		/**
+		 * Set the weight for cohesion steering.
+		 * @param weight the weight.
+		 */
+		void setCohesionWeight(float weight) { cohesionWeight_ = weight; }
+
+		/**
+		 * Set the weight for member separation steering.
+		 * @param weight the weight.
+		 */
+		void setMemberSeparationWeight(float weight) { memberSeparationWeight_ = weight; }
+
+		/**
+		 * Set the weight for group separation steering.
+		 * @param weight the weight.
+		 */
+		void setGroupSeparationWeight(float weight) { groupSeparationWeight_ = weight; }
+
+		/**
 		 * Set the weight for wall tangent steering (0 = no wall following, 1 = full wall following).
 		 * @param weight the weight.
 		 */
@@ -113,8 +158,21 @@ namespace regen {
 		 */
 		void setHeightMap(const ref_ptr<HeightMap> &heightMap);
 
-		// override
-		void updatePose(const TransformKeyFrame &currentFrame, double t) override;
+		void startApproaching(const Vec2f &source, const Vec2f &target);
+
+		void startApproaching(const Vec2f &source, const Vec2f &target, const Vec3f &orientation);
+
+		void stopApproaching();
+
+		bool isNavigationApproaching() const { return (navModeMask_ & APPROACHING) != 0; }
+
+		void startFlocking(const ref_ptr<ObjectGroup> &group);
+
+		void stopFlocking();
+
+		bool isNavigationFlocking() const { return (navModeMask_ & FLOCKING) != 0; }
+
+		void stopNavigation();
 
 		/**
 		 * Initialize a perception frame.
@@ -132,8 +190,16 @@ namespace regen {
 		 */
 		void handleCollisionEvent(const CollisionEvent &evt);
 
+		// Override Animation
+		void animate(GLdouble dt) override;
+
 	protected:
+		ref_ptr<ModelTransformation> tf_;
+		uint32_t tfIdx_;
+
 		ref_ptr<WorldModel> worldModel_;
+		ref_ptr<ObjectGroup> navGroup_;
+
 		// if set, we will ignore collisions with this shape
 		ref_ptr<BoundingShape> patientShape_;
 		// Base orientation of the mesh around y axis
@@ -160,7 +226,14 @@ namespace regen {
 		float runSpeed_ = 0.1f;
 		float lookAheadDistance_ = 15.0f;
 		float heightSmoothFactor_ = 12.0f;
+		float wallAvoidance_ = 1.0f;
+		float characterAvoidance_ = 10.0f;
+		float cohesionWeight_ = 1.0f;
+		float memberSeparationWeight_ = 1.5f;
+		float groupSeparationWeight_ = 5.0f;
+
 		bool isWalking_ = true;
+		int navModeMask_ = NO_NAVIGATION;
 		// The current path of the NPC, if any.
 		std::vector<ref_ptr<WayPoint>> currentPath_;
 		float distanceToTarget_ = std::numeric_limits<float>::max();
@@ -177,20 +250,27 @@ namespace regen {
 		float dynLookAheadDistance_ = lookAheadDistance_;
 		bool hasNewPerception_ = false;
 
+		Vec3f currentPos_;
+		Vec3f currentVel_ = Vec3f::zero();
+		Vec3f currentForce_ = Vec3f::zero();
+		Vec3f currentDir_;
+		Mat4f currentVal_;
+		Vec3f initialScale_;
+
+		Vec3f desiredDir_ = Vec3f::zero();
+		Vec3f desiredVel_ = Vec3f::zero();
 		double lastDT_ = 0.0;
+		float curveTime_ = 0.0f;
+		float frameTime_ = 0.0f;
+		float approachTime_ = 0.0;
+		float approachDuration_ = 0.0;
 
 		float getHeight(const Vec2f &pos);
 
-		void updatePathCurve(const Vec2f &source, const Vec2f &target);
-
-		void updatePathCurve(const Vec2f &source, const Vec2f &target, const Vec3f &orientation);
-
-		void updateTransformFrame(const Vec2f &target, const Vec3f &desiredDir);
-
 	private:
-		void updateControllerOrientation(double bezierTime);
+		void updateControllerOrientation();
 
-		void updateControllerVelocity(double bezierTime);
+		void updateControllerVelocity();
 
 		struct NPCNeighborData {
 			NavigationController *npc;

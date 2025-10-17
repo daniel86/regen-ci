@@ -1,121 +1,8 @@
 #include "world-object.h"
 #include <regen/objects/mesh-state.h>
-
 #include "regen/scene/resource-manager.h"
 
 using namespace regen;
-
-Affordance::Affordance(const ref_ptr<WorldObject> &owner) : owner(owner) {
-	// TODO: Also support dynamic world objects here, e.g. chairs that can be moved.
-	//         Then it makes sense to compute affordance slot in local space instead.
-}
-
-void Affordance::initialize() {
-	if (slotCount < 1) slotCount = 1;
-	freeSlots = slotCount;
-	users.resize(slotCount);
-	slotPositions.resize(slotCount);
-	for (int32_t i = 0; i < slotCount; i++) {
-		users[i] = {};
-		slotPositions[i] = computeSlotPosition(i);
-	}
-}
-
-Vec3f Affordance::computeSlotPosition(int idx) const {
-	Vec3f pos, center;
-	if (owner->hasShape()) {
-		auto tf = owner->shape()->transform();
-		if (tf.get() && tf->hasModelMat()) {
-			auto mat = tf->modelMat()->getVertex(owner->shape()->instanceID());
-			pos = (mat.r ^ baseOffset).xyz_();
-			center = mat.r.position();
-		} else {
-			pos = center + baseOffset;
-			center = owner->shape()->tfOrigin();
-		}
-	} else {
-		center = owner->position3D();
-		pos = center + baseOffset;
-	}
-
-	switch (layout) {
-		case SlotLayout::CIRCULAR: {
-			float angle = (2.0f * M_PIf * static_cast<float>(idx)) /
-				static_cast<float>(std::max(1, slotCount));
-			pos.x += std::cos(angle) * radius;
-			pos.z += std::sin(angle) * radius;
-			return pos;
-		}
-
-		case SlotLayout::CIRCULAR_GRID: {
-			// Concentric circular layers
-			int perRing = slotCount / numRings;
-			auto ring = static_cast<float>(idx / perRing);
-			auto i = static_cast<float>(idx % perRing);
-
-			float layoutRadius = minDistance + ring * spacing;
-			float angle = (2.0f * M_PIf * i) / static_cast<float>(perRing);
-
-			pos.x += std::cos(angle) * layoutRadius;
-			pos.z += std::sin(angle) * layoutRadius;
-			return pos;
-		}
-
-
-		case SlotLayout::GRID: {
-			// Compute rows & columns
-			int cols = std::max(std::ceil(std::sqrt(slotCount)), 2.0);
-			auto row = static_cast<float>(idx / cols);
-			auto col = static_cast<float>(idx % cols);
-
-			// Orientation
-			Vec3f forward = pos - center;
-			forward.y = 0.0;
-			float l = forward.length();
-			if (l < 1e-3f) {
-				forward = Vec3f(0.0f, 0.0f, 1.0f);
-			} else {
-				forward /= l;
-			}
-			Vec3f right = forward.cross(Vec3f::up());
-			right.normalize();
-
-			// Grid center offset
-			float gridWidth = static_cast<float>(cols - 1) * spacing;
-			float gridHeight = std::ceil(static_cast<float>(slotCount) /
-				static_cast<float>(cols) - 1.0f) * spacing;
-
-			pos = pos - (right * gridWidth) * 0.5f + (forward * gridHeight) * 0.5f;
-			return pos + right * (col * spacing) - forward * (row * spacing);
-		}
-	}
-	return center;
-}
-
-bool Affordance::hasFreeSlot() const {
-	return freeSlots > 0;
-}
-
-int Affordance::reserveSlot(const WorldObject *user, bool randomizeSlot) {
-	int randomOffset = randomizeSlot ? math::randomInt() % slotCount : 0;
-	for (int i = 0; i < slotCount; ++i) {
-		int idx = (i + randomOffset) % slotCount;
-		if (!users[idx]) {
-			users[idx] = user;
-			--freeSlots;
-			return idx;
-		}
-	}
-	return -1;
-}
-
-void Affordance::releaseSlot(int slotIdx) {
-	if (slotIdx < 0 || slotIdx >= slotCount) return;
-	if (users[slotIdx]) {
-		users[slotIdx] = {};
-		++freeSlots;
-	}
-}
 
 WorldObject::WorldObject(std::string_view name) : name_(name) {
 	getPosition2D_ = nullptr;
@@ -220,6 +107,68 @@ ref_ptr<Affordance> WorldObject::getAffordance(ActionType actionType) const {
 	return {};
 }
 
+bool WorldObject::isFriendly(const WorldObject &other) const {
+	return (factionMask_ != 0 && other.factionMask_ != 0 &&
+		(factionMask_ & other.factionMask_) != 0);
+}
+
+void WorldObject::setCurrentLocation(const ref_ptr<Location> &location) {
+	currentLocation_ = location;
+}
+
+void WorldObject::unsetCurrentLocation() {
+	currentLocation_ = {};
+	currentLocationIdx_ = -1;
+	leaveCurrentGroup();
+}
+
+void WorldObject::setCurrentLocationIndex(int32_t locIdx) {
+	currentLocationIdx_ = locIdx;
+}
+
+void WorldObject::leaveCurrentGroup() {
+	if (currentGroup_.get()) {
+		currentGroup_->removeMember(this);
+		currentGroup_ = {};
+	}
+}
+
+void WorldObject::joinGroup(const ref_ptr<ObjectGroup> &group) {
+	if (currentGroup_.get() == group.get()) {
+		return; // already in this group
+	}
+	leaveCurrentGroup();
+	if (group.get()) {
+		// note: the group sets group index on world object.
+		//   it moves around items and then needs to call the set index function.
+		group->addMember(this);
+	}
+	currentGroup_ = group;
+}
+
+static void loadChildren(LoadingContext &ctx, scene::SceneInputNode &n, const ref_ptr<WorldObject> &wo) {
+	auto world = ctx.scene()->getResources()->getWorldModel();
+	// load child objects
+	for (const auto &childNode: n.getChildren("object")) {
+		auto childObj = WorldObject::load(ctx, *childNode.get());
+		switch (wo->objectType()) {
+			case ObjectType::LOCATION:
+				// FIXME: must be added to place! else affordance won't be listed there.
+				childObj->setCurrentLocation(ref_ptr<Location>::dynamicCast(wo));
+				break;
+			case ObjectType::PLACE:
+				childObj->setPlaceOfObject(wo);
+				break;
+			case ObjectType::COLLECTION:
+				// TODO: add to collection?
+				break;
+			default:
+				break;
+		}
+		world->addWorldObject(childObj);
+	}
+}
+
 ref_ptr<WorldObject> WorldObject::load(LoadingContext &ctx, scene::SceneInputNode &n) {
 	ObjectType type = ObjectType::THING;
 	if (n.hasAttribute("type")) {
@@ -232,6 +181,8 @@ ref_ptr<WorldObject> WorldObject::load(LoadingContext &ctx, scene::SceneInputNod
 		wo = ref_ptr<AnimalObject>::alloc(n.getName());
 	} else if (type == ObjectType::PLAYER) {
 		wo = ref_ptr<PlayerObject>::alloc(n.getName());
+	} else if (type == ObjectType::LOCATION) {
+		wo = ref_ptr<Location>::alloc(n.getName());
 	} else {
 		wo = ref_ptr<WorldObject>::alloc(n.getName());
 		wo->setObjectType(type);
@@ -242,12 +193,19 @@ ref_ptr<WorldObject> WorldObject::load(LoadingContext &ctx, scene::SceneInputNod
 	wo->setDanger(n.getValue<float>("danger", 0.0f));
 	wo->setRadius(n.getValue<float>("radius", 1.0f));
 
+	// Load objects that are part of this world object.
+	loadChildren(ctx, n, wo);
+
 	// load affordances
 	for (const auto &a: n.getChildren("affordance")) {
 		ref_ptr<Affordance> affordance = ref_ptr<Affordance>::alloc(wo);
 		affordance->type = a->getValue<ActionType>("type", ActionType::IDLE);
 		affordance->minDistance = a->getValue<float>("min-distance", 0.0f);
-		affordance->slotCount = a->getValue<int>("num-slots", 1);
+		if (a->hasAttribute("max-participants")) {
+			affordance->slotCount = a->getValue<int>("max-participants", 1);
+		} else {
+			affordance->slotCount = a->getValue<int>("num-slots", 1);
+		}
 		affordance->spacing = a->getValue<float>("spacing", 2.0f);
 		affordance->layout = a->getValue<SlotLayout>("slot-layout", SlotLayout::CIRCULAR);
 		affordance->radius = a->getValue<float>("radius", 1.0f);
@@ -319,6 +277,8 @@ std::ostream &regen::operator<<(std::ostream &out, const ObjectType &v) {
 			return out << "THING";
 		case ObjectType::PLACE:
 			return out << "PLACE";
+		case ObjectType::LOCATION:
+			return out << "LOCATION";
 		case ObjectType::WAYPOINT:
 			return out << "WAYPOINT";
 		case ObjectType::CHARACTER:
@@ -327,6 +287,8 @@ std::ostream &regen::operator<<(std::ostream &out, const ObjectType &v) {
 			return out << "ANIMAL";
 		case ObjectType::PLAYER:
 			return out << "PLAYER";
+		case ObjectType::COLLECTION:
+			return out << "COLLECTION";
 	}
 	return out;
 }
@@ -337,39 +299,15 @@ std::istream &regen::operator>>(std::istream &in, ObjectType &v) {
 	boost::to_upper(val);
 	if (val == "THING") v = ObjectType::THING;
 	else if (val == "PLACE") v = ObjectType::PLACE;
+	else if (val == "LOCATION") v = ObjectType::LOCATION;
 	else if (val == "WAYPOINT") v = ObjectType::WAYPOINT;
 	else if (val == "CHARACTER") v = ObjectType::CHARACTER;
 	else if (val == "ANIMAL") v = ObjectType::ANIMAL;
 	else if (val == "PLAYER") v = ObjectType::PLAYER;
+	else if (val == "COLLECTION") v = ObjectType::COLLECTION;
 	else {
 		REGEN_WARN("Unknown object type '" << val << "'. Using THING.");
 		v = ObjectType::THING;
-	}
-	return in;
-}
-
-std::ostream &regen::operator<<(std::ostream &out, const SlotLayout &v) {
-	switch (v) {
-		case SlotLayout::CIRCULAR:
-			return out << "CIRCULAR";
-		case SlotLayout::GRID:
-			return out << "GRID";
-		case SlotLayout::CIRCULAR_GRID:
-			return out << "CIRCULAR_GRID";
-	}
-	return out;
-}
-
-std::istream &regen::operator>>(std::istream &in, SlotLayout &v) {
-	std::string val;
-	in >> val;
-	boost::to_upper(val);
-	if (val == "CIRCULAR") v = SlotLayout::CIRCULAR;
-	else if (val == "GRID") v = SlotLayout::GRID;
-	else if (val == "CIRCULAR_GRID" || val == "CONCENTRIC") v = SlotLayout::CIRCULAR_GRID;
-	else {
-		REGEN_WARN("Unknown slot layout '" << val << "'. Using CIRCULAR.");
-		v = SlotLayout::CIRCULAR;
 	}
 	return in;
 }

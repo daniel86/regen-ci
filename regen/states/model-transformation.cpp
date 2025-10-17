@@ -584,7 +584,7 @@ static void transformAnimation(
 				frameDir = keyFrameNode->getValue<Vec3f>("rotation", Vec3f(0.0f));
 			}
 			auto dt = keyFrameNode->getValue<GLdouble>("dt", 1.0);
-			transformAnimation->push_back(framePos, frameDir, dt);
+			transformAnimation->addTransformKeyframe(framePos, frameDir, dt);
 		}
 
 		transformAnimation->setAnimationName(child->getName());

@@ -20,6 +20,9 @@ static std::unique_ptr<BehaviorTree::Condition> makeCondition(scene::SceneInputN
 		if (predicateName == "IsAtTargetPlace") {
 			cond = std::make_unique<IsAtTargetPlace>();
 		}
+		else if (predicateName == "IsAtDesiredLocation") {
+			cond = std::make_unique<IsAtDesiredLocation>();
+		}
 		else if (predicateName == "HasDesiredPlaceType") {
 			const PlaceType placeType = xmlCond->getValue<PlaceType>("value", PlaceType::HOME);
 			cond = std::make_unique<HasDesiredPlaceType>(placeType);
@@ -30,6 +33,12 @@ static std::unique_ptr<BehaviorTree::Condition> makeCondition(scene::SceneInputN
 		}
 		else if (predicateName == "HasDesire") {
 			cond = std::make_unique<HasDesire>();
+		}
+		else if (predicateName == "IsPartOfGroup") {
+			cond = std::make_unique<IsPartOfGroup>();
+		}
+		else if (predicateName == "IsLastGroupMember") {
+			cond = std::make_unique<IsLastGroupMember>();
 		}
 		else {
 			REGEN_WARN("Ignoring " << xmlCond->getDescription() << ", unknown predicate '" << predicateName << "'.");
@@ -155,6 +164,20 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 			}
 		}
 	}
+	else if (category == "parallel") {
+		auto successMode = xmlNode.getValue<BehaviorParallelNode::StatusMode>(
+			"success", BehaviorParallelNode::ALL);
+		auto failureMode = xmlNode.getValue<BehaviorParallelNode::StatusMode>(
+			"failure", BehaviorParallelNode::ANY);
+		auto parNode = new BehaviorParallelNode(successMode, failureMode);
+		node = addConditionDecorator(ctx, xmlNode, parNode);
+		for (auto &child : xmlNode.getChildren()) {
+			if (child->getCategory() == "condition") continue;
+			if (!loadNode(ctx, *child.get(), parNode)) {
+				REGEN_WARN("Failed to load child node in '" << child->getDescription() << "'.");
+			}
+		}
+	}
 	else if (category == "action") {
 		auto actionType = xmlNode.getValue("type");
 		BehaviorActionNode *actNode = nullptr;
@@ -172,14 +195,39 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 		else if (actionType == "SelectPlacePatient") {
 			actNode = new SelectPlacePatient();
 		}
+		else if (actionType == "SelectPlaceLocation") {
+			actNode = new SelectPlaceLocation();
+		}
 		else if (actionType == "UnsetPatient") {
 			actNode = new UnsetPatient();
 		}
 		else if (actionType == "MoveToTargetPlace") {
 			actNode = new MoveToTargetPlace();
 		}
+		else if (actionType == "MoveToLocation") {
+			actNode = new MoveToLocation();
+		}
+		else if (actionType == "MoveToGroup") {
+			actNode = new MoveToGroup();
+		}
+		else if (actionType == "FormLocationGroup") {
+			actNode = new FormLocationGroup();
+		}
+		else if (actionType == "LeaveGroup") {
+			actNode = new LeaveGroup();
+		}
+		else if (actionType == "LeaveLocation") {
+			actNode = new LeaveLocation();
+		}
 		else if (actionType == "MoveToPatient") {
 			actNode = new MoveToPatient();
+		}
+		else if (actionType == "PerformAction") {
+			auto performNode = new PerformAction(xmlNode.getValue("value", ActionType::IDLE));
+			if (xmlNode.hasAttribute("max-duration")) {
+				performNode->setMaxDuration(xmlNode.getValue<float>("max-duration", 0.0f));
+			}
+			actNode = performNode;
 		}
 		else if (actionType == "PerformDesiredAction") {
 			actNode = new PerformDesiredAction();
@@ -233,4 +281,28 @@ std::unique_ptr<BehaviorTree::Node> BehaviorTree::load(LoadingContext &ctx, scen
 	} else {
 		return std::unique_ptr<BehaviorTree::Node>(node);
 	}
+}
+
+
+std::ostream &regen::operator<<(std::ostream &out, const BehaviorParallelNode::StatusMode &v) {
+	switch (v) {
+		case BehaviorParallelNode::ALL:
+			return out << "ALL";
+		case BehaviorParallelNode::ANY:
+			return out << "ANY";
+	}
+	return out;
+}
+
+std::istream &regen::operator>>(std::istream &in, BehaviorParallelNode::StatusMode &v) {
+	std::string val;
+	in >> val;
+	boost::to_upper(val);
+	if (val == "ALL") v = BehaviorParallelNode::ALL;
+	else if (val == "ANY") v = BehaviorParallelNode::ANY;
+	else {
+		REGEN_WARN("Unknown parallel status mode '" << val << "'. Using ALL.");
+		v = BehaviorParallelNode::ALL;
+	}
+	return in;
 }

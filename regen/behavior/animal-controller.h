@@ -96,7 +96,7 @@ namespace regen {
 		void updateController(double dt) override;
 
 		// override
-		void updatePose(const TransformKeyFrame &currentFrame, double t) override;
+		void updatePose(const TransformKeyFrame &currentFrame, double t);
 
 	protected:
 		Bounds<Vec2f> territoryBounds_;

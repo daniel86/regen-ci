@@ -44,7 +44,7 @@ namespace regen {
 			 * @param bb the blackboard.
 			 * @return the behavior status.
 			 */
-			virtual BehaviorStatus tick(Blackboard& bb) = 0;
+			virtual BehaviorStatus tick(Blackboard& bb, float dt_s) = 0;
 		};
 		/**
 		 * A condition that can be evaluated against a blackboard.
@@ -91,8 +91,8 @@ namespace regen {
 		 * @param bb the blackboard.
 		 * @return the behavior status.
 		 */
-		BehaviorStatus tick(Blackboard& bb) {
-			return root_->tick(bb);
+		BehaviorStatus tick(Blackboard& bb, float dt_s) {
+			return root_->tick(bb, dt_s);
 		}
 
 		/**
@@ -116,9 +116,9 @@ namespace regen {
 		size_t current = 0;
 	public:
 		// Tick children in order until one returns RUNNING or FAILURE.
-		BehaviorStatus tick(Blackboard& bb) override {
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override {
 			while (current < children.size()) {
-				BehaviorStatus s = children[current]->tick(bb);
+				BehaviorStatus s = children[current]->tick(bb, dt_s);
 				if (s == BehaviorStatus::RUNNING) return BehaviorStatus::RUNNING;
 				if (s == BehaviorStatus::FAILURE) { current = 0; return BehaviorStatus::FAILURE; }
 				++current;
@@ -138,9 +138,9 @@ namespace regen {
 		size_t current = 0;
 	public:
 		// Tick children in order until one returns RUNNING or SUCCESS.
-		BehaviorStatus tick(Blackboard& bb) override {
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override {
 			while (current < children.size()) {
-				BehaviorStatus s = children[current]->tick(bb);
+				BehaviorStatus s = children[current]->tick(bb, dt_s);
 				if (s == BehaviorStatus::RUNNING) return BehaviorStatus::RUNNING;
 				if (s == BehaviorStatus::SUCCESS) { current = 0; return BehaviorStatus::SUCCESS; }
 				++current;
@@ -158,14 +158,61 @@ namespace regen {
 	class BehaviorPriorityNode : public BehaviorTree::Node {
 	public:
 		// Tick children in order until one returns SUCCESS or RUNNING.
-		BehaviorStatus tick(Blackboard& bb) override {
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override {
 			for (const auto &child : children) {
-				BehaviorStatus s = child->tick(bb);
+				BehaviorStatus s = child->tick(bb, dt_s);
 				if (s != BehaviorStatus::FAILURE) return s;
 			}
 			return BehaviorStatus::FAILURE;
 		}
 	};
+
+	/**
+	 * A parallel node that ticks all its children.
+	 * The node returns SUCCESS or FAILURE based on the configured modes.
+	 */
+	class BehaviorParallelNode : public BehaviorTree::Node {
+	public:
+		enum StatusMode {
+			// succeed/fail if ANY children succeed/fail
+			ANY = 1,
+			// succeed/fail if ALL children succeed/fail
+			ALL
+		};
+		explicit BehaviorParallelNode(StatusMode successMode, StatusMode failureMode)
+			: BehaviorTree::Node(), successMode_(successMode), failureMode_(failureMode) {
+		}
+		// Tick all children, return SUCCESS if at least successThreshold children succeed,
+		// RUNNING if any child is running, else FAILURE.
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override {
+			size_t successCount = 0;
+			size_t failureCount = 0;
+			for (const auto &child : children) {
+				BehaviorStatus s = child->tick(bb, dt_s);
+				if (s == BehaviorStatus::SUCCESS) {
+					++successCount;
+					if (successMode_ == ANY) return BehaviorStatus::SUCCESS;
+				} else if (s == BehaviorStatus::FAILURE) {
+					++failureCount;
+					if (failureMode_ == ANY) return BehaviorStatus::FAILURE;
+				}
+			}
+			if (successMode_ == ALL && successCount == children.size()) {
+				return BehaviorStatus::SUCCESS;
+			}
+			if (failureMode_ == ALL && failureCount == children.size()) {
+				return BehaviorStatus::FAILURE;
+			}
+			return BehaviorStatus::RUNNING;
+		}
+	protected:
+		const StatusMode successMode_;
+		const StatusMode failureMode_;
+	};
+
+	std::ostream &operator<<(std::ostream &out, const BehaviorParallelNode::StatusMode &v);
+
+	std::istream &operator>>(std::istream &in, BehaviorParallelNode::StatusMode &v);
 } // namespace
 
 #endif /* REGEN_BEHAVIOR_TREE_H_ */

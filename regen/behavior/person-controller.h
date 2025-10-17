@@ -117,8 +117,6 @@ namespace regen {
 		float footLastElapsed_ = 0.0f;
 
 		ref_ptr<PathPlanner> pathPlanner_;
-		ActionType lastNavAction_ = ActionType::IDLE;
-		WorldObject *lastNavTarget_ = nullptr;
 		// Flag is used for continuous movement.
 		bool isLastAnimationMovement_ = false;
 
@@ -128,9 +126,9 @@ namespace regen {
 
 		bool startNavigate(bool loopPath, bool advancePath);
 
-		void updateNavigationTarget();
+		void updateNavigationBehavior();
 
-		Vec2f pickTargetPosition(const WorldObject &wp);
+		Vec2f pickTargetPosition(const Patient &navTarget) const;
 
 		Vec2f pickTravelPosition(const WorldObject &wp) const;
 

@@ -30,6 +30,8 @@ std::ostream &regen::operator<<(std::ostream &out, const ActionType &v) {
 			return out << "NAVIGATING";
 		case ActionType::SITTING:
 			return out << "SIT";
+		case ActionType::FLOCKING:
+			return out << "FLOCK";
 		case ActionType::LAST_ACTION:
 			return out << "LAST_ACTION";
 	}
@@ -52,6 +54,7 @@ std::istream &regen::operator>>(std::istream &in, ActionType &v) {
 	else if (val == "OBSERVE" || val == "WATCH") v = ActionType::OBSERVING;
 	else if (val == "SLEEP" || val == "SLEEPING") v = ActionType::SLEEPING;
 	else if (val == "PRAY" || val == "PRAYING") v = ActionType::PRAYING;
+	else if (val == "FLOCK" || val == "FLOCKING") v = ActionType::FLOCKING;
 	else {
 		REGEN_WARN("Unknown action type '" << val << "'. Using IDLE.");
 		v = ActionType::IDLE;

@@ -21,14 +21,6 @@ namespace regen {
 		~NonPlayerCharacterController() override = default;
 
 		/**
-		 * Set the target for movement.
-		 * @param target the target position.
-		 * @param rotation the target rotation.
-		 * @param dt the time difference.
-		 */
-		void setTarget(const Vec3f &target, const std::optional<Vec3f> &rotation, double dt);
-
-		/**
 		 * Update animation and movement target.
 		 * @param dt the time difference.
 		 */

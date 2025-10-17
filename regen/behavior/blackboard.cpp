@@ -73,6 +73,11 @@ void Blackboard::setNavigationTarget(const ref_ptr<WorldObject> &obj, const ref_
 	navigationTarget_.object = obj;
 	navigationTarget_.affordance = aff;
 	navigationTarget_.affordanceSlot = slotIdx;
+	if (currentLocation_.get() &&
+			obj.get() != currentLocation_.get() &&
+			obj->currentLocation().get() != currentLocation_.get()) {
+		unsetCurrentLocation();
+	}
 }
 
 void Blackboard::unsetNavigationTarget() {
@@ -81,6 +86,72 @@ void Blackboard::unsetNavigationTarget() {
 	navigationTarget_.object = {};
 }
 
+
+void Blackboard::unsetDesiredAction() {
+	desiredAction_ = ActionType::IDLE;
+}
+
+void Blackboard::setCurrentAction(ActionType action) {
+	if (numCurrentActions_ >= currentActions_.size()) {
+		currentActions_.resize(currentActions_.size() + 4, ActionType::LAST_ACTION);
+	}
+	currentActions_[numCurrentActions_++] = action;
+}
+
+bool Blackboard::isCurrentAction(ActionType action) const {
+	for (uint32_t i = 0; i < numCurrentActions_; i++) {
+		if (currentActions_[i] == action) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void Blackboard::addPlaceOfInterest(const ref_ptr<Place> &place)  {
 	places_[static_cast<int>(place->placeType())].push_back(place);
+}
+
+void Blackboard::setCurrentLocation(const ref_ptr<Location> &loc) {
+	unsetCurrentLocation();
+	currentLocation_ = loc;
+	characterObject_->setCurrentLocation(loc);
+	if (currentLocation_.get()) {
+		currentLocation_->addVisitor(characterObject_);
+	}
+}
+
+void Blackboard::unsetCurrentLocation() {
+	if (currentLocation_.get()) {
+		currentLocation_->removeVisitor(characterObject_);
+		characterObject_->unsetCurrentLocation();
+		currentLocation_ = {};
+	}
+	leaveCurrentGroup();
+}
+
+void Blackboard::leaveCurrentGroup() {
+	auto group = currentGroup();
+	if (group.get()) {
+		characterObject_->leaveCurrentGroup();
+		if (group->numMembers() == 0 && currentLocation_.get()) {
+			currentLocation_->removeGroup(group.get());
+		}
+	}
+}
+
+void Blackboard::joinGroup(const ref_ptr<ObjectGroup> &group) {
+	characterObject_->joinGroup(group);
+}
+
+ref_ptr<ObjectGroup> Blackboard::formGroup(ActionType groupActivity, WorldObject *other) {
+	auto group = ref_ptr<ObjectGroup>::alloc(groupActivity);
+	if (currentLocation_.get()) {
+		group->setCurrentLocation(currentLocation_);
+		currentLocation_->addGroup(group.get());
+	}
+	characterObject_->joinGroup(group);
+	other->joinGroup(group);
+	// Compute initial group center.
+	group->updateGroupCenter();
+	return group;
 }

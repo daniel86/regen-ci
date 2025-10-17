@@ -5,59 +5,21 @@
 #include "regen/shapes/bounding-shape.h"
 
 namespace regen {
-	enum class SlotLayout {
-		CIRCULAR = 0,
-		GRID,
-		CIRCULAR_GRID
-	};
-
 	enum class ObjectType {
 		THING = 0,
 		PLACE,
+		LOCATION,
 		WAYPOINT,
 		CHARACTER,
 		ANIMAL,
-		PLAYER
+		PLAYER,
+		COLLECTION
 	};
 
-	class WorldObject;
-
-	struct Affordance {
-		ActionType type = ActionType::IDLE;
-		SlotLayout layout = SlotLayout::CIRCULAR;
-		// number of NPCs that can use this affordance at the same time
-		int slotCount = 1;
-		int freeSlots = 1;
-		int numRings = 2; // for concentric grid layout
-		// Inner exclusion radius around center
-		float minDistance = 0.0f;
-		// Radius for circular layout
-		float radius = 1.0f;
-		// Spacing between slots in grid layout
-		float spacing = 3.0f;
-		// The owner of the affordance
-		ref_ptr<WorldObject> owner;
-		// Current users of this affordance, size of vector is slotCount
-		std::vector<const WorldObject*> users;
-		Vec3f baseOffset = Vec3f::zero();
-		// Precomputed slot positions in world space.
-		std::vector<Vec3f> slotPositions;
-
-		explicit Affordance(const ref_ptr<WorldObject> &owner);
-
-		void initialize();
-
-		bool hasFreeSlot() const;
-
-		int reserveSlot(const WorldObject *user, bool randomizeSlot=false);
-
-		void releaseSlot(int slotIdx);
-
-		const Vec3f& slotPosition(int idx) const { return slotPositions[idx]; }
-
-	protected:
-		Vec3f computeSlotPosition(int idx) const;
-	};
+	// forward declarations, include happens below.
+	class ObjectGroup;
+	class Location;
+	struct Affordance;
 
 	class WorldObject : public Resource {
 	public:
@@ -87,9 +49,7 @@ namespace regen {
 
 		bool hasFaction(uint32_t faction) const { return (factionMask_ & faction) != 0; }
 
-		bool isFriendly(const WorldObject &other) const {
-			return (factionMask_ & other.factionMask_) != 0;
-		}
+		bool isFriendly(const WorldObject &other) const;
 
 		void addFaction(uint32_t faction) { factionMask_ |= faction; }
 
@@ -125,6 +85,30 @@ namespace regen {
 
 		ref_ptr<Affordance> getAffordance(ActionType actionType) const;
 
+		void setCurrentLocation(const ref_ptr<Location> &location);
+
+		void unsetCurrentLocation();
+
+		void setCurrentLocationIndex(int32_t locIdx);
+
+		const ref_ptr<Location> &currentLocation() const { return currentLocation_; }
+
+		int32_t currentLocationIndex() const { return currentLocationIdx_; }
+
+		const ref_ptr<ObjectGroup>& currentGroup() const { return currentGroup_; }
+
+		bool isPartOfGroup() const { return currentGroup_.get() != nullptr; }
+
+		int32_t currentGroupIndex() const { return currentGroupIdx_; }
+
+		void setCurrentGroupIndex(int32_t idx) { currentGroupIdx_ = idx; }
+
+		bool hasCurrentGroup() const { return currentGroup_.get() != nullptr; }
+
+		void leaveCurrentGroup();
+
+		void joinGroup(const ref_ptr<ObjectGroup> &group);
+
 		static  ref_ptr<WorldObject> load(LoadingContext &ctx, scene::SceneInputNode &n);
 
 	protected:
@@ -149,6 +133,16 @@ namespace regen {
 		// Two objects are considered friends if they share at least
 		// one faction.
 		uint32_t factionMask_ = 0;
+		// The current location the object is in, if any.
+		ref_ptr<Location> currentLocation_;
+		// Index of the location the object is currently in, if any.
+		int32_t currentLocationIdx_ = -1;
+		// The current social group the object is part of, if any.
+		// Only one social group membership is supported at the moment.
+		// The meaning is rather that the character currently actively participates
+		// in the social group, e.g. talking to other group members.
+		ref_ptr<ObjectGroup> currentGroup_;
+		int32_t currentGroupIdx_ = -1;
 
 		std::vector<ref_ptr<Affordance>> affordances_;
 		ref_ptr<WorldObject> placeOfObject_;
@@ -163,7 +157,14 @@ namespace regen {
 		Vec3f position3D_shape() const;
 		Vec3f position3D_local() const;
 	};
+} // namespace
 
+// include forward declarations
+#include "affordance.h"
+#include "location.h"
+#include "object-group.h"
+
+namespace regen {
 	class WorldObjectVec : public std::vector<ref_ptr<WorldObject>>, public Resource {
 	public:
 		static constexpr const char *TYPE_NAME = "WorldObject";
@@ -229,10 +230,6 @@ namespace regen {
 	std::ostream &operator<<(std::ostream &out, const ObjectType &v);
 
 	std::istream &operator>>(std::istream &in, ObjectType &v);
-
-	std::ostream &operator<<(std::ostream &out, const SlotLayout &v);
-
-	std::istream &operator>>(std::istream &in, SlotLayout &v);
 } // namespace
 
 #endif /* REGEN_WORLD_OBJECT_H_ */

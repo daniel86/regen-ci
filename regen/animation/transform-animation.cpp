@@ -27,9 +27,10 @@ TransformAnimation::TransformAnimation(const ref_ptr<ModelTransformation> &tf, u
 	lastFrame_.dt = 0.0;
 }
 
-void TransformAnimation::push_back(const std::optional<Vec3f> &pos,
-								   const std::optional<Vec3f> &rotation,
-								   GLdouble dt) {
+void TransformAnimation::addTransformKeyframe(
+		const std::optional<Vec3f> &pos,
+		const std::optional<Vec3f> &rotation,
+		double dt) {
 	TransformKeyFrame f;
 	f.pos = pos;
 	f.rotation = rotation;

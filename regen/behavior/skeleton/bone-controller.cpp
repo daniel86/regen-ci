@@ -81,6 +81,8 @@ BoneController::BoneController(uint32_t instanceIdx, const ref_ptr<BoneAnimation
 	actionToMotion_[static_cast<size_t>(ActionType::FLEEING)] = { MotionType::RUN };
 	actionToMotion_[static_cast<size_t>(ActionType::CONVERSING)] = {
 		MotionType::IDLE, MotionType::AGREE, MotionType::DISAGREE };
+	// by default no motion for these actions.
+	actionToMotion_[static_cast<size_t>(ActionType::FLOCKING)] = { MotionType::MOTION_LAST };
 }
 
 int32_t BoneController::getAnimationHandle(MotionType type) const {
@@ -105,10 +107,10 @@ void BoneController::addActiveMotion(MotionType motion) {
 	activeMotions_[numActiveMotions_++] = motion;
 }
 
-void BoneController::updateDesiredMotions(const std::vector<ActionType> &desiredActions) {
+void BoneController::updateDesiredMotions(const ActionType *desiredActions, uint32_t numDesiredActions) {
 	auto anim = animItem_->animation;
 
-	for (uint32_t i = 0; i < desiredActions.size(); ++i) {
+	for (uint32_t i = 0; i < numDesiredActions; ++i) {
 		MotionType desiredMotion = MotionType::MOTION_LAST;
 		ActionType desiredAction = desiredActions[i];
 		bool selectNewClip = false;
@@ -151,6 +153,9 @@ void BoneController::updateDesiredMotions(const std::vector<ActionType> &desired
 				REGEN_WARN("No motion defined for action " << desiredAction << ".");
 				continue;
 			}
+		}
+		if (desiredMotion == MotionType::MOTION_LAST) {
+			continue;
 		}
 
 		auto &motionData = motionToData_[static_cast<int>(desiredMotion)];
@@ -322,9 +327,8 @@ void BoneController::updateBoneController(const Blackboard &kb, float dt_s) {
 	}
 
 	// Map current actions to motions, mark only these as desired.
-	if (kb.currentAction() != ActionType::LAST_ACTION) {
-		const std::vector<ActionType> desiredActions = { kb.currentAction() };
-		updateDesiredMotions(desiredActions);
+	if (kb.hasCurrentAction()) {
+		updateDesiredMotions(kb.currentActions(), kb.numCurrentActions());
 	}
 
 	// Update the state of all active motions.

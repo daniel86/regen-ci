@@ -20,6 +20,7 @@ namespace regen {
 		FLEEING,
 		NAVIGATING,
 		SITTING,
+		FLOCKING,
 		LAST_ACTION
 	};
 

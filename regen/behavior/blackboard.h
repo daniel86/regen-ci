@@ -3,8 +3,8 @@
 #include "regen/utility/time.h"
 #include "world/character-attribute.h"
 #include "world/character-trait.h"
-#include "world/world-model.h"
 #include "world/place.h"
+#include "world/location.h"
 
 namespace regen {
 	/**
@@ -30,7 +30,7 @@ namespace regen {
 		/**
 		 * The object representing the character in the world.
 		 */
-		void setCharacterObject(const WorldObject *obj) { characterObject_ = obj; }
+		void setCharacterObject(WorldObject *obj) { characterObject_ = obj; }
 
 		/**
 		 * @return the object representing the character in the world.
@@ -261,6 +261,12 @@ namespace regen {
 		Patient& interactionTarget() { return interactionTarget_; }
 
 		/**
+		 * Get the current patient object the NPC is interacting with.
+		 * @return the patient object.
+		 */
+		const Patient& interactionTarget() const { return interactionTarget_; }
+
+		/**
 		 * Check if the NPC has a patient object.
 		 * @return true if the NPC has a patient object, false otherwise.
 		 */
@@ -307,6 +313,12 @@ namespace regen {
 		Patient& navigationTarget() { return navigationTarget_; }
 
 		/**
+		 * Get the current navigation target the NPC is moving towards.
+		 * @return the navigation target.
+		 */
+		const Patient& navigationTarget() const { return navigationTarget_; }
+
+		/**
 		 * Check if the NPC has a navigation target.
 		 * @return true if the NPC has a navigation target, false otherwise.
 		 */
@@ -329,32 +341,44 @@ namespace regen {
 		/**
 		 * Unset the desired activity the NPC wants to perform.
 		 */
-		void unsetDesiredAction() { desiredAction_ = ActionType::IDLE; }
+		void unsetDesiredAction();
 
 		/**
 		 * Set the current action the NPC is performing.
 		 * This is typically set when the NPC starts an activity, e.g. navigating to a place.
 		 * @param action the current action.
 		 */
-		void setCurrentAction(ActionType action) { currentAction_ = action; }
+		void setCurrentAction(ActionType action);
 
 		/**
 		 * Get the current action the NPC is performing.
 		 * @return the current action.
 		 */
-		ActionType currentAction() const { return currentAction_; }
+		const ActionType* currentActions() const { return currentActions_.data(); }
 
 		/**
 		 * Unset the current action the NPC is performing.
 		 */
-		void unsetCurrentAction() { currentAction_ = ActionType::IDLE; }
+		void unsetCurrentActions() { numCurrentActions_ = 0; }
 
 		/**
 		 * Check if the NPC is performing a given action.
 		 * @param action the action to check.
 		 * @return true if the NPC is performing the given action, false otherwise.
 		 */
-		bool isCurrentAction(ActionType action) const { return currentAction_ == action; }
+		bool isCurrentAction(ActionType action) const;
+
+		/**
+		 * Check if the NPC has any current action.
+		 * @return true if the NPC has a current action, false otherwise.
+		 */
+		bool hasCurrentAction() const { return numCurrentActions_ > 0; }
+
+		/**
+		 * Get the number of current actions the NPC is performing.
+		 * @return the number of current actions.
+		 */
+		uint32_t numCurrentActions() const { return numCurrentActions_; }
 
 		/**
 		 * Check if the NPC can perform a given action.
@@ -468,9 +492,60 @@ namespace regen {
 		 */
 		const ref_ptr<Place> &targetPlace() const { return targetPlace_; }
 
+		/**
+		 * @return The location where the NPC currently is (may be nullptr).
+		 */
+		const ref_ptr<Location> &currentLocation() const { return currentLocation_; }
+
+		/**
+		 * Set the location where the NPC currently is (may be nullptr).
+		 * This is usually a constrained area within a place, e.g. a room in a building.
+		 * @param loc the current location.
+		 */
+		void setCurrentLocation(const ref_ptr<Location> &loc);
+
+		/**
+		 * Unset the location where the NPC currently is.
+		 */
+		void unsetCurrentLocation();
+
+		/**
+		 * Leave the current social group, if any.
+		 */
+		void leaveCurrentGroup();
+
+		/**
+		 * Join a social group.
+		 * If the NPC is already part of a social group, it will leave it first.
+		 * @param group the social group to join.
+		 */
+		void joinGroup(const ref_ptr<ObjectGroup> &group);
+
+		/**
+		 * Form a new social group with another character.
+		 * The NPC will leave its current social group, if any.
+		 * The other character will also leave its current social group, if any.
+		 * @param groupActivity the activity of the social group.
+		 * @param other the other character to form the social group with.
+		 * @return the new social group, or nullptr if the other character is nullptr.
+		 */
+		ref_ptr<ObjectGroup> formGroup(ActionType groupActivity, WorldObject *other);
+
+		/**
+		 * Get the social group the NPC is currently part of, if any.
+		 * @return the social group, or nullptr if the NPC is not part of any social group.
+		 */
+		bool isPartOfGroup() const { return characterObject_->isPartOfGroup(); }
+
+		/**
+		 * Get the social group the NPC is currently part of, if any.
+		 * @return the social group, or nullptr if the NPC is not part of any social group.
+		 */
+		const ref_ptr<ObjectGroup> &currentGroup() const { return characterObject_->currentGroup(); }
+
 	protected:
 		const uint32_t instanceId_ = 0;
-		const WorldObject *characterObject_;
+		WorldObject *characterObject_;
 		const Vec3f *currentPos_ = nullptr;
 		const Vec3f *currentDir_ = nullptr;
 		const WorldTime *worldTime_ = nullptr;
@@ -500,6 +575,9 @@ namespace regen {
 		ref_ptr<Place> targetPlace_;
 		// The place where the NPC currently is.
 		ref_ptr<Place> currentPlace_;
+		// The location where the NPC currently is (may be nullptr).
+		// This is usually a constrained area within a place, e.g. a room in a building.
+		ref_ptr<Location> currentLocation_;
 
 		// Perceived objects.
 		struct PerceivedObject {
@@ -519,8 +597,9 @@ namespace regen {
 		Patient navigationTarget_;
 		// The desired activity the NPC wants to perform next.
 		ActionType desiredAction_ = ActionType::LAST_ACTION;
-		// The action the NPC is currently performing.
-		ActionType currentAction_ = ActionType::LAST_ACTION;
+		// The actions the NPC is currently performing.
+		std::vector<ActionType> currentActions_;
+		uint32_t numCurrentActions_ = 0;
 	};
 } // namespace
 

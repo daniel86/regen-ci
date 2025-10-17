@@ -38,9 +38,10 @@ namespace regen {
 		 * @param rotation the rotation.
 		 * @param dt the time difference.
 		 */
-		void push_back(const std::optional<Vec3f> &pos,
-					   const std::optional<Vec3f> &rotation,
-					   GLdouble dt);
+		void addTransformKeyframe(
+			const std::optional<Vec3f> &pos,
+			const std::optional<Vec3f> &rotation,
+			double dt);
 
 		/**
 		 * Set the mesh, which is used to synchronize with physics

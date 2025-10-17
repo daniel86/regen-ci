@@ -28,9 +28,13 @@ namespace regen {
 
 		// If condition is true (or false if negated), tick the child node.
 		// Otherwise, return FAILURE.
-		BehaviorStatus tick(Blackboard& bb) override {
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override {
 			if (cond->evaluate(bb)) {
-				return child->tick(bb);
+				// TODO: add condition node exclusive flag that succeeds if child fails?
+				//   that would avoid falling into other branches that then would require negative
+				//   conditions to block.
+				//   Or else maybe a if-then-else construct?
+				return child->tick(bb, dt_s);
 			}
 			return BehaviorStatus::FAILURE;
 		}
@@ -263,6 +267,53 @@ namespace regen {
 		// Evaluate to true if the agent has some desire, else false.
 		bool doEvaluate(const Blackboard& bb) const override {
 			return bb.desiredAction() != ActionType::LAST_ACTION;
+		}
+	};
+
+	/**
+	 * A condition that checks if the NPC is at its desired location.
+	 * This is useful to ensure that the NPC has reached the location
+	 * associated with its current interaction target (patient).
+	 */
+	class IsAtDesiredLocation : public BehaviorTree::Condition {
+	public:
+		constexpr IsAtDesiredLocation() noexcept = default;
+		~IsAtDesiredLocation() override = default;
+	protected:
+		// Evaluate to true if the agent is at the desired location.
+		bool doEvaluate(const Blackboard& kb) const override {
+			// TODO: better introduce desired location attribute?
+			return kb.currentLocation().get() == kb.interactionTarget().object.get();
+		}
+	};
+
+	/**
+	 * A condition that checks if the NPC is the last member of its social group.
+	 * This can be useful to trigger specific behaviors when the NPC is alone.
+	 */
+	class IsLastGroupMember : public BehaviorTree::Condition {
+	public:
+		constexpr IsLastGroupMember() noexcept = default;
+		~IsLastGroupMember() override = default;
+	protected:
+		// Evaluate to true if the agent is the last member of its social group.
+		bool doEvaluate(const Blackboard& kb) const override {
+			auto group = kb.currentGroup();
+			return (group.get() != nullptr && group->numMembers() == 1);
+		}
+	};
+
+	/**
+	 * A condition that checks if the NPC is part of a social group.
+	 */
+	class IsPartOfGroup : public BehaviorTree::Condition {
+	public:
+		constexpr IsPartOfGroup() noexcept = default;
+		~IsPartOfGroup() override = default;
+	protected:
+		// Evaluate to true if the agent is part of a social group.
+		bool doEvaluate(const Blackboard& kb) const override {
+			return (kb.currentGroup().get() != nullptr) && (kb.currentGroup()->numMembers() > 1);
 		}
 	};
 

@@ -26,7 +26,7 @@ namespace regen {
 
 		~BehaviorLambdaNode() override = default;
 
-		BehaviorStatus tick(Blackboard& bb) override {
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override {
 			return func(bb);
 		}
 	};
@@ -47,7 +47,7 @@ namespace regen {
 
 		void setDesiredPlaceType(PlaceType pt) { desiredPlaceType = pt; }
 
-		BehaviorStatus tick(Blackboard& bb) override;
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 	};
 
 	/**
@@ -61,7 +61,7 @@ namespace regen {
 
 		~SetTargetPlace() override = default;
 
-		BehaviorStatus tick(Blackboard& bb) override;
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 	};
 
 	/**
@@ -76,7 +76,7 @@ namespace regen {
 
 		~SelectPlaceActivity() override = default;
 
-		BehaviorStatus tick(Blackboard& bb) override;
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 
 	protected:
 		void updateActionPossibilities(Blackboard& kb);
@@ -93,7 +93,7 @@ namespace regen {
 
 		~SetDesiredActivity() override = default;
 
-		BehaviorStatus tick(Blackboard& bb) override;
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 	};
 
 	/**
@@ -108,7 +108,18 @@ namespace regen {
 
 		~SelectPlacePatient() override = default;
 
-		BehaviorStatus tick(Blackboard& bb) override;
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
+	};
+
+	/**
+	 * An action node that selects a location for the desired activity
+	 * at the current place.
+	 */
+	class SelectPlaceLocation : public SelectPlacePatient {
+	public:
+		SelectPlaceLocation() : SelectPlacePatient() {}
+
+		~SelectPlaceLocation() override = default;
 	};
 
 	/**
@@ -121,7 +132,7 @@ namespace regen {
 
 		~SetPatient() override = default;
 
-		BehaviorStatus tick(Blackboard& bb) override;
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 	};
 
 	/**
@@ -133,7 +144,7 @@ namespace regen {
 
 		~UnsetPatient() override = default;
 
-		BehaviorStatus tick(Blackboard& bb) override;
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 	};
 
 	/**
@@ -145,7 +156,31 @@ namespace regen {
 
 		~MoveToTargetPlace() override = default;
 
-		BehaviorStatus tick(Blackboard& bb) override;
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
+	};
+
+	/**
+	 * An action node that moves the NPC to its desired location (object).
+	 */
+	class MoveToLocation : public BehaviorActionNode {
+	public:
+		MoveToLocation() : BehaviorActionNode() {}
+
+		~MoveToLocation() override = default;
+
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
+	};
+
+	/**
+	 * An action node that moves the NPC to its current social group.
+	 */
+	class MoveToGroup : public BehaviorActionNode {
+	public:
+		MoveToGroup() : BehaviorActionNode() {}
+
+		~MoveToGroup() override = default;
+
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 	};
 
 	/**
@@ -157,7 +192,28 @@ namespace regen {
 
 		~MoveToPatient() override = default;
 
-		BehaviorStatus tick(Blackboard& bb) override;
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
+	};
+
+	/**
+	 * An action node that makes the NPC perform a specific action.
+	 */
+	class PerformAction : public BehaviorActionNode {
+		const ActionType actionType;
+		float maxDuration_ = -1.0f;
+		float currentDuration_ = 0.0f;
+	public:
+		explicit PerformAction(ActionType a) : BehaviorActionNode(), actionType(a) {}
+
+		~PerformAction() override = default;
+
+		/** Set the maximum duration for the action.
+		 *  After this duration, the action will be stopped.
+		 *  Default is infinite duration.
+		 */
+		void setMaxDuration(float maxDuration) { maxDuration_ = maxDuration; }
+
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 	};
 
 	/**
@@ -169,7 +225,7 @@ namespace regen {
 
 		~PerformDesiredAction() override = default;
 
-		BehaviorStatus tick(Blackboard& bb) override;
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 	};
 
 	/**
@@ -183,7 +239,46 @@ namespace regen {
 
 		~PerformAffordedAction() override = default;
 
-		BehaviorStatus tick(Blackboard& bb) override;
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
+	};
+
+	/**
+	 * An action node that makes the NPC form a group at its current location.
+	 * The action fails in case the NPC does not find a friendly NPC at the current location.
+	 * Else a groups is formed and the action succeeds.
+	 * Effectively this is a navigation action where multiple NPC align their positions and directions.
+	 */
+	class FormLocationGroup : public BehaviorActionNode {
+	public:
+		FormLocationGroup() : BehaviorActionNode() {}
+
+		~FormLocationGroup() override = default;
+
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
+	};
+
+	/**
+	 * An action node that makes the NPC leave its current social group, if any.
+	 */
+	class LeaveGroup : public BehaviorActionNode {
+	public:
+		LeaveGroup() : BehaviorActionNode() {}
+
+		~LeaveGroup() override = default;
+
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
+	};
+
+	/**
+	 * An action node that makes the NPC leave its current location, if any.
+	 */
+	class LeaveLocation : public BehaviorActionNode {
+	public:
+		LeaveLocation() : BehaviorActionNode() {}
+
+		~LeaveLocation() override = default;
+
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 	};
 
 } // namespace

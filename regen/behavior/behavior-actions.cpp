@@ -2,7 +2,7 @@
 #include "blackboard.h"
 #include "world/action-type.h"
 
-//#define NPC_ACTIONS_DEBUG
+#define NPC_ACTIONS_DEBUG
 
 using namespace regen;
 
@@ -58,7 +58,7 @@ static void setInitialDistance(Blackboard& kb, Patient &patient) {
 	}
 }
 
-BehaviorStatus SelectTargetPlace::tick(Blackboard& kb) {
+BehaviorStatus SelectTargetPlace::tick(Blackboard& kb, float /*dt_s*/) {
 	auto &targetPlace = kb.targetPlace();
 	if (targetPlace.get() && (kb.lingerTime() > 0.0f || kb.activityTime() > 0.0f)) {
 		return BehaviorStatus::SUCCESS;
@@ -103,7 +103,7 @@ BehaviorStatus SelectTargetPlace::tick(Blackboard& kb) {
 	return BehaviorStatus::SUCCESS;
 }
 
-BehaviorStatus SetTargetPlace::tick(Blackboard& kb) {
+BehaviorStatus SetTargetPlace::tick(Blackboard& kb, float /*dt_s*/) {
 	auto currentTargetPlace = kb.targetPlace().get();
 	if (currentTargetPlace && (kb.lingerTime() > 0.0f || kb.activityTime() > 0.0f)) {
 		return BehaviorStatus::SUCCESS;
@@ -240,7 +240,7 @@ static void setActionTime(Blackboard& kb, ActionType activity) {
 	}
 }
 
-BehaviorStatus SelectPlaceActivity::tick(Blackboard& kb) {
+BehaviorStatus SelectPlaceActivity::tick(Blackboard& kb, float /*dt_s*/) {
 	auto &place = kb.currentPlace();
 	if (!place.get() || kb.lingerTime() <= 0.0f) {
 		// No place, or time to leave
@@ -281,7 +281,7 @@ BehaviorStatus SelectPlaceActivity::tick(Blackboard& kb) {
 	return BehaviorStatus::SUCCESS;
 }
 
-BehaviorStatus SetDesiredActivity::tick(Blackboard& kb) {
+BehaviorStatus SetDesiredActivity::tick(Blackboard& kb, float /*dt_s*/) {
 	if (kb.activityTime() <= 0.0f) {
 		kb.setDesiredAction(desiredAction);
 		setActionTime(kb, desiredAction);
@@ -306,7 +306,7 @@ static BehaviorStatus selectPatient(Blackboard &kb,
 	return BehaviorStatus::SUCCESS;
 }
 
-BehaviorStatus SelectPlacePatient::tick(Blackboard& kb) {
+BehaviorStatus SelectPlacePatient::tick(Blackboard& kb, float /*dt_s*/) {
 	auto &place = kb.currentPlace();
 	if (!place.get() || kb.lingerTime() <= 0.0f) {
 		// No place, or time to leave
@@ -335,8 +335,22 @@ BehaviorStatus SelectPlacePatient::tick(Blackboard& kb) {
 		return BehaviorStatus::FAILURE;
 	}
 	// For now pick a random affordance.
-	auto selected = objects[math::randomInt() % objects.size()];
-	auto aff = selected->getAffordance(desiredAction);
+	ref_ptr<WorldObject> selected;
+	ref_ptr<Affordance> aff;
+	uint32_t startIdx = math::randomInt() % objects.size();
+	for (uint32_t i = 0; i < objects.size(); i++) {
+		auto candidate = objects[(i + startIdx) % objects.size()];
+		auto candidateAff = candidate->getAffordance(desiredAction);
+		if (candidateAff->hasFreeSlot()) {
+			selected = candidate;
+			aff = candidateAff;
+			break;
+		}
+	}
+	if (!selected) {
+		// No available slots on any object.
+		return BehaviorStatus::FAILURE;
+	}
 	int slotIdx = reserveAffordanceSlot(kb, aff);
 	if (slotIdx == -1) {
 		return BehaviorStatus::FAILURE;
@@ -349,7 +363,7 @@ BehaviorStatus SelectPlacePatient::tick(Blackboard& kb) {
 	}
 }
 
-BehaviorStatus SetPatient::tick(Blackboard &kb) {
+BehaviorStatus SetPatient::tick(Blackboard &kb, float /*dt_s*/) {
 	if (patient.get() == kb.interactionTarget().object.get()) {
 		// Already set
 		return BehaviorStatus::SUCCESS;
@@ -371,14 +385,14 @@ BehaviorStatus SetPatient::tick(Blackboard &kb) {
 	}
 }
 
-BehaviorStatus UnsetPatient::tick(Blackboard &kb) {
+BehaviorStatus UnsetPatient::tick(Blackboard &kb, float /*dt_s*/) {
 	if (kb.interactionTarget().object.get()) {
 		kb.unsetInteractionTarget();
 	}
 	return BehaviorStatus::SUCCESS;
 }
 
-BehaviorStatus MoveToTargetPlace::tick(Blackboard &kb) {
+BehaviorStatus MoveToTargetPlace::tick(Blackboard &kb, float /*dt_s*/) {
 	if (kb.lingerTime() <= 0.0f) {
 		// Unable to reach in time.
 		kb.unsetNavigationTarget();
@@ -395,6 +409,7 @@ BehaviorStatus MoveToTargetPlace::tick(Blackboard &kb) {
 			return BehaviorStatus::SUCCESS;
 		} else {
 			// Already moving to target place.
+			kb.setCurrentAction(ActionType::NAVIGATING);
 			return BehaviorStatus::RUNNING;
 		}
 	}
@@ -408,14 +423,86 @@ BehaviorStatus MoveToTargetPlace::tick(Blackboard &kb) {
 	return BehaviorStatus::RUNNING;
 }
 
+BehaviorStatus MoveToLocation::tick(Blackboard& kb, float /*dt_s*/) {
+	if (kb.lingerTime() <= 0.0f) {
+		// Unable to reach in time.
+		kb.unsetNavigationTarget();
+		return BehaviorStatus::FAILURE;
+	}
+	auto &location = kb.interactionTarget().object;
+	if (location->objectType() != ObjectType::LOCATION) {
+		REGEN_WARN("["<<kb.instanceId()<<"] Interaction target is not a location.");
+		kb.unsetNavigationTarget();
+		return BehaviorStatus::FAILURE;
+	}
+	if (kb.navigationTarget().object.get() && location.get()) {
+		if (kb.distanceToTarget() < location->radius() * 0.75f) {
+			// Reached location.
+			kb.unsetNavigationTarget();
+			kb.setCurrentLocation(ref_ptr<Location>::staticCast(location));
+#ifdef NPC_ACTIONS_DEBUG
+			REGEN_INFO("["<<kb.instanceId()<<"] Reached location '" << location->name() << "'.");
+#endif
+			return BehaviorStatus::SUCCESS;
+		} else {
+			// Already moving to location.
+			kb.setCurrentAction(ActionType::NAVIGATING);
+			return BehaviorStatus::RUNNING;
+		}
+	}
+	kb.unsetCurrentLocation();
+	kb.setCurrentAction(ActionType::NAVIGATING);
+	kb.setNavigationTarget(location, {}, -1);
+	setInitialDistance(kb, kb.navigationTarget());
+#ifdef NPC_ACTIONS_DEBUG
+	REGEN_INFO("["<<kb.instanceId()<<"] Moving to location '" << location->name() << "'.");
+#endif
+	return BehaviorStatus::RUNNING;
+}
+
+BehaviorStatus MoveToGroup::tick(Blackboard& kb, float /*dt_s*/) {
+	if (!kb.isPartOfGroup()) {
+		// Not in a group.
+		kb.unsetNavigationTarget();
+		return BehaviorStatus::FAILURE;
+	}
+	if (kb.lingerTime() <= 0.0f) {
+		// Unable to reach in time.
+		kb.unsetNavigationTarget();
+		return BehaviorStatus::SUCCESS;
+	}
+	if (kb.navigationTarget().object.get() == kb.currentGroup().get()) {
+		if (kb.distanceToTarget() < kb.currentGroup()->radius()) {
+			// Reached group.
+#ifdef NPC_ACTIONS_DEBUG
+			REGEN_INFO("["<<kb.instanceId()<<"] Reached group.");
+#endif
+			kb.unsetNavigationTarget();
+			return BehaviorStatus::SUCCESS;
+		} else {
+			// Already moving to group.
+			kb.setCurrentAction(ActionType::NAVIGATING);
+			return BehaviorStatus::RUNNING;
+		}
+	}
+	kb.setCurrentAction(ActionType::NAVIGATING);
+	kb.setNavigationTarget(kb.currentGroup(), {}, -1);
+	setInitialDistance(kb, kb.navigationTarget());
+#ifdef NPC_ACTIONS_DEBUG
+	REGEN_INFO("["<<kb.instanceId()<<"] Moving to group at position " <<
+		kb.currentGroup()->position2D() << ".");
+#endif
+	return BehaviorStatus::RUNNING;
+}
+
 static float getReachRadius(const Blackboard &kb, const Patient &patient) {
-	// TODO: hardcoded parameter.
+	// TODO: Get rid of hardcoded parameter.
 	return patient.affordance.get() ?
 		0.75 :
 		0.75 * patient.object->radius();
 }
 
-BehaviorStatus MoveToPatient::tick(Blackboard& kb) {
+BehaviorStatus MoveToPatient::tick(Blackboard& kb, float /*dt_s*/) {
 	if (!kb.interactionTarget().object) {
 		// no patient set.
 		REGEN_WARN("["<<kb.instanceId()<<"] No patient set in MoveToPatient.");
@@ -441,6 +528,7 @@ BehaviorStatus MoveToPatient::tick(Blackboard& kb) {
 	auto currentNavTarget = kb.navigationTarget().object.get();
 	if (currentNavTarget == kb.interactionTarget().object.get()) {
 		// Already moving to patient.
+		kb.setCurrentAction(ActionType::NAVIGATING);
 		return BehaviorStatus::RUNNING;
 	} else if (currentNavTarget != nullptr) {
 		// There can only be one navigation target at a time.
@@ -454,7 +542,24 @@ BehaviorStatus MoveToPatient::tick(Blackboard& kb) {
 	return BehaviorStatus::RUNNING;
 }
 
-BehaviorStatus PerformDesiredAction::tick(Blackboard& kb) {
+BehaviorStatus PerformAction::tick(Blackboard& kb, float dt_s) {
+	if (kb.activityTime() <= 0.0f) {
+		// Time ran out, stop action.
+		currentDuration_ = 0.0f;
+		return BehaviorStatus::SUCCESS;
+	}
+	if (maxDuration_ > 0.0f && currentDuration_ > maxDuration_) {
+		// Time ran out, stop action.
+		currentDuration_ = 0.0f;
+		return BehaviorStatus::SUCCESS;
+	} else {
+		currentDuration_ += dt_s;
+	}
+	kb.setCurrentAction(actionType);
+	return BehaviorStatus::RUNNING;
+}
+
+BehaviorStatus PerformDesiredAction::tick(Blackboard& kb, float /*dt_s*/) {
 	if (kb.activityTime() <= 0.0f) {
 		// Time ran out, stop action.
 		return BehaviorStatus::SUCCESS;
@@ -463,7 +568,7 @@ BehaviorStatus PerformDesiredAction::tick(Blackboard& kb) {
 	return BehaviorStatus::RUNNING;
 }
 
-BehaviorStatus PerformAffordedAction::tick(Blackboard& kb) {
+BehaviorStatus PerformAffordedAction::tick(Blackboard& kb, float /*dt_s*/) {
 	auto &patient = kb.interactionTarget();
 	if (!patient.object || !patient.affordance || patient.affordanceSlot == -1) {
 		// Invalid state when entering this action
@@ -481,7 +586,99 @@ BehaviorStatus PerformAffordedAction::tick(Blackboard& kb) {
 		kb.unsetInteractionTarget();
 		return BehaviorStatus::SUCCESS;
 	}
-	// Make afforded action current, this will make the controller start the action animation.
+	// Make afforded action current, this will make the controller play the action animation.
 	kb.setCurrentAction(patient.affordance->type);
 	return BehaviorStatus::RUNNING;
+}
+
+BehaviorStatus FormLocationGroup::tick(Blackboard &kb, float /*dt_s*/) {
+	auto &location = kb.currentLocation();
+	if (!location) {
+		// Invalid state when entering this action
+		REGEN_WARN("["<<kb.instanceId()<<"] No curent location.");
+		return BehaviorStatus::FAILURE;
+	}
+	if (location->numVisitors() < 2) {
+		// Not enough characters at location to form a group.
+		return BehaviorStatus::FAILURE;
+	}
+	if (kb.isPartOfGroup()) {
+		// Already in a group, nothing to do.
+#ifdef NPC_ACTIONS_DEBUG
+		REGEN_INFO("["<<kb.instanceId()<<"] Already part of a group.");
+#endif
+		return BehaviorStatus::SUCCESS;
+	}
+	Vec2f currentPos2D(kb.currentPosition().x, kb.currentPosition().z);
+
+	// Find a friendly character at the location to form/join a group with.
+	// Consider characters that are closest first, for this we need to sort by distance.
+	std::vector<std::pair<uint32_t, float>> candidates(location->numVisitors());
+	uint32_t candidateIdx = 0;
+	for (int32_t characterIdx = 0; characterIdx < location->numVisitors(); characterIdx++) {
+		WorldObject *character = location->visitor(characterIdx);
+		if (!character) continue;
+		float dist = (character->position2D() - currentPos2D).lengthSquared();
+		candidates[candidateIdx++] = std::make_pair(characterIdx, dist);
+	}
+	std::sort(candidates.begin(), candidates.end(),
+		[](const std::pair<uint32_t,float> &a, const std::pair<uint32_t,float> &b) {
+			return a.second < b.second;
+		});
+
+	WorldObject *friendlyCharacter = nullptr;
+	for (uint32_t i = 0; i < candidateIdx; i++) {
+		WorldObject *character = location->visitor(candidates[i].first);
+		if (character == kb.characterObject()) continue;
+		// TODO: Check friendliness
+		//if (!kb.isFriendly(character)) continue;
+		if (character->isPartOfGroup()) {
+			if (character->currentGroup()->isFull()) {
+				// Try next character
+				continue;
+			}
+		}
+		friendlyCharacter = character;
+		break;
+	}
+	if (!friendlyCharacter) {
+		// No friendly character found to form/join a group with.
+		return BehaviorStatus::FAILURE;
+	}
+	if (friendlyCharacter->isPartOfGroup()) {
+		// Join existing group.
+		kb.joinGroup(friendlyCharacter->currentGroup());
+#ifdef NPC_ACTIONS_DEBUG
+		REGEN_INFO("["<<kb.instanceId()<<"] Joining existing group with '" << friendlyCharacter->name() << "'.");
+#endif
+	} else {
+		// Form new group.
+		kb.formGroup(kb.desiredAction(), friendlyCharacter);
+#ifdef NPC_ACTIONS_DEBUG
+		REGEN_INFO("["<<kb.instanceId()<<"] Forming new group with '" << friendlyCharacter->name() << "'.");
+#endif
+	}
+	return BehaviorStatus::SUCCESS;
+}
+
+BehaviorStatus LeaveGroup::tick(Blackboard &kb, float /*dt_s*/) {
+	if (kb.isPartOfGroup()) {
+#ifdef NPC_ACTIONS_DEBUG
+		REGEN_INFO("["<<kb.instanceId()<<"] Leaving current group, remaining members: " <<
+			kb.currentGroup()->numMembers() - 1 << ".");
+#endif
+		kb.leaveCurrentGroup();
+	}
+	return BehaviorStatus::SUCCESS;
+}
+
+BehaviorStatus LeaveLocation::tick(Blackboard &kb, float /*dt_s*/) {
+	if (kb.currentLocation().get()) {
+#ifdef NPC_ACTIONS_DEBUG
+		REGEN_INFO("["<<kb.instanceId()<<"] Leaving current location '" << kb.currentLocation()->name() << "'.");
+#endif
+		kb.leaveCurrentGroup();
+		kb.unsetCurrentLocation();
+	}
+	return BehaviorStatus::SUCCESS;
 }

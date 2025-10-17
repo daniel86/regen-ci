@@ -155,6 +155,13 @@ void PersonController::updateController(double dt) {
 		// Insert new percepts into the knowledge base, and update existing ones.
 		perceptionSystem_->update(knowledgeBase_, timeSinceLastPerception_s_);
 		timeSinceLastPerception_s_ = 0.0f;
+		if (kb.characterObject()->hasCurrentGroup()) {
+			// Update group center for the "leader" of the group, which is
+			// the first member of the group.
+			if (kb.characterObject()->currentGroupIndex()==0) {
+				kb.characterObject()->currentGroup()->updateGroupCenter();
+			}
+		}
 	}
 	// Do some controller specific updates to the knowledge base.
 	updateKnowledgeBase(dt_s);
@@ -183,18 +190,20 @@ void PersonController::updateController(double dt) {
 	}
 
 	if (timeSinceLastDecision_s_ > decisionInterval_s_) {
+		// Reset current action state in the blackboard.
+		kb.unsetCurrentActions();
 		// Update blackboard and make some actions current.
-		timeSinceLastDecision_s_ = 0.0f;
-		auto behaviorStatus = behaviorTree_->tick(kb);
+		auto behaviorStatus = behaviorTree_->tick(kb, timeSinceLastDecision_s_);
 		if (behaviorStatus == BehaviorStatus::FAILURE) {
-			REGEN_WARN("Behavior tree failed.");
-			setIdle();
+			REGEN_WARN("[" << tfIdx_ << "] Behavior tree returned FAILURE.");
+			//setIdle();
 		}
+		timeSinceLastDecision_s_ = 0.0f;
 	}
 	// Update the state of current bone animations based on current actions, intends etc.
 	boneController_->updateBoneController(knowledgeBase_, dt_s);
 	// Update path etc. for navigation action.
-	updateNavigationTarget();
+	updateNavigationBehavior();
 
 	// Set flags for current bone animations
 	if (boneController_->isCurrentBoneAnimation(MotionType::RUN)) {
@@ -246,11 +255,14 @@ void PersonController::updateKnowledgeBase(float dt_s) {
 		kb.setDistanceToPatient(std::numeric_limits<float>::max());
 	}
 	if (kb.hasNavigationTarget()) {
-		auto &target = kb.navigationTarget().object;
-		if (target.get() == kb.interactionTarget().object.get()) {
+		auto &navTarget = kb.navigationTarget();
+		if (navTarget.object.get() == kb.interactionTarget().object.get() &&
+		    navTarget.affordance.get() == kb.interactionTarget().affordance.get() &&
+		    navTarget.affordanceSlot == kb.interactionTarget().affordanceSlot) {
+			// Navigation target is the same as the patient, so reuse distance to patient.
 			kb.setDistanceToTarget(kb.distanceToPatient());
 		} else {
-			auto delta = target->position2D() - Vec2f(currentPos_.x, currentPos_.z);
+			auto delta = navTarget.object->position2D() - Vec2f(currentPos_.x, currentPos_.z);
 			kb.setDistanceToTarget(delta.length());
 		}
 		// Also make the distance accessible to motion controller, as it does not have access to the blackboard.
@@ -273,66 +285,58 @@ uint32_t PersonController::findClosestWP(const std::vector<ref_ptr<WayPoint>> &w
 	return bestIdx;
 }
 
-void PersonController::updateNavigationTarget() {
+void PersonController::updateNavigationBehavior() {
 	auto &kb = knowledgeBase_;
 
-	ActionType currentNavAction = ActionType::LAST_ACTION;
-	if (kb.isCurrentAction(ActionType::NAVIGATING)) {
-		currentNavAction = ActionType::NAVIGATING;
-	} else if (kb.isCurrentAction(ActionType::PATROLLING)) {
-		currentNavAction = ActionType::PATROLLING;
-	} else if (kb.isCurrentAction(ActionType::STROLLING)) {
-		currentNavAction = ActionType::STROLLING;
-	}
+	bool hasNavigatingAction = kb.isCurrentAction(ActionType::NAVIGATING);
+	bool hasPatrollingAction = kb.isCurrentAction(ActionType::PATROLLING);
+	bool hasStrollingAction = kb.isCurrentAction(ActionType::STROLLING);
+	bool hasFlockingAction = kb.isCurrentAction(ActionType::FLOCKING);
+	bool hasApproachLoop = (hasPatrollingAction || hasStrollingAction);
+	bool hasApproachAction = (hasNavigatingAction || hasApproachLoop);
+	bool hasAnyNavAction = hasApproachAction || hasFlockingAction;
 
-	if (currentNavAction == ActionType::LAST_ACTION) {
+	if (!hasAnyNavAction) {
 		// No navigation action active, nothing to do.
-		it_ = frames_.end();
 		currentPath_.clear();
-		lastNavAction_ = ActionType::IDLE;
-		lastNavTarget_ = nullptr;
+		stopNavigation();
 		return;
 	}
 
-	if (currentNavAction != lastNavAction_ || lastNavTarget_ != kb.navigationTarget().object.get()) {
-		// Navigation action changed, or a new navigation target has been set.
-		// Reset path to avoid new action following the path of the old action.
-#ifdef NAV_CTRL_DEBUG_WPS
-		REGEN_INFO("[" << tfIdx_ << "] Force replanning, " <<
-			"target-changed: " << (lastNavTarget_ != kb.navigationTarget().object.get() ? "yes" : "no") <<
-			", action-changed: " << (currentNavAction != lastNavAction_ ? "yes" : "no"));
-#endif
-		currentPath_.clear();
-		it_ = frames_.end();
+	if (kb.isCurrentAction(ActionType::FLOCKING)) {
+		auto &group = kb.currentGroup();
+		if (!group) {
+			REGEN_WARN("No group for flocking action.");
+		} else if (!isNavigationFlocking()) {
+			startFlocking(group);
+		}
+	} else if (isNavigationFlocking()) {
+		stopFlocking();
 	}
-	lastNavAction_ = currentNavAction;
-	lastNavTarget_ = kb.navigationTarget().object.get();
 
-	bool loop = (currentNavAction == ActionType::PATROLLING || currentNavAction == ActionType::STROLLING);
-	if (it_ != frames_.end()) {
-		// The TF animation has an active frame, continue navigation.
+	if (!hasApproachAction || isNavigationApproaching()) {
 	}
-	else if (loop && currentPath_.empty() && kb.currentPlace().get()) {
+	else if (hasApproachLoop && currentPath_.empty() && kb.currentPlace().get()) {
 		// We are patrolling or strolling, but have no path yet, so start one.
 		auto &currentPlace = kb.currentPlace();
 		auto loopPath = currentPlace->getPathWays(
-			currentNavAction == ActionType::PATROLLING ? PathwayType::PATROL : PathwayType::STROLL);
+			hasPatrollingAction ? PathwayType::PATROL : PathwayType::STROLL);
 		// Pick a random path
 		if (!loopPath.empty()) {
 			currentPath_ = loopPath[math::randomInt() % loopPath.size()];
 			currentPathIndex_ = findClosestWP(currentPath_);
 			startNavigate(true, false);
 		} else {
-			REGEN_WARN("No pathways of type " << currentNavAction <<
+			REGEN_WARN("No pathways of type " << (hasPatrollingAction ? "PATROL" : "STROLL") <<
 				" at place " << currentPlace->name());
 			setIdle();
 		}
 	}
 	else {
 		// The TF animation has no active frame, advance to next waypoint if any.
-		if (!currentPath_.empty() && (loop || currentPathIndex_ < currentPath_.size())) {
+		if (!currentPath_.empty() && (hasApproachLoop || currentPathIndex_ < currentPath_.size())) {
 			// Set next TF waypoint for movement
-			startNavigate(loop, true);
+			startNavigate(hasApproachLoop, true);
 		} else {
 			// No waypoint remaining, but navigation action is still active,
 			// so it seems we need to re-plan.
@@ -441,13 +445,12 @@ Vec2f PersonController::pickTravelPosition(const WorldObject &wp) const {
 	}
 }
 
-Vec2f PersonController::pickTargetPosition(const WorldObject &wp) {
-	auto &patient = knowledgeBase_.interactionTarget();
-	if (!patient.affordance) {
-		return pickTravelPosition(wp);
+Vec2f PersonController::pickTargetPosition(const Patient &navTarget) const {
+	if (!navTarget.affordance) {
+		return pickTravelPosition(*navTarget.object.get());
 	} else {
 		auto &slotPos =
-			patient.affordance->slotPosition(patient.affordanceSlot);
+			navTarget.affordance->slotPosition(navTarget.affordanceSlot);
 		return Vec2f(slotPos.x, slotPos.z);
 	}
 }
@@ -456,27 +459,27 @@ bool PersonController::updatePathNPC() {
 	Vec2f source(currentPos_.x, currentPos_.z);
 
 	if (currentPath_.size() < 2 || currentPathIndex_+1 >= currentPath_.size()) {
-		if (!knowledgeBase_.hasInteractionTarget()) {
-			auto &target = knowledgeBase_.targetPlace();
+		// Navigation actions should have a navigation target set.
+		auto &navTarget = knowledgeBase_.hasNavigationTarget() ?
+			knowledgeBase_.navigationTarget() : knowledgeBase_.interactionTarget();
+
+		if (!currentPath_.empty()) {
+			auto &lastWP = currentPath_.back();
+			startApproaching(source, pickTravelPosition(*lastWP.get()) );
+		} else if (navTarget.object->objectType() == ObjectType::PLACE) {
 			// Travel to place, prefer to use pre-computed waypoint but fallback to
-			//  going to the center of the place.
-			if (currentPath_.empty()) {
-				updatePathCurve(source, pickTravelPosition(*target.get()));
-			} else {
-				auto &lastWP = currentPath_.back();
-				updatePathCurve(source, pickTravelPosition(*lastWP.get()) );
-			}
+			//  going to a computed arrival position within the place.
+			startApproaching(source, pickTravelPosition(*navTarget.object.get()));
 		} else {
-			// Travel to affordance
-			auto &target = knowledgeBase_.interactionTarget().object;
-			Vec2f affordancePos = pickTargetPosition(*target.get());
+			// Travel to object (with affordance slot if any)
+			Vec2f navPos = pickTargetPosition(navTarget);
 #ifdef NAV_CTRL_DEBUG_WPS
-			REGEN_INFO("[" << tfIdx_ << "] Navigating to object " << target->name() << ".");
+			REGEN_INFO("[" << tfIdx_ << "] Navigating to object " << navTarget.object->name() << ".");
 #endif
 
 			// NPC shall look from affordance slot to center of attention
 			// (i.e. affordance target, or owner of affordance)
-			Vec2f dir = (target->position2D() - affordancePos);
+			Vec2f dir = (navTarget.object->position2D() - navPos);
 			float dist = dir.length();
 			if (dist < affordanceSlotRadius_) {
 				dir = Vec2f(cos(currentDir_.x + baseOrientation_), sin(currentDir_.x + baseOrientation_));
@@ -485,11 +488,11 @@ bool PersonController::updatePathNPC() {
 			}
 
 			float o = atan2(dir.y, dir.x) - baseOrientation_;
-			updatePathCurve(source, affordancePos, Vec3f(o, 0.0f, 0.0f) );
+			startApproaching(source, navPos, Vec3f(o, 0.0f, 0.0f) );
 		}
 	} else {
 		auto &nextWP = currentPath_[currentPathIndex_];
-		updatePathCurve(source, pickTravelPosition(*nextWP.get()));
+		startApproaching(source, pickTravelPosition(*nextWP.get()));
 	}
 	return true;
 }
