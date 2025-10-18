@@ -57,6 +57,7 @@ namespace regen {
 		enum Mapping {
 			/** Texture coordinate mapping. */
 			MAPPING_TEXCO,
+			MAPPING_SKINNED_TEXCO,
 			/** Flat mapping. */
 			MAPPING_FLAT,
 			/** Cube mapping. */

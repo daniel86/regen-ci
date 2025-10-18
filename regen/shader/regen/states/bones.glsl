@@ -26,8 +26,7 @@ int boneMatrixIndex(uint i) {
     #ifdef HAS_boneOffset
     return (NUM_BONES_PER_MESH*in_boneOffset + int(i))*4;
     #else
-    // TODO: use instance ID here?
-    return int(i)*4
+    return (NUM_BONES_PER_MESH*int(regen_InstanceID) + int(i))*4;
     #endif
 }
 #else

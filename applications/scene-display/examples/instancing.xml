@@ -396,6 +396,8 @@
                  min-filter="LINEAR" mag-filter="LINEAR"/>
     </fbo>
     <!-- Textures -->
+    <texture id="dwarf-body-albedo" is-array="1" file="res/models/psionic/dwarf/x/dwarf-skins/" mipmap="1"/>
+    <texture id="dwarf-axe-albedo" file="res/models/psionic/dwarf/x/axe.jpg" mipmap="1"/>
     <texture id="snow-flake" file="res/textures/splats/flake.png"/>
     <texture id="snow" file="res/textures/ground/snow/2/diffuse.png" mipmap="1"/>
     <texture id="wind-flowmap" file="res/textures/wind/flowmap0.png" wrapping="REPEAT"/>
@@ -894,6 +896,7 @@
           asset="dwarf-asset-instanced"
           asset-indices="*"
           asset-animation="1"
+          asset-material="0"
           lod-simplification="1.0, 0.85, 0.7"
           lod-thresholds="20.0, 50.0, 100.0"
           lod-strict-boundary="1"
@@ -913,8 +916,8 @@
             <translate value="-40.0,0.0,-40.0"/>
             <height map="ground-height"/>
         </transform>
-        <input type="int" name="boneOffset" is-instanced="1">
-            <set mode="index"/>
+        <input type="int" name="skinIndex" is-instanced="1">
+            <set mode="random" min="0" max="2"/>
         </input>
         <!-- Use s sphere shape for culling -->
         <shape id="dwarf-shape" index="1" cull="1" type="sphere"
@@ -1511,9 +1514,12 @@
 
     <node id="Dwarf">
         <node id="Dwarf-Body">
+            <texture name="dwarfBodyAlbedo" id="dwarf-body-albedo"
+                map-to="DIFFUSE" mapping="SKINNED_TEXCO" blend-mode="SRC"/>
             <mesh id="dwarf" mesh-index="1" update-visibility="1"/>
         </node>
         <node id="Dwarf-Weapon">
+            <texture name="dwarfAxeAlbedo" id="dwarf-axe-albedo" map-to="DIFFUSE" blend-mode="SRC"/>
             <mesh id="dwarf" mesh-index="0" update-visibility="1"/>
         </node>
     </node>

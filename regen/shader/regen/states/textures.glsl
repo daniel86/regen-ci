@@ -495,6 +495,15 @@ void textureMappingLight(
 --------------------------------------
 --------------------------------------
 
+-- texco_skinned_texco
+#ifndef REGEN_TEXCO_SKINNED_TEXCO_
+#define2 REGEN_TEXCO_SKINNED_TEXCO_
+in vec2 in_texco0;
+vec3 texco_skinned_texco(vec3 P, vec3 N) {
+   return vec3(in_texco0, in_skinIndex);
+}
+#endif
+
 -- texco_xz_plane
 #ifndef REGEN_TEXCO_XZ_PLANE_
 #define2 REGEN_TEXCO_XZ_PLANE_

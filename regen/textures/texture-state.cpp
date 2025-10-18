@@ -32,6 +32,8 @@ namespace regen {
 				return out << "custom";
 			case TextureState::MAPPING_TEXCO:
 				return out << "texco";
+			case TextureState::MAPPING_SKINNED_TEXCO:
+				return out << "skinned_texco";
 			case TextureState::MAPPING_XZ_PLANE:
 				return out << "xz_plane";
 			case TextureState::MAPPING_TRIPLANAR:
@@ -55,6 +57,7 @@ namespace regen {
 		else if (val == "planar_reflection") mode = TextureState::MAPPING_PLANAR_REFLECTION;
 		else if (val == "paraboloid_reflection") mode = TextureState::MAPPING_PARABOLOID_REFLECTION;
 		else if (val == "texco") mode = TextureState::MAPPING_TEXCO;
+		else if (val == "skinned_texco") mode = TextureState::MAPPING_SKINNED_TEXCO;
 		else if (val == "custom") mode = TextureState::MAPPING_CUSTOM;
 		else if (val == "xz_plane") mode = TextureState::MAPPING_XZ_PLANE;
 		else if (val == "triplanar") mode = TextureState::MAPPING_TRIPLANAR;
