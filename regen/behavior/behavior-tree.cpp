@@ -8,6 +8,7 @@ using namespace regen;
 static std::unique_ptr<BehaviorTree::Condition> makeCondition(scene::SceneInputNode *xmlCond) {
 	const auto category = xmlCond->getValue("type");
 	bool negate = xmlCond->getValue("negate", false);
+	bool exclusive = xmlCond->getValue("exclusive", false);
 	std::unique_ptr<BehaviorTree::Condition> cond;
 
 	if (!xmlCond->hasAttribute("type")) {
@@ -94,6 +95,11 @@ static std::unique_ptr<BehaviorTree::Condition> makeCondition(scene::SceneInputN
 	}
 	if (cond) {
 		cond->setNegated(negate);
+		cond->setExclusive(exclusive);
+		if (xmlCond->hasAttribute("on-failure")) {
+			auto status = xmlCond->getValue<BehaviorStatus>("on-failure", BehaviorStatus::FAILURE);
+			cond->setFailureStatus(status);
+		}
 	}
 	return cond;
 }
@@ -303,6 +309,33 @@ std::istream &regen::operator>>(std::istream &in, BehaviorParallelNode::StatusMo
 	else {
 		REGEN_WARN("Unknown parallel status mode '" << val << "'. Using ALL.");
 		v = BehaviorParallelNode::ALL;
+	}
+	return in;
+}
+
+
+std::ostream &regen::operator<<(std::ostream &out, const BehaviorStatus &v) {
+	switch (v) {
+		case BehaviorStatus::SUCCESS:
+			return out << "SUCCESS";
+		case BehaviorStatus::FAILURE:
+			return out << "FAILURE";
+		case BehaviorStatus::RUNNING:
+			return out << "RUNNING";
+	}
+	return out;
+}
+
+std::istream &regen::operator>>(std::istream &in, BehaviorStatus &v) {
+	std::string val;
+	in >> val;
+	boost::to_upper(val);
+	if (val == "SUCCESS") v = BehaviorStatus::SUCCESS;
+	else if (val == "FAILURE") v = BehaviorStatus::FAILURE;
+	else if (val == "RUNNING") v = BehaviorStatus::RUNNING;
+	else {
+		REGEN_WARN("Unknown behavior status '" << val << "'. Using FAILURE.");
+		v = BehaviorStatus::FAILURE;
 	}
 	return in;
 }

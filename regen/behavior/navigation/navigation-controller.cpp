@@ -8,17 +8,17 @@ using namespace regen;
 
 static void initCollisionFrame_s(void *userData) {
 	// set avoidance force to zero
-	((NavigationController*)userData)->initCollisionFrame();
+	((NavigationController*)userData)->navCollisionFrameBegin();
 }
 
 static void finalizeCollisionFrame_s(void *userData) {
 	// finalize avoidance after all perception events have been handled
-	((NavigationController*)userData)->finalizeCollisionFrame();
+	((NavigationController*)userData)->navCollisionFrameEnd();
 }
 
 static void handlePerception_s(const CollisionEvent &evt, void *userData) {
 	// accumulate avoidance forces
-	((NavigationController*)userData)->handleCollisionEvent(evt);
+	((NavigationController*)userData)->navCollisionFrameAdd(evt);
 }
 
 NavigationController::NavigationController(
@@ -53,7 +53,7 @@ void NavigationController::setHeightMap(const ref_ptr<HeightMap> &heightMap) {
 
 float NavigationController::getHeight(const Vec2f &pos) {
 	if (heightMap_.get()) {
-		return heightMap_->sampleHeight(pos) - 0.25f; // offset a bit to avoid floating
+		return heightMap_->sampleHeight(pos);
 	} else {
 		return floorHeight_;
 	}
@@ -124,10 +124,10 @@ void NavigationController::startApproaching(
 		const Vec2f &source,
 		const Vec2f &target,
 		const Vec3f &desiredDir) {
-	bezierPath_.p0 = source;
-	bezierPath_.p3 = target;
+	curvePath_.p0 = source;
+	curvePath_.p3 = target;
 	// compute control points using Euler angles
-	float directDistance = (bezierPath_.p0 - bezierPath_.p3).length();
+	float directDistance = (curvePath_.p0 - curvePath_.p3).length();
 	// add base orientation
 	float angle_rad1 = currentDir_.x + baseOrientation_;
 	float angle_rad2 = desiredDir.x + baseOrientation_;
@@ -137,21 +137,25 @@ void NavigationController::startApproaching(
 	//float handleScale = directDistance * 0.25f * (1.0f - 0.5f * std::abs(angleDiff) / M_PI);
 	// p1: in direction of start orientation
 	// - Allow sharper turns by using a shorter handle. e.g. in case NPC makes a 180deg turn.
-	bezierPath_.p1 = bezierPath_.p0 + Vec2f(cos(angle_rad1), sin(angle_rad1)) * handleScale * 0.25f;
+	curvePath_.p1 = curvePath_.p0 + Vec2f(cos(angle_rad1), sin(angle_rad1)) * handleScale * 0.25f;
 	// p2: in direction of target orientation
-	bezierPath_.p2 = bezierPath_.p3 - Vec2f(cos(angle_rad2), sin(angle_rad2)) * handleScale;
-	bezierLUT_ = bezierPath_.buildArcLengthLUT(numLUTEntries_);
+	const Vec2f approachDir = Vec2f(cos(angle_rad2), sin(angle_rad2));
+	curvePath_.p2 = curvePath_.p3 - approachDir * handleScale;
+	curveLUT_ = curvePath_.buildArcLengthLUT(numLUTEntries_);
+	curveEndDir_.x = approachDir.x;
+	curveEndDir_.y = 0.0f;
+	curveEndDir_.z = approachDir.y;
 
 	navModeMask_ |= APPROACHING;
 	// reset approach time
 	approachTime_ = 0.0;
 	// compute expected duration based on distance and speed
-	approachDuration_ = bezierLUT_.totalLength / (isWalking_ ? walkSpeed_ : runSpeed_);
+	approachDuration_ = curveLUT_.totalLength / (isWalking_ ? walkSpeed_ : runSpeed_);
 
 	if (!isRunning()) { startAnimation(); }
 }
 
-void NavigationController::initCollisionFrame() {
+void NavigationController::navCollisionFrameBegin() {
 #ifdef USE_DYNAMIC_LOOKAHEAD
 	// Dynamically decrease the lookahead distance when close to the goal.
 	// This allows to better approach the goal without being pushed away by
@@ -159,21 +163,21 @@ void NavigationController::initCollisionFrame() {
 	dynLookAheadDistance_ = std::max(personalSpace_, lookAheadDistance_ *
 		std::clamp(distanceToTarget_ / lookAheadThreshold_, 0.0f, 1.0f));
 #endif
-	navAvoidance_ = Vec3f::zero();
+	navCollision_ = Vec3f::zero();
 	navCollisionCount_ = 0;
 	hasNewPerception_ = true;
 }
 
-void NavigationController::finalizeCollisionFrame() {
+void NavigationController::navCollisionFrameEnd() {
 	if (navCollisionCount_ > 0) {
-		navAvoidance_ /= static_cast<float>(navCollisionCount_);
-		avoidanceStrength_ = navAvoidance_.length();
+		navCollision_ /= static_cast<float>(navCollisionCount_);
+		collisionStrength_ = navCollision_.length();
 	} else {
-		avoidanceStrength_ = 0.0f;
+		collisionStrength_ = 0.0f;
 	}
 }
 
-void NavigationController::handleCollisionEvent(const CollisionEvent &evt) {
+void NavigationController::navCollisionFrameAdd(const CollisionEvent &evt) {
 	if (patientShape_.get() == evt.data.other) return; // skip patient
 	auto *otherRes = evt.data.other->worldObject();
 	bool isStaticObject = true;
@@ -196,8 +200,8 @@ void NavigationController::handleCharacterCollision(const CollisionData &percept
 		float distSqInv = 1.0f / (percept.distance * percept.distance);
 		// scale to reasonable values
 		distSqInv *= personalSpace_ * characterAvoidance_;
-		navAvoidance_.x += percept.dir.x * distSqInv;
-		navAvoidance_.z += percept.dir.z * distSqInv;
+		navCollision_.x += percept.dir.x * distSqInv;
+		navCollision_.z += percept.dir.z * distSqInv;
 		navCollisionCount_++;
 	}
 }
@@ -259,222 +263,121 @@ void NavigationController::handleStaticCollision(const CollisionData &percept) {
 	//avoidance *= expf(-dist * dist / (2.0f * sigma * sigma));
 
 	// Accumulate avoidance vector.
-	navAvoidance_ += avoidance * wallAvoidance_;
+	navCollision_ += avoidance * wallAvoidance_;
 	navCollisionCount_++;
 }
 
-void NavigationController::updateControllerVelocity() {
+void NavigationController::updateNavFlocking() {
+	if (!(navModeMask_ & FLOCKING)) { return; }
 	const Vec2f currentPos2D(currentPos_.x, currentPos_.z);
-	float desiredSpeed = (isWalking_ ? walkSpeed_ : runSpeed_);
-	float tmpLen;
+	// Desired dir toward group center and away from other group members.
+	const float minGroupDistance = personalSpace_ * (0.5f + 0.25f * navGroup_->numMembers());
+	Vec2f groupDir = navGroup_->groupCenter2D() - currentPos2D;
+	float tmpLen = groupDir.length();
+	if (tmpLen > 1e-4f) groupDir /= tmpLen;
 
-	if (navModeMask_ & APPROACHING) {
-		// Approaching target along Bezier curve
-		auto bezierSample = bezierPath_.sample(curveTime_);
-		desiredDir_.x = bezierSample.x - currentPos_.x;
-		desiredDir_.y = 0.0f;
-		desiredDir_.z = bezierSample.y - currentPos_.z;
-	} else if (navModeMask_ & FLOCKING) {
-		auto groupDir = navGroup_->groupCenter2D() - currentPos2D;
-		desiredDir_.x = groupDir.x;;
-		desiredDir_.y = 0.0f;
-		desiredDir_.z = groupDir.y;
-	}
-	tmpLen = desiredDir_.length();
-	if (tmpLen < 1e-4f) { return; }
-	desiredDir_ /= tmpLen;
-	currentForce_ = Vec3f::zero();
+	// Spring-like cohesion force toward group center.
+	Vec2f cohesion = groupDir * (tmpLen - minGroupDistance);
 
-	Vec3f pushVec = navAvoidance_ * avoidanceWeight_;
-	float pushStrength = avoidanceStrength_;
+	/**
+	float restR = desiredRadius;
+	float dist = length(p - center);
+	float error = dist - restR;
+	Vec2f cohesion = (dist > 1e-4) ? ( (center - p) / dist * error * cohGain ) : Vec2f(0,0);
+	// add damping: subtract k * (velocity dot radialDir) to prevent oscillation
+	float radialVel = dot(vel, radialDir);
+	cohesion -= radialVel * radialDamping;
+	**/
 
-	if (navModeMask_ & APPROACHING) {
-		desiredVel_ = desiredDir_ * desiredSpeed;
-	} else {
-		desiredVel_ = Vec3f::zero();
-		pushVec *= 0.1f;
-		pushStrength *= 0.1f;
-	}
-
-	if (navModeMask_ & FLOCKING) {
-		// Desired dir toward group center and away from other group members.
-		const float minGroupDistance = personalSpace_ * (0.5f + 0.25f * navGroup_->numMembers());
-		Vec2f groupDir = navGroup_->groupCenter2D() - currentPos2D;
-		tmpLen = groupDir.length();
-		if (tmpLen > 1e-4f) groupDir /= tmpLen;
-
-		// Spring-like cohesion force toward group center.
-		Vec2f cohesion = groupDir * (tmpLen - minGroupDistance);
-
-		/**
-		float restR = desiredRadius;
-		float dist = length(p - center);
-		float error = dist - restR;
-		Vec2f cohesion = (dist > 1e-4) ? ( (center - p) / dist * error * cohGain ) : Vec2f(0,0);
-		// add damping: subtract k * (velocity dot radialDir) to prevent oscillation
-		float radialVel = dot(vel, radialDir);
-		cohesion -= radialVel * radialDamping;
-		**/
-
-		/**
-		Vec2f locationDir = navGroup_->currentLocation()->position2D() - currentPos2D;
-		float locationDist = locationDir.length();
-		if (locationDist > 1e-4f) locationDir /= locationDist;
-		// Add force to stay within location bounds.
-		cohesion += locationDir * (std::max(0.0f,
-			locationDist - navGroup_->currentLocation()->radius()) );
-			**/
-
-		// Separation from other group members
-		// TODO: for some reason this makes collaps all in one point !?!
-		Vec2f memberSeparation = Vec2f::zero();
-		/**
+	// Separation from other group members
+	Vec2f memberSeparation = Vec2f::zero();
+	/**
+	if (navGroup_->numMembers() > 1) {
 		for (uint32_t memberIdx=0; memberIdx < navGroup_->numMembers(); memberIdx++) {
 			const WorldObject *member = navGroup_->member(memberIdx);
 			//if (member == self) continue;
 			Vec2f toMember = currentPos2D - member->position2D();
-			float distSq = toMember.length();
-			if (distSq > 1e-4f && distSq < personalSpace_) {
-				memberSeparation += toMember * (1.0f / distSq);
+			float distSq = toMember.lengthSquared();
+			// scale to reasonable values
+			if (distSq > 1e-4f && distSq < personalSpaceSq_ * 2.0f) {
+				distSq *= personalSpace_ * characterAvoidance_;
+				memberSeparation += (toMember / distSq) * 0.1f;
 			}
 		}
 		memberSeparation /= static_cast<float>(navGroup_->numMembers());
-		**/
-
-		// Separation from other groups.
-		Vec2f groupSeparation = Vec2f::zero();
-		/**
-		auto &navLocation = navGroup_->currentLocation();
-		if (navLocation.get()) {
-			for (int32_t groupIdx=0; groupIdx < navLocation->numGroups(); groupIdx++) {
-				ObjectGroup *otherGroup = navLocation->group(groupIdx);
-				if (otherGroup == navGroup_.get()) continue;
-				Vec2f toGroup = currentPos2D - otherGroup->groupCenter2D();
-				float distSq = toGroup.lengthSquared();
-				if (distSq > 1e-4f && distSq < personalSpace_ * personalSpace_ * 4.0f) {
-					groupSeparation += toGroup * (1.0f / distSq);
-				}
-			}
-		}
-		**/
-
-		// Blend forces and compute desired direction.
-		Vec2f groupForce = cohesion * cohesionWeight_ +
-			memberSeparation * memberSeparationWeight_ +
-			groupSeparation * groupSeparationWeight_;
-		float groupStrength = groupForce.length();
-		pushStrength += groupStrength;
-		pushVec.x += groupForce.x;
-		pushVec.z += groupForce.y;
 	}
+	**/
 
-	// Compute desired velocity by blending desiredDir with avoidance.
-	if (pushStrength > 1e-4f) {
+	// Blend forces and compute desired direction.
+	Vec2f groupForce = cohesion * cohesionWeight_ +
+		memberSeparation * memberSeparationWeight_;
+	flockingStrength_ = groupForce.length();
+	navFlocking_.x = groupForce.x;
+	navFlocking_.y = 0.0f;
+	navFlocking_.z = groupForce.y;
+}
+
+void NavigationController::updateNavVelocity(float desiredSpeed, const Vec3f &avoidance, float avoidanceStrength) {
+	// Compute desired velocity by blending approach-dir with avoidance.
+	if (avoidanceStrength > 1e-4f) {
 		// Blend desired with avoidance vector to avoid collisions.
-		desiredVel_ = (desiredDir_ + pushVec);
-		tmpLen = desiredVel_.length();
-		if (tmpLen < 1e-4f) {
-			desiredVel_ = desiredDir_;
+		desiredVel_ = (approachDir_ + avoidance);
+		float d = desiredVel_.length();
+		if (d < 1e-4f) {
+			desiredVel_ = approachDir_;
 		} else {
-			desiredVel_ /= tmpLen;
+			desiredVel_ /= d;
 		}
 		// Slow down when avoidance is strong.
-		desiredVel_ *= desiredSpeed * std::clamp(1.0f - pushStrength*0.05f, 0.5f, 1.0f);
+		desiredVel_ *= desiredSpeed * std::clamp(1.0f - avoidanceStrength*0.05f, 0.5f, 1.0f);
 	} else {
-		desiredVel_ = desiredDir_ * desiredSpeed;
+		desiredVel_ = approachDir_ * desiredSpeed;
 	}
 
 	// First assume current vel, then blend toward desired vel
-	Vec3f velDir = currentVel_;
-	tmpLen = velDir.length();
-	if (tmpLen > 1e-4f) velDir /= tmpLen;
+	currentVelDir_ = currentVel_;
+	currentSpeed_ = currentVelDir_.length();
+	if (currentSpeed_ > 1e-4f) currentVelDir_ /= currentSpeed_;
 
 	// Update position by following the desired velocity
-	float angleDiff = acos(std::clamp(desiredVel_.dot(velDir), -1.0f, 1.0f));
+	float angleDiff = acos(std::clamp(desiredVel_.dot(currentVelDir_), -1.0f, 1.0f));
 	float blendFactor = std::clamp(0.1f + (angleDiff / M_PIf) * 0.4f, 0.1f, 0.5f);
 	// Note: avoid rapid changes in velocity by blending with current vel
 	currentVel_ = math::lerp(currentVel_, desiredVel_, blendFactor);
-
-	// Finally, advance the position
-	currentPos_ += currentVel_ * lastDT_;
-	float desiredHeight = getHeight(currentPos2D);
-#ifdef USE_HEIGHT_SMOOTHING
-	// Smooth height changes over time.
-	currentPos_.y = math::lerp(currentPos_.y, desiredHeight,
-		std::clamp(lastDT_ * heightSmoothFactor_, 0.0, 1.0));
-#else
-	currentPos_.y = desiredHeight;
-#endif
 }
 
-void NavigationController::updateControllerOrientation() {
-	const float desiredSpeed = (isWalking_ ? walkSpeed_ : runSpeed_);
-	const Vec2f currentPos2D(currentPos_.x, currentPos_.z);
-
-	if (navModeMask_ & APPROACHING) {
-		// Compute curve tangent
-		Vec2f bezierTan2 = bezierPath_.tangent(curveTime_);
-		desiredDir_.x = bezierTan2.x;
-		desiredDir_.y = 0.0f;
-		desiredDir_.z = bezierTan2.y;
-	}
-	else if (navModeMask_ & FLOCKING) {
-		// Orient in direction of group center.
-		Vec2f groupDir = navGroup_->groupCenter2D() - currentPos2D;
-		desiredDir_.x = groupDir.x;
-		desiredDir_.y = 0.0f;
-		desiredDir_.z = groupDir.y;
-	} else {
-		// maintain current direction
-		return;
-	}
-	float tmpLen = desiredDir_.length();
-	if (tmpLen > 1e-6f) desiredDir_ /= tmpLen;
-
-	// compute velocity direction (if moving)
-	Vec3f velDir(currentVel_.x, 0.0f, currentVel_.z);
-	tmpLen = velDir.length();
-	if (tmpLen > 1e-4f) velDir /= tmpLen;
-
+void NavigationController::updateNavOrientation(const Vec2f &currentPos2D, float desiredSpeed) {
 	// Blend velocity direction and path tangent to form a stable target direction.
 	// Idea: when moving fast, prefer velocity; when slow, prefer path tangent.
-	float vWeight = std::clamp(tmpLen / (desiredSpeed + 1e-6f), 0.0f, 1.0f); // 0..1
+	float vWeight = std::clamp(currentSpeed_ / (desiredSpeed + 1e-6f), 0.0f, 1.0f); // 0..1
 	float velBlend = vWeight * velOrientationWeight_; // in [0,1]
 	// clamp rotation speed (radians per second)
 	float maxDeltaThisFrame = maxTurn_ * lastDT_;
 
-	if (!(navModeMask_ & APPROACHING)) {
-		velBlend = 0.0f;
-		maxDeltaThisFrame *= 2.0f;
-	}
-
-#if 0
 	// Reduce influence of velocity when close to target, and
 	// when we are approaching the last waypoint of the current path.
-	bool isAtLastWP = (currentPathIndex_ + 1 == currentPath_.size());
-	if (isAtLastWP) {
-		float distToGoal = (bezierPath_.p3 - currentPos2D).lengthSquared();
-		float approachThresholdSq = 5.0f * 5.0f;
-		float goalProximity = std::clamp(1.0f - distToGoal / approachThresholdSq, 0.0f, 1.0f);
-		velBlend *= (1.0f - goalProximity);
-		// allow faster turning when close to goal
-		maxDeltaThisFrame += 2.0f * goalProximity * maxDeltaThisFrame;
+	if (currentPathIndex_ + 1 == currentPath_.size() || currentPath_.empty()) {
+		const float distToGoal = (curvePath_.p3 - currentPos2D).lengthSquared();
+		const float goalProximity = std::clamp(1.0f - distToGoal / personalSpaceSq_, 0.0f, 1.0f);
+		if (goalProximity > 1e-4f) {
+			velBlend *= (1.0f - goalProximity);
+			// allow faster turning when close to goal
+			maxDeltaThisFrame += turnFactorPersonalSpace_ * goalProximity * maxDeltaThisFrame;
+			// Final orientation blending toward goal
+			desiredDir_ = math::lerp(desiredDir_, curveEndDir_, goalProximity);
+			const float tmpLen = desiredDir_.length();
+			if (tmpLen > 1e-6f) desiredDir_ /= tmpLen;
+		}
 	}
-#endif
 
 	// compute blended direction
-	Vec3f blendedDir;
-	if (velDir.lengthSquared() > 1e-5f) {
-		blendedDir = desiredDir_ * (1.0f - velBlend) + velDir * velBlend;
-	} else {
-		blendedDir = desiredDir_;
-	}
-	// safety: fallback to tangent if blended is too small
-	tmpLen = blendedDir.length();
-	if (tmpLen < 1e-4f) {
-		blendedDir = desiredDir_;
-	} else {
-		blendedDir /= tmpLen;
+	Vec3f blendedDir = desiredDir_;
+	if (currentSpeed_ > 1e-4f) {
+		blendedDir *= (1.0f - velBlend);
+		blendedDir += currentVelDir_ * velBlend;
+		// safety: fallback to tangent if blended is too small
+		float tmpLen = blendedDir.length();
+		if (tmpLen > 1e-4f) blendedDir /= tmpLen;
 	}
 
 	// compute target yaw (world yaw)
@@ -489,14 +392,86 @@ void NavigationController::updateControllerOrientation() {
 	currentDir_.x = prevYaw + deltaYaw - baseOrientation_;
 }
 
+void NavigationController::updateNavController() {
+	const Vec2f currentPos2D(currentPos_.x, currentPos_.z);
+	float desiredSpeed = (isWalking_ ? walkSpeed_ : runSpeed_);
+	float tmpLen;
+
+	if (navModeMask_ & APPROACHING) {
+		// Compute next step along the Bezier curve, and the approach direction
+		// from current position to that point.
+		auto bezierSample = curvePath_.sample(curveTime_);
+		approachDir_.x = bezierSample.x - currentPos_.x;
+		approachDir_.y = 0.0f;
+		approachDir_.z = bezierSample.y - currentPos_.z;
+		tmpLen = approachDir_.length();
+		if (tmpLen < 1e-4f) { return; }
+		approachDir_ /= tmpLen;
+
+		// Compute curve tangent, this is the desired direction along the path.
+		const Vec2f bezierTan2 = curvePath_.tangent(curveTime_);
+		desiredDir_.x = bezierTan2.x;
+		desiredDir_.y = 0.0f;
+		desiredDir_.z = bezierTan2.y;
+		tmpLen = desiredDir_.length();
+		if (tmpLen > 1e-6f) desiredDir_ /= tmpLen;
+	} else if (navModeMask_ & FLOCKING) {
+		approachDir_ = Vec3f::zero();
+		// Orient in direction of group center.
+		Vec2f groupDir = navGroup_->groupCenter2D() - currentPos2D;
+		desiredDir_.x = groupDir.x;
+		desiredDir_.y = 0.0f;
+		desiredDir_.z = groupDir.y;
+		tmpLen = desiredDir_.length();
+		if (tmpLen > 1e-6f) desiredDir_ /= tmpLen;
+	} else {
+		approachDir_ = Vec3f::zero();
+		desiredDir_ = Vec3f::zero();
+	}
+	currentForce_ = Vec3f::zero();
+
+	// Compute avoidance vector
+	Vec3f avoidance = navCollision_ * collisionWeight_;
+	float avoidanceStrength = collisionStrength_;
+	if (!(navModeMask_ & APPROACHING)) {
+		// Reduce avoidance influence when not approaching.
+		avoidance *= 0.05f;
+		avoidanceStrength *= 0.05f;
+	}
+	updateNavFlocking();
+	avoidance += navFlocking_;
+	avoidanceStrength += flockingStrength_;
+
+	// Compute new velocity
+	updateNavVelocity(desiredSpeed, avoidance, avoidanceStrength);
+
+	// Advance the position
+	currentPos_ += currentVel_ * lastDT_;
+	float desiredHeight = getHeight(currentPos2D);
+#ifdef USE_HEIGHT_SMOOTHING
+	// Smooth height changes over time.
+	currentPos_.y = math::lerp(currentPos_.y, desiredHeight,
+		std::clamp(lastDT_ * heightSmoothFactor_, 0.0, 1.0));
+#else
+	currentPos_.y = desiredHeight;
+#endif
+
+	// Update orientation
+	updateNavOrientation(currentPos2D, desiredSpeed);
+}
+
 void NavigationController::animate(GLdouble dt) {
-	if (navModeMask_ == NO_NAVIGATION) return;
+	if (navModeMask_ == NO_NAVIGATION) {
+		currentVel_ = Vec3f::zero();
+		currentSpeed_ = 0.0f;
+		return;
+	}
 	lastDT_ = dt / 1000.0;
 	approachTime_ += static_cast<float>(lastDT_);
 	if (navModeMask_ & APPROACHING) {
 		// Approaching target along Bezier curve
 		frameTime_ = approachTime_ / approachDuration_;
-		curveTime_ = math::Bezier<Vec2f>::lookupParameter(bezierLUT_, frameTime_);
+		curveTime_ = math::Bezier<Vec2f>::lookupParameter(curveLUT_, frameTime_);
 	}
 
 	if (hasNewPerception_) {
@@ -504,11 +479,8 @@ void NavigationController::animate(GLdouble dt) {
 	} else {
 		// Blend-out avoidance with velocity over time when no new perception frame arrived.
 		// This avoids that avoidance "sticks" too long.
-		navAvoidance_ *= std::max(0.0f, 1.0f - avoidanceDecay_ * static_cast<float>(lastDT_));
+		navCollision_ *= std::max(0.0f, 1.0f - avoidanceDecay_ * static_cast<float>(lastDT_));
 	}
-
-	updateControllerVelocity();
-	updateControllerOrientation();
 
 #if 0
 	const float replanThresholdSq = 100.0f;
@@ -529,6 +501,8 @@ void NavigationController::animate(GLdouble dt) {
 		// Approaching duration completed
 		navModeMask_ &= ~APPROACHING;
 	}
+
+	updateNavController();
 
 	Quaternion q(0.0, 0.0, 0.0, 1.0);
 	q.setEuler(currentDir_.x, currentDir_.y, currentDir_.z);

@@ -5,7 +5,7 @@
 #include <vector>
 #include <regen/math/vector.h>
 #include <regen/utility/ref-ptr.h>
-#include "world/world-model.h"
+#include "../world/world-model.h"
 
 namespace regen {
 	/**

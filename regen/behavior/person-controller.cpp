@@ -1,6 +1,8 @@
 #include <random>
 #include "person-controller.h"
 
+#include "world/character-object.h"
+
 using namespace regen;
 
 //#define NAV_CTRL_DEBUG_WPS
@@ -31,10 +33,20 @@ PersonController::PersonController(
 	}
 	if (!knowledgeBase_.characterObject()) {
 		// auto create a world object for this character
-		auto wo = ref_ptr<CharacterObject>::alloc(REGEN_STRING("npc-" << tfIndexed.index));
+		auto wo = ref_ptr<NPCObject>::alloc(REGEN_STRING("npc-" << tfIndexed.index));
 		wo->setPosition(Vec3f::zero());
+		wo->setKnowledgeBase(&knowledgeBase_);
+		wo->setNPCController(this);
 		knowledgeBase_.setCharacterObject(wo.get());
 		worldModel_->addWorldObject(wo);
+	} else {
+		auto *wo = dynamic_cast<CharacterObject*>(knowledgeBase_.characterObject());
+		if (wo) {
+			wo->setKnowledgeBase(&knowledgeBase_);
+			wo->setNPCController(this);
+		} else {
+			REGEN_WARN("World object in NPC controller is not a CharacterObject.");
+		}
 	}
 
 	// randomize a bit to avoid all NPCs deciding and perceiving in
@@ -155,13 +167,6 @@ void PersonController::updateController(double dt) {
 		// Insert new percepts into the knowledge base, and update existing ones.
 		perceptionSystem_->update(knowledgeBase_, timeSinceLastPerception_s_);
 		timeSinceLastPerception_s_ = 0.0f;
-		if (kb.characterObject()->hasCurrentGroup()) {
-			// Update group center for the "leader" of the group, which is
-			// the first member of the group.
-			if (kb.characterObject()->currentGroupIndex()==0) {
-				kb.characterObject()->currentGroup()->updateGroupCenter();
-			}
-		}
 	}
 	// Do some controller specific updates to the knowledge base.
 	updateKnowledgeBase(dt_s);
@@ -195,11 +200,22 @@ void PersonController::updateController(double dt) {
 		// Update blackboard and make some actions current.
 		auto behaviorStatus = behaviorTree_->tick(kb, timeSinceLastDecision_s_);
 		if (behaviorStatus == BehaviorStatus::FAILURE) {
-			REGEN_WARN("[" << tfIdx_ << "] Behavior tree returned FAILURE.");
+			REGEN_WARN("[" << tfIdx_ << "] Behavior tree returned FAILURE " <<
+				" linger time: " << kb.lingerTime() <<
+				" activity time: " << kb.activityTime());
 			//setIdle();
 		}
 		timeSinceLastDecision_s_ = 0.0f;
+
+		bool hasNavigatingAction = kb.isCurrentAction(ActionType::NAVIGATING);
+		bool hasPatrollingAction = kb.isCurrentAction(ActionType::PATROLLING);
+		bool hasStrollingAction = kb.isCurrentAction(ActionType::STROLLING);
+		bool hasApproachAction = (hasNavigatingAction || hasPatrollingAction || hasStrollingAction);
+		if (!hasApproachAction && !isStandingStill()) {
+			kb.setCurrentAction(ActionType::WALKING);
+		}
 	}
+
 	// Update the state of current bone animations based on current actions, intends etc.
 	boneController_->updateBoneController(knowledgeBase_, dt_s);
 	// Update path etc. for navigation action.
@@ -302,6 +318,26 @@ void PersonController::updateNavigationBehavior() {
 		stopNavigation();
 		return;
 	}
+
+	bool hasApproachChanged = (
+		hasNavigatingAction != hasNavigatingAction_ ||
+		hasPatrollingAction != hasPatrollingAction_ ||
+		hasStrollingAction != hasStrollingAction_
+		);
+	if (hasApproachChanged && hasApproachAction) {
+		// Make sure to reset path in case the navigation mode changed.
+		// e.g. when NAVIGATE is still active when PATROL is selected,
+		// we might end up with continuing with NAVIGATE path is we don't clear
+		// here.
+		currentPath_.clear();
+		// Also unset the navigation target in case of looped navigation
+		if (hasApproachLoop) {
+			kb.unsetNavigationTarget();
+		}
+	}
+	hasNavigatingAction_ = hasNavigatingAction;
+	hasPatrollingAction_ = hasPatrollingAction;
+	hasStrollingAction_ = hasStrollingAction;
 
 	if (kb.isCurrentAction(ActionType::FLOCKING)) {
 		auto &group = kb.currentGroup();
@@ -406,9 +442,6 @@ bool PersonController::startNavigate(bool loopPath, bool advancePath) {
 	}
 	auto currentPos2D = Vec2f(currentPos_.x, currentPos_.z);
 	// Compute a path to the target.
-#ifdef NAV_CTRL_DEBUG_WPS
-	REGEN_INFO("[" << tfIdx_ << "] Planning path to place " << targetPlace->name());
-#endif
 	currentPath_ = pathPlanner_->findPath(currentPos2D, targetPlace->position2D());
 	// Add a waypoint within the target place which is close to the last waypoint.
 	if (currentPath_.empty()) {
@@ -423,6 +456,10 @@ bool PersonController::startNavigate(bool loopPath, bool advancePath) {
 		if (arrivalWP.get()) currentPath_.push_back(arrivalWP);
 	}
 	currentPathIndex_ = 0;
+#ifdef NAV_CTRL_DEBUG_WPS
+	REGEN_INFO("[" << tfIdx_ << "] Planned path to place " << targetPlace->name()
+			<< " num WPs: " << currentPath_.size());
+#endif
 	return updatePathNPC();
 }
 
@@ -433,15 +470,12 @@ Vec2f PersonController::pickTravelPosition(const WorldObject &wp) const {
 		return baseTarget;
 	} else {
 		// Pick an angle roughly facing *towards* the waypoint from the NPC's current position
-		Vec2f npcPos(currentPos_.x, currentPos_.z);
-		Vec2f toWP = baseTarget - npcPos;
-		float angle = atan2(toWP.y, toWP.x);
+		Vec2f toWP = baseTarget - Vec2f(currentPos_.x, currentPos_.z);
+		float angle = atan2(toWP.y, toWP.x) - baseOrientation_;
 		// Allow a small angular variation (+-45°)
 		angle += (math::random<float>() - 0.5f) * (M_PI / 2.0f);
-		// Radius sampled between minimumDistance and radius
-		float r = wp.radius() * math::random<float>();
 		// Offset final target
-		return baseTarget + Vec2f(cos(angle), sin(angle)) * r;
+		return baseTarget + Vec2f(cos(angle), sin(angle)) * wp.radius() * math::random<float>();
 	}
 }
 

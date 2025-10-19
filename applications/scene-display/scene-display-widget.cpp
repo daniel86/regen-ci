@@ -1004,7 +1004,7 @@ static void handleAssetController(
 				}
 			}
 			if (footstepTrail.get()) {
-				float leftFootTime = animationNode->getValue<float>("left-foot-time", 0.2f);
+				float leftFootTime = animationNode->getValue<float>("left-foot-time", 0.25f);
 				float rightFootTime = animationNode->getValue<float>("right-foot-time", 0.8f);
 				personController->setFootstepTrail(footstepTrail, leftFootTime, rightFootTime);
 			}
@@ -1047,6 +1047,10 @@ static void handleAssetController(
 			if (animationNode->hasAttribute("group-separation-weight")) {
 				personController->setGroupSeparationWeight(
 					animationNode->getValue<float>("group-separation-weight", 5.0f));
+			}
+			if (animationNode->hasAttribute("turn-personal-space")) {
+				personController->setTurnFactorPersonalSpace(
+					animationNode->getValue<float>("turn-personal-space", 3.0f));
 			}
 			personController->setPushThroughDistance(
 				animationNode->getValue<float>("push-through-distance", 0.5f));

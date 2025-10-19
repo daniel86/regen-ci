@@ -242,8 +242,16 @@ static void setActionTime(Blackboard& kb, ActionType activity) {
 
 BehaviorStatus SelectPlaceActivity::tick(Blackboard& kb, float /*dt_s*/) {
 	auto &place = kb.currentPlace();
-	if (!place.get() || kb.lingerTime() <= 0.0f) {
+	if (kb.lingerTime() <= 0.0f) {
 		// No place, or time to leave
+		kb.setActivityTime(0.0f);
+		return BehaviorStatus::SUCCESS;
+	}
+	if (!place.get()) {
+		// No place, or time to leave
+#ifdef NPC_ACTIONS_DEBUG
+		REGEN_WARN("["<<kb.instanceId()<<"] No current place for activity selection.");
+#endif
 		return BehaviorStatus::FAILURE;
 	}
 	if (kb.activityTime() > 0.0f) {
@@ -308,8 +316,16 @@ static BehaviorStatus selectPatient(Blackboard &kb,
 
 BehaviorStatus SelectPlacePatient::tick(Blackboard& kb, float /*dt_s*/) {
 	auto &place = kb.currentPlace();
-	if (!place.get() || kb.lingerTime() <= 0.0f) {
-		// No place, or time to leave
+	if (kb.lingerTime() <= 0.0f) {
+		// No time left at this place
+		kb.setActivityTime(-1.0f);
+		return BehaviorStatus::SUCCESS;
+	}
+	if (!place.get()) {
+		// No place
+#ifdef NPC_ACTIONS_DEBUG
+		REGEN_WARN("["<<kb.instanceId()<<"] No current place for activity selection.");
+#endif
 		return BehaviorStatus::FAILURE;
 	}
 	ActionType desiredAction = kb.desiredAction();
@@ -387,6 +403,10 @@ BehaviorStatus SetPatient::tick(Blackboard &kb, float /*dt_s*/) {
 
 BehaviorStatus UnsetPatient::tick(Blackboard &kb, float /*dt_s*/) {
 	if (kb.interactionTarget().object.get()) {
+#ifdef NPC_ACTIONS_DEBUG
+		REGEN_INFO("["<<kb.instanceId()<<"] Unsetting patient '" <<
+			kb.interactionTarget().object->name() << "'.");
+#endif
 		kb.unsetInteractionTarget();
 	}
 	return BehaviorStatus::SUCCESS;
@@ -396,7 +416,8 @@ BehaviorStatus MoveToTargetPlace::tick(Blackboard &kb, float /*dt_s*/) {
 	if (kb.lingerTime() <= 0.0f) {
 		// Unable to reach in time.
 		kb.unsetNavigationTarget();
-		return BehaviorStatus::FAILURE;
+		kb.setActivityTime(-1.0f);
+		return BehaviorStatus::SUCCESS;
 	}
 	if (kb.navigationTarget().object.get() == kb.targetPlace().get()) {
 		if (kb.distanceToTarget() < kb.targetPlace()->radius()) {
@@ -424,18 +445,25 @@ BehaviorStatus MoveToTargetPlace::tick(Blackboard &kb, float /*dt_s*/) {
 }
 
 BehaviorStatus MoveToLocation::tick(Blackboard& kb, float /*dt_s*/) {
-	if (kb.lingerTime() <= 0.0f) {
+	if (kb.lingerTime() <= 0.0f && kb.activityTime() <= 0.0f) {
 		// Unable to reach in time.
+		kb.unsetNavigationTarget();
+		return BehaviorStatus::SUCCESS;
+	}
+	auto &location = kb.interactionTarget().object;
+	if (!location.get()) {
+		REGEN_WARN("["<<kb.instanceId()<<"] No interaction target set.");
 		kb.unsetNavigationTarget();
 		return BehaviorStatus::FAILURE;
 	}
-	auto &location = kb.interactionTarget().object;
 	if (location->objectType() != ObjectType::LOCATION) {
 		REGEN_WARN("["<<kb.instanceId()<<"] Interaction target is not a location.");
 		kb.unsetNavigationTarget();
 		return BehaviorStatus::FAILURE;
 	}
-	if (kb.navigationTarget().object.get() && location.get()) {
+	// Note: we do not move to the affordance, but rather into the broad location space.
+	if (kb.navigationTarget().object.get()
+			&& location.get() == kb.navigationTarget().object.get()) {
 		if (kb.distanceToTarget() < location->radius() * 0.75f) {
 			// Reached location.
 			kb.unsetNavigationTarget();
@@ -464,9 +492,12 @@ BehaviorStatus MoveToGroup::tick(Blackboard& kb, float /*dt_s*/) {
 	if (!kb.isPartOfGroup()) {
 		// Not in a group.
 		kb.unsetNavigationTarget();
+#ifdef NPC_ACTIONS_DEBUG
+		REGEN_WARN("["<<kb.instanceId()<<"] Not part of a group in MoveToGroup.");
+#endif
 		return BehaviorStatus::FAILURE;
 	}
-	if (kb.lingerTime() <= 0.0f) {
+	if (kb.lingerTime() <= 0.0f && kb.activityTime() <= 0.0f) {
 		// Unable to reach in time.
 		kb.unsetNavigationTarget();
 		return BehaviorStatus::SUCCESS;
@@ -505,7 +536,7 @@ static float getReachRadius(const Blackboard &kb, const Patient &patient) {
 BehaviorStatus MoveToPatient::tick(Blackboard& kb, float /*dt_s*/) {
 	if (!kb.interactionTarget().object) {
 		// no patient set.
-		REGEN_WARN("["<<kb.instanceId()<<"] No patient set in MoveToPatient.");
+		REGEN_WARN("["<<kb.instanceId()<<"] No patient set.");
 		kb.unsetInteractionTarget();
 		kb.unsetNavigationTarget();
 		return BehaviorStatus::FAILURE;
@@ -526,7 +557,9 @@ BehaviorStatus MoveToPatient::tick(Blackboard& kb, float /*dt_s*/) {
 		return BehaviorStatus::SUCCESS;
 	}
 	auto currentNavTarget = kb.navigationTarget().object.get();
-	if (currentNavTarget == kb.interactionTarget().object.get()) {
+	if (currentNavTarget == kb.interactionTarget().object.get() &&
+			kb.navigationTarget().affordance.get() == kb.interactionTarget().affordance.get() &&
+			kb.navigationTarget().affordanceSlot == kb.interactionTarget().affordanceSlot) {
 		// Already moving to patient.
 		kb.setCurrentAction(ActionType::NAVIGATING);
 		return BehaviorStatus::RUNNING;
@@ -575,16 +608,16 @@ BehaviorStatus PerformAffordedAction::tick(Blackboard& kb, float /*dt_s*/) {
 		REGEN_WARN("["<<kb.instanceId()<<"] No valid patient or affordance in PerformAffordedAction.");
 		return BehaviorStatus::FAILURE;
 	}
+	if (kb.activityTime() <= 0.0f) {
+		// Time ran out, stop action.
+		kb.unsetInteractionTarget();
+		return BehaviorStatus::SUCCESS;
+	}
 	if (kb.distanceToPatient() > getReachRadius(kb, patient)) {
 		// Not in reach of the affordance -> failure.
 		// Usually you want to have PerformAffordedAction in a selection followed by MoveToPatient
 		// which will become active in this case.
 		return BehaviorStatus::FAILURE;
-	}
-	if (kb.activityTime() <= 0.0f) {
-		// Time ran out, stop action.
-		kb.unsetInteractionTarget();
-		return BehaviorStatus::SUCCESS;
 	}
 	// Make afforded action current, this will make the controller play the action animation.
 	kb.setCurrentAction(patient.affordance->type);
@@ -677,7 +710,6 @@ BehaviorStatus LeaveLocation::tick(Blackboard &kb, float /*dt_s*/) {
 #ifdef NPC_ACTIONS_DEBUG
 		REGEN_INFO("["<<kb.instanceId()<<"] Leaving current location '" << kb.currentLocation()->name() << "'.");
 #endif
-		kb.leaveCurrentGroup();
 		kb.unsetCurrentLocation();
 	}
 	return BehaviorStatus::SUCCESS;

@@ -30,13 +30,17 @@ namespace regen {
 		// Otherwise, return FAILURE.
 		BehaviorStatus tick(Blackboard& bb, float dt_s) override {
 			if (cond->evaluate(bb)) {
-				// TODO: add condition node exclusive flag that succeeds if child fails?
-				//   that would avoid falling into other branches that then would require negative
-				//   conditions to block.
-				//   Or else maybe a if-then-else construct?
-				return child->tick(bb, dt_s);
+				auto childStatus = child->tick(bb, dt_s);
+				// In case of "exclusive" conditions, we want to prevent that neighbor branches
+				// are activated in case the subtree of the condition fails which would
+				// happen in case of forwarding the FAILURE status.
+				if (childStatus == BehaviorStatus::FAILURE && cond->isExclusive()) {
+					return BehaviorStatus::SUCCESS;
+				} else {
+					return childStatus;
+				}
 			}
-			return BehaviorStatus::FAILURE;
+			return cond->failureStatus();
 		}
 	};
 
@@ -313,7 +317,7 @@ namespace regen {
 	protected:
 		// Evaluate to true if the agent is part of a social group.
 		bool doEvaluate(const Blackboard& kb) const override {
-			return (kb.currentGroup().get() != nullptr) && (kb.currentGroup()->numMembers() > 1);
+			return (kb.currentGroup().get() != nullptr); // && (kb.currentGroup()->numMembers() > 1);
 		}
 	};
 

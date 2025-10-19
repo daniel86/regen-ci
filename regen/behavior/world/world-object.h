@@ -197,36 +197,6 @@ namespace regen {
 		float currentDistance = std::numeric_limits<float>::max();
 	};
 
-	class CharacterObject : public WorldObject {
-	public:
-		explicit CharacterObject(std::string_view name) :
-			WorldObject(name) {
-			objectType_ = ObjectType::CHARACTER;
-			isStatic_ = false;
-		}
-		~CharacterObject() override = default;
-	};
-
-	class AnimalObject : public WorldObject {
-	public:
-		explicit AnimalObject(std::string_view name) :
-			WorldObject(name) {
-			objectType_ = ObjectType::ANIMAL;
-			isStatic_ = false;
-		}
-		~AnimalObject() override = default;
-	};
-
-	class PlayerObject : public WorldObject {
-	public:
-		explicit PlayerObject(std::string_view name) :
-			WorldObject(name) {
-			objectType_ = ObjectType::PLAYER;
-			isStatic_ = false;
-		}
-		~PlayerObject() override = default;
-	};
-
 	std::ostream &operator<<(std::ostream &out, const ObjectType &v);
 
 	std::istream &operator>>(std::istream &in, ObjectType &v);

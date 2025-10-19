@@ -67,7 +67,7 @@ void Blackboard::setNavigationTarget(const ref_ptr<WorldObject> &obj, const ref_
 		if (allSame) {
 			return; // already set
 		} else {
-			unsetInteractionTarget();
+			unsetNavigationTarget();
 		}
 	}
 	navigationTarget_.object = obj;
@@ -111,6 +111,12 @@ void Blackboard::addPlaceOfInterest(const ref_ptr<Place> &place)  {
 	places_[static_cast<int>(place->placeType())].push_back(place);
 }
 
+void Blackboard::unsetCurrentPlace() {
+	unsetInteractionTarget();
+	unsetCurrentLocation();
+	currentPlace_ = {};
+}
+
 void Blackboard::setCurrentLocation(const ref_ptr<Location> &loc) {
 	unsetCurrentLocation();
 	currentLocation_ = loc;
@@ -121,21 +127,18 @@ void Blackboard::setCurrentLocation(const ref_ptr<Location> &loc) {
 }
 
 void Blackboard::unsetCurrentLocation() {
+	leaveCurrentGroup();
 	if (currentLocation_.get()) {
 		currentLocation_->removeVisitor(characterObject_);
 		characterObject_->unsetCurrentLocation();
 		currentLocation_ = {};
 	}
-	leaveCurrentGroup();
 }
 
 void Blackboard::leaveCurrentGroup() {
 	auto group = currentGroup();
 	if (group.get()) {
 		characterObject_->leaveCurrentGroup();
-		if (group->numMembers() == 0 && currentLocation_.get()) {
-			currentLocation_->removeGroup(group.get());
-		}
 	}
 }
 
@@ -151,7 +154,5 @@ ref_ptr<ObjectGroup> Blackboard::formGroup(ActionType groupActivity, WorldObject
 	}
 	characterObject_->joinGroup(group);
 	other->joinGroup(group);
-	// Compute initial group center.
-	group->updateGroupCenter();
 	return group;
 }

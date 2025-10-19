@@ -1,5 +1,7 @@
 #include "world-object.h"
 #include <regen/objects/mesh-state.h>
+
+#include "character-object.h"
 #include "regen/scene/resource-manager.h"
 
 using namespace regen;
@@ -128,8 +130,16 @@ void WorldObject::setCurrentLocationIndex(int32_t locIdx) {
 
 void WorldObject::leaveCurrentGroup() {
 	if (currentGroup_.get()) {
+		auto group = currentGroup_;
 		currentGroup_->removeMember(this);
 		currentGroup_ = {};
+		if (group->numMembers() == 0) {
+			// remove empty group from location
+			if (group->currentLocation().get()) {
+				group->currentLocation()->removeGroup(group.get());
+				group->setCurrentLocation({});
+			}
+		}
 	}
 }
 
@@ -176,7 +186,7 @@ ref_ptr<WorldObject> WorldObject::load(LoadingContext &ctx, scene::SceneInputNod
 	}
 	ref_ptr<WorldObject> wo;
 	if (type == ObjectType::CHARACTER) {
-		wo = ref_ptr<CharacterObject>::alloc(n.getName());
+		wo = ref_ptr<PersonObject>::alloc(n.getName());
 	} else if (type == ObjectType::ANIMAL) {
 		wo = ref_ptr<AnimalObject>::alloc(n.getName());
 	} else if (type == ObjectType::PLAYER) {

@@ -44,7 +44,7 @@
                     <affordance type="converse" max-participants="8" max-group-size="3" />
                     <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
                 </object>
-                <object id="meeting-point1" type="location" point="35.0,45.0" radius="10.0">
+                <object id="village-a-meet-up" type="location" point="35.0,45.0" radius="10.0">
                     <affordance type="converse" max-participants="6" max-group-size="6" />
                 </object>
                 <object id="crates" point="16.8,45.0" radius="5.0">
@@ -80,7 +80,7 @@
                     <affordance type="converse" max-participants="8" max-group-size="3" />
                     <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
                 </object>
-                <object id="meeting-point1" type="location" point="35.0,45.0" radius="10.0">
+                <object id="village-b-meet-up" type="location" point="35.0,45.0" radius="10.0">
                     <affordance type="converse" max-participants="6" max-group-size="6" />
                 </object>
                 <object id="crates" point="35.0,-35.0" radius="5.0">
@@ -106,10 +106,10 @@
                 </path>
             </place>
             <place id="shrine" type="spiritual" point="{{shrine-center}}" radius="120.0">
-                <object id="meeting-point1" type="location" point="90.0,25.0" radius="15.0">
+                <object id="shrine-meet-up1" type="location" point="90.0,25.0" radius="15.0">
                     <affordance type="converse" max-participants="12" max-group-size="4" />
                 </object>
-                <object id="meeting-point2" type="location" point="-90.0,25.0" radius="15.0">
+                <object id="shrine-meet-up2" type="location" point="-90.0,25.0" radius="15.0">
                     <affordance type="converse" max-participants="12" max-group-size="4" />
                 </object>
                 <path type="stroll" radius="5.0">
@@ -135,10 +135,10 @@
             </place>
             <place id="market" type="gathering" point="{{market-x}},{{market-z}}" radius="80.0">
                 <object id="market-square" type="location" point="0.0,0.0" radius="20.0">
-                    <affordance type="converse" max-participants="12" max-group-size="4" />
+                    <affordance type="converse" radius="19.0" max-participants="12" max-group-size="4" />
                     <affordance type="observe" num-slots="14" radius="20.0" min-distance="4.0"/>
                 </object>
-                <object id="meeting-point1" type="location" point="40.0,-35.0" radius="10.0">
+                <object id="market-meet-up1" type="location" point="40.0,-35.0" radius="10.0">
                     <affordance type="converse" max-participants="6" max-group-size="6" />
                 </object>
                 <object id="training-spectators" point="{{market-training-x}},{{market-training-z}}" radius="25.0">
@@ -202,6 +202,8 @@
                         indexed-shape="dwarf-shape"
                         spatial-index="main-index"
                         footstep-mesh="dwarf-foot"
+                        left-foot-time="0.3"
+                        right-foot-time="0.8"
                         height-map="ground-height"
                         decision-interval="0.25"
                         perception-interval="0.1"
@@ -251,12 +253,16 @@
                             </sequence>
                             <sequence id="place-activity">
                                 <action type="SelectTargetPlace"/>
-                                <selector id="engage-place">
+                                <sequence id="engage-place">
+                                    <action type="MoveToTargetPlace">
+                                        <condition type="predicate" id="IsAtTargetPlace" negate="1" on-failure="SUCCESS"/>
+                                    </action>
+                                    <!--
                                     <sequence id="move-to-place">
-                                        <!-- Move to the selected place if not already there. -->
                                         <condition type="predicate" id="IsAtTargetPlace" negate="1"/>
                                         <action type="MoveToTargetPlace"/>
                                     </sequence>
+                                    -->
                                     <sequence id="at-place">
                                         <condition type="predicate" id="IsAtTargetPlace"/>
                                         <!-- Set desired action based on environment affordances, traits etc. -->
@@ -266,7 +272,7 @@
                                                 <!-- Walk around without specific goal besides the walking.
                                                      For this we just need to make the action current, and the controller
                                                      will pick up a navigation path at the current place. -->
-                                                <condition type="disjunction">
+                                                <condition type="disjunction" exclusive="1">
                                                     <condition type="predicate" id="HasDesiredActivity" value="STROLL"/>
                                                     <condition type="predicate" id="HasDesiredActivity" value="PATROL"/>
                                                     <condition type="predicate" id="HasDesiredActivity" value="IDLE"/>
@@ -275,7 +281,7 @@
                                                 <action type="PerformDesiredAction"/>
                                             </sequence>
                                             <sequence id="socialize">
-                                                <condition type="predicate" id="HasDesiredActivity" value="CONVERSE" />
+                                                <condition type="predicate" id="HasDesiredActivity" value="CONVERSE" exclusive="1" />
                                                 <!-- <condition type="isSocialAffordance"/> -->
                                                 <action type="SelectPlaceLocation"/>
                                                 <selector>
@@ -284,6 +290,9 @@
                                                     </action>
                                                     <selector>
                                                         <condition type="predicate" id="IsAtDesiredLocation"/>
+                                                        <action type="LeaveGroup">
+                                                            <condition type="predicate" id="IsLastGroupMember" />
+                                                        </action>
                                                         <sequence>
                                                             <action type="FormLocationGroup"/>
                                                             <sequence>
@@ -305,15 +314,25 @@
                                             <sequence id="use-affordance">
                                                 <!-- Engage with the environment by using an affordance. -->
                                                 <action type="LeaveGroup" />
-                                                <action type="SelectPlacePatient"/>
-                                                <selector id="engage-affordance">
-                                                    <action type="PerformAffordedAction"/>
-                                                    <action type="MoveToPatient" />
+                                                <selector>
+                                                    <sequence>
+                                                        <action type="SelectPlacePatient"/>
+                                                        <selector id="engage-affordance">
+                                                            <action type="PerformAffordedAction"/>
+                                                            <action type="MoveToPatient" />
+                                                        </selector>
+                                                    </sequence>
+                                                    <sequence>
+                                                        <!-- No valid affordance found, just idle. This usually means
+                                                             that all affordances are used at the moment. -->
+                                                        <action type="UnsetPatient" />
+                                                        <action type="PerformAction" value="IDLE" max-duration="5.0" />
+                                                    </sequence>
                                                 </selector>
                                             </sequence>
                                         </selector>
                                     </sequence>
-                                </selector>
+                                </sequence>
                             </sequence>
                         </selector>
                     </selector>
@@ -664,7 +683,7 @@
         <material preset="stone" variant="0"/>
         <transform id="ground-blanket-tf" update-frequency="NEVER">
             <translate value="20.0,-32.0,15.0"/>
-            <translate value="0.0,0.0,0.0"/>
+            <translate value="0.0,0.1,0.0"/>
         </transform>
         <shape id="ground-blanket-shape" cull="1" index="1" type="aabb"
                box-size="20.0,{{map-height}},20.0"
@@ -678,21 +697,6 @@
         <define key="USE_VERTEX_NOISE" value="TRUE"/>
         <input type="float" name="noiseScale" value="0.005"/>
         <texture name="noiseTexture" id="ground-noise"/>
-        <!--
-        <node id="Ground-Depth">
-            <depth write="1" test="1" />
-            <define key="OUTPUT_TYPE" value="DEPTH"/>
-            <input name="modelOffset" type="vec3" value="0.0,-2.0,0.0"/>
-            <mesh id="ground-mesh" mesh-index="0" update-visibility="1"/>
-        </node>
-        <node id="Ground-Skirt">
-            <mesh id="ground-mesh" mesh-index="1" update-visibility="0"/>
-        </node>
-        <node id="Ground-Albedo">
-            <depth write="0" test="1" />
-            <mesh id="ground-mesh" mesh-index="0" update-visibility="0"/>
-        </node>
-        -->
         <node id="Ground">
             <mesh id="ground-mesh" mesh-index="0" update-visibility="1"/>
         </node>
@@ -702,13 +706,13 @@
     </node>
 
     <node id="Scene-Geometry">
-        <node import="Ground"/>
         <node id="Blanket">
             <input name="planeSize" type="vec2" value="{{map-size}},{{map-size}}"/>
             <texture name="heightTexture" id="ground-height" map-to="HEIGHT"
                      mapping="xz_plane" blend-mode="ADD" blend-factor="{{map-height}}"/>
             <mesh id="ground-blanket"/>
         </node>
+        <node import="Ground"/>
     </node>
 
     <!--**************************-->

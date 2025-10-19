@@ -76,6 +76,7 @@ BoneController::BoneController(uint32_t instanceIdx, const ref_ptr<BoneAnimation
 	actionToMotion_[static_cast<size_t>(ActionType::BLOCKING)] = { MotionType::BLOCK };
 	actionToMotion_[static_cast<size_t>(ActionType::SLEEPING)] = { MotionType::SLEEP };
 	actionToMotion_[static_cast<size_t>(ActionType::NAVIGATING)] = { MotionType::WALK };
+	actionToMotion_[static_cast<size_t>(ActionType::WALKING)] = { MotionType::WALK };
 	actionToMotion_[static_cast<size_t>(ActionType::PATROLLING)] = { MotionType::WALK };
 	actionToMotion_[static_cast<size_t>(ActionType::STROLLING)] = { MotionType::WALK };
 	actionToMotion_[static_cast<size_t>(ActionType::FLEEING)] = { MotionType::RUN };

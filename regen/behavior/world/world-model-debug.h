@@ -6,6 +6,7 @@
 #include "regen/states/state-configurer.h"
 #include "regen/utility/debug-interface.h"
 #include "world-model.h"
+#include "regen/math/bezier.h"
 
 namespace regen {
 	class WorldModelDebug : public StateNode, public HasShader, public DebugInterface {
@@ -19,6 +20,12 @@ namespace regen {
 		void drawCircle(const Vec3f &center, float radius, const Vec3f &color) override;
 
 		void drawCrossXZ(const Vec3f &center, float radius, const Vec3f &color);
+
+		void drawArrow(const Vec3f &origin, const Vec3f &direction, float length, const Vec3f &color);
+
+		void drawCurve(
+			const math::Bezier<Vec2f> &curve,
+			float height, int segments, const Vec3f &color);
 
 		// StateNode interface
 		void traverse(regen::RenderState *rs) override;

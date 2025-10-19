@@ -51,6 +51,8 @@ namespace regen {
 		 */
 		class Condition {
 			bool negated = false;
+			bool exclusive = false;
+			BehaviorStatus failureStatus_ = BehaviorStatus::FAILURE;
 		public:
 			virtual ~Condition() = default;
 
@@ -65,6 +67,31 @@ namespace regen {
 			 * @return true if negated, false otherwise.
 			 */
 			bool isNegated() const { return negated; }
+
+			/**
+			 * Set whether the condition excludes others on the same level if being true,
+			 * i.e. conditions within a common select node.
+			 * @param n true to exclusive, false otherwise.
+			 */
+			void setExclusive(bool n) { exclusive = n; }
+
+			/**
+			 * Check if the condition is exclusive.
+			 * @return true if exclusive, false otherwise.
+			 */
+			bool isExclusive() const { return exclusive; }
+
+			/**
+			 * Set the failure status to return if the condition is not met.
+			 * @param status the failure status.
+			 */
+			void setFailureStatus(BehaviorStatus status) { failureStatus_ = status; }
+
+			/**
+			 * Get the failure status.
+			 * @return the failure status.
+			 */
+			BehaviorStatus failureStatus() const { return failureStatus_; }
 
 			/**
 			 * Evaluate the condition against the given blackboard.
@@ -213,6 +240,10 @@ namespace regen {
 	std::ostream &operator<<(std::ostream &out, const BehaviorParallelNode::StatusMode &v);
 
 	std::istream &operator>>(std::istream &in, BehaviorParallelNode::StatusMode &v);
+
+	std::ostream &operator<<(std::ostream &out, const BehaviorStatus &v);
+
+	std::istream &operator>>(std::istream &in, BehaviorStatus &v);
 } // namespace
 
 #endif /* REGEN_BEHAVIOR_TREE_H_ */

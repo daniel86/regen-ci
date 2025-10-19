@@ -1,7 +1,5 @@
 #include "height-map.h"
 
-#define SMOOTH_HEIGHT
-
 using namespace regen;
 
 HeightMap::HeightMap() : Texture2D() {
@@ -29,13 +27,7 @@ void HeightMap::setMapFactor(float factor) {
 float HeightMap::sampleHeight(const Vec2f &pos) {
 	// compute UV for height map sampling
 	auto uv = (pos - mapCenter_) / mapSize_ + Vec2f(0.5f);
-#ifdef SMOOTH_HEIGHT
-	auto texelSize = Vec2f(1.0f / width(), 1.0f / height());
-	auto regionTS = texelSize * 8.0f;
-	auto mapValue = sampleAverage<float>(uv, regionTS, textureData());
-#else
 	auto mapValue = sampleLinear<float>(uv, textureData());
-#endif
 	mapValue *= mapFactor_;
 	// increase by small bias to avoid intersection with the floor
 	mapValue += 0.02f;

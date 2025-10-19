@@ -26,15 +26,21 @@ int32_t ObjectGroup::addMember(WorldObject *member) {
 	members_[numMembers_] = member;
 	member->setCurrentGroupIndex(numMembers_);
 	if (numMembers_ == 0) {
-		// set group position to first member plus an offset
-		groupCenter_ = members_[0]->position3D();
-		auto dir = (currentLocation()->position3D() - groupCenter_);
-		groupCenter_ += dir * (0.1f + math::random<float>() * 0.4f);
-		groupCenter2D_ = Vec2f(groupCenter_.x, groupCenter_.z);
-		pos_->setVertex(0, groupCenter_);
-		setRadius(10.0f);
+		updateGroupPosition();
 	}
 	return numMembers_++;
+}
+
+void ObjectGroup::updateGroupPosition() {
+	groupCenter_ = currentLocation()->position3D();
+	auto dir = (members_[0]->position3D() - groupCenter_);
+	dir.normalize();
+	groupCenter_ += dir * currentLocation()->radius() * (0.5f + math::random<float>() * 0.35f);
+	groupCenter_.y = members_[0]->position3D().y;
+	// TODO: ensure some distance from other groups in the location.
+	groupCenter2D_ = Vec2f(groupCenter_.x, groupCenter_.z);
+	pos_->setVertex(0, groupCenter_);
+	setRadius(currentLocation()->radius() * 0.5f);
 }
 
 void ObjectGroup::removeMember(WorldObject *member) {
@@ -49,15 +55,6 @@ void ObjectGroup::removeMember(WorldObject *member) {
 	}
 	members_[--numMembers_] = {};
 	member->setCurrentGroupIndex(-1);
-	if (memberIdx == 0 && numMembers_ > 0) {
-		// update group position to new first member
-		groupCenter_ = members_[0]->position3D();
-		auto dir = (currentLocation()->position3D() - groupCenter_);
-		groupCenter_ += dir * (0.1f + math::random<float>() * 0.4f);
-		groupCenter2D_ = Vec2f(groupCenter_.x, groupCenter_.z);
-		pos_->setVertex(0, groupCenter_);
-		setRadius(10.0f);
-	}
 }
 
 bool ObjectGroup::hasMember(const WorldObject *member) const {
@@ -66,30 +63,6 @@ bool ObjectGroup::hasMember(const WorldObject *member) const {
 
 bool ObjectGroup::isFull() const {
 	return numMembers_ >= maxGroupSize_;
-}
-
-void ObjectGroup::updateGroupCenter() {
-	/**
-	if (numMembers_ == 0) return;
-	groupBounds_.min = members_[0]->position3D();
-	groupBounds_.max = members_[0]->position3D();
-	for (int32_t i = 1; i < numMembers_; ++i) {
-		groupBounds_.min.setMin(members_[i]->position3D());
-		groupBounds_.max.setMax(members_[i]->position3D());
-	}
-	if (groupBounds_.contains(groupCenter_)) {
-		return;
-	}
-
-	// estimate radius based on diagonal of the bounding box
-	float diag = (groupBounds_.max - groupBounds_.min).length();
-	setRadius(diag * 0.625f);
-
-	// center is average of member positions
-	groupCenter_ = groupBounds_.center();
-	groupCenter2D_ = Vec2f(groupCenter_.x, groupCenter_.z);
-	pos_->setVertex(0, groupCenter_);
-	**/
 }
 
 bool ObjectGroup::isSpeaker(const WorldObject *member) const {

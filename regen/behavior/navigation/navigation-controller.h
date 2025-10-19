@@ -64,13 +64,22 @@ namespace regen {
 		 * set the personal space for avoidance.
 		 * @param space the personal space.
 		 */
-		void setPersonalSpace(float space) { personalSpace_ = space; }
+		void setPersonalSpace(float space) {
+			personalSpace_ = space;
+			personalSpaceSq_ = personalSpace_ * personalSpace_;
+		}
+
+		/**
+		 * set the turn factor for navigation within personal space.
+		 * @param v the turn factor.
+		 */
+		void setTurnFactorPersonalSpace(float v) { turnFactorPersonalSpace_ = v; }
 
 		/**
 		 * Set the weight for avoidance steering (0 = no avoidance, 1 = full avoidance).
 		 * @param weight the weight.
 		 */
-		void setAvoidanceWeight(float weight) { avoidanceWeight_ = weight; }
+		void setAvoidanceWeight(float weight) { collisionWeight_ = weight; }
 
 		/**
 		 * Set the distance where collisions are ignored when approaching goals.
@@ -158,37 +167,97 @@ namespace regen {
 		 */
 		void setHeightMap(const ref_ptr<HeightMap> &heightMap);
 
+		/**
+		 * Start approaching a target position from a source position.
+		 * @param source the source position.
+		 * @param target the target position.
+		 */
 		void startApproaching(const Vec2f &source, const Vec2f &target);
 
+		/**
+		 * Start approaching a target position from a source position with a desired orientation.
+		 * @param source the source position.
+		 * @param target the target position.
+		 * @param orientation the desired orientation at the target position (in radians).
+		 */
 		void startApproaching(const Vec2f &source, const Vec2f &target, const Vec3f &orientation);
 
+		/**
+		 * Stop approaching the current target.
+		 */
 		void stopApproaching();
 
+		/**
+		 * @return true if currently approaching a target.
+		 */
 		bool isNavigationApproaching() const { return (navModeMask_ & APPROACHING) != 0; }
 
+		/**
+		 * @return the current position.
+		 */
+		const Vec3f& currentPosition() const { return currentPos_; }
+
+		/**
+		 * @return the current direction.
+		 */
+		const Vec3f& currentDirection() const { return currentDir_; }
+
+		/**
+		 * @return the current velocity.
+		 */
+		const Vec3f& currentVelocity() const { return currentVel_; }
+
+		/**
+		 * @return the current speed.
+		 */
+		float currentSpeed() const { return currentSpeed_; }
+
+		/**
+		 * @return true if the NPC is standing still.
+		 */
+		bool isStandingStill() const { return currentSpeed_ < 3.0f; }
+
+		/**
+		 * @return the current Bezier curve path when approaching.
+		 */
+		math::Bezier<Vec2f> currentCurvePath() const { return curvePath_; }
+
+		/**
+		 * Start flocking with a group.
+		 * @param group the group to flock with.
+		 */
 		void startFlocking(const ref_ptr<ObjectGroup> &group);
 
+		/**
+		 * Stop flocking.
+		 */
 		void stopFlocking();
 
+		/**
+		 * @return true if currently flocking.
+		 */
 		bool isNavigationFlocking() const { return (navModeMask_ & FLOCKING) != 0; }
 
+		/**
+		 * Stop all navigation.
+		 */
 		void stopNavigation();
 
 		/**
 		 * Initialize a perception frame.
 		 */
-		void initCollisionFrame();
+		void navCollisionFrameBegin();
 
 		/**
 		 * Cleanup a perception frame.
 		 */
-		void finalizeCollisionFrame();
+		void navCollisionFrameEnd();
 
 		/**
 		 * Handle a perception event within a perception frame.
 		 * @param evt the perception data.
 		 */
-		void handleCollisionEvent(const CollisionEvent &evt);
+		void navCollisionFrameAdd(const CollisionEvent &evt);
 
 		// Override Animation
 		void animate(GLdouble dt) override;
@@ -206,11 +275,14 @@ namespace regen {
 		float baseOrientation_ = M_PI_2;
 
 		float personalSpace_ = 4.5f;
+		float personalSpaceSq_ = personalSpace_ * personalSpace_;
 		float wallTangentWeight_ = 0.4f;
-		float avoidanceWeight_ = 0.7f;
+		float collisionWeight_ = 0.7f;
 		float velOrientationWeight_ = 0.9f;
 		float maxTurnDegPerSec_ = 90.0f;
 		float maxTurn_ = maxTurnDegPerSec_ * (M_PI / 180.0f);
+		// increase turn threshold when navigating within personal space.
+		float turnFactorPersonalSpace_ = 3.0f;
 		float affordanceSlotRadius_ = 0.75f;
 		float pushThroughDistance_ = 1.0f;
 		float lookAheadThreshold_ = 6.0f;
@@ -238,25 +310,32 @@ namespace regen {
 		std::vector<ref_ptr<WayPoint>> currentPath_;
 		float distanceToTarget_ = std::numeric_limits<float>::max();
 		uint32_t currentPathIndex_ = 0;
-		math::Bezier<Vec2f> bezierPath_;
-		math::ArcLengthLUT bezierLUT_;
+		math::Bezier<Vec2f> curvePath_;
+		math::ArcLengthLUT curveLUT_;
+		Vec3f curveEndDir_ = Vec3f::zero();
 
 		// Number of collisions counted in last perception update.
 		uint32_t navCollisionCount_ = 0;
 		// Avoidance vector computed in last perception update.
-		Vec3f navAvoidance_ = Vec3f::zero();
-		float avoidanceStrength_ = 0.0f;
+		Vec3f navCollision_ = Vec3f::zero();
+		float collisionStrength_ = 0.0f;
 		// Dynamic look ahead distance for collision shape.
 		float dynLookAheadDistance_ = lookAheadDistance_;
 		bool hasNewPerception_ = false;
 
+		Vec3f navFlocking_ = Vec3f::zero();
+		float flockingStrength_ = 0.0f;
+
 		Vec3f currentPos_;
 		Vec3f currentVel_ = Vec3f::zero();
+		Vec3f currentVelDir_ = Vec3f::zero();
+		float currentSpeed_ = 0.0f;
 		Vec3f currentForce_ = Vec3f::zero();
 		Vec3f currentDir_;
 		Mat4f currentVal_;
 		Vec3f initialScale_;
 
+		Vec3f approachDir_ = Vec3f::zero();
 		Vec3f desiredDir_ = Vec3f::zero();
 		Vec3f desiredVel_ = Vec3f::zero();
 		double lastDT_ = 0.0;
@@ -268,9 +347,13 @@ namespace regen {
 		float getHeight(const Vec2f &pos);
 
 	private:
-		void updateControllerOrientation();
+		void updateNavController();
 
-		void updateControllerVelocity();
+		void updateNavVelocity(float desiredSpeed, const Vec3f &avoidance, float avoidanceStrength);
+
+		void updateNavOrientation(const Vec2f &currentPos2D, float desiredSpeed);
+
+		void updateNavFlocking();
 
 		struct NPCNeighborData {
 			NavigationController *npc;

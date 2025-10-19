@@ -19,6 +19,9 @@ namespace regen {
 		BLOCKING,
 		FLEEING,
 		NAVIGATING,
+		// enforce walk animation without path based navigation.
+		// e.g. flocking could inlclude walking, but not all the time.
+		WALKING,
 		SITTING,
 		FLOCKING,
 		LAST_ACTION

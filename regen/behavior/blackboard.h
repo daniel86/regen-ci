@@ -35,7 +35,7 @@ namespace regen {
 		/**
 		 * @return the object representing the character in the world.
 		 */
-		const WorldObject* characterObject() const { return characterObject_; }
+		WorldObject* characterObject() const { return characterObject_; }
 
 		/**
 		 * Get the current position of the character.
@@ -469,7 +469,7 @@ namespace regen {
 		/**
 		 * Unset the current place the NPC is at.
 		 */
-		void unsetCurrentPlace() { currentPlace_ = {}; }
+		void unsetCurrentPlace();
 
 		/**
 		 * Check if the NPC is at a place of a given type.

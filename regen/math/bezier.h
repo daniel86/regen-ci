@@ -26,7 +26,7 @@ namespace regen::math {
 		 * @param t the time [0, 1].
 		 * @return the point.
 		 */
-		T sample(float t) {
+		T sample(float t) const {
 			float u = 1.0f - t;
 			float tt = t * t;
 			float uu = u * u;
@@ -45,7 +45,7 @@ namespace regen::math {
 		 * @param t the time [0, 1].
 		 * @return the point.
 		 */
-		T sample(const ArcLengthLUT &lut, float t) {
+		T sample(const ArcLengthLUT &lut, float t) const {
 			float tLUT = lookupParameter(lut, t);
 			return sample(tLUT);
 		}

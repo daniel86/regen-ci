@@ -71,12 +71,6 @@ namespace regen {
 		bool isFull() const;
 
 		/**
-		 * Compute and update the center position of the social group based on its members.
-		 * The position of the group is set to the average position of its members.
-		 */
-		void updateGroupCenter();
-
-		/**
 		 * @return true if there is a current speaker, false otherwise.
 		 */
 		bool hasSpeaker() const { return speakerIdx_ >= 0; }
@@ -124,6 +118,8 @@ namespace regen {
 		int32_t speakerIdx_ = -1;
 		// Time the current speaker has left to speak unless unsetSpeaker() is called
 		float speakerTime_ = 0.0f;
+
+		void updateGroupPosition();
 	};
 } // namespace
 

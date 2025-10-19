@@ -28,6 +28,8 @@ std::ostream &regen::operator<<(std::ostream &out, const ActionType &v) {
 			return out << "FLEE";
 		case ActionType::NAVIGATING:
 			return out << "NAVIGATING";
+		case ActionType::WALKING:
+			return out << "WALK";
 		case ActionType::SITTING:
 			return out << "SIT";
 		case ActionType::FLOCKING:
@@ -44,10 +46,11 @@ std::istream &regen::operator>>(std::istream &in, ActionType &v) {
 	boost::to_upper(val);
 	if (val == "IDLE") v = ActionType::IDLE;
 	else if (val == "CONVERSE" || val == "TALK") v = ActionType::CONVERSING;
-	else if (val == "STROLL" || val == "WALK") v = ActionType::STROLLING;
+	else if (val == "STROLL") v = ActionType::STROLLING;
 	else if (val == "PATROL") v = ActionType::PATROLLING;
 	else if (val == "FLEE" || val == "RUN") v = ActionType::FLEEING;
 	else if (val == "NAVIGATE" || val == "GO") v = ActionType::NAVIGATING;
+	else if (val == "WALK") v = ActionType::WALKING;
 	else if (val == "SIT" || val == "SITTING") v = ActionType::SITTING;
 	else if (val == "BLOCK") v = ActionType::BLOCKING;
 	else if (val == "ATTACK" || val == "FIGHT") v = ActionType::ATTACKING;

@@ -4,7 +4,7 @@
 #include <regen/math/vector.h>
 #include <regen/behavior/npc-controller.h>
 #include "world/world-model.h"
-#include <regen/behavior/path-planner.h>
+#include "navigation/path-planner.h"
 
 #include "behavior-tree.h"
 #include "blackboard.h"
@@ -113,12 +113,15 @@ namespace regen {
 		ref_ptr<BlanketTrail> footstepTrail_;
 		uint32_t footIdx_[2] = { 0, 1 };
 		bool footDown_[2] = { false, false };
-		float footTime_[2] = { 0.2f, 0.8f };
+		float footTime_[2] = { 0.25f, 0.8f };
 		float footLastElapsed_ = 0.0f;
 
 		ref_ptr<PathPlanner> pathPlanner_;
 		// Flag is used for continuous movement.
 		bool isLastAnimationMovement_ = false;
+		bool hasNavigatingAction_ = false;
+		bool hasPatrollingAction_ = false;
+		bool hasStrollingAction_ = false;
 
 		ref_ptr<BoneController> boneController_;
 
