@@ -177,8 +177,8 @@ Videos of regen in action
     <a href="http://www.youtube.com/watch?v=waBatPmNW9Y">
         <img src="http://img.youtube.com/vi/waBatPmNW9Y/0.jpg"  width="160" height="120" />
     </a>
-    <a href="http://www.youtube.com/watch?v=nNI9y0Ey_m8">
-        <img src="http://img.youtube.com/vi/nNI9y0Ey_m8/0.jpg"  width="160" height="120" />
+    <a href="http://www.youtube.com/watch?v=iL94kSPJ4Ic">
+        <img src="http://img.youtube.com/vi/iL94kSPJ4Ic/0.jpg"  width="160" height="120" />
     </a>
     <a href="http://www.youtube.com/watch?v=VYKM_JCpGYk">
         <img src="http://img.youtube.com/vi/VYKM_JCpGYk/0.jpg"  width="160" height="120" />
@@ -186,11 +186,14 @@ Videos of regen in action
     <a href="http://www.youtube.com/watch?v=7nJSMTlSmjo">
         <img src="http://img.youtube.com/vi/7nJSMTlSmjo/0.jpg"  width="160" height="120" />
     </a>
-    <a href="http://www.youtube.com/watch?v=kzlMzHjgKpg">
-        <img src="http://img.youtube.com/vi/kzlMzHjgKpg/0.jpg"  width="160" height="120" />
+    <a href="https://www.youtube.com/watch?v=SYN62gZrNe4">
+        <img src="http://img.youtube.com/vi/SYN62gZrNe4/0.jpg"  width="160" height="120" />
     </a>
-    <a href="http://www.youtube.com/watch?v=Msn6Teot7ZU">
-        <img src="http://img.youtube.com/vi/Msn6Teot7ZU/0.jpg"  width="160" height="120" />
+    <a href="https://www.youtube.com/watch?v=b1BqlESlgdM">
+        <img src="http://img.youtube.com/vi/b1BqlESlgdM/0.jpg"  width="160" height="120" />
+    </a>
+    <a href="http://www.youtube.com/watch?v=nNI9y0Ey_m8">
+        <img src="http://img.youtube.com/vi/nNI9y0Ey_m8/0.jpg"  width="160" height="120" />
     </a>
     <a href="http://www.youtube.com/watch?v=jaFgTxK6WjU">
         <img src="http://img.youtube.com/vi/jaFgTxK6WjU/0.jpg"  width="160" height="120" />
