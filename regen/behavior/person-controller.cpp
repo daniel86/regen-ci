@@ -471,11 +471,12 @@ Vec2f PersonController::pickTravelPosition(const WorldObject &wp) const {
 	} else {
 		// Pick an angle roughly facing *towards* the waypoint from the NPC's current position
 		Vec2f toWP = baseTarget - Vec2f(currentPos_.x, currentPos_.z);
-		float angle = atan2(toWP.y, toWP.x) - baseOrientation_;
+		float angle = atan2(toWP.y, toWP.x) + M_PI;
 		// Allow a small angular variation (+-45°)
 		angle += (math::random<float>() - 0.5f) * (M_PI / 2.0f);
+		const float distanceToWP = wp.radius() * (0.7f * math::random<float>() + 0.1f);
 		// Offset final target
-		return baseTarget + Vec2f(cos(angle), sin(angle)) * wp.radius() * math::random<float>();
+		return baseTarget + Vec2f(cos(angle), sin(angle)) * distanceToWP;
 	}
 }
 
