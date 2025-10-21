@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <GL/glew.h>
+#include <regen/utility/ref-ptr.h>
 
 namespace regen {
 	/**
