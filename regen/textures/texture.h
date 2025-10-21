@@ -415,8 +415,8 @@ namespace regen {
 		T sampleLinear(const Vec2f &uv, const ref_ptr<ImageData> &textureData) const {
 			const auto i_w = static_cast<int32_t>(width());
 			const auto i_h = static_cast<int32_t>(height());
-			const float f_x = uv.x * static_cast<float>(i_w);
-			const float f_y = uv.y * static_cast<float>(i_h);
+			const float f_x = std::clamp(uv.x,0.0f,1.0f) * static_cast<float>(i_w);
+			const float f_y = std::clamp(uv.y,0.0f,1.0f) * static_cast<float>(i_h);
 			const auto i_x0 = std::min(static_cast<int32_t>(f_x), i_w - 1);
 			const auto i_y0 = std::min(static_cast<int32_t>(f_y), i_h - 1);
 			const int32_t i_x1 = std::min(i_x0 + 1, i_w - 1);
