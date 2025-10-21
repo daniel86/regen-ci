@@ -87,10 +87,10 @@
     <node id="Reflection-Sphere">
         <transform update-frequency="NEVER"/>
         <material update-frequency="NEVER"/>
-        <texture id="sky-texture" map-to="COLOR"
+        <texture name="skyRefraction" id="sky-texture" map-to="COLOR"
                  blend-mode="SRC"
                  mapping="CUBE_REFRACTION"/>
-        <texture id="sky-texture" map-to="COLOR"
+        <texture name="skyReflection" id="sky-texture" map-to="COLOR"
                  blend-mode="MIX" blend-factor="0.35"
                  mapping="CUBE_REFLECTION"/>
         <mesh id="sprite-sphere" shader="regen.models.sprite-sphere"/>

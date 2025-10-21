@@ -93,7 +93,14 @@ void Frustum::update(const Vec3f &pos, const Vec3f &dir) {
 
 void Frustum::updatePointsPerspective(const Vec3f &pos, const Vec3f &dir) {
 	auto v = dir.cross(Vec3f::up());
-	v.normalize();
+	const float vLength = v.length();
+	if (vLength < 1e-6f) {
+		// direction is parallel to up vector
+		v = dir.cross(Vec3f::right());
+		v.normalize();
+	} else {
+		v /= vLength;
+	}
 	auto u = v.cross(dir);
 	u.normalize();
 	// near plane points

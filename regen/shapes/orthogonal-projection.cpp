@@ -134,9 +134,9 @@ void OrthogonalProjection::createConvexHull(const Vec3f *inputPoints, uint32_t n
 		return (a.x < b.x) || (a.x == b.x && a.y < b.y);
 	});
 
-	// Build lower hull + upper hull
 	std::vector<Vec2f> hull;
 	hull.reserve(numPoints * 2);
+	// Build lower hull
 	for (const auto& p : tmpPoints) {
 		while (hull.size() >= 2 && cross(hull[hull.size()-2], hull.back(), p) <= 0) {
 			hull.pop_back();
@@ -144,6 +144,7 @@ void OrthogonalProjection::createConvexHull(const Vec3f *inputPoints, uint32_t n
 		hull.push_back(p);
 	}
 	size_t lowerSize = hull.size();
+	// Build upper hull (skip first and last point)
 	for (int i = int(tmpPoints.size()) - 2; i >= 0; --i) {
 		const auto& p = tmpPoints[i];
 		while (hull.size() > lowerSize && cross(hull[hull.size()-2], hull.back(), p) <= 0) {
@@ -160,7 +161,7 @@ void OrthogonalProjection::createConvexHull(const Vec3f *inputPoints, uint32_t n
 	size_t N = points.size();
 	for (size_t i = 0; i < N; ++i) {
 		Vec2f edge = points[(i + 1) % N] - points[i];
-		if (edge.lengthSquared() < 1e-12f) continue; // skip degenerate edges
+		if (edge.lengthSquared() < 1e-8f) continue; // skip degenerate edges
 		// Note: normalization is not strictly necessary for SAT
 		axes.emplace_back(Vec2f(-edge.y, edge.x));
 	}

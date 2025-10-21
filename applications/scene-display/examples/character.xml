@@ -14,8 +14,8 @@
             date="01-09-2014 06:00:00"
             time-scale="60.0">
         <animation id="dwarf-asset" type="asset" idle="idle2">
-            <key-mapping key=" " press="jumpSpot"/>
-            <key-mapping key="C" press="crouch" idle="crouchLoop" toggle="1"/>
+            <key-mapping key=" " press="jump-spot"/>
+            <key-mapping key="C" press="crouch-down" idle="crouch-loop" toggle="1"/>
             <key-mapping key="W" press="walk" interrupt="1" release-interrupt="1"/>
             <key-mapping key="A" press="walk" interrupt="1" release-interrupt="1"/>
             <key-mapping key="S" press="walk" interrupt="1" release-interrupt="1" backwards="1"/>
@@ -126,8 +126,9 @@
     <!-- Orthogonal top-down camera used for collision map generation -->
     <camera id="collision-camera" type="orthogonal"
             width="90.0" height="90.0" far="2.0"
-            position="0.0, -0.5, 0.0"
-            direction="0.0,-1.0,0.0"
+            position="0.0,-0.5,0.0"
+            direction="0.0,1.0,0.0"
+            up="0.0,0.0,-1.0"
             update-frequency="NEVER">
     </camera>
     <!--
@@ -233,7 +234,7 @@
     <!--**************************-->
 
     <mesh id="tree-mesh" type="proctree"
-            use-silhouette="true"
+            use-silhouette="1"
             tile-counts="4,2,2,2"
             alpha-cut="0.1"
             coverage-threshold="0.01"

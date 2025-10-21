@@ -130,7 +130,8 @@ const float in_softParticleScale = 1.0;
 
 void main() {
     vec3 P = in_posWorld.xyz;
-    vec3 N = normalize(in_posWorld.xyz - in_cameraPosition.xyz);
+    vec3 N = vec3(0.0, 1.0, 0.0);
+    //vec3 N = normalize(in_posWorld.xyz - in_cameraPosition.xyz);
     float opacity = 1.0;
     
 #ifdef HAS_softParticleScale

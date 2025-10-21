@@ -459,18 +459,16 @@
         <!-- First, render fog particles into fog-buffer. -->
         <node id="Fog-Particle-Draw">
             <fbo id="fog-buffer" clear-buffers="*" draw-buffers="*"/>
-            <direct-shading ambient="0.3,0.3,0.3">
+            <direct-shading ambient="0.1,0.1,0.1">
                 <direct-lights>
                     <light id="spot-light" shadow-buffer="spot-shadow" shadow-attachment="depth"/>
                 </direct-lights>
                 <direct-pass>
                     <node id="Fog-Particle-Draw">
-                        <define key="USE_NEAR_CAMERA_SOFT_PARTICLES" value="FALSE"/>
                         <define key="IS_SHADOW_RECEIVER" value="FALSE"/>
                         <blend mode="add"/>
                         <texture name="depthTexture" fbo="g-buffer" attachment="depth"/>
                         <texture name="colorTexture" id="fog-splat" map-to="COLOR" blend="SRC"/>
-                        <input type="float" name="softParticleScale" value="100.0"/>
                         <input type="float" name="particleBrightness" value="0.1"/>
                         <mesh id="fog-mesh" shader="regen.particles.sprite"/>
                     </node>

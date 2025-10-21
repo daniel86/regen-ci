@@ -146,7 +146,7 @@
         <input type="float" name="noiseScale" value="0.005"/>
         <texture name="noiseTexture" id="ground-noise"/>
         <node id="Ground-quad">
-            <mesh id="ground-mesh" mesh-index="0"/>
+            <mesh id="ground-mesh" mesh-index="0" update-visibility="1"/>
         </node>
         <node id="Ground-skirts">
             <mesh id="ground-mesh" mesh-index="1" update-visibility="0"/>

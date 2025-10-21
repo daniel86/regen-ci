@@ -405,16 +405,18 @@ void ShapeProcessor::processInput(
 	auto numInstances = 1u;
 
 	ref_ptr<HeightMap> heightMap;
-	auto heightMap2D = scene->getResources()->getTexture2D(scene, input.getValue("height-map"));
-	if (heightMap2D.get()) {
-		heightMap = ref_ptr<HeightMap>::dynamicCast(heightMap2D);
-		if (!heightMap) {
-			REGEN_WARN("Texture for height map is not a height map for " << input.getDescription() << ".");
-		} else {
-			heightMap->ensureTextureData();
+	if (input.hasAttribute("height-map")) {
+		auto heightMap2D = scene->getResources()->getTexture2D(scene, input.getValue("height-map"));
+		if (heightMap2D.get()) {
+			heightMap = ref_ptr<HeightMap>::dynamicCast(heightMap2D);
+			if (!heightMap) {
+				REGEN_WARN("Texture for height map is not a height map for " << input.getDescription() << ".");
+			} else {
+				heightMap->ensureTextureData();
+			}
+		} else if (input.hasAttribute("height-map")) {
+			REGEN_WARN("Ignoring height map for " << input.getDescription() << " without texture.");
 		}
-	} else if (input.hasAttribute("height-map")) {
-		REGEN_WARN("Ignoring height map for " << input.getDescription() << " without texture.");
 	}
 
 	uint32_t traversalMask = 1;
