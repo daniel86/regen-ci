@@ -200,6 +200,9 @@ void NavigationController::handleCharacterCollision(const CollisionData &percept
 		float distSqInv = 1.0f / (percept.distance * percept.distance);
 		// scale to reasonable values
 		distSqInv *= personalSpace_ * characterAvoidance_;
+		// Scale by motion activity -> less avoidance when standing still, but at least 10% influence
+		// such that small corrections can be done when standing still.
+		distSqInv *= std::clamp(currentSpeed_ / walkSpeed_, 0.1f, 1.0f);
 		navCollision_.x += percept.dir.x * distSqInv;
 		navCollision_.z += percept.dir.z * distSqInv;
 		navCollisionCount_++;
