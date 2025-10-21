@@ -287,6 +287,7 @@ namespace regen {
 		float pushThroughDistance_ = 1.0f;
 		float lookAheadThreshold_ = 6.0f;
 		float avoidanceDecay_ = 0.1f;
+		float radialDamping_ = 0.1f;
 		uint32_t numLUTEntries_ = 100;
 
 		// Terrain information.

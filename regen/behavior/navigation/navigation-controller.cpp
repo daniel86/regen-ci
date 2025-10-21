@@ -277,24 +277,23 @@ void NavigationController::updateNavFlocking() {
 	const float minGroupDistance = personalSpace_ * (0.5f + 0.25f * navGroup_->numMembers());
 	Vec2f groupDir = navGroup_->groupCenter2D() - currentPos2D;
 	float tmpLen = groupDir.length();
-	if (tmpLen > 1e-4f) groupDir /= tmpLen;
-
-	// Spring-like cohesion force toward group center.
-	Vec2f cohesion = groupDir * (tmpLen - minGroupDistance);
-
-	/**
-	float restR = desiredRadius;
-	float dist = length(p - center);
-	float error = dist - restR;
-	Vec2f cohesion = (dist > 1e-4) ? ( (center - p) / dist * error * cohGain ) : Vec2f(0,0);
-	// add damping: subtract k * (velocity dot radialDir) to prevent oscillation
-	float radialVel = dot(vel, radialDir);
-	cohesion -= radialVel * radialDamping;
-	**/
+	if (tmpLen > 1e-4f) {
+		groupDir /= tmpLen;
+		// spring force
+		Vec2f cohesion = groupDir * (tmpLen - minGroupDistance);
+		// damping: subtract velocity projected onto radial direction
+		//const Vec2f vel2D(currentVel_.x, currentVel_.z);
+		//cohesion -= groupDir * (vel2D.dot(groupDir) * radialDamping_);
+		navFlocking_.x = cohesion.x * cohesionWeight_;
+		navFlocking_.y = 0.0f;
+		navFlocking_.z = cohesion.y * cohesionWeight_;
+	} else {
+		navFlocking_ = Vec3f::zero();
+	}
 
 	// Separation from other group members
-	Vec2f memberSeparation = Vec2f::zero();
 	/**
+	Vec2f memberSeparation = Vec2f::zero();
 	if (navGroup_->numMembers() > 1) {
 		for (uint32_t memberIdx=0; memberIdx < navGroup_->numMembers(); memberIdx++) {
 			const WorldObject *member = navGroup_->member(memberIdx);
@@ -309,15 +308,11 @@ void NavigationController::updateNavFlocking() {
 		}
 		memberSeparation /= static_cast<float>(navGroup_->numMembers());
 	}
+	navFlocking_.x += memberSeparation.x * memberSeparationWeight_;
+	navFlocking_.z += memberSeparation.y * memberSeparationWeight_;
 	**/
 
-	// Blend forces and compute desired direction.
-	Vec2f groupForce = cohesion * cohesionWeight_ +
-		memberSeparation * memberSeparationWeight_;
-	flockingStrength_ = groupForce.length();
-	navFlocking_.x = groupForce.x;
-	navFlocking_.y = 0.0f;
-	navFlocking_.z = groupForce.y;
+	flockingStrength_ = navFlocking_.length();
 }
 
 void NavigationController::updateNavVelocity(float desiredSpeed, const Vec3f &avoidance, float avoidanceStrength) {
