@@ -26,6 +26,10 @@ For each of them you can find an example configuration for regen [here](https://
 Overview
 =========================
 
+<p align="center">
+    <img src="img/modules.png" width="800" height="370" />
+</p>
+
 | Subsystem    |    Description |
 | ------------- | ------------- |
 | Rendering Core    |    Modern OpenGL 4.6 pipeline with deferred and forward rendering paths, HDR lighting, PBR materials, post-processing, and volumetric effects. |
