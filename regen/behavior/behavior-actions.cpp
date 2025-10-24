@@ -120,6 +120,36 @@ BehaviorStatus SetTargetPlace::tick(Blackboard& kb, float /*dt_s*/) {
 	return BehaviorStatus::SUCCESS;
 }
 
+BehaviorStatus SetRoamingTarget::tick(Blackboard& kb, float /*dt_s*/) {
+	auto currentPlace = kb.currentPlace();
+	Vec2f placeCenter;
+	float placeRadius;
+
+	if (currentPlace.get()) {
+		// Pick a random position within the current place.
+		placeCenter = currentPlace->position2D();
+		placeRadius = currentPlace->radius();
+	} else {
+		REGEN_WARN("["<<kb.instanceId()<<"] No current place for roaming.");
+		placeCenter = Vec2f::zero();
+		placeRadius = 50.0f;
+	}
+
+	float angle = math::random<float>() * 2.0f * M_PI;
+	float radius = math::random<float>() * placeRadius;
+	Vec2f targetPos = placeCenter + Vec2f(cos(angle), sin(angle)) * radius;
+	roamingWP_->setPosition(Vec3f(targetPos.x, 0.0f, targetPos.y)); // Height will be set by navigation controller.
+	// Set navigation target to the position.
+	Patient navTarget;
+	navTarget.object = roamingWP_;
+	navTarget.affordance = {};
+	navTarget.affordanceSlot = -1;
+	kb.setNavigationTarget(navTarget);
+	setInitialDistance(kb, kb.navigationTarget());
+
+	return BehaviorStatus::SUCCESS;
+}
+
 static bool canUseAt(Blackboard& kb, ActionType action, const ref_ptr<Place> &place) {
 	return place->hasAffordance(action) && kb.canPerformAction(action);
 }
@@ -292,7 +322,15 @@ BehaviorStatus SelectPlaceActivity::tick(Blackboard& kb, float /*dt_s*/) {
 BehaviorStatus SetDesiredActivity::tick(Blackboard& kb, float /*dt_s*/) {
 	if (kb.activityTime() <= 0.0f) {
 		kb.setDesiredAction(desiredAction);
-		setActionTime(kb, desiredAction);
+		if (minDuration_ >= 0.0f) {
+			kb.setActivityTime(minDuration_ +
+				(math::random<float>() * (maxDuration_ - minDuration_)));
+		} else {
+			setActionTime(kb, desiredAction);
+		}
+#ifdef NPC_ACTIONS_DEBUG
+		REGEN_INFO("["<<kb.instanceId()<<"] Setting desired activity " << desiredAction << ".");
+#endif
 	}
 	return BehaviorStatus::SUCCESS;
 }
@@ -410,6 +448,21 @@ BehaviorStatus UnsetPatient::tick(Blackboard &kb, float /*dt_s*/) {
 		kb.unsetInteractionTarget();
 	}
 	return BehaviorStatus::SUCCESS;
+}
+
+BehaviorStatus MoveToTargetPoint::tick(Blackboard &kb, float /*dt_s*/) {
+	const float reachRadius_ = 0.5f; // TODO: parameter
+	if (kb.distanceToTarget() < reachRadius_) {
+		// Reached target place.
+		kb.unsetNavigationTarget();
+#ifdef NPC_ACTIONS_DEBUG
+		REGEN_INFO("["<<kb.instanceId()<<"] Reached target point.");
+#endif
+		return BehaviorStatus::SUCCESS;
+	} else {
+		kb.setCurrentAction(ActionType::NAVIGATING);
+		return BehaviorStatus::RUNNING;
+	}
 }
 
 BehaviorStatus MoveToTargetPlace::tick(Blackboard &kb, float /*dt_s*/) {

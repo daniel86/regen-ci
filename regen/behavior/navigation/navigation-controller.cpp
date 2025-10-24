@@ -43,7 +43,10 @@ NavigationController::NavigationController(
 			1.0f / initialScale_.x,
 			1.0f / initialScale_.y,
 			1.0f / initialScale_.z));
-	currentDir_ = tmp.rotation();
+	// Get Euler angles
+	auto angles = tmp.rotation();
+	baseRotation_.setEuler(angles.x, angles.y, angles.z);
+	currentDir_ = Vec3f::zero();
 }
 
 void NavigationController::setHeightMap(const ref_ptr<HeightMap> &heightMap) {
@@ -502,9 +505,9 @@ void NavigationController::animate(GLdouble dt) {
 
 	updateNavController();
 
-	Quaternion q(0.0, 0.0, 0.0, 1.0);
+	Quaternion q;
 	q.setEuler(currentDir_.x, currentDir_.y, currentDir_.z);
-	currentVal_ = q.calculateMatrix();
+	currentVal_ = (baseRotation_ * q).calculateMatrix();
 	currentVal_.scale(initialScale_);
 	currentVal_.translate(currentPos_);
 	tf_->setModelMat(tfIdx_, currentVal_);

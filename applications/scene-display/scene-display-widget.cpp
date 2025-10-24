@@ -13,7 +13,9 @@
 #include <regen/scene/scene-input-xml.h>
 
 #include "../../regen/behavior/person-controller.h"
+#include "applications/qt/qt-events.h"
 #include "regen/behavior/behavior-tree.h"
+#include "regen/behavior/user-controller.h"
 #include "regen/objects/terrain/blanket-trail.h"
 #include "regen/textures/height-map.h"
 
@@ -28,7 +30,6 @@ using namespace std;
 #include "interactions/video-toggle.h"
 #include "interactions/node-activation.h"
 #include "../../regen/simulation/impulse-controller.h"
-#include "regen/behavior/character-controller.h"
 #include "../../regen/behavior/animal-controller.h"
 #include "regen/av/video-recorder.h"
 #include "regen/states/blit-state.h"
@@ -248,19 +249,17 @@ void SceneDisplayWidget::previousView() {
 }
 
 void SceneDisplayWidget::toggleOffCameraTransform() {
-	if (cameraController_.get()) {
-		cameraController_->stopAnimation();
+	if (userController_.get()) {
+		userController_->stopAnimation();
 	}
 }
 
 void SceneDisplayWidget::toggleOnCameraTransform() {
-	if (cameraController_.get()) {
+	if (userController_.get()) {
 		// update the camera position
-		cameraController_->setTransform(
-			mainCamera_->position(0),
-			mainCamera_->direction(0));
-		cameraController_->startAnimation();
-		cameraController_->animate(0.0);
+		userController_->setTransform(userCamera_->position(0), userCamera_->direction(0));
+		userController_->startAnimation();
+		userController_->animate(0.0);
 	}
 }
 
@@ -273,12 +272,12 @@ double SceneDisplayWidget::getAnchorTime(
 
 void SceneDisplayWidget::activateAnchor() {
 	auto &anchor = anchors_[anchorIndex_];
-	auto &camPos = mainCamera_->position(0);
-	auto &camDir = mainCamera_->direction(0);
+	auto &camPos = userCamera_->position(0);
+	auto &camDir = userCamera_->direction(0);
 	auto cameraAnchor = ref_ptr<FixedCameraAnchor>::alloc(camPos, camDir);
 	double dt = getAnchorTime(anchor->position(), camPos);
 
-	anchorAnim_ = ref_ptr<KeyFrameController>::alloc(mainCamera_);
+	anchorAnim_ = ref_ptr<KeyFrameController>::alloc(userCamera_);
 	anchorAnim_->setRepeat(GL_FALSE);
 	anchorAnim_->setEaseInOutIntensity(anchorEaseInOutIntensity_);
 	anchorAnim_->setPauseBetweenFrames(anchorPauseTime_);
@@ -294,7 +293,7 @@ void SceneDisplayWidget::activateAnchor() {
 
 void SceneDisplayWidget::nextAnchor() {
 	if (anchors_.empty()) return;
-	if (!mainCamera_.get()) return;
+	if (!userCamera_.get()) return;
 	if (anchorAnim_.get()) {
 		anchorAnim_->stopAnimation();
 	}
@@ -309,7 +308,7 @@ void SceneDisplayWidget::nextAnchor() {
 
 void SceneDisplayWidget::playAnchor() {
 	if (anchors_.empty()) return;
-	if (!mainCamera_.get()) return;
+	if (!userCamera_.get()) return;
 	if (anchorAnim_.get()) {
 		anchorAnim_->stopAnimation();
 		anchorAnim_ = ref_ptr<KeyFrameController>();
@@ -318,13 +317,13 @@ void SceneDisplayWidget::playAnchor() {
 	}
 	toggleOffCameraTransform();
 
-	anchorAnim_ = ref_ptr<KeyFrameController>::alloc(mainCamera_);
+	anchorAnim_ = ref_ptr<KeyFrameController>::alloc(userCamera_);
 	anchorAnim_->setRepeat(GL_TRUE);
 	//anchorAnim_->setSkipFirstFrameOnLoop(GL_TRUE);
 	anchorAnim_->setEaseInOutIntensity(anchorEaseInOutIntensity_);
 	anchorAnim_->setPauseBetweenFrames(anchorPauseTime_);
-	auto camPos = mainCamera_->position(0);
-	auto camDir = mainCamera_->direction(0);
+	auto camPos = userCamera_->position(0);
+	auto camDir = userCamera_->direction(0);
 	anchorAnim_->push_back(camPos, camDir, 0.0);
 	Vec3f lastPos = camPos;
 	for (auto &anchor: anchors_) {
@@ -404,7 +403,7 @@ void SceneDisplayWidget::toggleInputsDialog() {
 }
 
 void SceneDisplayWidget::toggleCameraPopup() {
-	if (!mainCamera_.get()) {
+	if (!userCamera_.get()) {
 		REGEN_WARN("No main camera available.");
 		return;
 	}
@@ -445,8 +444,8 @@ void SceneDisplayWidget::toggleCameraPopup() {
 		cameraPopup->setLayout(layout);
 	}
 
-	Vec3f position = mainCamera_->position(0);
-	Vec3f direction = mainCamera_->direction(0);
+	Vec3f position = userCamera_->position(0);
+	Vec3f direction = userCamera_->direction(0);
 
 	positionLineEdit->setText(QString("%1, %2, %3").arg(position.x).arg(position.y).arg(position.z));
 	directionLineEdit->setText(QString("%1, %2, %3").arg(direction.x).arg(direction.y).arg(direction.z));
@@ -553,96 +552,168 @@ void SceneDisplayWidget::loadScene(const string &sceneFile) {
 //////// Application Configuration Node
 /////////////////////////////
 
-void SceneDisplayWidget::handleCameraConfiguration(
-	scene::SceneLoader &sceneParser,
-	const ref_ptr<SceneInputNode> &cameraNode) {
-	ref_ptr<Camera> cam = sceneParser.getResources()->getCamera(&sceneParser, cameraNode->getName());
-	if (cam.get() == nullptr) {
-		REGEN_WARN("Unable to find camera for '" << cameraNode->getDescription() << "'.");
-		return;
-	}
-	ref_ptr<ModelTransformation> transform;
-	if (cameraNode->hasAttribute("transform")) {
-		transform = sceneParser.getResources()->getTransform(
-			&sceneParser, cameraNode->getValue("transform"));
-		if (transform.get() == nullptr) {
-			REGEN_WARN("Unable to find transform for '" << cameraNode->getDescription() << "'.");
-			return;
-		}
-	}
-	ref_ptr<Mesh> mesh;
-	auto meshes = sceneParser.getResources()->getMesh(&sceneParser, cameraNode->getValue("mesh"));
-	if (meshes.get() != nullptr && !meshes->empty()) {
-		auto meshIndex = cameraNode->getValue<GLuint>("mesh-index", 0u);
-		if (meshIndex >= meshes->size()) {
-			REGEN_WARN("Invalid mesh index for '" << cameraNode->getDescription() << "'.");
-			meshIndex = 0;
-		}
-		mesh = (*meshes.get())[meshIndex];
-	}
-	mainCamera_ = cam;
-	cameraController_ = ref_ptr<CameraController>();
+void SceneDisplayWidget::handleControllerConfiguration(
+		scene::SceneLoader &scene, const ref_ptr<SceneInputNode> &node) {
+	auto controllerMode = node->getValue<string>("mode", "first-person");
+	auto controllerType = node->getValue<string>("type", "default");
+	bool isUserController = (
+		controllerType == "default" ||
+		controllerType == "user-kinematic" ||
+		controllerType == "user-impulse");
+	LoadingContext ctx(&scene, {});
 
-	auto cameraMode = cameraNode->getValue<string>("mode", "first-person");
-	auto cameraType = cameraNode->getValue<string>("type", "default");
+	if (isUserController) {
+		std::vector<CameraCommandMapping> camKeyMappings;
+		std::vector<MotionCommandMapping> motionKeyMappings;
 
-	if (cameraType == "default") {
-		cameraController_ = ref_ptr<CameraController>::alloc(cam);
+		for (const auto &x: node->getChildren("key-mapping")) {
+			std::string key = x->getValue("key");
+			if (x->hasAttribute("camera")) {
+				CameraCommandMapping mapping;
+				mapping.key = key;
+				mapping.command = x->getValue<CameraCommand>("camera", CameraCommand::NONE);
+				if (mapping.command == CameraCommand::NONE) {
+					REGEN_WARN("Invalid camera command for key mapping for key '" << mapping.key << "'.");
+					continue;
+				}
+				camKeyMappings.push_back(mapping);
+			}
+			if (x->hasAttribute("motion")) {
+				MotionCommandMapping mapping;
+				mapping.key = key;
+				mapping.toggle = x->getValue<bool>("toggle", false);
+				mapping.command = x->getValue<MotionType>("motion", MotionType::MOTION_LAST);
+				if (mapping.command == MotionType::MOTION_LAST) {
+					REGEN_WARN("Invalid motion command for key mapping for key '" << mapping.key << "'.");
+					continue;
+				}
+				motionKeyMappings.push_back(mapping);
+			}
+		}
+
+		for (const auto &x: node->getChildren("mouse-mapping")) {
+			uint32_t button = x->getValue<uint32_t>("button", 1);
+			std::string key = REGEN_STRING("button" << button);
+			if (x->hasAttribute("motion")) {
+				MotionCommandMapping mapping;
+				mapping.key = key;
+				mapping.toggle = x->getValue<bool>("toggle", false);
+				mapping.command = x->getValue<MotionType>("motion", MotionType::MOTION_LAST);
+				if (mapping.command == MotionType::MOTION_LAST) {
+					REGEN_WARN("Invalid motion command for mouse mapping for button '" << button << "'.");
+					continue;
+				}
+				motionKeyMappings.push_back(mapping);
+			}
+		}
+
+		if (node->hasAttribute("camera")) {
+			userCamera_ = scene.getResources()->getCamera(&scene, node->getValue("camera"));
+		}
+		if (userCamera_.get() == nullptr) {
+			REGEN_WARN("Unable to find camera for '" << node->getDescription() << "'.");
+			return;
+		}
+
+		if (controllerType == "default") {
+			userController_ = ref_ptr<CameraController>::alloc(userCamera_);
+			userController_->setMeshEyeOffset(
+				node->getValue<Vec3f>("eye-offset", Vec3f(0.0)));
+			userController_->set_moveAmount(
+				node->getValue<float>("speed", 0.01f));
+			userController_->setHorizontalOrientation(
+				node->getValue<float>("horizontal-orientation", 0.0));
+			userController_->setVerticalOrientation(
+				node->getValue<float>("vertical-orientation", 0.0));
+		} else if (controllerType == "user-impulse") {
+			ref_ptr<ImpulseController> impulseController =
+				ImpulseController::load(ctx, *node.get(), userCamera_);
+			userController_ = impulseController;
+		} else {
+			auto userController = UserController::load(ctx, *node.get(), userCamera_);
+			userController_ = userController;
+			if (!motionKeyMappings.empty()) {
+				auto motionEventHandler =
+					ref_ptr<QtMotionEventHandler>::alloc(userController, motionKeyMappings);
+				app_->connect(Scene::KEY_EVENT, motionEventHandler);
+				app_->connect(Scene::BUTTON_EVENT, motionEventHandler);
+				eventHandler_.emplace_back(motionEventHandler);
+			}
+		}
+
+		auto cameraEventHandler =
+			ref_ptr<QtCameraEventHandler>::alloc(userController_, camKeyMappings);
+		cameraEventHandler->set_sensitivity(node->getValue<GLfloat>("sensitivity", 0.005f));
+		app_->connect(Scene::KEY_EVENT, cameraEventHandler);
+		app_->connect(Scene::BUTTON_EVENT, cameraEventHandler);
+		app_->connect(Scene::MOUSE_MOTION_EVENT, cameraEventHandler);
+		eventHandler_.emplace_back(cameraEventHandler);
+
+		// Handle anchor points
+		anchorEaseInOutIntensity_ = node->getValue<GLfloat>("ease-in-out", 1.0);
+		anchorPauseTime_ = node->getValue<GLfloat>("anchor-pause-time", 0.5);
+		anchorTimeScale_ = node->getValue<GLfloat>("anchor-time-scale", 1.0);
+		for (const auto &x: node->getChildren("anchor")) {
+			if (x->hasAttribute("transform")) {
+				auto transform = scene.getResources()->getTransform(&scene, x->getValue("transform"));
+				if (transform.get() == nullptr) {
+					REGEN_WARN("Unable to find transform for anchor.");
+					continue;
+				}
+				auto anchor = ref_ptr<TransformCameraAnchor>::alloc(transform);
+				auto anchorOffset = x->getValue<Vec3f>("offset", Vec3f(1.0f));
+				anchor->setOffset(anchorOffset);
+				anchor->setFollowing(x->getValue<bool>("follow", false));
+				auto anchorMode = x->getValue("look-at");
+				if (anchorMode == "back") {
+					anchor->setMode(TransformCameraAnchor::LOOK_AT_BACK);
+				} else {
+					anchor->setMode(TransformCameraAnchor::LOOK_AT_FRONT);
+				}
+				anchors_.emplace_back(anchor);
+			} else {
+				auto pos = x->getValue<Vec3f>("pos", Vec3f(0.0));
+				auto dir = x->getValue<Vec3f>("dir", Vec3f(0.0));
+				pos += x->getValue<Vec3f>("offset", Vec3f(0.0));
+				auto anchor = ref_ptr<FixedCameraAnchor>::alloc(pos, dir);
+				anchors_.emplace_back(anchor);
+			}
+		}
+
+		// make sure camera transforms are updated in first few frames
+		// TODO: HACK really needed?
+		userController_->animate(0.0);
+		userController_->glAnimate(RenderState::get(), 0.0);
+		userController_->startAnimation();
 	}
-	// IMPULSE CONTROLLER
-	else if (cameraType == "impulse") {
-		if (mesh.get() == nullptr) {
-			REGEN_WARN("Impulse controller requires a mesh.");
-			return;
+	else if (controllerType == "animal") {
+		auto controller = AnimalController::load(ctx, *node.get());
+		for (auto &anim: controller) {
+			anim->startAnimation();
 		}
-		if (transform.get() == nullptr) {
-			REGEN_WARN("Impulse controller requires a transform.");
-			return;
-		}
-		if (mesh->physicalObjects().empty()) {
-			REGEN_WARN("Impulse controller requires a physical object.");
-			return;
-		}
-		auto &physicalObject = mesh->physicalObjects().front();
-		auto impulseController = ref_ptr<ImpulseController>::alloc(cam, physicalObject);
-		cameraController_ = impulseController;
+		animations_.insert(animations_.end(), controller.begin(), controller.end());
 	}
-	// CHARACTER CONTROLLER
-	else if (cameraType == "physical-character") {
-		if (mesh.get() == nullptr) {
-			REGEN_WARN("Physical character controller requires a mesh.");
-			return;
+	else if (controllerType == "person") {
+		auto controller = PersonController::load(ctx, *node.get());
+		for (auto &anim: controller) {
+			anim->startAnimation();
 		}
-		if (transform.get() == nullptr) {
-			REGEN_WARN("Physical character controller requires a transform.");
-			return;
-		}
-		if (sceneParser.getPhysics().get() == nullptr) {
-			REGEN_WARN("No BulletPhysics instance set for CharacterController.");
-		}
-		auto characterController = ref_ptr<CharacterController>::alloc(cam, sceneParser.getPhysics());
-		characterController->setCollisionHeight(
-			cameraNode->getValue<GLfloat>("collision-height", 0.8));
-		characterController->setCollisionRadius(
-			cameraNode->getValue<GLfloat>("collision-radius", 0.8));
-		characterController->setStepHeight(
-			cameraNode->getValue<GLfloat>("step-height", 0.35));
-		characterController->setMaxSlope(
-			cameraNode->getValue<GLfloat>("max-slope", 0.8));
-		characterController->setGravityForce(
-			cameraNode->getValue<GLfloat>("gravity-force", 30.0));
-		characterController->setJumpVelocity(
-			cameraNode->getValue<GLfloat>("jump-velocity", 16.0f));
-		cameraController_ = characterController;
+		animations_.insert(animations_.end(), controller.begin(), controller.end());
 	}
-	// KEY-FRAME CONTROLLER
-	else if (cameraType == "key-frames") {
+	else if (controllerType == "key-frames") {
+		ref_ptr<Camera> cam;
+		if (node->hasAttribute("camera")) {
+			cam = scene.getResources()->getCamera(&scene, node->getValue("camera"));
+		}
+		if (cam.get() == nullptr) {
+			REGEN_WARN("Unable to find camera for '" << node->getDescription() << "'.");
+			return;
+		}
 		ref_ptr<KeyFrameController> keyFramesCamera = ref_ptr<KeyFrameController>::alloc(cam);
-		if (cameraNode->hasAttribute("ease-in-out-intensity")) {
-			keyFramesCamera->setEaseInOutIntensity(
-				cameraNode->getValue<GLdouble>("ease-in-out-intensity", 1.0));
+		if (node->hasAttribute("ease-in-out")) {
+			keyFramesCamera->setEaseInOutIntensity(node->getValue<GLdouble>("ease-in-out", 1.0));
 		}
-		for (const auto &x: cameraNode->getChildren("key-frame")) {
+		for (const auto &x: node->getChildren("key-frame")) {
 			keyFramesCamera->push_back(
 				x->getValue<Vec3f>("pos", Vec3f(0.0f, 0.0f, 1.0f)),
 				x->getValue<Vec3f>("dir", Vec3f(0.0f, 0.0f, -1.0f)),
@@ -651,91 +722,9 @@ void SceneDisplayWidget::handleCameraConfiguration(
 		}
 		keyFramesCamera->startAnimation();
 		animations_.emplace_back(keyFramesCamera);
-	} else {
-		REGEN_WARN("Invalid camera type '" << cameraType << "'.");
-		return;
 	}
-
-	if (cameraController_.get()) {
-		cameraController_->setMeshEyeOffset(
-			cameraNode->getValue<Vec3f>("eye-offset", Vec3f(0.0)));
-		cameraController_->set_moveAmount(
-			cameraNode->getValue<GLfloat>("speed", 0.01f));
-		cameraController_->setMeshDistance(
-			cameraNode->getValue<GLfloat>("mesh-distance", 10.0f));
-		cameraController_->setHorizontalOrientation(
-			cameraNode->getValue<GLfloat>("horizontal-orientation", 0.0));
-		cameraController_->setVerticalOrientation(
-			cameraNode->getValue<GLfloat>("vertical-orientation", 0.0));
-		cameraController_->setMeshHorizontalOrientation(
-			cameraNode->getValue<GLfloat>("mesh-horizontal-orientation", 0.0));
-		if (cameraMode == "third-person") {
-			cameraController_->setCameraMode(CameraController::THIRD_PERSON);
-		} else {
-			cameraController_->setCameraMode(CameraController::FIRST_PERSON);
-		}
-		// attach the camera to a transform
-		if (transform.get()) {
-			cameraController_->setAttachedTo(transform, mesh);
-		}
-
-		std::vector<CameraCommandMapping> keyMappings;
-		for (const auto &x: cameraNode->getChildren()) {
-			if (x->getCategory() == string("key-mapping")) {
-				CameraCommandMapping mapping;
-				mapping.key = x->getValue("key");
-				mapping.command = x->getValue<CameraCommand>("command", CameraCommand::NONE);
-				if (mapping.command == CameraCommand::NONE) {
-					REGEN_WARN("Invalid camera command for key mapping for key '" << mapping.key << "'.");
-					continue;
-				}
-				keyMappings.push_back(mapping);
-			}
-		}
-
-		ref_ptr<QtFirstPersonEventHandler> cameraEventHandler = ref_ptr<QtFirstPersonEventHandler>::alloc(
-			cameraController_, keyMappings);
-		cameraEventHandler->set_sensitivity(cameraNode->getValue<GLfloat>("sensitivity", 0.005f));
-		app_->connect(Scene::KEY_EVENT, cameraEventHandler);
-		app_->connect(Scene::BUTTON_EVENT, cameraEventHandler);
-		app_->connect(Scene::MOUSE_MOTION_EVENT, cameraEventHandler);
-		eventHandler_.emplace_back(cameraEventHandler);
-
-		// make sure camera transforms are updated in first few frames
-		cameraController_->animate(0.0);
-		cameraController_->glAnimate(RenderState::get(), 0.0);
-		cameraController_->startAnimation();
-	}
-
-	// read anchor points
-	anchorEaseInOutIntensity_ = cameraNode->getValue<GLfloat>("ease-in-out-intensity", 1.0);
-	anchorPauseTime_ = cameraNode->getValue<GLfloat>("anchor-pause-time", 0.5);
-	anchorTimeScale_ = cameraNode->getValue<GLfloat>("anchor-time-scale", 1.0);
-	for (const auto &x: cameraNode->getChildren("anchor")) {
-		if (x->hasAttribute("transform")) {
-			auto transform = sceneParser.getResources()->getTransform(&sceneParser, x->getValue("transform"));
-			if (transform.get() == nullptr) {
-				REGEN_WARN("Unable to find transform for anchor.");
-				continue;
-			}
-			auto anchor = ref_ptr<TransformCameraAnchor>::alloc(transform);
-			auto anchorOffset = x->getValue<Vec3f>("offset", Vec3f(1.0f));
-			anchor->setOffset(anchorOffset);
-			anchor->setFollowing(x->getValue<bool>("follow", false));
-			auto anchorMode = x->getValue("look-at");
-			if (anchorMode == "back") {
-				anchor->setMode(TransformCameraAnchor::LOOK_AT_BACK);
-			} else {
-				anchor->setMode(TransformCameraAnchor::LOOK_AT_FRONT);
-			}
-			anchors_.emplace_back(anchor);
-		} else {
-			auto pos = x->getValue<Vec3f>("pos", Vec3f(0.0));
-			auto dir = x->getValue<Vec3f>("dir", Vec3f(0.0));
-			pos += x->getValue<Vec3f>("offset", Vec3f(0.0));
-			auto anchor = ref_ptr<FixedCameraAnchor>::alloc(pos, dir);
-			anchors_.emplace_back(anchor);
-		}
+	else {
+		REGEN_WARN("Unhandled controller type in '" << node->getDescription() << "'.");
 	}
 }
 
@@ -870,311 +859,12 @@ static ref_ptr<WorldModel> loadWorldModel(
 		}
 	}
 
+	sceneParser.setWorldModel(worldModel);
 	return worldModel;
 }
 
-static float randomizeTrait(float baseValue, float variation) {
-	if (variation <= 0.0f) {
-		return baseValue;
-	}
-	float r = math::random<float>(); // random number in [0,1]
-	float delta = (r - 0.5f) * 2.0f * variation; // random number in [-variation, +variation]
-	return std::clamp(baseValue + delta, 0.0f, 1.0f);
-}
-
-static void handleAssetController(
-	const ref_ptr<WorldModel> &worldModel,
-	scene::SceneLoader &sceneParser,
-	const ref_ptr<SceneInputNode> &animationNode,
-	std::list<ref_ptr<Animation> > &animations,
-	const ref_ptr<BoneAnimationItem> &nodeAnimItem) {
-	auto controllerType = animationNode->getValue("type");
-	auto tf = sceneParser.getResources()->getTransform(
-		&sceneParser, animationNode->getValue("tf"));
-	std::vector<ref_ptr<NonPlayerCharacterController> > controller;
-	ref_ptr<SpatialIndex> spatialIndex;
-	if (animationNode->hasAttribute("spatial-index")) {
-		spatialIndex = sceneParser.getResources()->getIndex(
-			&sceneParser, animationNode->getValue("spatial-index"));
-		if (!spatialIndex.get()) {
-			REGEN_WARN("Unable to find spatial index for controller '" << animationNode->getDescription() << "'.");
-		}
-	}
-	std::string indexedShapeName = animationNode->getValue("indexed-shape");
-
-	if (!tf.get()) {
-		REGEN_WARN("Unable to find transform for controller '" << animationNode->getDescription() << "'.");
-		return;
-	}
-	if (spatialIndex.get() && indexedShapeName.empty()) {
-		REGEN_WARN("Spatial index specified but no indexed shape name given for controller '"
-			<< animationNode->getDescription() << "'.");
-		return;
-	}
-
-	auto meshVec = sceneParser.getResources()->getMesh(
-		&sceneParser, animationNode->getValue("mesh"));
-	ref_ptr<Mesh> mesh;
-	if (meshVec.get() != nullptr && !meshVec->empty()) {
-		uint32_t meshIdx = animationNode->getValue<uint32_t>("mesh-index", 0u);
-		if (meshIdx >= meshVec->size()) {
-			REGEN_WARN("Invalid mesh index for '" << animationNode->getDescription() << "'.");
-			meshIdx = 0;
-		}
-		mesh = (*meshVec.get())[meshIdx];
-		if (!mesh.get()) {
-			REGEN_WARN("Unable to find mesh for controller '" << animationNode->getDescription() << "'.");
-			return;
-		}
-	} else {
-		REGEN_WARN("Unable to find mesh for controller '" << animationNode->getDescription() << "'.");
-		return;
-	}
-
-	if (controllerType == "animal") {
-		// TODO: support multiple instances
-		Indexed<ref_ptr<ModelTransformation>> indexedTF(tf, 0);
-		auto animalController = ref_ptr<AnimalController>::alloc(
-			mesh, indexedTF, nodeAnimItem, worldModel);
-		controller.push_back(animalController);
-		animalController->setWorldTime(&sceneParser.application()->worldTime());
-		animalController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
-		animalController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
-		animalController->setFloorHeight(animationNode->getValue<float>("floor-height", 0.0f));
-		animalController->setLaziness(animationNode->getValue<float>("laziness", 0.5f));
-		animalController->setMaxHeight(animationNode->getValue<float>("max-height", std::numeric_limits<float>::max()));
-		animalController->setMinHeight(
-			animationNode->getValue<float>("min-height", std::numeric_limits<float>::lowest()));
-		animalController->setTerritoryBounds(
-			animationNode->getValue<Vec2f>("territory-center", Vec2f(0.0)),
-			animationNode->getValue<Vec2f>("territory-size", Vec2f(10.0)));
-
-		if (animationNode->hasAttribute("height-map")) {
-			auto heightMap = sceneParser.getResources()->getTexture2D(
-				&sceneParser, animationNode->getValue("height-map"));
-			if (heightMap.get()) {
-				auto heightMapCenter = animationNode->getValue<Vec2f>("height-map-center", Vec2f(0.0));
-				auto heightMapSize = animationNode->getValue<Vec2f>("height-map-size", Vec2f(10.0));
-				auto heightMapFactor = animationNode->getValue<float>("height-map-factor", 8.0f);
-				animalController->setHeightMap(heightMap, heightMapCenter, heightMapSize, heightMapFactor);
-			} else {
-				REGEN_WARN("Unable to find height map for animal controller.");
-			}
-		}
-
-		for (const auto &x: animationNode->getChildren()) {
-			if (x->getCategory() == string("special")) {
-				animalController->addSpecial(x->getValue("name"));
-			}
-		}
-
-		animalController->startAnimation();
-	} else if (controllerType == "person") {
-		controller.reserve(tf->numInstances());
-
-		// load mesh for footsteps, if any
-		auto footstepVec = sceneParser.getResources()->getMesh(
-			&sceneParser, animationNode->getValue("footstep-mesh"));
-		ref_ptr<BlanketTrail> footstepTrail;
-		if (footstepVec.get() && !footstepVec->empty()) {
-			auto footstepMesh = (*footstepVec.get())[0];
-			footstepTrail = ref_ptr<BlanketTrail>::dynamicCast(footstepMesh);
-			if (!footstepTrail) {
-				REGEN_WARN("Footstep mesh is not a BlanketTrail in '" << animationNode->getDescription() << "'.");
-			}
-		} else if (animationNode->hasAttribute("footstep-mesh")) {
-			REGEN_WARN("Unable to find footstep mesh for NPC controller in '" << animationNode->getDescription() << "'.");
-		}
-
-		for (int32_t tfIdx = 0; tfIdx < tf->numInstances(); tfIdx++) {
-			Indexed<ref_ptr<ModelTransformation>> indexedTF(tf, tfIdx);
-			auto personController = ref_ptr<PersonController>::alloc(
-				mesh, indexedTF, nodeAnimItem, worldModel);
-			controller.push_back(personController);
-
-			if (spatialIndex.get()) {
-				auto indexedShape = spatialIndex->getShape(indexedShapeName, tfIdx);
-				if (!indexedShape) {
-					REGEN_WARN("Unable to find indexed shape '" << indexedShapeName
-						<< "' in spatial index for controller '" << animationNode->getDescription() << "'.");
-				} else {
-					auto perceptionSystem = std::make_unique<PerceptionSystem>(spatialIndex, indexedShape);
-					perceptionSystem->setCollisionBit(animationNode->getValue<uint32_t>("collision-bit", 0));
-					personController->setPerceptionSystem(std::move(perceptionSystem));
-				}
-			}
-			if (footstepTrail.get()) {
-				float leftFootTime = animationNode->getValue<float>("left-foot-time", 0.25f);
-				float rightFootTime = animationNode->getValue<float>("right-foot-time", 0.8f);
-				personController->setFootstepTrail(footstepTrail, leftFootTime, rightFootTime);
-			}
-			if (animationNode->hasAttribute("decision-interval")) {
-				personController->setDecisionInterval(
-					animationNode->getValue<float>("decision-interval", 0.25f));
-			}
-			if (animationNode->hasAttribute("perception-interval")) {
-				personController->setPerceptionInterval(
-					animationNode->getValue<float>("perception-interval", 0.1f));
-			}
-			personController->setWalkSpeed(animationNode->getValue<float>("walk-speed", 0.05f));
-			personController->setRunSpeed(animationNode->getValue<float>("run-speed", 0.1f));
-			personController->setMaxTurnDegPerSecond(
-				animationNode->getValue<float>("max-turn-angle", 90.0f));
-			if (animationNode->hasAttribute("personal-space")) {
-				personController->setPersonalSpace(
-					animationNode->getValue<float>("personal-space", 4.5f));
-			}
-			if (animationNode->hasAttribute("wall-avoidance")) {
-				personController->setAvoidanceWeight(
-					animationNode->getValue<float>("avoidance-weight", 0.5f));
-			}
-			if (animationNode->hasAttribute("wall-avoidance")) {
-				personController->setWallAvoidance(
-					animationNode->getValue<float>("wall-avoidance", 1.0f));
-			}
-			if (animationNode->hasAttribute("character-avoidance")) {
-				personController->setCharacterAvoidance(
-					animationNode->getValue<float>("character-avoidance", 10.0f));
-			}
-			if (animationNode->hasAttribute("cohesion-weight")) {
-				personController->setCohesionWeight(
-					animationNode->getValue<float>("cohesion-weight", 1.0f));
-			}
-			if (animationNode->hasAttribute("member-separation-weight")) {
-				personController->setMemberSeparationWeight(
-					animationNode->getValue<float>("member-separation-weight", 1.0f));
-			}
-			if (animationNode->hasAttribute("group-separation-weight")) {
-				personController->setGroupSeparationWeight(
-					animationNode->getValue<float>("group-separation-weight", 5.0f));
-			}
-			if (animationNode->hasAttribute("turn-personal-space")) {
-				personController->setTurnFactorPersonalSpace(
-					animationNode->getValue<float>("turn-personal-space", 3.0f));
-			}
-			personController->setPushThroughDistance(
-				animationNode->getValue<float>("push-through-distance", 0.5f));
-			personController->setLookAheadThreshold(
-				animationNode->getValue<float>("look-ahead-threshold", 6.0f));
-			personController->setAvoidanceDecay(
-				animationNode->getValue<float>("avoidance-decay", 0.5f));
-			personController->setWallTangentWeight(
-				animationNode->getValue<float>("wall-tangent-weight", 0.5f));
-			personController->setVelOrientationWeight(
-				animationNode->getValue<float>("velocity-orientation-weight", 0.5f));
-			personController->setFloorHeight(animationNode->getValue<float>("floor-height", 0.0f));
-			if (animationNode->hasAttribute("base-orientation")) {
-				personController->setBaseOrientation(
-					animationNode->getValue<GLfloat>("base-orientation", 0.0f));
-			}
-
-			auto &kb = personController->knowledgeBase();
-			kb.setWorldTime(&sceneParser.application()->worldTime());
-			// Set base time for actions/staying at a place
-			kb.setBaseTimeActivity(
-				animationNode->getValue<float>("base-time-activity", 120.0f));
-			kb.setBaseTimePlace(
-				animationNode->getValue<float>("base-time-place", 1200.0f));
-			// Set randomized character traits.
-			kb.setTraitStrength(Trait::LAZINESS, randomizeTrait(animationNode->getValue<float>(
-				"laziness", 0.5f), 0.25f));
-			kb.setTraitStrength(Trait::SPIRITUALITY, randomizeTrait(animationNode->getValue<float>(
-				"spirituality", 0.5f), 0.25f));
-			kb.setTraitStrength(Trait::ALERTNESS, randomizeTrait(animationNode->getValue<float>(
-				"alertness", 0.5f), 0.25f));
-			kb.setTraitStrength(Trait::BRAVERY, randomizeTrait(animationNode->getValue<float>(
-				"bravery", 0.5f), 0.25f));
-			kb.setTraitStrength(Trait::SOCIALABILITY, randomizeTrait(animationNode->getValue<float>(
-				"sociability", 0.5f), 0.25f));
-
-			//npcController->setHomeBounds(
-			//	animationNode->getValue<Vec2f>("territory-center", Vec2f(0.0)),
-			//	animationNode->getValue<Vec2f>("territory-size", Vec2f(10.0)));
-
-			// Set the weapon mesh is any.
-			auto weaponMeshVec = sceneParser.getResources()->getMesh(
-				&sceneParser, animationNode->getValue("weapon-mesh"));
-			if (weaponMeshVec.get() != nullptr && !weaponMeshVec->empty()) {
-				uint32_t weaponMeshIdx = animationNode->getValue<uint32_t>("weapon-mesh-index", 0u);
-				if (weaponMeshIdx >= weaponMeshVec->size()) {
-					REGEN_WARN("Invalid weapon mesh index for '" << animationNode->getDescription() << "'.");
-					weaponMeshIdx = 0;
-				}
-				auto weaponMesh = (*weaponMeshVec.get())[weaponMeshIdx];
-				if (weaponMesh.get()) {
-					personController->setWeaponMesh(weaponMesh);
-				} else {
-					REGEN_WARN("Unable to find weapon mesh in '" << animationNode->getDescription() << "'.");
-				}
-			} else if (animationNode->hasAttribute("weapon-mesh")) {
-				REGEN_WARN("Unable to find weapon mesh in '" << animationNode->getDescription() << "'.");
-			}
-
-			if (animationNode->hasAttribute("height-map")) {
-				auto heightMap2d = sceneParser.getResources()->getTexture2D(
-					&sceneParser, animationNode->getValue("height-map"));
-				if (!heightMap2d) {
-					REGEN_WARN("Unable to find height map in '" << animationNode->getDescription() << "'.");
-				} else {
-					auto heightMap = ref_ptr<HeightMap>::dynamicCast(heightMap2d);
-					if (!heightMap) {
-						REGEN_WARN("Height map texture is not a height map in '" << animationNode->getDescription() << "'.");
-					} else {
-						personController->setHeightMap(heightMap);
-					}
-				}
-			}
-
-			// Load a behavior tree.
-			// NOTE: XML scene may define different behavior trees for different instances.
-			LoadingContext ctx(&sceneParser, {});
-			for (const auto &btNodeXML: animationNode->getChildren("behavior-tree")) {
-				list<IndexRange> indices = btNodeXML->getIndexSequence(tf->numInstances());
-				for (auto &range : indices) {
-					if (range.isWithinRange(tfIdx) && !btNodeXML->getChildren().empty()) {
-						auto btRootXML = btNodeXML->getChildren().front();
-						auto btRoot = BehaviorTree::load(ctx, *btRootXML.get());
-						personController->setBehaviorTree(std::move(btRoot));
-						break;
-					}
-				}
-			}
-
-			personController->initializeController();
-		}
-	} else {
-		REGEN_WARN("Unhandled controller type in '" << animationNode->getDescription() << "'.");
-	}
-
-	for (const auto &c: controller) {
-		animations.emplace_back(c);
-	}
-}
-
-static void handleAssetAnimationConfiguration(
-	QtApplication *app_,
-	const ref_ptr<WorldModel> &worldModel,
-	scene::SceneLoader &sceneParser,
-	list<ref_ptr<EventHandler> > &eventHandler,
-	const ref_ptr<SceneInputNode> &animationNode,
-	std::list<ref_ptr<Animation> > &animations) {
-	ref_ptr<AssetImporter> animAsset =
-			sceneParser.getResources()->getAsset(&sceneParser, animationNode->getName());
-	if (animAsset.get() == nullptr) {
-		REGEN_WARN("Unable to find animation with name '" << animationNode->getName() << "'.");
-		return;
-	}
-	auto animItem = sceneParser.getAnimationRanges(animationNode->getName());
-	if (!animItem) {
-		REGEN_WARN("Unable to find animation ranges for animation with name '" << animationNode->getName() << "'.");
-		return;
-	}
-	animItem->animation = animAsset->getNodeAnimation();
-	if (animItem->animation.get()) {
-		animItem->animation->startAnimation();
-	}
-
-	if (animationNode->getValue("mode") == string("random")) {
+/**
+if (animationNode->getValue("mode") == string("random")) {
 		if (animItem->animation.get()) {
 			ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater>::alloc(animItem);
 			animItem->animation->connect(Animation::ANIMATION_STOPPED, animStopped);
@@ -1195,46 +885,8 @@ static void handleAssetAnimationConfiguration(
 			evData.eventID = Animation::ANIMATION_STOPPED;
 			animStopped->call(animItem->animation.get(), &evData);
 		}
-	} else if (animationNode->getCategory() == "controller") {
-		handleAssetController(worldModel, sceneParser, animationNode, animations, animItem);
-	} else {
-		map<string, KeyAnimationMapping> keyMappings;
-		string idleAnimation = animationNode->getValue("idle");
-
-		for (const auto &x: animationNode->getChildren()) {
-			KeyAnimationMapping mapping;
-			if (x->getCategory() == string("key-mapping")) {
-				mapping.key = x->getValue("key");
-			} else if (x->getCategory() == string("mouse-mapping")) {
-				mapping.key = REGEN_STRING("button" << x->getValue<int>("button", 1));
-			} else if (x->getCategory() == string("controller")) {
-				handleAssetController(worldModel, sceneParser, x, animations, animItem);
-				continue;
-			} else {
-				REGEN_WARN("Unhandled animation node " << x->getDescription() << ".");
-				continue;
-			}
-			mapping.press = x->getValue("press");
-			mapping.toggle = x->getValue<GLboolean>("toggle", GL_FALSE);
-			mapping.interrupt = x->getValue<GLboolean>("interrupt", GL_FALSE);
-			mapping.releaseInterrupt = x->getValue<GLboolean>("release-interrupt", GL_FALSE);
-			mapping.backwards = x->getValue<GLboolean>("backwards", GL_FALSE);
-			mapping.idle = x->getValue("idle");
-			keyMappings[mapping.key] = mapping;
-		}
-
-		if (!keyMappings.empty()) {
-			if (animItem->animation.get()) {
-				auto keyHandler = ref_ptr<KeyAnimationRangeUpdater>::alloc(
-					animItem, keyMappings, idleAnimation);
-				app_->connect(Scene::KEY_EVENT, keyHandler);
-				app_->connect(Scene::BUTTON_EVENT, keyHandler);
-				animItem->animation->connect(Animation::ANIMATION_STOPPED, keyHandler);
-				eventHandler.emplace_back(keyHandler);
-			}
-		}
 	}
-}
+ */
 
 static void handleMouseConfiguration(
 	QtApplication *app_,
@@ -1291,7 +943,7 @@ void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
 		physics_->clear();
 		physics_ = {};
 	}
-	mainCamera_ = {};
+	userCamera_ = {};
 	anchorAnim_ = {};
 	timeWidgetAnimation_ = {};
 	anchorIndex_ = 0;
@@ -1345,12 +997,8 @@ void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
 
 	// Process the configuration node
 	for (const auto &x: configurationNode->getChildren()) {
-		if (x->getCategory() == string("animation")) {
-			if (x->getValue("type") == string("asset")) {
-				handleAssetAnimationConfiguration(app_, worldModel, sceneParser, eventHandler_, x, animations_);
-			}
-		} else if (x->getCategory() == string("camera")) {
-			handleCameraConfiguration(sceneParser, x);
+		if (x->getCategory() == string("controller")) {
+			handleControllerConfiguration(sceneParser, x);
 		} else if (x->getCategory() == string("mouse")) {
 			handleMouseConfiguration(app_, sceneParser, x);
 		}

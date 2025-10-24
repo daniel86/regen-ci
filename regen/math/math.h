@@ -101,16 +101,38 @@ namespace regen {
 		}
 
 		/**
-		 * Produce a random number between 0 and max_int.
+		 * Get the random number engine.
 		 */
-		static inline int randomInt() {
+		static inline std::mt19937& randomEngine() {
 			// Seed for the random number engine
 			static std::random_device rd;
 			// Mersenne Twister engine
 			static std::mt19937 gen(rd());
+			return gen;
+		}
+
+		/**
+		 * Produce a random number between 0 and max_int.
+		 */
+		static inline int randomInt() {
 			// Uniform distribution between 0 and max_int
 			static std::uniform_int_distribution<int> dis(0, std::numeric_limits<int>::max());
-			return dis(gen);
+			return dis(randomEngine());
+		}
+
+		/**
+		 * Randomize a base value by a given variation.
+		 * @param baseValue the base value
+		 * @param variation the variation amount
+		 * @return the randomized value
+		 */
+		static inline float randomize(float baseValue, float variation) {
+			if (variation <= 0.0f) {
+				return baseValue;
+			}
+			float r = math::random<float>(); // random number in [0,1]
+			float delta = (r - 0.5f) * 2.0f * variation; // random number in [-variation, +variation]
+			return clamp<float>(baseValue + delta, 0.0f, 1.0f);
 		}
 
 		/**

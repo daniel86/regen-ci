@@ -21,9 +21,7 @@
 #include <regen/scene/scene-input.h>
 #include <regen/shapes/spatial-index.h>
 #include <regen/states/light-state.h>
-#include <regen/animation/bone-tree.h>
 #include <applications/qt/qt-application.h>
-#include <applications/qt/qt-camera-events.h>
 #include <applications/qt/shader-input-widget.h>
 #include "ui_scene-display-gui.h"
 #include "regen/av/video-recorder.h"
@@ -96,8 +94,8 @@ protected:
 	ref_ptr<Animation> loadAnim_;
 	ref_ptr<VideoRecorder> videoRecorder_;
 
-	ref_ptr<Camera> mainCamera_;
-	ref_ptr<CameraController> cameraController_;
+	ref_ptr<Camera> userCamera_;
+	ref_ptr<CameraController> userController_;
 
 	ref_ptr<KeyFrameController> anchorAnim_;
 	std::vector<ref_ptr<CameraAnchor>> anchors_;
@@ -134,7 +132,7 @@ protected:
 
 	void activateAnchor();
 
-	void handleCameraConfiguration(
+	void handleControllerConfiguration(
 		scene::SceneLoader &sceneParser,
 		const ref_ptr<regen::scene::SceneInputNode> &cameraNode);
 

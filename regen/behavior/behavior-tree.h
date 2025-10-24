@@ -195,6 +195,49 @@ namespace regen {
 	};
 
 	/**
+	 * A random selector node that ticks its children in random order.
+	 * If a child returns RUNNING, the random selector returns RUNNING.
+	 * If a child returns SUCCESS, the random selector returns SUCCESS.
+	 * If all children return FAILURE, the random selector returns FAILURE.
+	 */
+	class BehaviorRandomSelectorNode : public BehaviorTree::Node {
+		int32_t current = -1;
+	public:
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override {
+			if (current != -1) {
+				// keep ticking the current child until it stops running.
+				BehaviorStatus s = children[current]->tick(bb, dt_s);
+				if (s != BehaviorStatus::FAILURE) {
+					if (s != BehaviorStatus::RUNNING) {
+						current = -1; // reset for next tick
+					}
+					return s;
+				}
+			}
+			// Try children in random order if current is not running.
+			std::vector<int32_t> indices;
+			for (size_t i = 0; i < children.size(); i++) {
+				if (static_cast<int32_t>(i) != current) {
+					indices.push_back(static_cast<int32_t>(i));
+				}
+			}
+			std::shuffle(indices.begin(), indices.end(), math::randomEngine());
+			for (int32_t idx : indices) {
+				BehaviorStatus s = children[idx]->tick(bb, dt_s);
+				if (s != BehaviorStatus::FAILURE) {
+					if (s == BehaviorStatus::RUNNING) {
+						current = idx; // remember current child
+					} else {
+						current = -1; // reset for next tick
+					}
+					return s;
+				}
+			}
+			return BehaviorStatus::FAILURE;
+		}
+	};
+
+	/**
 	 * A parallel node that ticks all its children.
 	 * The node returns SUCCESS or FAILURE based on the configured modes.
 	 */

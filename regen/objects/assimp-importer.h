@@ -170,12 +170,12 @@ namespace regen {
 		/**
 		 * @return list of lights defined in the assimp file.
 		 */
-		std::vector<ref_ptr<Light> > &lights();
+		std::vector<ref_ptr<Light> > &lights() { return lights_; }
 
 		/**
 		 * @return list of materials defined in the assimp file.
 		 */
-		std::vector<ref_ptr<Material> > &materials();
+		std::vector<ref_ptr<Material> > &materials() { return materials_; }
 
 		/**
 		 * @return a node that animates the light position.

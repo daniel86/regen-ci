@@ -112,10 +112,6 @@ void AssetImporter::setAiProcessFlags_Regen() {
 			| 0;
 }
 
-vector<ref_ptr<Light> > &AssetImporter::lights() { return lights_; }
-
-vector<ref_ptr<Material> > &AssetImporter::materials() { return materials_; }
-
 ///////////// LIGHTS
 
 static void setLightRadius(aiLight *aiLight, ref_ptr<Light> &light) {
@@ -136,7 +132,7 @@ static void setLightRadius(aiLight *aiLight, ref_ptr<Light> &light) {
 vector<ref_ptr<Light> > AssetImporter::loadLights() {
 	vector<ref_ptr<Light> > ret(scene_->mNumLights);
 
-	for (GLuint i = 0; i < scene_->mNumLights; ++i) {
+	for (uint32_t i = 0; i < scene_->mNumLights; ++i) {
 		aiLight *assimpLight = scene_->mLights[i];
 		// node could be animated, but for now it is ignored
 		aiNode *node = nodes_[string(assimpLight->mName.data)];
@@ -210,11 +206,11 @@ static void loadTexture(
 		aiTexture *aiTexture,
 		aiMaterial *aiMat,
 		aiString &stringVal,
-		GLuint l, GLuint k,
+		uint32_t l, uint32_t k,
 		const string &texturePath) {
 	ref_ptr<Texture> tex;
 	string filePath;
-	GLuint maxElements;
+	uint32_t maxElements;
 	GLint intVal;
 	GLfloat floatVal;
 
@@ -256,7 +252,7 @@ static void loadTexture(
 	} else if (aiTexture->mHeight == 0) {
 		// The texture is stored in a "compressed" format such as DDS or PNG
 
-		GLuint numBytes = aiTexture->mWidth;
+		uint32_t numBytes = aiTexture->mWidth;
 		string ext(aiTexture->achFormatHint);
 
 		ILenum type;
@@ -578,10 +574,10 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 	GLfloat floatVal;
 	GLint intVal;
 	aiString stringVal;
-	GLuint maxElements;
-	GLuint l, k;
+	uint32_t maxElements;
+	uint32_t l, k;
 
-	for (GLuint n = 0; n < scene_->mNumMaterials; ++n) {
+	for (uint32_t n = 0; n < scene_->mNumMaterials; ++n) {
 		ref_ptr<Material> mat = ref_ptr<Material>::alloc();
 		materials[n] = mat;
 		aiMaterial *aiMat = scene_->mMaterials[n];
@@ -597,7 +593,7 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 				aiTexture *aiTex;
 				if (stringVal.data[0] == '*') {
 					char *indexStr = stringVal.data + 1;
-					GLuint index;
+					uint32_t index;
 
 					stringstream ss;
 					ss << indexStr;
@@ -735,9 +731,9 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 
 ///////////// MESHES
 
-static GLuint getMeshCount(const struct aiNode *node) {
-	GLuint count = node->mNumMeshes;
-	for (GLuint n = 0; n < node->mNumChildren; ++n) {
+static uint32_t getMeshCount(const struct aiNode *node) {
+	uint32_t count = node->mNumMeshes;
+	for (uint32_t n = 0; n < node->mNumChildren; ++n) {
 		const struct aiNode *child = node->mChildren[n];
 		if (child == nullptr) { continue; }
 		count += getMeshCount(child);
@@ -747,18 +743,18 @@ static GLuint getMeshCount(const struct aiNode *node) {
 
 vector<ref_ptr<Mesh> > AssetImporter::loadAllMeshes(
 		const Mat4f &transform, const BufferFlags &bufferFlags) {
-	GLuint meshCount = getMeshCount(scene_->mRootNode);
+	uint32_t meshCount = getMeshCount(scene_->mRootNode);
 
-	vector<GLuint> meshIndices(meshCount);
-	for (GLuint n = 0; n < meshCount; ++n) { meshIndices[n] = n; }
+	vector<uint32_t> meshIndices(meshCount);
+	for (uint32_t n = 0; n < meshCount; ++n) { meshIndices[n] = n; }
 
 	return loadMeshes(transform, bufferFlags, meshIndices);
 }
 
 vector<ref_ptr<Mesh> > AssetImporter::loadMeshes(
-		const Mat4f &transform, const BufferFlags &bufferFlags, const vector<GLuint> &meshIndices) {
+		const Mat4f &transform, const BufferFlags &bufferFlags, const vector<uint32_t> &meshIndices) {
 	vector<ref_ptr<Mesh> > out(meshIndices.size());
-	GLuint currentIndex = 0;
+	uint32_t currentIndex = 0;
 
 	loadMeshes(*scene_->mRootNode, transform, bufferFlags, meshIndices, currentIndex, out);
 
@@ -769,14 +765,14 @@ void AssetImporter::loadMeshes(
 		const struct aiNode &node,
 		const Mat4f &transform,
 		const BufferFlags &bufferFlags,
-		const vector<GLuint> &meshIndices,
-		GLuint &currentIndex,
+		const vector<uint32_t> &meshIndices,
+		uint32_t &currentIndex,
 		vector<ref_ptr<Mesh> > &out) {
 	const auto *aiTransform = (const aiMatrix4x4 *) &transform.x;
 
 	// walk through meshes, add primitive set for each mesh
-	for (GLuint n = 0; n < node.mNumMeshes; ++n) {
-		GLuint index = 0;
+	for (uint32_t n = 0; n < node.mNumMeshes; ++n) {
+		uint32_t index = 0;
 		for (index = 0; index < meshIndices.size(); ++index) {
 			if (meshIndices[index] == n) break;
 		}
@@ -796,7 +792,7 @@ void AssetImporter::loadMeshes(
 		out[index] = meshState;
 	}
 
-	for (GLuint n = 0; n < node.mNumChildren; ++n) {
+	for (uint32_t n = 0; n < node.mNumChildren; ++n) {
 		const struct aiNode *child = node.mChildren[n];
 		if (child == nullptr) { continue; }
 		loadMeshes(*child, transform, bufferFlags, meshIndices, currentIndex, out);
@@ -818,14 +814,14 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 	ref_ptr<ShaderInput3f> nor = ref_ptr<ShaderInput3f>::alloc(ATTRIBUTE_NAME_NOR);
 	ref_ptr<ShaderInput4f> tan = ref_ptr<ShaderInput4f>::alloc(ATTRIBUTE_NAME_TAN);
 
-	const GLuint numFaceIndices = (mesh.mNumFaces > 0 ? mesh.mFaces[0].mNumIndices : 0);
-	GLuint numFaces = 0;
-	for (GLuint t = 0u; t < mesh.mNumFaces; ++t) {
+	const uint32_t numFaceIndices = (mesh.mNumFaces > 0 ? mesh.mFaces[0].mNumIndices : 0);
+	uint32_t numFaces = 0;
+	for (uint32_t t = 0u; t < mesh.mNumFaces; ++t) {
 		const struct aiFace *face = &mesh.mFaces[t];
 		if (face->mNumIndices != numFaceIndices) { continue; }
 		numFaces += 1;
 	}
-	const GLuint numIndices = numFaceIndices * numFaces;
+	const uint32_t numIndices = numFaceIndices * numFaces;
 
 	switch (numFaceIndices) {
 		case 1:
@@ -864,11 +860,11 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 	// vertex positions
 	Vec3f min_(999999.9);
 	Vec3f max_(-999999.9);
-	GLuint numVertices = mesh.mNumVertices;
+	uint32_t numVertices = mesh.mNumVertices;
 	{
 		pos->setVertexData(numVertices);
 		auto v_pos = (Vec3f*) pos->clientBuffer()->clientData(0);
-		for (GLuint n = 0; n < numVertices; ++n) {
+		for (uint32_t n = 0; n < numVertices; ++n) {
 			aiVector3D aiv = (*aiTransform) * mesh.mVertices[n];
 			Vec3f &v = *((Vec3f *) &aiv.x);
 			v_pos[n] = v;
@@ -883,7 +879,7 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 	if (mesh.HasNormals()) {
 		nor->setVertexData(numVertices);
 		auto v_nor = (Vec3f*) nor->clientBuffer()->clientData(0);
-		for (GLuint n = 0; n < numVertices; ++n) {
+		for (uint32_t n = 0; n < numVertices; ++n) {
 			Vec3f &v = *((Vec3f *) &mesh.mNormals[n].x);
 			v_nor[n] = v;
 		}
@@ -891,13 +887,13 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 	}
 
 	// per vertex colors
-	for (GLuint t = 0; t < AI_MAX_NUMBER_OF_COLOR_SETS; ++t) {
+	for (uint32_t t = 0; t < AI_MAX_NUMBER_OF_COLOR_SETS; ++t) {
 		if (mesh.mColors[t] == nullptr) continue;
 
 		ref_ptr<ShaderInput4f> col = ref_ptr<ShaderInput4f>::alloc(REGEN_STRING("col" << t));
 		col->setVertexData(numVertices);
 		auto v_col = (Vec4f*) col->clientBuffer()->clientData(0);
-		for (GLuint n = 0; n < numVertices; ++n) {
+		for (uint32_t n = 0; n < numVertices; ++n) {
 			v_col[n] = Vec4f(
 					mesh.mColors[t][n].r,
 					mesh.mColors[t][n].g,
@@ -908,10 +904,10 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 	}
 
 	// load texture coordinates
-	for (GLuint t = 0; t < AI_MAX_NUMBER_OF_TEXTURECOORDS; ++t) {
+	for (uint32_t t = 0; t < AI_MAX_NUMBER_OF_TEXTURECOORDS; ++t) {
 		if (mesh.mTextureCoords[t] == nullptr) { continue; }
 		aiVector3D *aiTexcos = mesh.mTextureCoords[t];
-		GLuint texcoComponents = mesh.mNumUVComponents[t];
+		uint32_t texcoComponents = mesh.mNumUVComponents[t];
 		string texcoName = REGEN_STRING("texco" << t);
 
 		ref_ptr<ShaderInput> texco;
@@ -926,9 +922,9 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 		}
 		texco->setVertexData(numVertices);
 		auto v_texco = (float*) texco->clientBuffer()->clientData(0);
-		for (GLuint n = 0; n < numVertices; ++n) {
+		for (uint32_t n = 0; n < numVertices; ++n) {
 			GLfloat *aiTexcoData = &(aiTexcos[n].x);
-			for (GLuint x = 0; x < texcoComponents; ++x) v_texco[x] = aiTexcoData[x];
+			for (uint32_t x = 0; x < texcoComponents; ++x) v_texco[x] = aiTexcoData[x];
 			v_texco += texcoComponents;
 		}
 		meshState->setInput(texco);
@@ -938,7 +934,7 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 	if (mesh.HasTangentsAndBitangents()) {
 		tan->setVertexData(numVertices);
 		auto v_tan = (Vec4f*) tan->clientBuffer()->clientData(0);
-		for (GLuint i = 0; i < numVertices; ++i) {
+		for (uint32_t i = 0; i < numVertices; ++i) {
 			Vec3f &t = *((Vec3f *) &mesh.mTangents[i].x);
 			Vec3f &b = *((Vec3f *) &mesh.mBitangents[i].x);
 			Vec3f &n = *((Vec3f *) &mesh.mNormals[i].x);
@@ -960,18 +956,18 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 	// Its offset matrix declares the transformation needed to transform from mesh space
 	// to the local space of this bone.
 	if (mesh.HasBones()) {
-		typedef list<pair<GLfloat, GLuint> > WeightList;
-		map<GLuint, WeightList> vertexToWeights;
-		GLuint maxNumWeights = 0;
+		typedef list<pair<GLfloat, uint32_t> > WeightList;
+		map<uint32_t, WeightList> vertexToWeights;
+		uint32_t maxNumWeights = 0;
 
 		// collect weights at vertices
-		for (GLuint boneIndex = 0; boneIndex < mesh.mNumBones; ++boneIndex) {
+		for (uint32_t boneIndex = 0; boneIndex < mesh.mNumBones; ++boneIndex) {
 			aiBone *assimpBone = mesh.mBones[boneIndex];
-			for (GLuint t = 0; t < assimpBone->mNumWeights; ++t) {
+			for (uint32_t t = 0; t < assimpBone->mNumWeights; ++t) {
 				aiVertexWeight &weight = assimpBone->mWeights[t];
 				vertexToWeights[weight.mVertexId].emplace_back(weight.mWeight, boneIndex);
 				maxNumWeights = max(maxNumWeights,
-									(GLuint) vertexToWeights[weight.mVertexId].size());
+									(uint32_t) vertexToWeights[weight.mVertexId].size());
 			}
 		}
 		meshState->shaderDefine("NUM_BONE_WEIGHTS", REGEN_STRING(maxNumWeights));
@@ -985,12 +981,12 @@ ref_ptr<Mesh> AssetImporter::loadMesh(const struct aiMesh &mesh, const Mat4f &tr
 			boneWeights->setVertexData(numVertices);
 			boneIndices->setVertexData(numVertices);
 			auto v_weights = (GLfloat*) boneWeights->clientBuffer()->clientData(0);
-			auto v_indices = (GLuint*) boneIndices->clientBuffer()->clientData(0);
+			auto v_indices = (uint32_t*) boneIndices->clientBuffer()->clientData(0);
 
-			for (GLuint j = 0; j < numVertices; j++) {
+			for (uint32_t j = 0; j < numVertices; j++) {
 				WeightList &vWeights = vertexToWeights[j];
 
-				GLuint k = 0;
+				uint32_t k = 0;
 				for (auto & vWeight : vWeights) {
 					v_weights[k] = vWeight.first;
 					v_indices[k] = vWeight.second;
@@ -1025,7 +1021,7 @@ list<ref_ptr<BoneNode>> AssetImporter::loadMeshBones(
 	if (mesh->mNumBones == 0) { return {}; }
 
 	list<ref_ptr<BoneNode>> boneNodes;
-	for (GLuint boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex) {
+	for (uint32_t boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex) {
 		aiBone *assimpBone = mesh->mBones[boneIndex];
 		string nodeName = string(assimpBone->mName.data);
 		ref_ptr<BoneNode> animNode = anim->findNode(nodeName);
@@ -1040,16 +1036,16 @@ list<ref_ptr<BoneNode>> AssetImporter::loadMeshBones(
 	return boneNodes;
 }
 
-GLuint AssetImporter::numBoneWeights(Mesh *meshState) {
+uint32_t AssetImporter::numBoneWeights(Mesh *meshState) {
 	const struct aiMesh *mesh = meshToAiMesh_[meshState];
 	if (mesh->mNumBones == 0) { return 0; }
 
-	auto *counter = new GLuint[meshState->numVertices()];
-	GLuint numWeights = 1;
+	auto *counter = new uint32_t[meshState->numVertices()];
+	uint32_t numWeights = 1;
 	for (GLint i = 0; i < meshState->numVertices(); ++i) counter[i] = 0u;
-	for (GLuint boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex) {
+	for (uint32_t boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex) {
 		aiBone *assimpBone = mesh->mBones[boneIndex];
-		for (GLuint t = 0; t < assimpBone->mNumWeights; ++t) {
+		for (uint32_t t = 0; t < assimpBone->mNumWeights; ++t) {
 			aiVertexWeight &weight = assimpBone->mWeights[t];
 			counter[weight.mVertexId] += 1;
 			numWeights = max(numWeights, counter[weight.mVertexId]);
@@ -1083,7 +1079,7 @@ static AnimationChannelBehavior animState(aiAnimBehaviour b) {
 ref_ptr<BoneNode> AssetImporter::loadNodeTree() {
 	if (scene_->HasAnimations()) {
 		GLboolean hasAnimations = false;
-		for (GLuint i = 0; i < scene_->mNumAnimations; ++i) {
+		for (uint32_t i = 0; i < scene_->mNumAnimations; ++i) {
 			if (scene_->mAnimations[i]->mNumChannels > 0) {
 				hasAnimations = true;
 				break;
@@ -1105,7 +1101,7 @@ ref_ptr<BoneNode> AssetImporter::loadNodeTree(aiNode *assimpNode, const ref_ptr<
 	node->calculateGlobalTransform();
 
 	// continue for all child nodes and assign the created internal nodes as our children
-	for (GLuint i = 0; i < assimpNode->mNumChildren; ++i) {
+	for (uint32_t i = 0; i < assimpNode->mNumChildren; ++i) {
 		ref_ptr<BoneNode> subTree = loadNodeTree(assimpNode->mChildren[i], node);
 		node->addChild(subTree);
 	}
@@ -1124,7 +1120,7 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 	ref_ptr<vector<Stamped<Vec3f>>> positionKeys;
 	ref_ptr<vector<Stamped<Quaternion>>> rotationKeys;
 
-	for (GLuint i = 0; i < scene_->mNumAnimations; ++i) {
+	for (uint32_t i = 0; i < scene_->mNumAnimations; ++i) {
 		aiAnimation *assimpAnim = scene_->mAnimations[i];
 		// extract ticks per second. Assume default value if not given
 		GLdouble ticksPerSecond = (assimpAnim->mTicksPerSecond != 0.0 ?
@@ -1143,13 +1139,13 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 		channels = ref_ptr<vector<AnimationChannel> >::alloc(assimpAnim->mNumChannels);
 		auto &channelsPtr = *channels.get();
 
-		for (GLuint j = 0; j < assimpAnim->mNumChannels; ++j) {
+		for (uint32_t j = 0; j < assimpAnim->mNumChannels; ++j) {
 			aiNodeAnim *nodeAnim = assimpAnim->mChannels[j];
 
 			auto scalingKeys = ref_ptr<vector<Stamped<Vec3f>>>::alloc(nodeAnim->mNumScalingKeys);
 			auto &scalingKeys_ = *scalingKeys.get();
 			GLboolean useScale = false;
-			for (GLuint k = 0; k < nodeAnim->mNumScalingKeys; ++k) {
+			for (uint32_t k = 0; k < nodeAnim->mNumScalingKeys; ++k) {
 				auto &key = scalingKeys_[k];
 				key.time = nodeAnim->mScalingKeys[k].mTime;
 				key.value = *((Vec3f *) &(nodeAnim->mScalingKeys[k].mValue.x));
@@ -1170,7 +1166,7 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 			auto &positionKeys_ = *positionKeys.get();
 			GLboolean usePosition = false;
 
-			for (GLuint k = 0; k < nodeAnim->mNumPositionKeys; ++k) {
+			for (uint32_t k = 0; k < nodeAnim->mNumPositionKeys; ++k) {
 				auto &key = positionKeys_[k];
 				key.time = nodeAnim->mPositionKeys[k].mTime;
 				key.value = *((Vec3f *) &(nodeAnim->mPositionKeys[k].mValue.x));
@@ -1190,7 +1186,7 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 			rotationKeys = ref_ptr<vector<Stamped<Quaternion>>>::alloc(nodeAnim->mNumRotationKeys);
 			auto &rotationKeys_ = *rotationKeys.get();
 			GLboolean useRotation = false;
-			for (GLuint k = 0; k < nodeAnim->mNumRotationKeys; ++k) {
+			for (uint32_t k = 0; k < nodeAnim->mNumRotationKeys; ++k) {
 				auto &key = rotationKeys_[k];
 				key.time = nodeAnim->mRotationKeys[k].mTime;
 				key.value = *((Quaternion *) &(nodeAnim->mRotationKeys[k].mValue.w));
@@ -1238,7 +1234,7 @@ ref_ptr<AssetImporter> AssetImporter::load(LoadingContext &ctx, scene::SceneInpu
 
 	AssimpAnimationConfig animConfig;
 	animConfig.numInstances =
-			input.getValue<GLuint>("animation-instances", 1u);
+			input.getValue<uint32_t>("animation-instances", 1u);
 	animConfig.useAnimation = (animConfig.numInstances > 0) &&
 							  input.getValue<bool>("use-animation", true);
 	animConfig.forceStates =

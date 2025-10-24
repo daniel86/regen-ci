@@ -4,73 +4,21 @@
 #include <regen/math/vector.h>
 #include <regen/textures/texture.h>
 #include <regen/behavior/npc-controller.h>
-#include "../animation/bone-tree.h"
 #include "regen/shapes/bounds.h"
 #include "regen/states/model-transformation.h"
-#include "regen/math/bezier.h"
 
 namespace regen {
-	/**
-	 * A controller for animal animations.
-	 */
 	class AnimalController : public NonPlayerCharacterController {
 	public:
-		/**
-		 * The behavior of the animal.
-		 */
-		enum Behavior {
-			BEHAVIOR_RUN = 0,
-			BEHAVIOR_WALK,
-			BEHAVIOR_IDLE,
-			BEHAVIOR_SPECIAL,
-			BEHAVIOR_SMELL,
-			BEHAVIOR_ATTACK,
-			BEHAVIOR_STAND_UP,
-			BEHAVIOR_SLEEP,
-			BEHAVIOR_LAST
-		};
+		static std::vector<ref_ptr<AnimalController>> load(LoadingContext &ctx, scene::SceneInputNode &node);
 
-		/**
-		 * Constructor.
-		 * @param tf the model transformation.
-		 * @param animation the node animation.
-		 * @param ranges the animation ranges.
-		 */
 		AnimalController(
-			const ref_ptr<Mesh> &mesh,
-			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
-			const ref_ptr<BoneAnimationItem> &animItem,
-			const ref_ptr<WorldModel> &world);
+				const ref_ptr<Mesh> &mesh,
+				const Indexed<ref_ptr<ModelTransformation> > &tfIndexed,
+				const ref_ptr<BoneAnimationItem> &animItem,
+				const ref_ptr<WorldModel> &world);
 
-		/**
-		 * Set the world time.
-		 * @param worldTime the world time.
-		 */
-		void setWorldTime(const WorldTime *worldTime) { worldTime_ = worldTime; }
-
-		/**
-		 * Set the laziness.
-		 * @param laziness the laziness.
-		 */
-		void setLaziness(float laziness) { laziness_ = laziness; }
-
-		/**
-		 * Set the max height.
-		 * @param maxHeight the max height.
-		 */
-		void setMaxHeight(float maxHeight) { maxHeight_ = maxHeight; }
-
-		/**
-		 * Set the min height.
-		 * @param minHeight the min height.
-		 */
-		void setMinHeight(float minHeight) { minHeight_ = minHeight; }
-
-		/**
-		 * Add a special animation.
-		 * @param special the special animation.
-		 */
-		void addSpecial(std::string_view special);
+		~AnimalController() override = default;
 
 		/**
 		 * Set the territory bounds.
@@ -79,51 +27,12 @@ namespace regen {
 		 */
 		void setTerritoryBounds(const Vec2f &center, const Vec2f &size);
 
-		/**
-		 * Set the height map.
-		 * @param heightMap the height map.
-		 * @param heightMapCenter the center.
-		 * @param heightMapSize the size.
-		 * @param heightMapFactor the factor.
-		 */
-		void setHeightMap(
-				const ref_ptr<Texture2D> &heightMap,
-				const Vec2f &heightMapCenter,
-				const Vec2f &heightMapSize,
-				float heightMapFactor);
-
 		// override
 		void updateController(double dt) override;
 
-		// override
-		void updatePose(const TransformKeyFrame &currentFrame, double t);
-
 	protected:
 		Bounds<Vec2f> territoryBounds_;
-		float laziness_;
-		float maxHeight_;
-		float minHeight_;
-
-		math::Bezier<Vec2f> bezierPath_;
-
-		ref_ptr<Texture2D> heightMap_;
-		Bounds<Vec2f> heightMapBounds_;
-		float heightMapFactor_ = 8.0f;
-
-		Behavior behavior_ = BEHAVIOR_RUN;
-		std::map<Behavior, std::vector<const AnimationRange*> > behaviorRanges_;
-		bool isLastAnimationMovement_ = false;
-		const AnimationRange *lastRange_ = nullptr;
-
-		const WorldTime *worldTime_ = nullptr;
-
-		void activateRandom();
-
-		void activateMovement();
-
-		Behavior selectNextBehavior();
-
-		float getHeight2(const Vec2f &pos);
+		ref_ptr<Place> animalTerritory_;
 
 	};
 } // namespace

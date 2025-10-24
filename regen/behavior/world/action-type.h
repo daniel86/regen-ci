@@ -10,19 +10,22 @@ namespace regen {
 	enum class ActionType {
 		IDLE = 0,
 		CONVERSING,
-		STROLLING,
+		INSPECTING,
 		OBSERVING,
-		PATROLLING,
+		GROOMING,
 		PRAYING,
 		SLEEPING,
+		SITTING,
+		INTIMIDATING,
 		ATTACKING,
 		BLOCKING,
 		FLEEING,
 		NAVIGATING,
+		STROLLING,
+		PATROLLING,
 		// enforce walk animation without path based navigation.
-		// e.g. flocking could inlclude walking, but not all the time.
+		// e.g. flocking could include walking, but not all the time.
 		WALKING,
-		SITTING,
 		FLOCKING,
 		LAST_ACTION
 	};

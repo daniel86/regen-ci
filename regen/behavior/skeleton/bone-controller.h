@@ -74,10 +74,20 @@ namespace regen {
 		 * Update the bone controller.
 		 * This will update the active motions, start/stop animations as needed,
 		 * and set animation weights for blending.
-		 * @param kb The blackboard that provides the current actions.
 		 * @param dt_s The time delta in seconds since the last update.
+		 * @param kb The blackboard that provides the current actions.
 		 */
-		void updateBoneController(const Blackboard &kb, float dt_s);
+		void updateBoneController(float dt_s, const Blackboard &kb);
+
+		/**
+		 * Update the bone controller.
+		 * This will update the active motions, start/stop animations as needed,
+		 * and set animation weights for blending.
+		 * @param dt_s The time delta in seconds since the last update.
+		 * @param desiredMotions The list of desired motion types.
+		 * @param numDesiredMotions The number of desired motion types.
+		 */
+		void updateBoneController(float dt_s, const MotionType *desiredMotions, uint32_t numDesiredMotions);
 
 		/**
 		 * @return The time the character needs for a single walking cycle.
@@ -146,7 +156,11 @@ namespace regen {
 
 		void addActiveMotion(MotionType motion);
 
+		void updateBoneController(float dt_s);
+
 		void updateDesiredMotions(const ActionType *desiredActions, uint32_t numDesiredActions);
+
+		void updateDesiredMotion(MotionType desiredMotion, ActionType desiredAction, bool selectNewClip);
 
 		void updateMotionClip(MotionData &motion, float dt_s);
 
@@ -157,6 +171,10 @@ namespace regen {
 		void stopMotionClip(MotionData &motion);
 
 		void setMotionWeight(MotionData &motion, float weight);
+
+		MotionType lastActiveMotion(MotionData &motion) const;
+
+		bool isClipInFinalStage(MotionData &motion) const;
 	};
 } // namespace
 

@@ -7,16 +7,14 @@
     <node id="configuration"
           date="01-09-2014 06:00:00"
           time-scale="60.0">
-        <camera id="main-camera"
-                mode="third-person"
-                type="impulse"
-                mesh="sphere-mesh0"
-                mesh-distance="26.0"
+        <controller type="user-impulse"
+                mode="third-person" camera="main-camera"
+                mesh="sphere-mesh0" mesh-distance="26.0"
                 vertical-orientation="0.4"
                 transform="sphere0-tf"
                 eye-offset="0.0,0.0,0.0"
                 eye-orientation="3.14159265359">
-        </camera>
+        </controller>
     </node>
 
     <!-- FBOs -->

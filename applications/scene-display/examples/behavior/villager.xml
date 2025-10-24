@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<node>
+    <behavior-tree id="villager">
+        <selector type="priority">
+            <!--
+            <sequence id="flee">
+                <condition type="attribute" name="FEAR" min-value="0.5"/>
+            </node>
+            <sequence id="rescue" type="sequence">
+                <condition type="attribute" name="HEALTH" max-value="0.5"/>
+            </node>
+            <sequence id="defend" type="sequence">
+                <condition type="predicate" name="IsEnemyVisible"/>
+            </node>
+            <sequence id="protect" type="sequence">
+                <condition type="predicate" name="IsDangerVisible"/>
+            </node>
+            -->
+            <selector id="main">
+                <sequence type="initial">
+                    <condition type="predicate" id="HasDesire" negate="1"/>
+                    <action type="PerformAction" value="IDLE" max-duration="3.0"/>
+                    <action type="SetDesiredAction" value="IDLE"/>
+                </sequence>
+                <sequence id="place-activity">
+                    <action type="SelectTargetPlace"/>
+                    <sequence id="engage-place">
+                        <action type="MoveToTargetPlace">
+                            <condition type="predicate" id="IsAtTargetPlace" negate="1" on-failure="SUCCESS"/>
+                        </action>
+                        <!--
+                        <sequence id="move-to-place">
+                            <condition type="predicate" id="IsAtTargetPlace" negate="1"/>
+                            <action type="MoveToTargetPlace"/>
+                        </sequence>
+                        -->
+                        <sequence id="at-place">
+                            <condition type="predicate" id="IsAtTargetPlace"/>
+                            <!-- Set desired action based on environment affordances, traits etc. -->
+                            <action type="SelectPlaceActivity"/>
+                            <selector id="walking-or-affordance">
+                                <sequence id="walk-around">
+                                    <!-- Walk around without specific goal besides the walking.
+                                         For this we just need to make the action current, and the controller
+                                         will pick up a navigation path at the current place. -->
+                                    <condition type="disjunction" exclusive="1">
+                                        <condition type="predicate" id="HasDesiredActivity" value="STROLL"/>
+                                        <condition type="predicate" id="HasDesiredActivity" value="PATROL"/>
+                                        <condition type="predicate" id="HasDesiredActivity" value="IDLE"/>
+                                    </condition>
+                                    <action type="LeaveLocation"/>
+                                    <action type="PerformDesiredAction"/>
+                                </sequence>
+                                <sequence id="socialize">
+                                    <condition type="predicate" id="HasDesiredActivity" value="CONVERSE"
+                                               exclusive="1"/>
+                                    <!-- <condition type="isSocialAffordance"/> -->
+                                    <action type="SelectPlaceLocation"/>
+                                    <selector>
+                                        <action type="MoveToLocation">
+                                            <condition type="predicate" id="IsAtDesiredLocation" negate="1"/>
+                                        </action>
+                                        <selector>
+                                            <condition type="predicate" id="IsAtDesiredLocation"/>
+                                            <action type="LeaveGroup">
+                                                <condition type="predicate" id="IsLastGroupMember"/>
+                                            </action>
+                                            <sequence>
+                                                <action type="FormLocationGroup"/>
+                                                <sequence>
+                                                    <condition type="predicate" id="IsPartOfGroup"/>
+                                                    <action type="MoveToGroup"/>
+                                                    <parallel success="all" failure="any">
+                                                        <action type="PerformAction" value="FLOCKING"/>
+                                                        <action type="PerformDesiredAction"/>
+                                                    </parallel>
+                                                </sequence>
+                                            </sequence>
+                                            <sequence>
+                                                <action type="LeaveGroup"/>
+                                                <action type="PerformAction" value="IDLE" max-duration="5.0"/>
+                                            </sequence>
+                                        </selector>
+                                    </selector>
+                                </sequence>
+                                <sequence id="use-affordance">
+                                    <!-- Engage with the environment by using an affordance. -->
+                                    <action type="LeaveGroup"/>
+                                    <selector>
+                                        <sequence>
+                                            <action type="SelectPlacePatient"/>
+                                            <selector id="engage-affordance">
+                                                <action type="PerformAffordedAction"/>
+                                                <action type="MoveToPatient"/>
+                                            </selector>
+                                        </sequence>
+                                        <sequence>
+                                            <!-- No valid affordance found, just idle. This usually means
+                                                 that all affordances are used at the moment. -->
+                                            <action type="UnsetPatient"/>
+                                            <action type="PerformAction" value="IDLE" max-duration="5.0"/>
+                                        </sequence>
+                                    </selector>
+                                </sequence>
+                            </selector>
+                        </sequence>
+                    </sequence>
+                </sequence>
+            </selector>
+        </selector>
+    </behavior-tree>
+</node>

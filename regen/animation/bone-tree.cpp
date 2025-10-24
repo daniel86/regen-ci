@@ -72,7 +72,7 @@ int32_t BoneTree::addChannels(
 	data.ticksPerSecond_ = ticksPerSecond;
 	data.duration_ = duration;
 	data.channels_ = channels;
-	const auto idx = static_cast<int32_t>(animTracks_.size());
+	const auto idx = static_cast<int32_t>(animTracks_.size()) - 1;
 	trackNameToIndex_[data.trackName_] = idx;
 	// Set node IDs for each channel.
 	for (uint32_t a = 0; a < channels->size(); a++) {
@@ -117,10 +117,10 @@ BoneTree::AnimationHandle BoneTree::startBoneAnimation(uint32_t instanceIdx, int
 
 	// Initialize the new range.
 	auto &range = instance.ranges_[animHandle];
-	range.trackIdx_ = trackIdx;
 	range.tickRange_.x = -1.0;
 	range.tickRange_.y = -1.0;
 	range.weight_ = 1.0;
+	range.trackIdx_ = trackIdx;
 	setTickRange(range, forcedTickRange);
 
 	// Count number of animations affecting a node.
@@ -181,6 +181,7 @@ void BoneTree::setTickRange(uint32_t instanceIdx, AnimationHandle animHandle, co
 
 // Look for present frame number.
 // Search from last position if time is after the last time, else from beginning
+
 template<class T>
 static void findFrameAfterTick(double tick, uint32_t &frame, const std::vector<T> &keys) {
 	double dt;
@@ -305,11 +306,8 @@ void BoneTree::animate(double dt_ms) {
 			range.elapsedTime_ += dt_ms;
 
 			// map into anim's duration
-			range.timeInTicks_ = range.elapsedTime_ * timeFactor_ * track.ticksPerSecond_;
-			if (range.timeInTicks_ > range.duration_) {
-				stopBoneAnimation(instanceIdx, rangeIdx);
-				continue;
-			}
+			range.timeInTicks_ = std::min(range.duration_,
+				range.elapsedTime_ * timeFactor_ * track.ticksPerSecond_);
 			// Time runs backwards when start tick is higher then stop tick
 			if (range.tickRange_.x > range.tickRange_.y) {
 				range.timeInTicks_ = -range.timeInTicks_;
@@ -374,6 +372,15 @@ void BoneTree::animate(double dt_ms) {
 
 		rootNode_->updateTransforms(instanceIdx,
 			blendedTransforms_.data() + instanceIdx * numNodes);
+
+		for (AnimationHandle rangeIdx = 0;
+				rangeIdx < static_cast<AnimationHandle>(instance.ranges_.size()); rangeIdx++) {
+			ActiveRange &range = instance.ranges_[rangeIdx];
+			if (range.trackIdx_ == -1) continue;
+			if ((range.timeInTicks_ - range.startTick_) >= range.duration_ - 1e-5) {
+				stopBoneAnimation(instanceIdx, rangeIdx);
+			}
+		}
 	}
 
 #ifdef BONE_TREE_DEBUG_TIME
@@ -522,7 +529,7 @@ Vec3f BoneTree::nodeScaling(ActiveRange &ar, const AnimationChannel &channel, bo
 			return key.value;
 		}
 	} else if (lastFrame != frame || (1.0f - ar.lastInterpolation_[i].z) > 1e-6f) {
-		ar.lastInterpolation_[i].x = 1.0f;
+		ar.lastInterpolation_[i].z = 1.0f;
 		isDirty = true;
 	}
 

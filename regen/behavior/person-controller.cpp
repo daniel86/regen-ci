@@ -5,23 +5,18 @@
 
 using namespace regen;
 
-//#define NAV_CTRL_DEBUG_WPS
-
 PersonController::PersonController(
-	const ref_ptr<Mesh> &mesh,
-	const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
-	const ref_ptr<BoneAnimationItem> &animItem,
-	const ref_ptr<WorldModel> &world)
-	: NonPlayerCharacterController(tfIndexed, animItem, world),
-      knowledgeBase_(tfIndexed.index, &currentPos_, &currentDir_) {
-	boneController_ = ref_ptr<BoneController>::alloc(tfIndexed.index, animItem);
-
+		const ref_ptr<Mesh> &mesh,
+		const Indexed<ref_ptr<ModelTransformation> > &tfIndexed,
+		const ref_ptr<BoneAnimationItem> &animItem,
+		const ref_ptr<WorldModel> &world)
+		: NonPlayerCharacterController(mesh, tfIndexed, animItem, world) {
 	// Try to get the world object representing this character.
 	if (mesh->hasIndexedShapes()) {
 		auto i_shape = mesh->indexedShape(tfIndexed.index);
 		Resource *objRes = i_shape->worldObject();
 		if (objRes) {
-			WorldObject *wo = dynamic_cast<WorldObject*>(objRes);
+			WorldObject *wo = dynamic_cast<WorldObject *>(objRes);
 			if (!wo) {
 				REGEN_WARN("World object resource is not a WorldObject in NPC controller.");
 			} else {
@@ -31,58 +26,23 @@ PersonController::PersonController(
 			}
 		}
 	}
+	// Try to get the world object representing this character.
 	if (!knowledgeBase_.characterObject()) {
 		// auto create a world object for this character
-		auto wo = ref_ptr<NPCObject>::alloc(REGEN_STRING("npc-" << tfIndexed.index));
+		auto wo = ref_ptr<PersonObject>::alloc(REGEN_STRING("npc-" << tfIndexed.index));
 		wo->setPosition(Vec3f::zero());
 		wo->setKnowledgeBase(&knowledgeBase_);
 		wo->setNPCController(this);
 		knowledgeBase_.setCharacterObject(wo.get());
 		worldModel_->addWorldObject(wo);
 	} else {
-		auto *wo = dynamic_cast<CharacterObject*>(knowledgeBase_.characterObject());
+		auto *wo = dynamic_cast<CharacterObject *>(knowledgeBase_.characterObject());
 		if (wo) {
 			wo->setKnowledgeBase(&knowledgeBase_);
 			wo->setNPCController(this);
 		} else {
 			REGEN_WARN("World object in NPC controller is not a CharacterObject.");
 		}
-	}
-
-	// randomize a bit to avoid all NPCs deciding and perceiving in
-	// the same frame.
-	timeSinceLastDecision_s_ = math::random<float>() * decisionInterval_s_;
-	timeSinceLastPerception_s_ = math::random<float>() * perceptionInterval_s_;
-
-	// initialize action capabilities
-	for (uint32_t actionIdx = 0; actionIdx < static_cast<uint32_t>(ActionType::LAST_ACTION); actionIdx++) {
-		ActionType action = static_cast<ActionType>(actionIdx);
-		if (boneController_->canPerformAction(action)) {
-			knowledgeBase_.setActionCapability(action, true);
-		}
-	}
-
-	pathPlanner_ = ref_ptr<PathPlanner>::alloc();
-	// add all places of interest and way points from the world model
-	for (const auto &p : worldModel_->places) {
-		knowledgeBase_.addPlaceOfInterest(p);
-	}
-	for (const auto &wp : worldModel_->wayPoints) {
-		addWayPoint(wp);
-	}
-	for (const auto &conn : worldModel_->wayPointConnections) {
-		addConnection(conn.first, conn.second);
-	}
-	// pick a home
-	auto &homePlaces = knowledgeBase_.getPlacesByType(PlaceType::HOME);
-	if (!homePlaces.empty()) {
-		knowledgeBase_.setHomePlace(homePlaces[math::randomInt() % homePlaces.size()]);
-	}
-}
-
-PersonController::~PersonController() {
-	if (perceptionSystem_.get()) {
-		perceptionSystem_->removeMonitor(this);
 	}
 }
 
@@ -93,26 +53,6 @@ void PersonController::initializeController() {
 	// Start with idle animation
 	setIdle();
 	startAnimation();
-}
-
-void PersonController::setPerceptionSystem(std::unique_ptr<PerceptionSystem> ps) {
-	if (perceptionSystem_.get()) {
-		perceptionSystem_->removeMonitor(this);
-	}
-	perceptionSystem_ = std::move(ps);
-	perceptionSystem_->addMonitor(this);
-}
-
-void PersonController::setIdle() {
-	auto &kb = knowledgeBase_;
-	kb.setCurrentAction(ActionType::IDLE);
-	kb.setActivityTime(kb.baseTimeActivity() * 0.05f * math::random<float>());
-	kb.unsetInteractionTarget();
-	currentPath_.clear();
-}
-
-void PersonController::setBehaviorTree(std::unique_ptr<BehaviorTree::Node> rootNode) {
-	behaviorTree_ = std::make_unique<BehaviorTree>(std::move(rootNode));
 }
 
 void PersonController::setWeaponMesh(const ref_ptr<Mesh> &mesh) {
@@ -144,40 +84,16 @@ void PersonController::drawWeapon() {
 	}
 }
 
-void PersonController::addWayPoint(const ref_ptr<WayPoint> &wp) {
-	pathPlanner_->addWayPoint(wp);
-}
-
-void PersonController::addConnection(
-	const ref_ptr<WayPoint> &from,
-	const ref_ptr<WayPoint> &to,
-	bool bidirectional) {
-	pathPlanner_->addConnection(from, to, bidirectional);
-}
-
 void PersonController::updateController(double dt) {
 	auto &kb = knowledgeBase_;
-	auto anim = animItem_->animation;
-	float dt_s = dt / 1000.0f;
-	lastDT_ = dt_s;
-	timeSinceLastDecision_s_ += dt_s;
-	timeSinceLastPerception_s_ += dt_s;
-
-	if (perceptionSystem_.get() && timeSinceLastPerception_s_ > perceptionInterval_s_) {
-		// Insert new percepts into the knowledge base, and update existing ones.
-		perceptionSystem_->update(knowledgeBase_, timeSinceLastPerception_s_);
-		timeSinceLastPerception_s_ = 0.0f;
-	}
-	// Do some controller specific updates to the knowledge base.
-	updateKnowledgeBase(dt_s);
+	auto &anim = animItem_->animation;
 
 	if (footstepTrail_.get() && isLastAnimationMovement_) {
 		int32_t walkHandle = boneController_->getAnimationHandle(MotionType::WALK);
 		int32_t runHandle = boneController_->getAnimationHandle(MotionType::RUN);
 		int32_t rangeIdx = std::max(walkHandle, runHandle);
 		if (rangeIdx != -1) {
-			float movementTime = (walkHandle != -1 ?
-				boneController_->walkTime() : boneController_->runTime());
+			float movementTime = (walkHandle != -1 ? boneController_->walkTime() : boneController_->runTime());
 			auto elapsed = anim->elapsedTime(tfIdx_, rangeIdx);
 			if (elapsed < footLastElapsed_) {
 				// animation looped, reset footstep flags
@@ -194,43 +110,7 @@ void PersonController::updateController(double dt) {
 		}
 	}
 
-	if (timeSinceLastDecision_s_ > decisionInterval_s_) {
-		// Reset current action state in the blackboard.
-		kb.unsetCurrentActions();
-		// Update blackboard and make some actions current.
-		auto behaviorStatus = behaviorTree_->tick(kb, timeSinceLastDecision_s_);
-		if (behaviorStatus == BehaviorStatus::FAILURE) {
-			REGEN_WARN("[" << tfIdx_ << "] Behavior tree returned FAILURE " <<
-				" linger time: " << kb.lingerTime() <<
-				" activity time: " << kb.activityTime());
-			//setIdle();
-		}
-		timeSinceLastDecision_s_ = 0.0f;
-
-		bool hasNavigatingAction = kb.isCurrentAction(ActionType::NAVIGATING);
-		bool hasPatrollingAction = kb.isCurrentAction(ActionType::PATROLLING);
-		bool hasStrollingAction = kb.isCurrentAction(ActionType::STROLLING);
-		bool hasApproachAction = (hasNavigatingAction || hasPatrollingAction || hasStrollingAction);
-		if (!hasApproachAction && !isStandingStill()) {
-			kb.setCurrentAction(ActionType::WALKING);
-		}
-	}
-
-	// Update the state of current bone animations based on current actions, intends etc.
-	boneController_->updateBoneController(knowledgeBase_, dt_s);
-	// Update path etc. for navigation action.
-	updateNavigationBehavior();
-
-	// Set flags for current bone animations
-	if (boneController_->isCurrentBoneAnimation(MotionType::RUN)) {
-		isWalking_ = false;
-		isLastAnimationMovement_ = true;
-	} else if (boneController_->isCurrentBoneAnimation(MotionType::WALK)) {
-		isWalking_ = true;
-		isLastAnimationMovement_ = true;
-	} else {
-		isLastAnimationMovement_ = false;
-	}
+	NonPlayerCharacterController::updateController(dt);
 
 	if (weaponMesh_.get()) {
 		bool useWeapon = kb.isWeaponRequired();
@@ -242,292 +122,221 @@ void PersonController::updateController(double dt) {
 	}
 }
 
-void PersonController::updateKnowledgeBase(float dt_s) {
-	auto &kb = knowledgeBase_;
-	kb.advanceTime(dt_s);
+std::vector<ref_ptr<PersonController>> PersonController::load(
+		LoadingContext &ctx, scene::SceneInputNode &node) {
+	std::vector<ref_ptr<PersonController> > controllerList;
+	auto *scene = ctx.scene();
 
-	// Re-compute distance to patient and target
-	if (kb.hasInteractionTarget()) {
-		// Update distance to patient
-		auto &target = kb.interactionTarget();
-		Vec2f delta;
-		if (!target.affordance || target.affordanceSlot < 0) {
-			// No affordance, so just go to the center of the object
-			delta = target.object->position2D() - Vec2f(currentPos_.x, currentPos_.z);
-		} else {
-			// Go to the affordance slot position
-			auto &slotPos = target.affordance->slotPosition(target.affordanceSlot);
-			delta = Vec2f(slotPos.x, slotPos.z) - Vec2f(currentPos_.x, currentPos_.z);
+	ref_ptr<Mesh> mesh;
+	auto meshes = scene->getResources()->getMesh(scene, node.getValue("mesh"));
+	if (meshes.get() != nullptr && !meshes->empty()) {
+		auto meshIndex = node.getValue<GLuint>("mesh-index", 0u);
+		if (meshIndex >= meshes->size()) {
+			REGEN_WARN("Invalid mesh index for '" << node.getDescription() << "'.");
+			meshIndex = 0;
 		}
-		kb.setDistanceToPatient(delta.length());
-		// Also let motion controller know the shape of the patient, such that it can
-		// ignore collisions with it.
-		if (patientShape_.get() != target.object->shape().get()) {
-			patientShape_ = target.object->shape();
-		}
-	} else if (patientShape_.get()) {
-		// No patient anymore
-		patientShape_ = {};
-		kb.setDistanceToPatient(std::numeric_limits<float>::max());
+		mesh = (*meshes.get())[meshIndex];
 	}
-	if (kb.hasNavigationTarget()) {
-		auto &navTarget = kb.navigationTarget();
-		if (navTarget.object.get() == kb.interactionTarget().object.get() &&
-		    navTarget.affordance.get() == kb.interactionTarget().affordance.get() &&
-		    navTarget.affordanceSlot == kb.interactionTarget().affordanceSlot) {
-			// Navigation target is the same as the patient, so reuse distance to patient.
-			kb.setDistanceToTarget(kb.distanceToPatient());
-		} else {
-			auto delta = navTarget.object->position2D() - Vec2f(currentPos_.x, currentPos_.z);
-			kb.setDistanceToTarget(delta.length());
-		}
-		// Also make the distance accessible to motion controller, as it does not have access to the blackboard.
-		distanceToTarget_ = kb.distanceToTarget();
+	if (mesh.get() == nullptr) {
+		REGEN_WARN("Unable to find mesh for NPC controller in '" << node.getDescription() << "'.");
+		return controllerList;
 	}
-}
 
-uint32_t PersonController::findClosestWP(const std::vector<ref_ptr<WayPoint>> &wps) const {
-	if (wps.empty()) return 0;
-	float bestDist = std::numeric_limits<float>::max();
-	uint32_t bestIdx = 0;
-	for (uint32_t i = 0; i < wps.size(); i++) {
-		auto &wp = wps[i];
-		float dist = (wp->position2D() - Vec2f(currentPos_.x, currentPos_.z)).lengthSquared();
-		if (dist < bestDist) {
-			bestDist = dist;
-			bestIdx = i;
+	ref_ptr<ModelTransformation> tf;
+	if (node.hasAttribute("transform")) {
+		tf = scene->getResources()->getTransform(scene, node.getValue("transform"));
+	} else if (node.hasAttribute("tf")) {
+		tf = scene->getResources()->getTransform(scene, node.getValue("tf"));
+	}
+	if (tf.get() == nullptr) {
+		REGEN_WARN("Unable to find transform for '" << node.getDescription() << "'.");
+		return controllerList;
+	}
+
+	ref_ptr<SpatialIndex> spatialIndex;
+	if (node.hasAttribute("spatial-index")) {
+		spatialIndex = scene->getResources()->getIndex(scene, node.getValue("spatial-index"));
+		if (!spatialIndex.get()) {
+			REGEN_WARN("Unable to find spatial index for controller '" << node.getDescription() << "'.");
 		}
 	}
-	return bestIdx;
-}
-
-void PersonController::updateNavigationBehavior() {
-	auto &kb = knowledgeBase_;
-
-	bool hasNavigatingAction = kb.isCurrentAction(ActionType::NAVIGATING);
-	bool hasPatrollingAction = kb.isCurrentAction(ActionType::PATROLLING);
-	bool hasStrollingAction = kb.isCurrentAction(ActionType::STROLLING);
-	bool hasFlockingAction = kb.isCurrentAction(ActionType::FLOCKING);
-	bool hasApproachLoop = (hasPatrollingAction || hasStrollingAction);
-	bool hasApproachAction = (hasNavigatingAction || hasApproachLoop);
-	bool hasAnyNavAction = hasApproachAction || hasFlockingAction;
-
-	if (!hasAnyNavAction) {
-		// No navigation action active, nothing to do.
-		currentPath_.clear();
-		stopNavigation();
-		return;
+	std::string indexedShapeName = node.getValue("indexed-shape");
+	if (spatialIndex.get() && indexedShapeName.empty()) {
+		REGEN_WARN("Spatial index specified but no indexed shape name given for controller '"
+			<< node.getDescription() << "'.");
+		return controllerList;
 	}
 
-	bool hasApproachChanged = (
-		hasNavigatingAction != hasNavigatingAction_ ||
-		hasPatrollingAction != hasPatrollingAction_ ||
-		hasStrollingAction != hasStrollingAction_
-		);
-	if (hasApproachChanged && hasApproachAction) {
-		// Make sure to reset path in case the navigation mode changed.
-		// e.g. when NAVIGATE is still active when PATROL is selected,
-		// we might end up with continuing with NAVIGATE path is we don't clear
-		// here.
-		currentPath_.clear();
-		// Also unset the navigation target in case of looped navigation
-		if (hasApproachLoop) {
-			kb.unsetNavigationTarget();
+	// load mesh for footsteps, if any
+	auto footstepVec = scene->getResources()->getMesh(
+		scene, node.getValue("footstep-mesh"));
+	ref_ptr<BlanketTrail> footstepTrail;
+	if (footstepVec.get() && !footstepVec->empty()) {
+		auto footstepMesh = (*footstepVec.get())[0];
+		footstepTrail = ref_ptr<BlanketTrail>::dynamicCast(footstepMesh);
+		if (!footstepTrail) {
+			REGEN_WARN("Footstep mesh is not a BlanketTrail in '" << node.getDescription() << "'.");
 		}
-	}
-	hasNavigatingAction_ = hasNavigatingAction;
-	hasPatrollingAction_ = hasPatrollingAction;
-	hasStrollingAction_ = hasStrollingAction;
-
-	if (kb.isCurrentAction(ActionType::FLOCKING)) {
-		auto &group = kb.currentGroup();
-		if (!group) {
-			REGEN_WARN("No group for flocking action.");
-		} else if (!isNavigationFlocking()) {
-			startFlocking(group);
-		}
-	} else if (isNavigationFlocking()) {
-		stopFlocking();
+	} else if (node.hasAttribute("footstep-mesh")) {
+		REGEN_WARN("Unable to find footstep mesh for NPC controller in '" << node.getDescription() << "'.");
 	}
 
-	if (!hasApproachAction || isNavigationApproaching()) {
+	auto animAssetName = node.getValue("animation-asset");
+	auto animItem = scene->getAnimationRanges(animAssetName);
+	if (!animItem) {
+		REGEN_WARN("Unable to find animation asset for animation with name '"
+			<< animAssetName << "' in controller '" << node.getDescription() << "'.");
+		return controllerList;
 	}
-	else if (hasApproachLoop && currentPath_.empty() && kb.currentPlace().get()) {
-		// We are patrolling or strolling, but have no path yet, so start one.
-		auto &currentPlace = kb.currentPlace();
-		auto loopPath = currentPlace->getPathWays(
-			hasPatrollingAction ? PathwayType::PATROL : PathwayType::STROLL);
-		// Pick a random path
-		if (!loopPath.empty()) {
-			currentPath_ = loopPath[math::randomInt() % loopPath.size()];
-			currentPathIndex_ = findClosestWP(currentPath_);
-			startNavigate(true, false);
-		} else {
-			REGEN_WARN("No pathways of type " << (hasPatrollingAction ? "PATROL" : "STROLL") <<
-				" at place " << currentPlace->name());
-			setIdle();
-		}
-	}
-	else {
-		// The TF animation has no active frame, advance to next waypoint if any.
-		if (!currentPath_.empty() && (hasApproachLoop || currentPathIndex_ < currentPath_.size())) {
-			// Set next TF waypoint for movement
-			startNavigate(hasApproachLoop, true);
-		} else {
-			// No waypoint remaining, but navigation action is still active,
-			// so it seems we need to re-plan.
-			currentPath_.clear();
-			startNavigate(false, false);
-		}
-	}
-}
 
-static ref_ptr<WayPoint> pickArrivalWP(
-	const ref_ptr<Place> &target, const Vec2f &fromPos) {
-	const float desiredDistanceToCenter = target->radius() * 0.75f;
-	Vec2f pos = target->position2D();
-	// Direction from place center to source position
-	Vec2f dir = fromPos - pos;
-	dir.y = 0.0f;
-	float l = dir.length();
-	if (l < desiredDistanceToCenter) {
-		// The source position is already within the desired distance to the center.
-		return {};
-	} else {
-		dir /= l;
-	}
-	// move from center towards source position
-	pos += dir * desiredDistanceToCenter;
+	controllerList.resize(tf->numInstances());
+	for (int32_t tfIdx = 0; tfIdx < tf->numInstances(); tfIdx++) {
+		Indexed<ref_ptr<ModelTransformation> > indexedTF(tf, tfIdx);
+		auto controller = ref_ptr<PersonController>::alloc(
+			mesh, indexedTF, animItem, scene->worldModel());
+		controllerList[tfIdx] = controller;
 
-	auto arrivalWP = ref_ptr<WayPoint>::alloc(target->name(), target->position3D());
-	arrivalWP->setRadius(target->radius() * 0.5f);
-	return arrivalWP;
-}
-
-bool PersonController::startNavigate(bool loopPath, bool advancePath) {
-	auto &kb = knowledgeBase_;
-	if (!currentPath_.empty()) {
-		// Reached target point
-		if (advancePath) {
-			currentPathIndex_++;
-		}
-		if (loopPath && currentPathIndex_ >= currentPath_.size()) {
-			currentPathIndex_ = 0;
-		}
-		if (currentPathIndex_ < currentPath_.size()) {
-			// Move to next point on path
-#ifdef NAV_CTRL_DEBUG_WPS
-			REGEN_INFO("[" << tfIdx_ << "] Navigating to waypoint " <<
-				currentPath_[currentPathIndex_]->name() <<
-				" (" << (currentPathIndex_+1) << "/" << currentPath_.size() << ")");
-#endif
-			return updatePathNPC();
-		} else if (advancePath) {
-			currentPathIndex_ = 0;
-			currentPath_.clear();
-			return false;
-		}
-	}
-	auto &currentPlace = kb.currentPlace();
-	auto &targetPlace = kb.targetPlace();
-	if (currentPlace.get() && currentPlace.get() == targetPlace.get()) {
-		// Already at target place.
-		// For now we don't do local navigation planning within a place,
-		// but just go directly to the target.
-		return updatePathNPC();
-	}
-	if (!targetPlace) {
-		REGEN_WARN("No target place for navigation.");
-		return false;
-	}
-	auto currentPos2D = Vec2f(currentPos_.x, currentPos_.z);
-	// Compute a path to the target.
-	currentPath_ = pathPlanner_->findPath(currentPos2D, targetPlace->position2D());
-	// Add a waypoint within the target place which is close to the last waypoint.
-	if (currentPath_.empty()) {
-		if (currentPlace.get() != targetPlace.get()) {
-			// We are not at the target place yet, so add the arrival waypoint.
-			auto arrivalWP = pickArrivalWP(targetPlace, currentPos2D);
-			if (arrivalWP.get()) currentPath_ = { arrivalWP };
-		}
-	} else {
-		auto &lastWP = currentPath_.back();
-		auto arrivalWP = pickArrivalWP(targetPlace, lastWP->position2D());
-		if (arrivalWP.get()) currentPath_.push_back(arrivalWP);
-	}
-	currentPathIndex_ = 0;
-#ifdef NAV_CTRL_DEBUG_WPS
-	REGEN_INFO("[" << tfIdx_ << "] Planned path to place " << targetPlace->name()
-			<< " num WPs: " << currentPath_.size());
-#endif
-	return updatePathNPC();
-}
-
-Vec2f PersonController::pickTravelPosition(const WorldObject &wp) const {
-	// Base target position (waypoint center)
-	Vec2f baseTarget = wp.position2D();
-	if (wp.radius() < 0.1f) {
-		return baseTarget;
-	} else {
-		// Pick an angle roughly facing *towards* the waypoint from the NPC's current position
-		Vec2f toWP = baseTarget - Vec2f(currentPos_.x, currentPos_.z);
-		float angle = atan2(toWP.y, toWP.x) + M_PI;
-		// Allow a small angular variation (+-45°)
-		angle += (math::random<float>() - 0.5f) * (M_PI / 2.0f);
-		const float distanceToWP = wp.radius() * (0.7f * math::random<float>() + 0.1f);
-		// Offset final target
-		return baseTarget + Vec2f(cos(angle), sin(angle)) * distanceToWP;
-	}
-}
-
-Vec2f PersonController::pickTargetPosition(const Patient &navTarget) const {
-	if (!navTarget.affordance) {
-		return pickTravelPosition(*navTarget.object.get());
-	} else {
-		auto &slotPos =
-			navTarget.affordance->slotPosition(navTarget.affordanceSlot);
-		return Vec2f(slotPos.x, slotPos.z);
-	}
-}
-
-bool PersonController::updatePathNPC() {
-	Vec2f source(currentPos_.x, currentPos_.z);
-
-	if (currentPath_.size() < 2 || currentPathIndex_+1 >= currentPath_.size()) {
-		// Navigation actions should have a navigation target set.
-		auto &navTarget = knowledgeBase_.hasNavigationTarget() ?
-			knowledgeBase_.navigationTarget() : knowledgeBase_.interactionTarget();
-
-		if (!currentPath_.empty()) {
-			auto &lastWP = currentPath_.back();
-			startApproaching(source, pickTravelPosition(*lastWP.get()) );
-		} else if (navTarget.object->objectType() == ObjectType::PLACE) {
-			// Travel to place, prefer to use pre-computed waypoint but fallback to
-			//  going to a computed arrival position within the place.
-			startApproaching(source, pickTravelPosition(*navTarget.object.get()));
-		} else {
-			// Travel to object (with affordance slot if any)
-			Vec2f navPos = pickTargetPosition(navTarget);
-#ifdef NAV_CTRL_DEBUG_WPS
-			REGEN_INFO("[" << tfIdx_ << "] Navigating to object " << navTarget.object->name() << ".");
-#endif
-
-			// NPC shall look from affordance slot to center of attention
-			// (i.e. affordance target, or owner of affordance)
-			Vec2f dir = (navTarget.object->position2D() - navPos);
-			float dist = dir.length();
-			if (dist < affordanceSlotRadius_) {
-				dir = Vec2f(cos(currentDir_.x + baseOrientation_), sin(currentDir_.x + baseOrientation_));
+		controller->setWorldTime(&scene->application()->worldTime());
+		if (spatialIndex.get()) {
+			auto indexedShape = spatialIndex->getShape(indexedShapeName, tfIdx);
+			if (!indexedShape) {
+				REGEN_WARN("Unable to find indexed shape '" << indexedShapeName
+					<< "' in spatial index for controller '" << node.getDescription() << "'.");
 			} else {
-				dir /= dist;
+				auto perceptionSystem = std::make_unique<PerceptionSystem>(spatialIndex, indexedShape);
+				perceptionSystem->setCollisionBit(node.getValue<uint32_t>("collision-bit", 0));
+				controller->setPerceptionSystem(std::move(perceptionSystem));
 			}
-
-			float o = atan2(dir.y, dir.x) - baseOrientation_;
-			startApproaching(source, navPos, Vec3f(o, 0.0f, 0.0f) );
 		}
-	} else {
-		auto &nextWP = currentPath_[currentPathIndex_];
-		startApproaching(source, pickTravelPosition(*nextWP.get()));
+		if (footstepTrail.get()) {
+			float leftFootTime = node.getValue<float>("left-foot-time", 0.25f);
+			float rightFootTime = node.getValue<float>("right-foot-time", 0.8f);
+			controller->setFootstepTrail(footstepTrail, leftFootTime, rightFootTime);
+		}
+		if (node.hasAttribute("decision-interval")) {
+			controller->setDecisionInterval(node.getValue<float>("decision-interval", 0.25f));
+		}
+		if (node.hasAttribute("perception-interval")) {
+			controller->setPerceptionInterval(node.getValue<float>("perception-interval", 0.1f));
+		}
+		controller->setWalkSpeed(node.getValue<float>("walk-speed", 0.05f));
+		controller->setRunSpeed(node.getValue<float>("run-speed", 0.1f));
+		controller->setMaxTurnDegPerSecond(node.getValue<float>("max-turn-angle", 90.0f));
+		if (node.hasAttribute("personal-space")) {
+			controller->setPersonalSpace(node.getValue<float>("personal-space", 4.5f));
+		}
+		if (node.hasAttribute("wall-avoidance")) {
+			controller->setAvoidanceWeight(node.getValue<float>("avoidance-weight", 0.5f));
+		}
+		if (node.hasAttribute("wall-avoidance")) {
+			controller->setWallAvoidance(node.getValue<float>("wall-avoidance", 1.0f));
+		}
+		if (node.hasAttribute("character-avoidance")) {
+			controller->setCharacterAvoidance(node.getValue<float>("character-avoidance", 10.0f));
+		}
+		if (node.hasAttribute("cohesion-weight")) {
+			controller->setCohesionWeight(node.getValue<float>("cohesion-weight", 1.0f));
+		}
+		if (node.hasAttribute("member-separation-weight")) {
+			controller->setMemberSeparationWeight(node.getValue<float>("member-separation-weight", 1.0f));
+		}
+		if (node.hasAttribute("group-separation-weight")) {
+			controller->setGroupSeparationWeight(node.getValue<float>("group-separation-weight", 5.0f));
+		}
+		if (node.hasAttribute("turn-personal-space")) {
+			controller->setTurnFactorPersonalSpace(node.getValue<float>("turn-personal-space", 3.0f));
+		}
+		controller->setPushThroughDistance(node.getValue<float>("push-through-distance", 0.5f));
+		controller->setLookAheadThreshold(node.getValue<float>("look-ahead-threshold", 6.0f));
+		controller->setAvoidanceDecay(node.getValue<float>("avoidance-decay", 0.5f));
+		controller->setWallTangentWeight(node.getValue<float>("wall-tangent-weight", 0.5f));
+		controller->setVelOrientationWeight(node.getValue<float>("velocity-orientation-weight", 0.5f));
+		controller->setFloorHeight(node.getValue<float>("floor-height", 0.0f));
+		if (node.hasAttribute("base-orientation")) {
+			controller->setBaseOrientation(node.getValue<GLfloat>("base-orientation", 0.0f));
+		}
+
+		auto &kb = controller->knowledgeBase();
+		kb.setWorldTime(&scene->application()->worldTime());
+		// Set base time for actions/staying at a place
+		kb.setBaseTimeActivity(node.getValue<float>("base-time-activity", 120.0f));
+		kb.setBaseTimePlace(node.getValue<float>("base-time-place", 1200.0f));
+		// Set randomized character traits.
+		kb.setTraitStrength(Trait::LAZINESS, math::randomize(
+			node.getValue<float>("laziness", 0.5f), 0.25f));
+		kb.setTraitStrength(Trait::SPIRITUALITY, math::randomize(
+			node.getValue<float>("spirituality", 0.5f), 0.25f));
+		kb.setTraitStrength(Trait::ALERTNESS, math::randomize(
+			node.getValue<float>("alertness", 0.5f), 0.25f));
+		kb.setTraitStrength(Trait::BRAVERY, math::randomize(
+			node.getValue<float>("bravery", 0.5f), 0.25f));
+		kb.setTraitStrength(Trait::SOCIALABILITY, math::randomize(
+			node.getValue<float>("sociability", 0.5f), 0.25f));
+
+		// Set the weapon mesh is any.
+		auto weaponMeshVec = scene->getResources()->getMesh(scene, node.getValue("weapon-mesh"));
+		if (weaponMeshVec.get() != nullptr && !weaponMeshVec->empty()) {
+			uint32_t weaponMeshIdx = node.getValue<uint32_t>("weapon-mesh-index", 0u);
+			if (weaponMeshIdx >= weaponMeshVec->size()) {
+				REGEN_WARN("Invalid weapon mesh index for '" << node.getDescription() << "'.");
+				weaponMeshIdx = 0;
+			}
+			auto weaponMesh = (*weaponMeshVec.get())[weaponMeshIdx];
+			if (weaponMesh.get()) {
+				controller->setWeaponMesh(weaponMesh);
+			} else {
+				REGEN_WARN("Unable to find weapon mesh in '" << node.getDescription() << "'.");
+			}
+		} else if (node.hasAttribute("weapon-mesh")) {
+			REGEN_WARN("Unable to find weapon mesh in '" << node.getDescription() << "'.");
+		}
+
+		if (node.hasAttribute("height-map")) {
+			auto heightMap2d = scene->getResources()->getTexture2D(scene, node.getValue("height-map"));
+			if (!heightMap2d) {
+				REGEN_WARN("Unable to find height map in '" << node.getDescription() << "'.");
+			} else {
+				auto heightMap = ref_ptr<HeightMap>::dynamicCast(heightMap2d);
+				if (!heightMap) {
+					REGEN_WARN("Height map texture is not a height map in '" << node.getDescription() << "'.");
+				} else {
+					controller->setHeightMap(heightMap);
+				}
+			}
+		}
+
+		// Load a behavior tree.
+		// NOTE: XML scene may define different behavior trees for different instances.
+		for (const auto &btNodeXML: node.getChildren("behavior-tree")) {
+			std::list<scene::IndexRange> indices = btNodeXML->getIndexSequence(tf->numInstances());
+			for (auto &range: indices) {
+				if (range.isWithinRange(tfIdx)) {
+					auto importKey = btNodeXML->getValue("import");
+					if (importKey.empty()) {
+						if (!btNodeXML->getChildren().empty()) {
+							auto btRootXML = btNodeXML->getChildren().front();
+							auto btRoot = BehaviorTree::load(ctx, *btRootXML.get());
+							controller->setBehaviorTree(std::move(btRoot));
+						}
+					} else {
+						// Load behavior tree node as child of root node.
+						auto btRoots = scene->getRoot()->getFirstChild("behavior-tree", importKey);
+						if (!btRoots || btRoots->getChildren().empty()) {
+							REGEN_WARN("Unable to find imported behavior tree '" << importKey
+								<< "' for controller '" << node.getDescription() << "'.");
+						} else {
+							auto btRootXML = btRoots->getChildren().front();
+							auto btRoot = BehaviorTree::load(ctx, *btRootXML.get());
+							controller->setBehaviorTree(std::move(btRoot));
+						}
+					}
+					break;
+				}
+			}
+		}
+
+		controller->initializeController();
 	}
-	return true;
+
+	return controllerList;
 }

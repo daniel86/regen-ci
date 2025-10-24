@@ -17,7 +17,7 @@
     <node id="configuration"
             date="01-09-2014 02:00:00"
             time-scale="6.0">
-        <camera id="main-camera"
+        <controller camera="main-camera"
                 mode="first-person"
                 speed="0.05"
                 eye-offset="0.0,0.0,0.0"
@@ -34,7 +34,7 @@
             <anchor type="look-at" pos="-5.1858, 30.5205, -49.9847" dir="0.0309986, -0.505533, 0.86225"/>
             <anchor type="look-at" pos="62.9234, 2.7976, -32.937" dir="-0.938045, 0.0149996, 0.346188"/>
             <anchor type="look-at" pos="5.24732, 10.0293, 38.6082" dir="-0.254233, -0.0599641, -0.965282"/>
-        </camera>
+        </controller>
     </node>
 
     <!-- FBOs -->

@@ -77,6 +77,18 @@ namespace regen::scene {
 		const ref_ptr<ShaderInput2f> &getMouseTexco() const;
 
 		/**
+		 * @return The world model.
+		 */
+		ref_ptr<WorldModel> worldModel() const { return worldModel_; }
+
+		/**
+		 * @param worldModel The world model.
+		 */
+		void setWorldModel(const ref_ptr<WorldModel> &worldModel) {
+			worldModel_ = worldModel;
+		}
+
+		/**
 		 * Add Application event handler.
 		 * @param eventID The Application event id.
 		 * @param eventHandler The EventHandler.
@@ -220,6 +232,7 @@ namespace regen::scene {
 		std::map<std::string, ref_ptr<StateNode> > nodes_;
 		std::map<std::string, ref_ptr<State> > states_;
 		ref_ptr<BulletPhysics> physics_;
+		ref_ptr<WorldModel> worldModel_;
 
 		void init();
 

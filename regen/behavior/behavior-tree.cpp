@@ -159,7 +159,18 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 					REGEN_WARN("Failed to load child node in '" << child->getDescription() << "'.");
 				}
 			}
-		} else {
+		}
+		else if (xmlNode.getValue("type") == "random") {
+			auto selNode = new BehaviorRandomSelectorNode();
+			node = addConditionDecorator(ctx, xmlNode, selNode);
+			for (auto &child : xmlNode.getChildren()) {
+				if (child->getCategory() == "condition") continue;
+				if (!loadNode(ctx, *child.get(), selNode)) {
+					REGEN_WARN("Failed to load child node in '" << child->getDescription() << "'.");
+				}
+			}
+		}
+		else {
 			auto selNode = new BehaviorPriorityNode();
 			node = addConditionDecorator(ctx, xmlNode, selNode);
 			for (auto &child : xmlNode.getChildren()) {
@@ -195,8 +206,18 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 			actNode = new SelectPlaceActivity();
 		}
 		else if (actionType == "SetDesiredAction" || actionType == "SetDesiredActivity") {
-			auto action = xmlNode.getValue<ActionType>("action", ActionType::IDLE);
-			actNode = new SetDesiredActivity(action);
+			auto action = xmlNode.getValue<ActionType>("value", ActionType::IDLE);
+			auto n = new SetDesiredActivity(action);
+			if (xmlNode.hasAttribute("min-duration") || xmlNode.hasAttribute("max-duration")) {
+				float minDur = xmlNode.getValue<float>("min-duration", 0.0f);
+				float maxDur = xmlNode.getValue<float>("max-duration", minDur);
+				n->setDurationRange(minDur, maxDur);
+			}
+			else if (xmlNode.hasAttribute("duration")) {
+				float dur = xmlNode.getValue<float>("duration", 0.0f);
+				n->setFixedDuration(dur);
+			}
+			actNode = n;
 		}
 		else if (actionType == "SelectPlacePatient") {
 			actNode = new SelectPlacePatient();
@@ -206,6 +227,9 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 		}
 		else if (actionType == "UnsetPatient") {
 			actNode = new UnsetPatient();
+		}
+		else if (actionType == "MoveToTargetPoint") {
+			actNode = new MoveToTargetPoint();
 		}
 		else if (actionType == "MoveToTargetPlace") {
 			actNode = new MoveToTargetPlace();
@@ -240,6 +264,9 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 		}
 		else if (actionType == "PerformAffordedAction") {
 			actNode = new PerformAffordedAction();
+		}
+		else if (actionType == "SetRoamingTarget") {
+			actNode = new SetRoamingTarget();
 		}
 		else if (actionType == "SetTargetPlace") {
 			auto wo = ctx.scene()->getResource<WorldObjectVec>(xmlNode.getValue("value"));

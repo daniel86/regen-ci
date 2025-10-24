@@ -1,34 +1,22 @@
-/*
- * qt-camera-events.cpp
- *
- *  Created on: Oct 26, 2014
- *      Author: daniel
- */
-
-#include <GL/glew.h>
-#include <QtOpenGL/QGLWidget>
-#include <QtCore/QThread>
-
+#include "qt-events.h"
+#include <qkeysequence.h>
 #include <regen/scene/scene.h>
-#include "qt-camera-events.h"
 
 using namespace regen;
 
-QtFirstPersonEventHandler::QtFirstPersonEventHandler(
+QtCameraEventHandler::QtCameraEventHandler(
 		const ref_ptr<CameraController> &m,
 		const std::vector<CameraCommandMapping> &keyMappings)
 		: EventHandler(),
 		  m_(m),
-		  buttonPressed_(GL_FALSE),
+		  buttonPressed_(false),
 		  sensitivity_(0.0002f) {
 	for (const auto &x: keyMappings) {
 		keyMappings_[x.key] = x;
 	}
 }
 
-void QtFirstPersonEventHandler::set_sensitivity(GLfloat val) { sensitivity_ = val; }
-
-void QtFirstPersonEventHandler::call(EventObject *evObject, EventData *data) {
+void QtCameraEventHandler::call(EventObject *evObject, EventData *data) {
 	if (data->eventID == Scene::MOUSE_MOTION_EVENT) {
 		if (buttonPressed_) {
 			auto *ev = (Scene::MouseMotionEvent *) data;
@@ -39,8 +27,8 @@ void QtFirstPersonEventHandler::call(EventObject *evObject, EventData *data) {
 	}
 	else if (data->eventID == Scene::KEY_EVENT) {
 		auto *ev = (Scene::KeyEvent *) data;
-		auto evKey = QKeySequence(ev->key).toString();
-		auto needle = keyMappings_.find(evKey.toStdString());
+		auto evKey = QKeySequence(ev->key).toString().toStdString();
+		auto needle = keyMappings_.find(evKey);
 
 		CameraCommand cmd = CameraCommand::NONE;
 		if (needle != keyMappings_.end()) {
@@ -77,3 +65,57 @@ void QtFirstPersonEventHandler::call(EventObject *evObject, EventData *data) {
 	}
 }
 
+QtMotionEventHandler::QtMotionEventHandler(
+		const ref_ptr<UserController> &ctrl,
+		const std::vector<MotionCommandMapping> &keyMappings)
+		: EventHandler(),
+		  ctrl_(ctrl) {
+	for (const auto &x: keyMappings) {
+		keyMappings_[x.key] = x;
+	}
+	motionCounter_.resize(static_cast<int>(MotionType::MOTION_LAST), 0);
+}
+
+void QtMotionEventHandler::call(EventObject *evObject, EventData *data) {
+	std::map<std::string, MotionCommandMapping>::iterator needle = keyMappings_.end();
+	bool isPressed = false;
+
+	if (data->eventID == Scene::KEY_EVENT) {
+		auto *ev = (Scene::KeyEvent *) data;
+		auto evStr = QKeySequence(ev->key).toString();
+		needle = keyMappings_.find(evStr.toStdString());
+		isPressed = !ev->isUp;
+	} else if (data->eventID == Scene::BUTTON_EVENT) {
+		auto *ev = (Scene::ButtonEvent *) data;
+		needle = keyMappings_.find(REGEN_STRING("button" << ev->button));
+		isPressed = ev->pressed;
+	}
+	if (needle == keyMappings_.end()) return;
+
+	MotionType motion = needle->second.command;
+	int motionIdx = static_cast<int>(motion);
+	int &motionCount = motionCounter_[motionIdx];
+	if (needle->second.toggle) {
+		if (isPressed) {
+			if (motionCount == 0) {
+				ctrl_->setMotionActive(motion, true, needle->second.reverse);
+				motionCount = 1;
+			} else {
+				ctrl_->setMotionActive(motion, false, needle->second.reverse);
+				motionCount = 0;
+			}
+		}
+	} else if (isPressed) {
+		motionCount++;
+		if (motionCount == 1) {
+			ctrl_->setMotionActive(motion, true, needle->second.reverse);
+		}
+	} else {
+		motionCount--;
+		if (motionCount == 0) {
+			ctrl_->setMotionActive(motion, false, needle->second.reverse);
+		} else if (motionCount < 0) {
+			motionCount = 0;
+		}
+	}
+}

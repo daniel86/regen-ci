@@ -13,7 +13,7 @@
     <node id="configuration"
             date="01-09-2014 06:00:00"
             time-scale="60.0">
-        <camera id="main-camera"
+        <controller camera="main-camera"
                 mode="first-person"
                 speed="0.05"
                 eye-offset="0.0,0.0,0.0"
@@ -22,7 +22,7 @@
                 ease-in-out="1.8"
                 anchor-pause-time="0.7"
                 anchor-time-scale="0.8">
-        </camera>
+        </controller>
     </node>
 
     <!-- FBO for deferred shading -->
@@ -53,19 +53,33 @@
     <texture id="emission-map-bloom" type="bloom" num-mips="4" input-fbo="g-buffer"/>
     <texture id="ground-color" file="res/textures/terrain/canyon/diffuse.png"/>
     <texture id="ground-normal" file="res/textures/terrain/canyon/normal.png"/>
-    <texture id="ground-height" file="res/textures/terrain/canyon/height.png"/>
+    <texture id="ground-height" type="height" file="res/textures/terrain/canyon/height.png" mipmap="1"
+             map-center="0.0,0.0"
+             map-size="{{map-size}},{{map-size}}"
+             map-factor="{{map-height}}"
+             wrapping="CLAMP_TO_EDGE"/>
     <texture id="grass-mask" file="res/textures/terrain/canyon/mask-grass.png"/>
     <texture id="grass-color" file="res/textures/materials/grass/0/color.png" wrapping="REPEAT" />
     <texture id="wind-flowmap" file="res/textures/wind/flowmap0.png" wrapping="REPEAT"/>
     <texture id="wind-noise" type="noise" preset="cloud"
             size="128.0,128.0,1.0" swizzle-g="RED" swizzle-b="RED"/>
     <!-- Spatial Index -->
-    <index id="main-index" type="quadtree" max-objects-per-node="4"/>
+    <index id="main-index" type="quadtree"
+           min-node-size="0.1"
+           subdivision-threshold="4"
+           test-mode-3d="closest"
+           close-distance="10.0"/>
+    <index id="terrain-index" type="quadtree"
+           min-node-size="5.0"
+           subdivision-threshold="8"
+           test-mode-3d="closest"
+           close-distance="10.0"/>
     <!-- Cameras -->
     <camera id="main-camera"
             fov="45.0" near="0.1" far="200.0"
             position="-40.0, 14.0, 0.0">
         <culling index="main-index" />
+        <culling index="terrain-index" />
     </camera>
     <camera id="reflection-camera"
             lod-shift="1,1,1,0"
@@ -141,8 +155,10 @@
                     height="0.0, 0.75, 0.2" slope="10.0, 180.0, 20.0"/>
         </materials>
         <shape id="ground-shape" cull="1" index="1" type="obb" mesh-index="0"
-            mesh-id="ground-mesh" transform-id="ground-tf">
-            <has-part mesh-id="ground-mesh" mesh-index="1" />
+               spatial-index="terrain-index"
+               mesh-id="ground-mesh" transform-id="ground-tf"
+               height-map="ground-height">
+            <has-part mesh-id="ground-mesh" mesh-index="1"/>
         </shape>
     </mesh>
 

@@ -13,19 +13,9 @@
     <node id="configuration"
             date="01-09-2014 06:00:00"
             time-scale="60.0">
-        <animation id="dwarf-asset" type="asset" idle="idle2">
-            <key-mapping key=" " press="jump-spot"/>
-            <key-mapping key="C" press="crouch-down" idle="crouch-loop" toggle="1"/>
-            <key-mapping key="W" press="walk" interrupt="1" release-interrupt="1"/>
-            <key-mapping key="A" press="walk" interrupt="1" release-interrupt="1"/>
-            <key-mapping key="S" press="walk" interrupt="1" release-interrupt="1" backwards="1"/>
-            <key-mapping key="D" press="walk" interrupt="1" release-interrupt="1"/>
-            <mouse-mapping button="1" press="attack1"/>
-            <mouse-mapping button="2" press="block"/>
-        </animation>
-        <camera id="main-camera"
-                mode="third-person"
-                type="physical-character"
+        <controller type="user-kinematic"
+                mode="third-person" camera="main-camera"
+                animation-asset="dwarf-asset"
                 step-height="0.9"
                 max-slope="0.8"
                 collision-radius="0.9"
@@ -40,13 +30,16 @@
                 vertical-orientation="0.16"
                 transform="dwarf-tf"
                 eye-offset="0.0,2.75,0.0">
-            <key-mapping key="W" command="move_forward"/>
-            <key-mapping key="A" command="move_left"/>
-            <key-mapping key="S" command="move_backward"/>
-            <key-mapping key="D" command="move_right"/>
-            <key-mapping key=" " command="jump"/>
-            <key-mapping key="C" command="crouch"/>
-        </camera>
+            <!-- TODO: jump-spot animation -->
+            <key-mapping key=" " camera="jump" motion="jump" range="jump-spot"/>
+            <key-mapping key="C" camera="crouch" motion="crouch" toggle="1" />
+            <key-mapping key="W" camera="move_forward" motion="walk"/>
+            <key-mapping key="A" camera="move_left" motion="walk"/>
+            <key-mapping key="D" camera="move_right" motion="walk"/>
+            <key-mapping key="S" camera="move_backward" motion="walk" backwards="1"/>
+            <mouse-mapping button="1" motion="attack"/>
+            <mouse-mapping button="2" motion="block"/>
+        </controller>
     </node>
 
     <!-- FBOs -->
@@ -126,9 +119,9 @@
     <!-- Orthogonal top-down camera used for collision map generation -->
     <camera id="collision-camera" type="orthogonal"
             width="90.0" height="90.0" far="2.0"
-            position="0.0,-0.5,0.0"
-            direction="0.0,1.0,0.0"
-            up="0.0,0.0,-1.0"
+            position="0.0, 0.0, 0.0"
+            direction="0.0,-1.0,0.0"
+            up="0.0,0.0,1.0"
             update-frequency="NEVER">
     </camera>
     <!--

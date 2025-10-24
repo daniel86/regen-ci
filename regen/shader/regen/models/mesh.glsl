@@ -628,8 +628,8 @@ void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
     Shading shading = shade(posWorld, norWorld, gl_FragCoord.z, mat.shininess);
     vec3 shadedColor =
         mat.diffuse*shading.diffuse.rgb +
-        mat.specular*shading.specular.rgb +
-        in_ambientLight;
+        mat.specular*shading.specular.rgb;
+    shadedColor += in_ambientLight;
 #endif
 #ifdef HAS_fogDistance
     shadedColor = applyFogToColor(shadedColor, gl_FragCoord.z, posWorld);

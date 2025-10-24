@@ -10,6 +10,10 @@ std::ostream &regen::operator<<(std::ostream &out, const ActionType &v) {
 			return out << "IDLE";
 		case ActionType::CONVERSING:
 			return out << "CONVERSE";
+		case ActionType::INSPECTING:
+			return out << "INSPECT";
+		case ActionType::GROOMING:
+			return out << "GROOM";
 		case ActionType::STROLLING:
 			return out << "STROLL";
 		case ActionType::OBSERVING:
@@ -22,6 +26,8 @@ std::ostream &regen::operator<<(std::ostream &out, const ActionType &v) {
 			return out << "SLEEP";
 		case ActionType::ATTACKING:
 			return out << "ATTACK";
+		case ActionType::INTIMIDATING:
+			return out << "INTIMIDATE";
 		case ActionType::BLOCKING:
 			return out << "BLOCK";
 		case ActionType::FLEEING:
@@ -46,6 +52,8 @@ std::istream &regen::operator>>(std::istream &in, ActionType &v) {
 	boost::to_upper(val);
 	if (val == "IDLE") v = ActionType::IDLE;
 	else if (val == "CONVERSE" || val == "TALK") v = ActionType::CONVERSING;
+	else if (val == "INSPECT" || val == "LOOKAROUND") v = ActionType::INSPECTING;
+	else if (val == "GROOM" || val == "GROOMING") v = ActionType::GROOMING;
 	else if (val == "STROLL") v = ActionType::STROLLING;
 	else if (val == "PATROL") v = ActionType::PATROLLING;
 	else if (val == "FLEE" || val == "RUN") v = ActionType::FLEEING;
@@ -54,6 +62,7 @@ std::istream &regen::operator>>(std::istream &in, ActionType &v) {
 	else if (val == "SIT" || val == "SITTING") v = ActionType::SITTING;
 	else if (val == "BLOCK") v = ActionType::BLOCKING;
 	else if (val == "ATTACK" || val == "FIGHT") v = ActionType::ATTACKING;
+	else if (val == "INTIMIDATE" || val == "THREATEN") v = ActionType::INTIMIDATING;
 	else if (val == "OBSERVE" || val == "WATCH") v = ActionType::OBSERVING;
 	else if (val == "SLEEP" || val == "SLEEPING") v = ActionType::SLEEPING;
 	else if (val == "PRAY" || val == "PRAYING") v = ActionType::PRAYING;

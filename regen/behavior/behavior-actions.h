@@ -65,6 +65,22 @@ namespace regen {
 	};
 
 	/**
+	 * An action node that sets a roaming target point.
+	 */
+	class SetRoamingTarget : public BehaviorActionNode {
+		ref_ptr<WayPoint> roamingWP_;
+	public:
+		SetRoamingTarget() : BehaviorActionNode() {
+			roamingWP_ = ref_ptr<WayPoint>::alloc("roaming-target");
+			roamingWP_->setRadius(0.5f);
+		}
+
+		~SetRoamingTarget() override = default;
+
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
+	};
+
+	/**
 	 * An action node that selects an activity based on the NPC's traits
 	 * and the possibilities afforded by the current place.
 	 */
@@ -87,11 +103,23 @@ namespace regen {
 	 */
 	class SetDesiredActivity : public BehaviorActionNode {
 		const ActionType desiredAction;
+		float minDuration_ = 0.0f;
+		float maxDuration_ = 0.0f;
 	public:
 		explicit SetDesiredActivity(ActionType a)
 			: BehaviorActionNode(), desiredAction(a) {}
 
 		~SetDesiredActivity() override = default;
+
+		void setDurationRange(float minDuration, float maxDuration) {
+			minDuration_ = minDuration;
+			maxDuration_ = maxDuration;
+		}
+
+		void setFixedDuration(float duration) {
+			minDuration_ = duration;
+			maxDuration_ = duration;
+		}
 
 		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 	};
@@ -143,6 +171,18 @@ namespace regen {
 		UnsetPatient() : BehaviorActionNode() {}
 
 		~UnsetPatient() override = default;
+
+		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
+	};
+
+	/**
+	 * An action node that moves the NPC to its target point.
+	 */
+	class MoveToTargetPoint : public BehaviorActionNode {
+	public:
+		MoveToTargetPoint() : BehaviorActionNode() {}
+
+		~MoveToTargetPoint() override = default;
 
 		BehaviorStatus tick(Blackboard& bb, float dt_s) override;
 	};

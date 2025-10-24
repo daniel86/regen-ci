@@ -1,4 +1,4 @@
-#include "character-controller.h"
+#include "kinematic-controller.h"
 #include <BulletCollision/CollisionDispatch/btGhostObject.h>
 #include <BulletCollision/CollisionShapes/btCapsuleShape.h>
 
@@ -14,7 +14,7 @@ public:
     PlatformRayAction(
     		btDynamicsWorld* dynamicsWorld,
     		btCollisionObject* ghostObject,
-    		GLfloat heightAdjust,
+    		float heightAdjust,
 			const std::function<void(btRigidBody*)> &callback) :
     		ghostObject_(ghostObject),
     		dynamicsWorld_(dynamicsWorld),
@@ -56,10 +56,10 @@ private:
 	btRigidBody *platform_;
 };
 
-CharacterController::CharacterController(
+KinematicPlayerController::KinematicPlayerController(
 		const ref_ptr<Camera> &camera,
 		const ref_ptr<BulletPhysics> &physics) :
-		CameraController(camera),
+		UserController(camera),
 		bt_(physics),
 		btCollisionHeight_(0.8f),
 		btCollisionRadius_(0.8f),
@@ -67,14 +67,14 @@ CharacterController::CharacterController(
 		btGravityForce_(30.0f),
 		btJumpVelocity_(16.0f),
 		btMaxSlope_(0.8f),
-		btIsMoving_(GL_FALSE),
+		btIsMoving_(false),
 		btPlatform_(nullptr) {
 	if (!physics.get()) {
 		REGEN_ERROR("No BulletPhysics instance set for CharacterController.");
 	}
 }
 
-CharacterController::~CharacterController() {
+KinematicPlayerController::~KinematicPlayerController() {
 	if (btGhostObject_.get() != nullptr) {
 		bt_->dynamicsWorld()->removeCollisionObject(btGhostObject_.get());
 		btGhostObject_ = ref_ptr<btPairCachingGhostObject>();
@@ -89,7 +89,7 @@ CharacterController::~CharacterController() {
 	}
 }
 
-void CharacterController::setGravityForce(GLfloat force) {
+void KinematicPlayerController::setGravityForce(GLfloat force) {
 	btGravityForce_ = force;
 	if (btController_.get()) {
 		btController_->setGravity(btVector3(0, -btGravityForce_, 0));
@@ -97,14 +97,14 @@ void CharacterController::setGravityForce(GLfloat force) {
 }
 
 
-void CharacterController::setMaxSlope(GLfloat maxSlope) {
+void KinematicPlayerController::setMaxSlope(GLfloat maxSlope) {
 	btMaxSlope_ = maxSlope;
 	if (btController_.get()) {
 		btController_->setMaxSlope(btMaxSlope_);
 	}
 }
 
-bool CharacterController::initializePhysics() {
+bool KinematicPlayerController::initializePhysics() {
 	if (!attachedToTransform_.get() || !bt_.get()) {
 		return false;
 	}
@@ -159,13 +159,13 @@ bool CharacterController::initializePhysics() {
 	return true;
 }
 
-void CharacterController::jump() {
+void KinematicPlayerController::jump() {
 	if (btController_.get()) {
 		btController_->jump(btVector3(0.0, btJumpVelocity_, 0.0));
 	}
 }
 
-void CharacterController::applyStep(GLfloat dt, const Vec3f &offset) {
+void KinematicPlayerController::applyStep(float dt, const Vec3f &offset) {
 	// Make a step. This is called each frame.
 
 	if (dt <= std::numeric_limits<float>::epsilon()) {
@@ -189,7 +189,7 @@ void CharacterController::applyStep(GLfloat dt, const Vec3f &offset) {
 	btVector3 btVelocity = btController_->getLinearVelocity();
 	btVelocity.setX(0.0);
 	btVelocity.setZ(0.0);
-	GLboolean isMoving = isMoving_;
+	bool isMoving = isMoving_;
 
 	// Apply the platform velocity to the character controller
     if (btPlatform_) {
@@ -199,7 +199,7 @@ void CharacterController::applyStep(GLfloat dt, const Vec3f &offset) {
 			// not sure about the magic number 16.8, might
 			// be related to some hacks in the kinematics controller :/
 			btVelocity += 16.8 * platformVelocity / dt;
-			isMoving = GL_TRUE;
+			isMoving = true;
 		}
 		previousPlatformPos_ = currentPlatformPos;
    }
@@ -208,13 +208,13 @@ void CharacterController::applyStep(GLfloat dt, const Vec3f &offset) {
 		if (btIsMoving_ || isMoving) {
 			btVelocity.setY(btController_->getLinearVelocity().getY());
 			btController_->setLinearVelocity(btVelocity);
-			btIsMoving_ = GL_FALSE;
+			btIsMoving_ = false;
 		}
 	} else {
 		// Apply the step to the character controller
 		btVelocity += btVector3(offset.x, offset.y, offset.z)/dt;
 		btVelocity.setY(btController_->getLinearVelocity().getY());
 		btController_->setLinearVelocity(btVelocity);
-		btIsMoving_ = GL_TRUE;
+		btIsMoving_ = true;
 	}
 }

@@ -16,7 +16,7 @@
 #include <regen/objects/lod/mesh-simplifier.h>
 #include <regen/objects/lod/impostor-billboard.h>
 #include <regen/states/direct-shading.h>
-#include <applications/qt/qt-camera-events.h>
+#include <applications/qt/qt-events.h>
 #include <applications/qt/ColorWidget.h>
 #include <applications/scene-display/animation-events.h>
 
@@ -326,7 +326,7 @@ void MeshViewerWidget::loadResources_GL() {
 }
 
 void MeshViewerWidget::loadAnimation(const ref_ptr<Mesh> &mesh, uint32_t index) {
-	std::list<ref_ptr<BoneTree::Node> > meshBones;
+	std::list<ref_ptr<BoneNode> > meshBones;
 	uint32_t numBoneWeights = asset_->numBoneWeights(mesh.get());
 
 	// Find bones influencing this mesh
@@ -404,8 +404,8 @@ void MeshViewerWidget::createCameraController() {
 	cameraController_->startAnimation();
 
 	std::vector<CameraCommandMapping> keyMappings;
-	ref_ptr<QtFirstPersonEventHandler> cameraEventHandler =
-			ref_ptr<QtFirstPersonEventHandler>::alloc(cameraController_, keyMappings);
+	ref_ptr<QtCameraEventHandler> cameraEventHandler =
+			ref_ptr<QtCameraEventHandler>::alloc(cameraController_, keyMappings);
 	cameraEventHandler->set_sensitivity(0.005f);
 	app_->connect(Scene::KEY_EVENT, cameraEventHandler);
 	app_->connect(Scene::BUTTON_EVENT, cameraEventHandler);

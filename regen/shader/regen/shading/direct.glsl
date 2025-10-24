@@ -23,7 +23,7 @@ Shading shade(vec3 P, vec3 N, float depth, float shininess)
   Shading s;
 #if NUM_LIGHTS == 0
   s.diffuse = vec3(1.0);
-  s.specular = vec3(1.0);
+  s.specular = vec3(0.0);
 #else
   s.diffuse = vec3(0.0);
   s.specular = vec3(0.0);

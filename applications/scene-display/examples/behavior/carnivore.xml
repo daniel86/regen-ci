@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<node>
+    <behavior-tree id="dog-like-carnivore">
+        <sequence id="daytime-mode">
+            <!-- <condition type="predicate" id="IsNightTime" negate="1"/> -->
+            <selector type="random">
+                <sequence>
+                    <action type="SetRoamingTarget"/>
+                    <action type="SetDesiredAction" value="NAVIGATE"/>
+                    <action type="MoveToTargetPoint"/>
+                </sequence>
+                <sequence>
+                    <action type="SetDesiredAction" value="IDLE" min-duration="5.0" max-duration="10.0"/>
+                    <action type="PerformDesiredAction" />
+                </sequence>
+                <sequence>
+                    <action type="SetDesiredAction" value="SIT" min-duration="5.0" max-duration="10.0"/>
+                    <action type="PerformDesiredAction" />
+                </sequence>
+                <sequence>
+                    <action type="SetDesiredAction" value="INSPECT" duration="0.5"/>
+                    <action type="PerformDesiredAction" />
+                </sequence>
+            </selector>
+        </sequence>
+    </behavior-tree>
+</node>

@@ -4,7 +4,7 @@
     <include xml-file="scene-display/examples/templates/default.xml"/>
 
     <node id="configuration">
-        <camera id="main-camera"
+        <controller camera="main-camera"
                 mode="first-person"
                 eye-offset="0.0,0.0,0.0"
                 eye-orientation="0.0"
@@ -20,7 +20,7 @@
             <anchor pos="-10.0, 0.5, 0.0" dir="1.0,0.0,0.0"/>
             <anchor pos="0.0, 0.5, -10.0" dir="0.0,0.0,1.0"/>
             <anchor pos="0.0, 0.5, -30.0" dir="0.0,0.0,1.0"/>
-        </camera>
+        </controller>
     </node>
 
     <!-- FBOs -->

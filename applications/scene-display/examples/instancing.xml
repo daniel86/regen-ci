@@ -31,6 +31,7 @@
     <constant name="dwarf-foot-height" value="1.5"/>
     <constant name="collision-bit" value="2"/>
     <include xml-file="scene-display/examples/templates/default.xml"/>
+    <include xml-file="scene-display/examples/behavior/villager.xml"/>
 
     <node id="configuration"
           date="01-09-2014 11:00:00"
@@ -41,11 +42,11 @@
         <world id="dwarf-rocks" height-map="ground-height">
             <place id="village-a" type="home" point="{{village-center-a}}" radius="40.0">
                 <object id="at-campfire" type="location" point="0.0,0.0" radius="17.5">
-                    <affordance type="converse" max-participants="8" max-group-size="3" />
+                    <affordance type="converse" max-participants="8" max-group-size="3"/>
                     <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
                 </object>
                 <object id="village-a-meet-up" type="location" point="35.0,45.0" radius="10.0">
-                    <affordance type="converse" max-participants="6" max-group-size="6" />
+                    <affordance type="converse" max-participants="6" max-group-size="6"/>
                 </object>
                 <object id="crates" point="16.8,45.0" radius="5.0">
                     <affordance type="observe" num-slots="4" target="crates" min-distance="1.0"/>
@@ -77,11 +78,11 @@
             </place>
             <place id="village-b" type="home" point="{{village-center-b}}" radius="40.0">
                 <object id="at-campfire" type="location" point="0.0,0.0" radius="17.5">
-                    <affordance type="converse" max-participants="8" max-group-size="3" />
+                    <affordance type="converse" max-participants="8" max-group-size="3"/>
                     <affordance type="observe" num-slots="6" radius="17.5" min-distance="3.0"/>
                 </object>
                 <object id="village-b-meet-up" type="location" point="35.0,45.0" radius="10.0">
-                    <affordance type="converse" max-participants="6" max-group-size="6" />
+                    <affordance type="converse" max-participants="6" max-group-size="6"/>
                 </object>
                 <object id="crates" point="35.0,-35.0" radius="5.0">
                     <affordance type="observe" num-slots="4" min-distance="1.0"/>
@@ -107,10 +108,10 @@
             </place>
             <place id="shrine" type="spiritual" point="{{shrine-center}}" radius="120.0">
                 <object id="shrine-meet-up1" type="location" point="90.0,25.0" radius="15.0">
-                    <affordance type="converse" max-participants="12" max-group-size="4" />
+                    <affordance type="converse" max-participants="12" max-group-size="4"/>
                 </object>
                 <object id="shrine-meet-up2" type="location" point="-90.0,25.0" radius="15.0">
-                    <affordance type="converse" max-participants="12" max-group-size="4" />
+                    <affordance type="converse" max-participants="12" max-group-size="4"/>
                 </object>
                 <path type="stroll" radius="5.0">
                     <point value="60.0,0.0"/>
@@ -135,11 +136,11 @@
             </place>
             <place id="market" type="gathering" point="{{market-x}},{{market-z}}" radius="80.0">
                 <object id="market-square" type="location" point="0.0,0.0" radius="20.0">
-                    <affordance type="converse" radius="19.0" max-participants="12" max-group-size="4" />
+                    <affordance type="converse" radius="19.0" max-participants="12" max-group-size="4"/>
                     <affordance type="observe" num-slots="14" radius="20.0" min-distance="4.0"/>
                 </object>
                 <object id="market-meet-up1" type="location" point="40.0,-35.0" radius="10.0">
-                    <affordance type="converse" max-participants="6" max-group-size="6" />
+                    <affordance type="converse" max-participants="6" max-group-size="6"/>
                 </object>
                 <object id="training-spectators" point="{{market-training-x}},{{market-training-z}}" radius="25.0">
                     <affordance type="observe" num-slots="24" radius="25.0" min-distance="20.0"/>
@@ -194,153 +195,40 @@
             <path from="wp10" to="wp13"/>
             <path from="wp9" to="wp14"/>
         </world>
-        <animation id="dwarf-asset-instanced" type="asset" idle="idle1">
-            <controller id="dwarf-controller" type="person"
-                        mesh="dwarf" mesh-index="1"
-                        weapon-mesh="dwarf" weapon-mesh-index="0"
-                        tf="dwarf-tf"
-                        indexed-shape="dwarf-shape"
-                        spatial-index="main-index"
-                        footstep-mesh="dwarf-foot"
-                        left-foot-time="0.3"
-                        right-foot-time="0.8"
-                        height-map="ground-height"
-                        decision-interval="0.25"
-                        perception-interval="0.1"
-                        base-time-activity="60.0"
-                        base-time-place="300.0"
-                        base-orientation="4.7124"
-                        collision-bit="{{collision-bit}}"
-                        run-speed="6.0" walk-speed="5.0"
-                        max-turn-angle="90.0"
-                        avoidance-weight="1.0"
-                        avoidance-decay="0.1"
-                        wall-avoidance="1.0"
-                        wall-tangent-weight="0.25"
-                        character-avoidance="4.0"
-                        cohesion-weight="1.0"
-                        member-separation-weight="0.4"
-                        group-separation-weight="0.2"
-                        push-through-distance="2.0"
-                        look-ahead-threshold="8.0"
-                        personal-space="2.5"
-                        velocity-orientation-weight="0.75">
-                <!--
-                <behavior-tree instance="0">
-                </behavior-tree>
-                -->
-                <behavior-tree>
-                    <selector type="priority">
-                        <!--
-                        <sequence id="flee">
-                            <condition type="attribute" name="FEAR" min-value="0.5"/>
-                        </node>
-                        <sequence id="rescue" type="sequence">
-                            <condition type="attribute" name="HEALTH" max-value="0.5"/>
-                        </node>
-                        <sequence id="defend" type="sequence">
-                            <condition type="predicate" name="IsEnemyVisible"/>
-                        </node>
-                        <sequence id="protect" type="sequence">
-                            <condition type="predicate" name="IsDangerVisible"/>
-                        </node>
-                        -->
-                        <selector id="main">
-                            <sequence type="initial">
-                                <condition type="predicate" id="HasDesire" negate="1"/>
-                                <action type="PerformAction" value="IDLE" max-duration="3.0" />
-                                <action type="SetDesiredAction" value="IDLE"/>
-                            </sequence>
-                            <sequence id="place-activity">
-                                <action type="SelectTargetPlace"/>
-                                <sequence id="engage-place">
-                                    <action type="MoveToTargetPlace">
-                                        <condition type="predicate" id="IsAtTargetPlace" negate="1" on-failure="SUCCESS"/>
-                                    </action>
-                                    <!--
-                                    <sequence id="move-to-place">
-                                        <condition type="predicate" id="IsAtTargetPlace" negate="1"/>
-                                        <action type="MoveToTargetPlace"/>
-                                    </sequence>
-                                    -->
-                                    <sequence id="at-place">
-                                        <condition type="predicate" id="IsAtTargetPlace"/>
-                                        <!-- Set desired action based on environment affordances, traits etc. -->
-                                        <action type="SelectPlaceActivity"/>
-                                        <selector id="walking-or-affordance">
-                                            <sequence id="walk-around">
-                                                <!-- Walk around without specific goal besides the walking.
-                                                     For this we just need to make the action current, and the controller
-                                                     will pick up a navigation path at the current place. -->
-                                                <condition type="disjunction" exclusive="1">
-                                                    <condition type="predicate" id="HasDesiredActivity" value="STROLL"/>
-                                                    <condition type="predicate" id="HasDesiredActivity" value="PATROL"/>
-                                                    <condition type="predicate" id="HasDesiredActivity" value="IDLE"/>
-                                                </condition>
-                                                <action type="LeaveLocation" />
-                                                <action type="PerformDesiredAction"/>
-                                            </sequence>
-                                            <sequence id="socialize">
-                                                <condition type="predicate" id="HasDesiredActivity" value="CONVERSE" exclusive="1" />
-                                                <!-- <condition type="isSocialAffordance"/> -->
-                                                <action type="SelectPlaceLocation"/>
-                                                <selector>
-                                                    <action type="MoveToLocation">
-                                                        <condition type="predicate" id="IsAtDesiredLocation" negate="1"/>
-                                                    </action>
-                                                    <selector>
-                                                        <condition type="predicate" id="IsAtDesiredLocation"/>
-                                                        <action type="LeaveGroup">
-                                                            <condition type="predicate" id="IsLastGroupMember" />
-                                                        </action>
-                                                        <sequence>
-                                                            <action type="FormLocationGroup"/>
-                                                            <sequence>
-                                                                <condition type="predicate" id="IsPartOfGroup" />
-                                                                <action type="MoveToGroup" />
-                                                                <parallel success="all" failure="any">
-                                                                    <action type="PerformAction" value="FLOCKING"/>
-                                                                    <action type="PerformDesiredAction"/>
-                                                                </parallel>
-                                                            </sequence>
-                                                        </sequence>
-                                                        <sequence>
-                                                            <action type="LeaveGroup"/>
-                                                            <action type="PerformAction" value="IDLE" max-duration="5.0" />
-                                                        </sequence>
-                                                    </selector>
-                                                </selector>
-                                            </sequence>
-                                            <sequence id="use-affordance">
-                                                <!-- Engage with the environment by using an affordance. -->
-                                                <action type="LeaveGroup" />
-                                                <selector>
-                                                    <sequence>
-                                                        <action type="SelectPlacePatient"/>
-                                                        <selector id="engage-affordance">
-                                                            <action type="PerformAffordedAction"/>
-                                                            <action type="MoveToPatient" />
-                                                        </selector>
-                                                    </sequence>
-                                                    <sequence>
-                                                        <!-- No valid affordance found, just idle. This usually means
-                                                             that all affordances are used at the moment. -->
-                                                        <action type="UnsetPatient" />
-                                                        <action type="PerformAction" value="IDLE" max-duration="5.0" />
-                                                    </sequence>
-                                                </selector>
-                                            </sequence>
-                                        </selector>
-                                    </sequence>
-                                </sequence>
-                            </sequence>
-                        </selector>
-                    </selector>
-                </behavior-tree>
-            </controller>
-        </animation>
-        <camera id="main-camera"
-                mode="first-person"
+        <controller id="dwarf-controller" type="person"
+                    mesh="dwarf" mesh-index="1" tf="dwarf-tf"
+                    weapon-mesh="dwarf" weapon-mesh-index="0"
+                    animation-asset="dwarf-asset-instanced"
+                    indexed-shape="dwarf-shape"
+                    spatial-index="main-index"
+                    footstep-mesh="dwarf-foot"
+                    left-foot-time="0.3"
+                    right-foot-time="0.8"
+                    height-map="ground-height"
+                    decision-interval="0.25"
+                    perception-interval="0.1"
+                    base-time-activity="60.0"
+                    base-time-place="300.0"
+                    base-orientation="4.7124"
+                    collision-bit="{{collision-bit}}"
+                    run-speed="6.0" walk-speed="5.0"
+                    max-turn-angle="90.0"
+                    avoidance-weight="1.0"
+                    avoidance-decay="0.1"
+                    wall-avoidance="1.0"
+                    wall-tangent-weight="0.25"
+                    character-avoidance="4.0"
+                    cohesion-weight="1.0"
+                    member-separation-weight="0.4"
+                    group-separation-weight="0.2"
+                    push-through-distance="2.0"
+                    look-ahead-threshold="8.0"
+                    personal-space="2.5"
+                    velocity-orientation-weight="0.75">
+            <behavior-tree import="villager"/>
+        </controller>
+        <controller id="user-controller"
+                camera="main-camera" mode="first-person"
                 speed="0.04"
                 eye-offset="0.0,1.0,0.0"
                 eye-orientation="0.0"
@@ -372,7 +260,7 @@
                     pos="{{market-x}}, 0.0, {{market-z}}"
                     offset="0.0, -10.0, 35.0"
                     dir="0.0, -0.2, -0.7"/>
-        </camera>
+        </controller>
     </node>
 
     <!-- FBOs -->
@@ -386,7 +274,7 @@
         <texture id="specular"/>
         <texture id="normal"/>
         <texture id="emission" num-components="4"/>
-        <depth id="depth" pixel-size="24" />
+        <depth id="depth" pixel-size="24"/>
     </fbo>
     <fbo id="sun-shadow" size-mode="abs" size="2048,2048,{{num-cascades}}">
         <depth id="depth" pixel-size="24" pixel-type="FLOAT"
@@ -458,9 +346,9 @@
     <camera id="main-camera"
             fov="45.0" near="0.1" far="{{far-plane}}"
             position="1.0,6.0,-50.0" direction="0.0,0.0,1.0">
-        <culling index="main-index" />
-        <culling index="terrain-index" />
-        <culling index="clutter-index" />
+        <culling index="main-index"/>
+        <culling index="terrain-index"/>
+        <culling index="clutter-index"/>
     </camera>
     <camera id="sun-camera" light="sky-sun" camera="main-camera"
             lod-shift="1,1,1,0"
@@ -468,7 +356,7 @@
             split-weight="0.6"
             uniform-z-range="1"
             depth-padding="0.0">
-        <culling index="main-index" />
+        <culling index="main-index"/>
     </camera>
     <camera id="footsteps-camera" type="orthogonal"
             width="{{dwarf-foot-width}}" height="{{dwarf-foot-height}}" far="0.55"
@@ -502,7 +390,7 @@
             <range motion="block" name="block" range="193.0,209.0"/>
             <range motion="die" name="dieFwd" range="211.0,226.0"/>
             <range motion="die" name="dieBack" range="229.0,250.0"/>
-            <range motion="agree"    name="yes" range="252.0,271.0"/>
+            <range motion="agree" name="yes" range="252.0,271.0"/>
             <range motion="disagree" name="no" range="273.0,289.0"/>
             <range motion="idle" name="idle1" range="291.0,324.0"/>
             <range motion="idle" name="idle2" range="326.0,359.0"/>
@@ -512,9 +400,9 @@
             <range name="battleIdle2" range="89.0,109.0"/>
             -->
             <!-- Define some composite motions. -->
-            <clip motion="crouch" range="crouch-loop" begin="crouch-down" end="get-up" />
-            <clip motion="pray" range="crouch-loop" begin="crouch-down" end="get-up" />
-            <clip motion="revive" range="get-up" />
+            <clip motion="crouch" range="crouch-loop" begin="crouch-down" end="get-up"/>
+            <clip motion="pray" range="crouch-loop" begin="crouch-down" end="get-up"/>
+            <clip motion="revive" range="get-up"/>
         </bone-animation>
     </asset>
     <asset id="asset-cauldron" type="asset" file="res/models/cauldron.obj" use-animation="0"/>
@@ -574,7 +462,7 @@
            use-animation="0"/>
     <asset id="asset-manikin" type="asset"
            file="res/models/manikin/manikin.obj"
-           gen-normals="1" />
+           gen-normals="1"/>
     <asset id="asset-rack" type="asset" file="res/models/weapon-rack.obj"
            gen-normals="1"/>
     <asset id="asset-stool" type="asset" file="res/models/stool.obj"
@@ -661,9 +549,9 @@
         </materials>
         <masks>
             <mask fbo="screen-space-footsteps" attachment="0"
-                    fallback-channel="1" fallback-intensity="0.4" >
+                  fallback-channel="1" fallback-intensity="0.4">
                 <!-- Blend footsteps with snow weight, to remove snow where footsteps are -->
-                <channel index="2" blend-mode="MUL" blend-factor="0.85" />
+                <channel index="2" blend-mode="MUL" blend-factor="0.85"/>
             </mask>
         </masks>
         <shape id="ground-shape" cull="1" index="1" type="obb" mesh-index="0"
@@ -730,11 +618,11 @@
           initially-dead="1">
         <shader mesh-index="0" key="regen.terrain.ground.blanket1"/>
         <transform id="dwarf-foot-tf" update-frequency="RARE"/>
-        <blanket-mask fbo="footsteps-fbo1" attachment="0" />
+        <blanket-mask fbo="footsteps-fbo1" attachment="0"/>
         <shape id="dwarf-foot-shape" cull="1" index="1" type="aabb"
                spatial-index="clutter-index"
                local-stamp="1"
-               mesh-id="dwarf-foot" transform-id="dwarf-foot-tf" />
+               mesh-id="dwarf-foot" transform-id="dwarf-foot-tf"/>
     </mesh>
 
     <mesh id="apple" type="asset" asset="asset-apple"
@@ -879,7 +767,7 @@
             <fbo id="screen-space-footsteps" clear-buffers="0" draw-buffers="0"/>
             <depth test="0" write="0"/>
             <blend mode="ADD"/>
-            <mesh id="dwarf-foot" />
+            <mesh id="dwarf-foot"/>
         </node>
         <node id="Apple">
             <mesh id="apple" mesh-index="0"/>
@@ -1061,10 +949,10 @@
         </shape>
         <object id="trade-tent" mesh="trade-tent" radius="10.0">
             <affordance id="shopper" type="observe" num-slots="6" slot-layout="grid"
-                spacing="4.0" min-distance="0.0"
-                base-offset="0.0,0.0,10.0"/>
+                        spacing="4.0" min-distance="0.0"
+                        base-offset="0.0,0.0,10.0"/>
             <affordance id="shop-keeper" type="observe" num-slots="1" radius="0.1"
-                base-offset="0.0,0.0,-3.0" />
+                        base-offset="0.0,0.0,-3.0"/>
         </object>
     </mesh>
 
@@ -1220,7 +1108,7 @@
                mesh-id="old-bench" transform-id="old-bench-tf">
             <traversal-bit value="{{collision-bit}}"/>
         </shape>
-        <object id="old-bench" radius="5.0" mesh="old-bench"  base-offset="0.0,0.0,0.0">
+        <object id="old-bench" radius="5.0" mesh="old-bench" base-offset="0.0,0.0,0.0">
             <affordance type="sit" num-slots="2" slot-layout="grid" min-distance="0.0"/>
         </object>
     </mesh>
@@ -1342,7 +1230,7 @@
             <translate value="-12.0, 0.0, -8.0"/>
             <set mode="row" target="translate"
                  x-step="12.0,0.0,0.0" z-step="0.0,0.0,16.0"
-                 x-count="3" />
+                 x-count="3"/>
             <rotate value="4.0, 0.0, 0.0"/>
 
             <translate value="{{market-training-x}}, 0.0, {{market-training-z}}"/>
@@ -1356,9 +1244,9 @@
         </shape>
         <object id="training-manikin" mesh="manikin" radius="1.0">
             <affordance type="attack"
-                num-slots="1" slot-layout="circular" spacing="2.0"
-                radius="1.0" min-distance="0.0"
-                base-offset="0.0,0.5,2.0"/>
+                        num-slots="1" slot-layout="circular" spacing="2.0"
+                        radius="1.0" min-distance="0.0"
+                        base-offset="0.0,0.5,2.0"/>
         </object>
     </mesh>
 
@@ -1519,7 +1407,7 @@
     <node id="Dwarf">
         <node id="Dwarf-Body">
             <texture name="dwarfBodyAlbedo" id="dwarf-body-albedo"
-                map-to="DIFFUSE" mapping="SKINNED_TEXCO" blend-mode="SRC"/>
+                     map-to="DIFFUSE" mapping="SKINNED_TEXCO" blend-mode="SRC"/>
             <mesh id="dwarf" mesh-index="1" update-visibility="1"/>
         </node>
         <node id="Dwarf-Weapon">

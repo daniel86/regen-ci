@@ -96,7 +96,7 @@ void TransformAnimation::animate(GLdouble dt) {
 			}
 
 			updatePose(currentFrame, t);
-			Quaternion q(0.0, 0.0, 0.0, 1.0);
+			Quaternion q;
 			q.setEuler(currentDir_.x, currentDir_.y, currentDir_.z);
 			currentVal_ = q.calculateMatrix();
 			currentVal_.scale(initialScale_);

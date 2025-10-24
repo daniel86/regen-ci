@@ -240,6 +240,23 @@ namespace regen {
 		}
 
 		/**
+		 * @return the forward direction vector represented by this Quaternion.
+		 */
+		inline Vec3f calculateDirection() const {
+			// Rotate the forward vector (0, 0, 1) using this Quaternion
+			float tx = 2.0f * x;
+			float ty = 2.0f * y;
+			float tz = 2.0f * z;
+			float twx = tx * w;
+			float twz = tz * w;
+			float txx = tx * x;
+			float txy = ty * x;
+			float tyy = ty * y;
+			float tyz = tz * y;
+			return { txy + twz, tyz - twx, 1.0f - (txx + tyy) };
+		}
+
+		/**
 		 * Performs a spherical interpolation between two quaternions
 		 * Implementation adopted from the gmtl project.
 		 * @param pStart the start value.
@@ -371,6 +388,20 @@ namespace regen {
 		/** Quaternion z-component. */
 		float z;
 	};
+
+	// writing vector to output stream
+	inline std::ostream &operator<<(std::ostream &os, const Quaternion &v) {
+		return os << v.x << "," << v.y << "," << v.z << "," << v.w;
+	}
+
+	// reading vector from input stream
+	inline std::istream &operator>>(std::istream &in, Quaternion &v) {
+		readValue(in, v.x);
+		readValue(in, v.y);
+		readValue(in, v.z);
+		readValue(in, v.w);
+		return in;
+	}
 } // namespace
 
 #endif /* QUATERNION_H_ */

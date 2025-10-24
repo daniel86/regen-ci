@@ -1,127 +1,64 @@
 #include <random>
 #include "animal-controller.h"
 #include "skeleton/bone-controller.h"
+#include "world/character-object.h"
 
 using namespace regen;
 
-#define SMOOTH_HEIGHT
-
 AnimalController::AnimalController(
-			const ref_ptr<Mesh> &mesh,
-			const Indexed<ref_ptr<ModelTransformation>> &tfIndexed,
-			const ref_ptr<BoneAnimationItem> &animItem,
-			const ref_ptr<WorldModel> &world)
-				: NonPlayerCharacterController(tfIndexed, animItem, world),
-				  territoryBounds_(Vec2f::zero(), Vec2f::zero()),
-				  laziness_(0.5f),
-				  maxHeight_(std::numeric_limits<float>::max()),
-				  minHeight_(std::numeric_limits<float>::lowest()),
-				  heightMapBounds_(Vec2f::zero(), Vec2f::zero())
-{
-	walkSpeed_ = 0.05f;
-	runSpeed_ = 0.1f;
-	baseOrientation_ = M_PI_2;
-	floorHeight_ = 0.0f;
-	for (auto &range: animItem_->ranges) {
-		if (!range.trackName.empty()) {
-			range.trackIndex = animItem_->animation->getTrackIndex(range.trackName);
-			if (range.trackIndex < 0) {
-				REGEN_WARN("Unable to find track name '" << range.trackName
-					<< "' for animation range '" << range.name << "'.");
-				continue;
+		const ref_ptr<Mesh> &mesh,
+		const Indexed<ref_ptr<ModelTransformation> > &tfIndexed,
+		const ref_ptr<BoneAnimationItem> &animItem,
+		const ref_ptr<WorldModel> &world)
+		: NonPlayerCharacterController(mesh, tfIndexed, animItem, world),
+		  territoryBounds_(Vec2f::zero(), Vec2f::zero()) {
+	// Try to get the world object representing this character.
+	if (mesh->hasIndexedShapes()) {
+		auto i_shape = mesh->indexedShape(tfIndexed.index);
+		Resource *objRes = i_shape->worldObject();
+		if (objRes) {
+			WorldObject *wo = dynamic_cast<WorldObject *>(objRes);
+			if (!wo) {
+				REGEN_WARN("World object resource is not a WorldObject in NPC controller.");
+			} else {
+				wo->setObjectType(ObjectType::ANIMAL);
+				wo->setStatic(false);
+				knowledgeBase_.setCharacterObject(wo);
 			}
 		}
-		if (range.name.find("walk") == 0) {
-			behaviorRanges_[BEHAVIOR_WALK].push_back(&range);
-		}
-		else if (range.name.find("run") == 0) {
-			behaviorRanges_[BEHAVIOR_RUN].push_back(&range);
-		}
-		else if (range.name.find("idle") == 0) {
-			behaviorRanges_[BEHAVIOR_IDLE].push_back(&range);
-		}
-		else if (range.name.find("smell") == 0) {
-			behaviorRanges_[BEHAVIOR_SMELL].push_back(&range);
-		}
-		else if (range.name.find("attack") == 0) {
-			behaviorRanges_[BEHAVIOR_ATTACK].push_back(&range);
-		}
-		else if (range.name.find("up") == 0) {
-			behaviorRanges_[BEHAVIOR_STAND_UP].push_back(&range);
-		}
-		else if (range.name.find("sleep") == 0) {
-			behaviorRanges_[BEHAVIOR_SLEEP].push_back(&range);
+	}
+	// Try to get the world object representing this character.
+	if (!knowledgeBase_.characterObject()) {
+		// auto create a world object for this character
+		auto wo = ref_ptr<AnimalObject>::alloc(REGEN_STRING("npc-" << tfIndexed.index));
+		wo->setPosition(Vec3f::zero());
+		wo->setKnowledgeBase(&knowledgeBase_);
+		wo->setNPCController(this);
+		knowledgeBase_.setCharacterObject(wo.get());
+		worldModel_->addWorldObject(wo);
+	} else {
+		auto *wo = dynamic_cast<CharacterObject *>(knowledgeBase_.characterObject());
+		if (wo) {
+			wo->setKnowledgeBase(&knowledgeBase_);
+			wo->setNPCController(this);
+		} else {
+			REGEN_WARN("World object in NPC controller is not a CharacterObject.");
 		}
 	}
-}
-
-void AnimalController::addSpecial(std::string_view special) {
-	for (auto &x : animItem_->ranges) {
-		if (x.name == special) {
-			//behaviorRanges_[BEHAVIOR_SPECIAL].push_back(&x);
-		}
-	}
+	// create a custom place representing the home territory of this animal
+	animalTerritory_ = ref_ptr<Place>::alloc(
+		REGEN_STRING("territory-npc-" << tfIndexed.index), PlaceType::HOME);
+	knowledgeBase_.setCurrentPlace(animalTerritory_);
+	animalTerritory_->setRadius(50.0f);
+	animalTerritory_->setPosition(Vec3f::zero());
 }
 
 void AnimalController::setTerritoryBounds(const Vec2f &center, const Vec2f &size) {
 	auto halfSize = size * 0.5f;
 	territoryBounds_.min = center - halfSize;
 	territoryBounds_.max = center + halfSize;
-}
-
-void AnimalController::setHeightMap(
-				const ref_ptr<Texture2D> &heightMap,
-				const Vec2f &heightMapCenter,
-				const Vec2f &heightMapSize,
-				float heightMapFactor) {
-	heightMap_ = heightMap;
-	heightMap_->ensureTextureData();
-	heightMapBounds_.min = heightMapCenter - heightMapSize;
-	heightMapBounds_.max = heightMapCenter + heightMapSize;
-	heightMapFactor_ = heightMapFactor;
-}
-
-void AnimalController::activateRandom() {
-	auto &ranges = behaviorRanges_[behavior_];
-	if (ranges.empty()) { return; }
-	// select a random range
-	std::vector<const AnimationRange*> out;
-    std::sample(
-        ranges.begin(),
-        ranges.end(),
-        std::back_inserter(out),
-        1,
-        std::mt19937{std::random_device{}()}
-    );
-	auto &range = out[0];
-	// set the animation range
-	const uint32_t instanceIdx = 0u;
-	animItem_->animation->startBoneAnimation(instanceIdx, range->trackIndex, range->range);
-	lastRange_ = range;
-}
-
-float AnimalController::getHeight2(const Vec2f &pos) {
-	float height = floorHeight_;
-	if (heightMap_.get()) {
-		auto mapCenter = (heightMapBounds_.max + heightMapBounds_.min) * 0.5f;
-		auto mapSize = heightMapBounds_.max - heightMapBounds_.min;
-		// compute UV for height map sampling
-		auto uv = pos - mapCenter;
-		uv /= mapSize * 0.5f;
-		uv += Vec2f(0.5f);
-#ifdef SMOOTH_HEIGHT
-		auto texelSize = Vec2f(1.0f / heightMap_->width(), 1.0f / heightMap_->height());
-		auto regionTS = texelSize*8.0f;
-		auto mapValue = heightMap_->sampleAverage<float>(uv, regionTS, heightMap_->textureData());
-#else
-		auto mapValue = heightMap_->sampleLinear(uv, heightMap_->textureData(), 1);
-#endif
-		mapValue *= heightMapFactor_;
-		// increase by small bias to avoid intersection with the floor
-		mapValue += 0.02f;
-		height += mapValue;
-	}
-	return height;
+	animalTerritory_->setRadius(sqrtf(halfSize.x * halfSize.x + halfSize.y * halfSize.y));
+	animalTerritory_->setPosition(Vec3f(center.x, 0.0f, center.y));
 }
 
 void intersectWithBounds(Vec2f& point, const Vec2f& origin, const Bounds<Vec2f>& territoryBounds) {
@@ -143,131 +80,194 @@ void intersectWithBounds(Vec2f& point, const Vec2f& origin, const Bounds<Vec2f>&
             point.y = territoryBounds.max.y;
             point.x = origin.x + t * (point.x - origin.x);
         }
-};
-
-void AnimalController::activateMovement() {
-	// pick a random point in the territory
-	Vec2f target = (territoryBounds_.max - territoryBounds_.min) * Vec2f(
-			static_cast<float>(rand()) / static_cast<float>(RAND_MAX),
-			static_cast<float>(rand()) / static_cast<float>(RAND_MAX)
-	) + territoryBounds_.min;
-	// pick a random orientation vector
-	auto orientation = Vec3f(
-			currentDir_.x,
-			static_cast<float>((static_cast<double>(rand()) / RAND_MAX - 0.5)*M_PI),
-			currentDir_.z
-	);
-
-	bezierPath_.p0 = Vec2f(currentPos_.x, currentPos_.z);
-	bezierPath_.p3 = target;
-    // compute control points using Euler angles
-    float directDistance = (bezierPath_.p0 - bezierPath_.p3).length() * 0.75f;
-    // add base orientation
-    float angle_rad1 = currentDir_.y + baseOrientation_;
-    float angle_rad2 = orientation.y + baseOrientation_;
-    bezierPath_.p1 = bezierPath_.p0 + Vec2f(cos(angle_rad1), sin(angle_rad1)) * directDistance;
-    bezierPath_.p2 = bezierPath_.p3 + Vec2f(cos(angle_rad2), sin(angle_rad2)) * directDistance;
-    // make sure control points are within the map bounds
-    intersectWithBounds(bezierPath_.p1, bezierPath_.p0, territoryBounds_);
-    intersectWithBounds(bezierPath_.p2, bezierPath_.p3, territoryBounds_);
-    float bezierLength = bezierPath_.length1();
-
-	// compute dt based on distance and speed
-	float dt = bezierLength / (behavior_==BEHAVIOR_RUN ? runSpeed_ : walkSpeed_);
-	// FIXME: broken
-	/**
-	// set the target position
-	setTarget(
-		Vec3f(target.x, getHeight2(target), target.y),
-		orientation,
-		dt);
-	activateRandom();
-	**/
-}
-
-void AnimalController::updatePose(const TransformKeyFrame &currentFrame, double t) {
-	if (currentFrame.pos.has_value()) {
-		//currentPos_ = math::mix(lastFrame_.pos.value(), currentFrame.pos.value(), t);
-		auto sample = bezierPath_.sample(t);
-		currentPos_.x = sample.x;
-		currentPos_.z = sample.y;
-		currentPos_.y = getHeight2(sample);
-	}
-	if (currentFrame.rotation.has_value()) {
-		auto tangent = bezierPath_.tangent(t);
-		tangent.normalize();
-		// Convert the tangent vector to Euler angles
-        currentDir_.y = atan2(tangent.y, tangent.x) - baseOrientation_;
-	}
-}
-
-AnimalController::Behavior AnimalController::selectNextBehavior() {
-	if (worldTime_) {
-		auto &t_ptime = worldTime_->p_time;
-		auto t_seconds = t_ptime.time_of_day().total_seconds();
-		auto t_hours = t_seconds / 3600;
-		if (t_hours < 6 || t_hours > 18) {
-			return BEHAVIOR_SLEEP;
-		}
-	}
-
-	// pick a random behavior
-	static const std::vector<Behavior> randomBehaviors = {
-		BEHAVIOR_RUN,
-		BEHAVIOR_WALK,
-		BEHAVIOR_IDLE,
-		BEHAVIOR_SPECIAL,
-		BEHAVIOR_SMELL,
-		BEHAVIOR_ATTACK
-	};
-	return randomBehaviors[rand() % randomBehaviors.size()];
 }
 
 void AnimalController::updateController(double dt) {
-	// FIXME: broken
-	/**
-	const uint32_t instanceIdx = 0u;
-	if (it_ == frames_.end()) {
-		// currently no movement.
-		if (animItem_->animation->numActiveRanges(instanceIdx) > 0) {
-			// animation active, wait until it finishes
-			return;
+	NonPlayerCharacterController::updateController(dt);
+}
+
+
+std::vector<ref_ptr<AnimalController>> AnimalController::load(
+		LoadingContext &ctx, scene::SceneInputNode &node) {
+	std::vector<ref_ptr<AnimalController> > controllerList;
+	auto *scene = ctx.scene();
+
+	ref_ptr<Mesh> mesh;
+	auto meshes = scene->getResources()->getMesh(scene, node.getValue("mesh"));
+	if (meshes.get() != nullptr && !meshes->empty()) {
+		auto meshIndex = node.getValue<GLuint>("mesh-index", 0u);
+		if (meshIndex >= meshes->size()) {
+			REGEN_WARN("Invalid mesh index for '" << node.getDescription() << "'.");
+			meshIndex = 0;
 		}
+		mesh = (*meshes.get())[meshIndex];
 	}
-	else {
-		// movement active
-		if (animItem_->animation->numActiveRanges(instanceIdx) == 0) {
-			// animation not active, activate
-			if (lastRange_) {
-				animItem_->animation->startBoneAnimation(instanceIdx, lastRange_->trackIndex, lastRange_->range);
-				animItem_->animation->startAnimation();
-			}
-		}
-		return;
+	if (mesh.get() == nullptr) {
+		REGEN_WARN("Unable to find mesh for NPC controller in '" << node.getDescription() << "'.");
+		return controllerList;
 	}
 
-	auto lastBehavior = behavior_;
-	behavior_ = selectNextBehavior();
-	if (lastBehavior == BEHAVIOR_SLEEP) {
-		if (lastBehavior == behavior_) {
-			// remain sleeping
-			return;
-		}
-		else if (behaviorRanges_.count(BEHAVIOR_STAND_UP)>0) {
-			// wake up
-			behavior_ = BEHAVIOR_STAND_UP;
+	ref_ptr<ModelTransformation> tf;
+	if (node.hasAttribute("transform")) {
+		tf = scene->getResources()->getTransform(scene, node.getValue("transform"));
+	} else if (node.hasAttribute("tf")) {
+		tf = scene->getResources()->getTransform(scene, node.getValue("tf"));
+	}
+	if (tf.get() == nullptr) {
+		REGEN_WARN("Unable to find transform for '" << node.getDescription() << "'.");
+		return controllerList;
+	}
+
+	ref_ptr<SpatialIndex> spatialIndex;
+	if (node.hasAttribute("spatial-index")) {
+		spatialIndex = scene->getResources()->getIndex(scene, node.getValue("spatial-index"));
+		if (!spatialIndex.get()) {
+			REGEN_WARN("Unable to find spatial index for controller '" << node.getDescription() << "'.");
 		}
 	}
-	switch (behavior_) {
-		case BEHAVIOR_RUN:
-		case BEHAVIOR_WALK:
-			isLastAnimationMovement_ = true;
-			activateMovement();
-			break;
-		default:
-			isLastAnimationMovement_ = false;
-			activateRandom();
-			break;
+	std::string indexedShapeName = node.getValue("indexed-shape");
+	if (spatialIndex.get() && indexedShapeName.empty()) {
+		REGEN_WARN("Spatial index specified but no indexed shape name given for controller '"
+			<< node.getDescription() << "'.");
+		return controllerList;
 	}
-	**/
+
+	auto animAssetName = node.getValue("animation-asset");
+	auto animItem = scene->getAnimationRanges(animAssetName);
+	if (!animItem) {
+		REGEN_WARN("Unable to find animation asset for animation with name '"
+			<< animAssetName << "' in controller '" << node.getDescription() << "'.");
+		return controllerList;
+	}
+
+	controllerList.resize(tf->numInstances());
+	for (int32_t tfIdx = 0; tfIdx < tf->numInstances(); tfIdx++) {
+		Indexed<ref_ptr<ModelTransformation> > indexedTF(tf, tfIdx);
+		auto controller = ref_ptr<AnimalController>::alloc(
+			mesh, indexedTF, animItem, scene->worldModel());
+		controllerList[tfIdx] = controller;
+
+		controller->setWorldTime(&scene->application()->worldTime());
+		if (spatialIndex.get()) {
+			auto indexedShape = spatialIndex->getShape(indexedShapeName, tfIdx);
+			if (!indexedShape) {
+				REGEN_WARN("Unable to find indexed shape '" << indexedShapeName
+					<< "' in spatial index for controller '" << node.getDescription() << "'.");
+			} else {
+				auto perceptionSystem = std::make_unique<PerceptionSystem>(spatialIndex, indexedShape);
+				perceptionSystem->setCollisionBit(node.getValue<uint32_t>("collision-bit", 0));
+				controller->setPerceptionSystem(std::move(perceptionSystem));
+			}
+		}
+		if (node.hasAttribute("decision-interval")) {
+			controller->setDecisionInterval(node.getValue<float>("decision-interval", 0.25f));
+		}
+		if (node.hasAttribute("perception-interval")) {
+			controller->setPerceptionInterval(node.getValue<float>("perception-interval", 0.1f));
+		}
+		controller->setWalkSpeed(node.getValue<float>("walk-speed", 0.05f));
+		controller->setRunSpeed(node.getValue<float>("run-speed", 0.1f));
+		controller->setMaxTurnDegPerSecond(node.getValue<float>("max-turn-angle", 90.0f));
+		if (node.hasAttribute("personal-space")) {
+			controller->setPersonalSpace(node.getValue<float>("personal-space", 4.5f));
+		}
+		if (node.hasAttribute("wall-avoidance")) {
+			controller->setAvoidanceWeight(node.getValue<float>("avoidance-weight", 0.5f));
+		}
+		if (node.hasAttribute("wall-avoidance")) {
+			controller->setWallAvoidance(node.getValue<float>("wall-avoidance", 1.0f));
+		}
+		if (node.hasAttribute("character-avoidance")) {
+			controller->setCharacterAvoidance(node.getValue<float>("character-avoidance", 10.0f));
+		}
+		if (node.hasAttribute("cohesion-weight")) {
+			controller->setCohesionWeight(node.getValue<float>("cohesion-weight", 1.0f));
+		}
+		if (node.hasAttribute("member-separation-weight")) {
+			controller->setMemberSeparationWeight(node.getValue<float>("member-separation-weight", 1.0f));
+		}
+		if (node.hasAttribute("group-separation-weight")) {
+			controller->setGroupSeparationWeight(node.getValue<float>("group-separation-weight", 5.0f));
+		}
+		if (node.hasAttribute("turn-personal-space")) {
+			controller->setTurnFactorPersonalSpace(node.getValue<float>("turn-personal-space", 3.0f));
+		}
+		controller->setPushThroughDistance(node.getValue<float>("push-through-distance", 0.5f));
+		controller->setLookAheadThreshold(node.getValue<float>("look-ahead-threshold", 6.0f));
+		controller->setAvoidanceDecay(node.getValue<float>("avoidance-decay", 0.5f));
+		controller->setWallTangentWeight(node.getValue<float>("wall-tangent-weight", 0.5f));
+		controller->setVelOrientationWeight(node.getValue<float>("velocity-orientation-weight", 0.5f));
+		controller->setFloorHeight(node.getValue<float>("floor-height", 0.0f));
+		controller->setTerritoryBounds(
+			node.getValue<Vec2f>("territory-center", Vec2f(0.0)),
+			node.getValue<Vec2f>("territory-size", Vec2f(10.0)));
+		if (node.hasAttribute("base-orientation")) {
+			controller->setBaseOrientation(node.getValue<float>("base-orientation", 0.0f));
+		}
+
+		auto &kb = controller->knowledgeBase();
+		kb.setWorldTime(&scene->application()->worldTime());
+		// Set base time for actions/staying at a place
+		kb.setBaseTimeActivity(node.getValue<float>("base-time-activity", 120.0f));
+		kb.setBaseTimePlace(node.getValue<float>("base-time-place", 1200.0f));
+		// Set randomized character traits.
+		kb.setTraitStrength(Trait::LAZINESS, math::randomize(
+			node.getValue<float>("laziness", 0.5f), 0.25f));
+		kb.setTraitStrength(Trait::SPIRITUALITY, math::randomize(
+			node.getValue<float>("spirituality", 0.5f), 0.25f));
+		kb.setTraitStrength(Trait::ALERTNESS, math::randomize(
+			node.getValue<float>("alertness", 0.5f), 0.25f));
+		kb.setTraitStrength(Trait::BRAVERY, math::randomize(
+			node.getValue<float>("bravery", 0.5f), 0.25f));
+		kb.setTraitStrength(Trait::SOCIALABILITY, math::randomize(
+			node.getValue<float>("sociability", 0.5f), 0.25f));
+
+		if (node.hasAttribute("height-map")) {
+			auto heightMap2d = scene->getResources()->getTexture2D(scene, node.getValue("height-map"));
+			if (!heightMap2d) {
+				REGEN_WARN("Unable to find height map in '" << node.getDescription() << "'.");
+			} else {
+				auto heightMap = ref_ptr<HeightMap>::dynamicCast(heightMap2d);
+				if (!heightMap) {
+					REGEN_WARN("Height map texture is not a height map in '" << node.getDescription() << "'.");
+				} else {
+					controller->setHeightMap(heightMap);
+				}
+			}
+		}
+
+		// Load a behavior tree.
+		// NOTE: XML scene may define different behavior trees for different instances.
+		for (const auto &btNodeXML: node.getChildren("behavior-tree")) {
+			std::list<scene::IndexRange> indices = btNodeXML->getIndexSequence(tf->numInstances());
+			for (auto &range: indices) {
+				if (range.isWithinRange(tfIdx)) {
+					auto importKey = btNodeXML->getValue("import");
+					if (importKey.empty()) {
+						if (!btNodeXML->getChildren().empty()) {
+							auto btRootXML = btNodeXML->getChildren().front();
+							auto btRoot = BehaviorTree::load(ctx, *btRootXML.get());
+							controller->setBehaviorTree(std::move(btRoot));
+						}
+					} else {
+						// Load behavior tree node as child of root node.
+						auto btRoots = scene->getRoot()->getFirstChild("behavior-tree", importKey);
+						if (!btRoots || btRoots->getChildren().empty()) {
+							REGEN_WARN("Unable to find imported behavior tree '" << importKey
+								<< "' for controller '" << node.getDescription() << "'.");
+						} else {
+							auto btRootXML = btRoots->getChildren().front();
+							auto btRoot = BehaviorTree::load(ctx, *btRootXML.get());
+							controller->setBehaviorTree(std::move(btRoot));
+						}
+					}
+					break;
+				}
+			}
+		}
+
+		controller->initializeController();
+	}
+
+	return controllerList;
 }

@@ -4,6 +4,13 @@
 
 using namespace regen;
 
+bool regen::isInterruptibleMotion(MotionType type) {
+	return (type == MotionType::WALK ||
+			type == MotionType::RUN ||
+			type == MotionType::SWIM ||
+			type == MotionType::IDLE);
+}
+
 std::ostream &regen::operator<<(std::ostream &out, const MotionType &v) {
 	switch (v) {
 		case MotionType::IDLE:
@@ -12,6 +19,8 @@ std::ostream &regen::operator<<(std::ostream &out, const MotionType &v) {
 			return out << "WALK";
 		case MotionType::RUN:
 			return out << "RUN";
+		case MotionType::SWIM:
+			return out << "SWIM";
 		case MotionType::JUMP:
 			return out << "JUMP";
 		case MotionType::SIT:
@@ -20,12 +29,22 @@ std::ostream &regen::operator<<(std::ostream &out, const MotionType &v) {
 			return out << "AGREE";
 		case MotionType::DISAGREE:
 			return out << "DISAGREE";
+		case MotionType::VOCALIZE:
+			return out << "VOCALIZE";
 		case MotionType::ATTACK:
 			return out << "ATTACK";
 		case MotionType::BLOCK:
 			return out << "BLOCK";
 		case MotionType::CROUCH:
 			return out << "CROUCH";
+		case MotionType::INSPECT:
+			return out << "INSPECT";
+		case MotionType::INTIMIDATE:
+			return out << "INTIMIDATE";
+		case MotionType::STRETCH:
+			return out << "STRETCH";
+		case MotionType::GROOMING:
+			return out << "GROOMING";
 		case MotionType::PRAY:
 			return out << "PRAY";
 		case MotionType::SLEEP:
@@ -54,6 +73,12 @@ std::istream &regen::operator>>(std::istream &in, MotionType &v) {
 	else if (val == "ATTACK" || val == "FIGHT") v = MotionType::ATTACK;
 	else if (val == "BLOCK" || val == "SHIELD") v = MotionType::BLOCK;
 	else if (val == "CROUCH" || val == "SNEAK") v = MotionType::CROUCH;
+	else if (val == "SWIM") v = MotionType::SWIM;
+	else if (val == "VOCALIZE" || val == "TALK" || val == "BARK") v = MotionType::VOCALIZE;
+	else if (val == "INSPECT" || val == "LOOK_AROUND" || val == "SNIFF") v = MotionType::INSPECT;
+	else if (val == "INTIMIDATE" || val == "THREATEN" || val == "ROAR") v = MotionType::INTIMIDATE;
+	else if (val == "STRETCH") v = MotionType::STRETCH;
+	else if (val == "GROOMING" || val == "GROOM") v = MotionType::GROOMING;
 	else if (val == "PRAY" || val == "PRAYING" || val == "WORSHIP") v = MotionType::PRAY;
 	else if (val == "SLEEP" || val == "SLEEPING") v = MotionType::SLEEP;
 	else if (val == "DIE" || val == "FALL") v = MotionType::DIE;

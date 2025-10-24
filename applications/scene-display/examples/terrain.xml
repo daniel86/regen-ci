@@ -13,7 +13,7 @@
     <node id="configuration"
             date="01-09-2014 06:00:00"
             time-scale="60.0">
-        <camera id="main-camera"
+        <controller camera="main-camera"
                 mode="first-person"
                 speed="0.05"
                 eye-offset="0.0,0.0,0.0"
@@ -22,7 +22,7 @@
                 ease-in-out="1.8"
                 anchor-pause-time="0.7"
                 anchor-time-scale="0.8">
-        </camera>
+        </controller>
     </node>
 
     <!-- FBO for deferred shading -->
@@ -52,7 +52,11 @@
     <!-- Textures -->
     <texture id="emission-map-bloom" type="bloom" num-mips="4" input-fbo="g-buffer"/>
     <texture id="ground-normal" file="res/textures/terrain/canyon/normal.png" mipmap="1"/>
-    <texture id="ground-height" file="res/textures/terrain/canyon/height.png" mipmap="1"/>
+    <texture id="ground-height" type="height" file="res/textures/terrain/canyon/height.png" mipmap="1"
+             map-center="0.0,0.0"
+             map-size="{{map-size}},{{map-size}}"
+             map-factor="{{map-height}}"
+             wrapping="CLAMP_TO_EDGE"/>
     <texture id="ground-noise" type="noise" size="1024.0,1024.0" is-seamless="0"
             output-generator="0" noise-scale="1.0">
         <generator id="0" type="perlin" octaves="4" frequency="2.0" persistence="0.5" lacunarity="2.0"/>
@@ -68,12 +72,22 @@
     <texture id="wind-noise" type="noise" preset="cloud"
             size="128.0,128.0,1.0" swizzle-g="RED" swizzle-b="RED"/>
     <!-- Spatial Index -->
-    <index id="main-index" type="quadtree" max-objects-per-node="4"/>
+    <index id="main-index" type="quadtree"
+           min-node-size="0.1"
+           subdivision-threshold="4"
+           test-mode-3d="closest"
+           close-distance="10.0"/>
+    <index id="terrain-index" type="quadtree"
+           min-node-size="5.0"
+           subdivision-threshold="8"
+           test-mode-3d="closest"
+           close-distance="10.0"/>
     <!-- Cameras -->
     <camera id="main-camera"
             fov="45.0" near="0.1" far="200.0"
             position="-40.0, 14.0, 0.0">
         <culling index="main-index" />
+        <culling index="terrain-index" />
     </camera>
     <camera id="reflection-camera"
             lod-shift="1,1,1,0"
@@ -136,8 +150,10 @@
                     height="0.0, 0.75, 0.2" slope="10.0, 180.0, 20.0"/>
         </materials>
         <shape id="ground-shape" cull="1" index="1" type="obb" mesh-index="0"
-            mesh-id="ground-mesh" transform-id="ground-tf">
-            <has-part mesh-id="ground-mesh" mesh-index="1" />
+               spatial-index="terrain-index"
+               mesh-id="ground-mesh" transform-id="ground-tf"
+               height-map="ground-height">
+            <has-part mesh-id="ground-mesh" mesh-index="1"/>
         </shape>
     </mesh>
 
@@ -458,6 +474,27 @@
     <!--**************************-->
     <!--**************************-->
 
+    <node id="Debug-Views">
+        <node id="spatial-index-debug">
+            <depth test="1" write="0" function="LEQUAL"/>
+            <polygon offset-fill="1.1,4.0"/>
+            <view id="Main Index">
+                <node id="Main Index Debug">
+                    <debugger type="spatial-index" resource="main-index"/>
+                    <fbo id="g-buffer" draw-buffers="1"/>
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </node>
+            </view>
+            <view id="Terrain Index">
+                <node id="Terrain Index Debug">
+                    <debugger type="spatial-index" resource="terrain-index"/>
+                    <fbo id="g-buffer" draw-buffers="1"/>
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </node>
+            </view>
+        </node>
+    </node>
+
     <node id="root">
         <resource id="sky" />
         <input name="Scene" ubo="SceneUBO"/>
@@ -520,15 +557,7 @@
 
             <node import="Post-Pass"/>
 
-            <view id="Spatial Index">
-                <node import="spatial-index-debug">
-                    <camera id="main-camera"/>
-                    <fbo id="g-buffer" draw-buffers="0"/>
-                </node>
-                <node>
-                    <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
-                </node>
-            </view>
+            <node import="Debug-Views"/>
 
             <node import="GUI-Pass">
                 <fbo id="g-buffer" draw-buffers="0"/>

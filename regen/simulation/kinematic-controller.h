@@ -1,9 +1,9 @@
-#ifndef REGEN_CHARACTER_CONTROLLER_H
-#define REGEN_CHARACTER_CONTROLLER_H
+#ifndef REGEN_KINEMATIC_PLAYER_CONTROLLER_H
+#define REGEN_KINEMATIC_PLAYER_CONTROLLER_H
 
-#include <regen/camera/camera-controller.h>
 #include <BulletDynamics/Character/btKinematicCharacterController.h>
-#include "../simulation/bullet-physics.h"
+#include "../behavior/user-controller.h"
+#include "bullet-physics.h"
 
 namespace regen {
 	/**
@@ -13,24 +13,22 @@ namespace regen {
 	 * perspective. The controller also provides collision detection and response.
 	 * The character is modeled as a capsule in the physics engine.
 	 */
-	class CharacterController : public CameraController {
+	class KinematicPlayerController : public UserController {
 	public:
 		/**
 		 * @param camera The camera.
 		 * @param physics The physics engine.
 		 */
-		CharacterController(
-				const ref_ptr<Camera> &camera,
-				const ref_ptr<BulletPhysics> &physics);
+		KinematicPlayerController(const ref_ptr<Camera> &camera, const ref_ptr<BulletPhysics> &physics);
 
-		~CharacterController() override;
+		~KinematicPlayerController() override;
 
-		CharacterController(const CharacterController &other) = delete;
+		KinematicPlayerController(const KinematicPlayerController &other) = delete;
 
 		/**
 		 * @param height The collision height.
 		 */
-		void setCollisionHeight(GLfloat height) { btCollisionHeight_ = height; }
+		void setCollisionHeight(float height) { btCollisionHeight_ = height; }
 
 		/**
 		 * @return The collision height.
@@ -40,7 +38,7 @@ namespace regen {
 		/**
 		 * @param radius The collision radius.
 		 */
-		void setCollisionRadius(GLfloat radius) { btCollisionRadius_ = radius; }
+		void setCollisionRadius(float radius) { btCollisionRadius_ = radius; }
 
 		/**
 		 * @return The collision radius.
@@ -50,25 +48,25 @@ namespace regen {
 		/**
 		 * @param force The gravity force.
 		 */
-		void setGravityForce(GLfloat force);
+		void setGravityForce(float force);
 
 		/**
 		 * @param slope The maximum slope.
 		 */
-		void setMaxSlope(GLfloat slope);
+		void setMaxSlope(float slope);
 
 		/**
 		 * @param velocity The jump velocity.
 		 */
-		void setJumpVelocity(GLfloat velocity) { btJumpVelocity_ = velocity; }
+		void setJumpVelocity(float velocity) { btJumpVelocity_ = velocity; }
 
 		/**
 		 * @param height The step height.
 		 */
-		void setStepHeight(GLfloat height) { btStepHeight_ = height; }
+		void setStepHeight(float height) { btStepHeight_ = height; }
 
 		// override CameraController
-		void applyStep(GLfloat dt, const Vec3f &offset) override;
+		void applyStep(float dt, const Vec3f &offset) override;
 
 		// override CameraController
 		void jump() override;
@@ -78,13 +76,13 @@ namespace regen {
 		ref_ptr<btKinematicCharacterController> btController_;
 		ref_ptr<btCollisionShape> btShape_;
 		ref_ptr<btCollisionObject> btGhostObject_;
-		GLfloat btCollisionHeight_;
-		GLfloat btCollisionRadius_;
-		GLfloat btStepHeight_;
-		GLfloat btGravityForce_;
-		GLfloat btJumpVelocity_;
-		GLfloat btMaxSlope_;
-		GLboolean btIsMoving_;
+		float btCollisionHeight_;
+		float btCollisionRadius_;
+		float btStepHeight_;
+		float btGravityForce_;
+		float btJumpVelocity_;
+		float btMaxSlope_;
+		bool btIsMoving_;
 
 		ref_ptr<btActionInterface> btRayAction_;
 		btRigidBody *btPlatform_;
@@ -94,4 +92,4 @@ namespace regen {
 	};
 }
 
-#endif //REGEN_CHARACTER_CONTROLLER_H
+#endif //REGEN_KINEMATIC_PLAYER_CONTROLLER_H

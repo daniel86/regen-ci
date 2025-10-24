@@ -7,7 +7,7 @@
     <include xml-file="scene-display/examples/templates/mandelbrot.xml"/>
 
     <node id="configuration">
-        <camera id="main-camera"
+        <controller camera="main-camera"
                 mode="first-person"
                 eye-offset="0.0,0.0,0.0"
                 horizontal-orientation="1.5707963"
@@ -37,7 +37,7 @@
             <anchor pos=" 0.0, -0.5,-2.0" dir=" 0.0, 0.5, 2.0" />
             <anchor pos="-2.0,  0.0,  0.0" dir=" 2.0,  0.0, 0.0" />
             -->
-        </camera>
+        </controller>
         <mouse>
             <click node="video-picture" interaction="video-toggle"/>
             <click node="smoke-picture" interaction-node="smoke-splat-interaction"/>

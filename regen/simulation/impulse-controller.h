@@ -9,6 +9,10 @@ namespace regen {
 	 */
 	class ImpulseController : public CameraController {
 	public:
+		static ref_ptr<ImpulseController> load(LoadingContext &ctx,
+			scene::SceneInputNode &node,
+			const ref_ptr<Camera> &userCamera);
+
 		/**
 		 * @param cam The camera.
 		 * @param physicalObject The physical object.
@@ -18,7 +22,7 @@ namespace regen {
 		/**
 		 * @param factor the physics speed factor.
 		 */
-		void setPhysicsSpeedFactor(GLfloat factor) { physicsSpeedFactor_ = factor; }
+		void setPhysicsSpeedFactor(float factor) { physicsSpeedFactor_ = factor; }
 
 		/**
 		 * @return the physics speed factor.
@@ -26,11 +30,11 @@ namespace regen {
 		auto physicsSpeedFactor() { return physicsSpeedFactor_; }
 
 		// override CameraController
-		void applyStep(GLfloat dt, const Vec3f &offset) override;
+		void applyStep(float dt, const Vec3f &offset) override;
 
 	protected:
 		ref_ptr<PhysicalObject> physicalObject_;
-		GLfloat physicsSpeedFactor_;
+		float physicsSpeedFactor_;
 	};
 }
 

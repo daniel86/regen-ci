@@ -32,6 +32,7 @@
             <range motion="walk" name="walk" range="1.0,13.0"/>
             <range motion="run" name="run" range="15.0,25.0"/>
             <range motion="jump" name="jump" range="27.0,39.0"/>
+            <range motion="jump" name="jump-spot" range="41.0,53.0"/>
             <range name="crouch-down" range="55.0,58.0"/>
             <range name="crouch-loop" range="59.0,68.0"/>
             <range name="get-up" range="69.0,73.0"/>
@@ -48,7 +49,6 @@
             <range motion="idle" name="idle1" range="291.0,324.0"/>
             <range motion="idle" name="idle2" range="326.0,359.0"/>
             <!--
-            <range name="jump-spot" range="41.0,53.0"/>
             <range name="battleIdle1" range="74.0,87.0"/>
             <range name="battleIdle2" range="89.0,109.0"/>
             -->

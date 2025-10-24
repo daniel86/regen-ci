@@ -273,6 +273,7 @@ namespace regen {
 		ref_ptr<BoundingShape> patientShape_;
 		// Base orientation of the mesh around y axis
 		float baseOrientation_ = M_PI_2;
+		Quaternion baseRotation_ = Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
 
 		float personalSpace_ = 4.5f;
 		float personalSpaceSq_ = personalSpace_ * personalSpace_;
