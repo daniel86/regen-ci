@@ -8,7 +8,7 @@ namespace regen {
 		/** The type of motion for this clip. */
 		MotionType motion = MotionType::IDLE;
 		/** The animation range for this clip. */
-		const AnimationRange *range = nullptr;
+		const AnimationRange *loop = nullptr;
 		/** The range to run to start the animation. Optional. */
 		const AnimationRange *begin = nullptr;
 		/** The range to run to end the animation. Optional. */

@@ -86,7 +86,7 @@ void PersonController::drawWeapon() {
 
 void PersonController::updateController(double dt) {
 	auto &kb = knowledgeBase_;
-	auto &anim = animItem_->animation;
+	auto &anim = animItem_->boneTree;
 
 	if (footstepTrail_.get() && isLastAnimationMovement_) {
 		int32_t walkHandle = boneController_->getAnimationHandle(MotionType::WALK);

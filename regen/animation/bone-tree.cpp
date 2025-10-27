@@ -1,9 +1,6 @@
 #include <regen/utility/logging.h>
-
 #include "bone-tree.h"
-
 #include <ranges>
-
 #include "regen/gl-types/queries/elapsed-time.h"
 
 using namespace regen;
@@ -15,14 +12,25 @@ using namespace regen;
 //#define BONE_TREE_DEBUG_TIME
 //#define BONE_TREE_DEBUG_CULLING
 
-// TODO: Support for Hierarchical or Partial Animation Evaluation.
-//     - filter out sub-trees in the animation, e.g. only upper body.
-
 static void countNodes(BoneNode *n, uint32_t &count) {
 	count++;
 	for (auto & it : n->children) {
 		countNodes(it.get(), count);
 	}
+}
+
+static void printTree(BoneNode *n, int level, std::stringstream &ss) {
+	for (int i = 0; i < level; i++) ss << "  ";
+	ss << n->name << "\n";
+	for (auto & it : n->children) {
+		printTree(it.get(), level + 1, ss);
+	}
+}
+
+static void printTree(BoneNode *n) {
+	std::stringstream boneTreeStr;
+	printTree(n, 0, boneTreeStr);
+	REGEN_INFO("Bone tree:\n" << boneTreeStr.str());
 }
 
 static void loadNodes(BoneNode *n, std::vector<BoneNode*> &vec, uint32_t &count) {
@@ -46,6 +54,7 @@ BoneTree::BoneTree(const ref_ptr<BoneNode> &rootNode, uint32_t numInstances)
 	nodes_.resize(numNodes);
 	numNodes = 0;
 	loadNodes(rootNode_.get(), nodes_, numNodes);
+	//printTree(rootNode_.get());
 
 	// Also load the name-to-node map, and resize the per-instance matrix array.
 	for (uint32_t n = 0; n < numNodes; n++) {
@@ -59,24 +68,23 @@ BoneTree::BoneTree(const ref_ptr<BoneNode> &rootNode, uint32_t numInstances)
 	blendedTransforms_.resize(numInstances_ * nodes_.size(), Mat4f::identity());
 }
 
-int32_t BoneTree::addChannels(
+int32_t BoneTree::addAnimationTrack(
 		const std::string &trackName,
-		ref_ptr<std::vector<AnimationChannel>> &channels,
+		ref_ptr<StaticAnimationData> &staticData,
 		double duration,
 		double ticksPerSecond) {
 	REGEN_INFO("Loaded animation '" << trackName << "' with "
-			<< channels->size() << " channels, duration " << duration
+			<< staticData->channels.size() << " channels, duration " << duration
 			<< " ticks, " << ticksPerSecond << " ticks/sec.");
 	Track &data = animTracks_.emplace_back();
 	data.trackName_ = trackName;
 	data.ticksPerSecond_ = ticksPerSecond;
 	data.duration_ = duration;
-	data.channels_ = channels;
 	const auto idx = static_cast<int32_t>(animTracks_.size()) - 1;
 	trackNameToIndex_[data.trackName_] = idx;
 	// Set node IDs for each channel.
-	for (uint32_t a = 0; a < channels->size(); a++) {
-		auto &channel = channels->data()[a];
+	for (uint32_t a = 0; a < staticData->channels.size(); a++) {
+		auto &channel = staticData->channels.data()[a];
 		auto it = nameToNode_.find(channel.nodeName_);
 		if (it != nameToNode_.end()) {
 			channel.nodeIndex_ = it->second;
@@ -85,6 +93,34 @@ int32_t BoneTree::addChannels(
 					<< "' for animation track '" << trackName << "'.");
 		}
 	}
+	// sort channels by node index for better cache coherence
+	std::ranges::sort(staticData->channels,
+		[](const AnimationChannel &a, const AnimationChannel &b) {
+			// sort by node index: low to high
+			return a.nodeIndex_ < b.nodeIndex_;
+		});
+	// fill up with empty channels for nodes that are not animated
+	if (staticData->channels.size() != nodes_.size()) {
+		int32_t nextChannelIdx = staticData->channels.size() - 1;
+		staticData->channels.resize(nodes_.size());
+		for (int32_t nodeIdx = nodes_.size() - 1; nodeIdx != -1; nodeIdx--) {
+			if (nextChannelIdx >= 0) {
+				auto &nextChannel = staticData->channels[nextChannelIdx];
+				if (nextChannel.nodeIndex_ == static_cast<uint32_t>(nodeIdx)) {
+					// this node has an animation channel
+					nextChannelIdx--;
+					staticData->channels[nodeIdx] = nextChannel;
+					continue;
+				}
+			}
+			// insert empty channel for this node
+			auto &emptyChannel = staticData->channels[nodeIdx];
+			emptyChannel.nodeIndex_ = nodeIdx;
+			emptyChannel.nodeName_ = nodes_[nodeIdx]->name;
+			emptyChannel.isAnimated = false;
+		}
+	}
+	data.staticData_ = staticData;
 	return idx;
 }
 
@@ -96,7 +132,11 @@ int32_t BoneTree::getTrackIndex(const std::string &trackName) const {
 	return it->second;
 }
 
-BoneTree::AnimationHandle BoneTree::startBoneAnimation(uint32_t instanceIdx, int32_t trackIdx, const Vec2d &forcedTickRange) {
+BoneTree::AnimationHandle BoneTree::startBoneAnimation(
+			uint32_t instanceIdx,
+			int32_t trackIdx,
+			const Vec2d &forcedTickRange,
+			float *nodeWeights) {
 	auto &instance = instanceData_[instanceIdx];
 	AnimationHandle animHandle = -1;
 	for (uint32_t idx = 0; idx < instance.ranges_.size(); idx++) {
@@ -121,12 +161,16 @@ BoneTree::AnimationHandle BoneTree::startBoneAnimation(uint32_t instanceIdx, int
 	range.tickRange_.y = -1.0;
 	range.weight_ = 1.0;
 	range.trackIdx_ = trackIdx;
+	range.nodeWeights_ = nodeWeights;
 	setTickRange(range, forcedTickRange);
 
 	// Count number of animations affecting a node.
 	Track &anim = animTracks_[range.trackIdx_];
-	for (uint32_t a = 0; a < anim.channels_->size(); a++) {
-		nodes_[anim.channels_->data()[a].nodeIndex_]->numActive[instanceIdx]++;
+	for (uint32_t a = 0; a < anim.staticData_->channels.size(); a++) {
+		auto &channel = anim.staticData_->channels.data()[a];
+		if (channel.isAnimated) {
+			nodes_[channel.nodeIndex_]->numActive[instanceIdx]++;
+		}
 	}
 
 	return animHandle;
@@ -139,8 +183,11 @@ void BoneTree::stopBoneAnimation(uint32_t instanceIdx, AnimationHandle animHandl
 
 	// Count number of animations affecting a node.
 	Track &anim = animTracks_[ar.trackIdx_];
-	for (uint32_t a = 0; a < anim.channels_->size(); a++) {
-		nodes_[anim.channels_->data()[a].nodeIndex_]->numActive[instanceIdx]--;
+	for (uint32_t a = 0; a < anim.staticData_->channels.size(); a++) {
+		auto &channel = anim.staticData_->channels.data()[a];
+		if (channel.isAnimated) {
+			nodes_[channel.nodeIndex_]->numActive[instanceIdx]--;
+		}
 	}
 
 	auto currTrack = ar.trackIdx_;
@@ -210,7 +257,7 @@ void BoneTree::setTickRange(ActiveRange &ar, const Vec2d &forcedTickRange) {
 		return;
 	}
 	Track &anim = animTracks_[ar.trackIdx_];
-	const uint32_t numChannels = anim.channels_->size();
+	const uint32_t numChannels = anim.staticData_->channels.size();
 
 	// Ensure that startFramePosition and lastFramePosition are allocated.
 	if (ar.startFramePosition_.size() != numChannels) {
@@ -239,12 +286,16 @@ void BoneTree::setTickRange(ActiveRange &ar, const Vec2d &forcedTickRange) {
 		std::memset((byte*)startFrameData, 0, sizeof(Vec3ui) * numChannels);
 	} else {
 		for (uint32_t a = 0; a < numChannels; a++) {
-			AnimationChannel &channel = anim.channels_->data()[a];
+			AnimationChannel &channel = anim.staticData_->channels[a];
 			Vec3ui framePos(0u);
-			findFrameBeforeTick(ar.tickRange_.x, framePos.x, *channel.positionKeys_.get());
-			findFrameBeforeTick(ar.tickRange_.x, framePos.y, *channel.rotationKeys_.get());
-			findFrameBeforeTick(ar.tickRange_.x, framePos.z, *channel.scalingKeys_.get());
-			ar.startFramePosition_[a] = framePos;
+			if (channel.isAnimated) {
+				findFrameBeforeTick(ar.tickRange_.x, framePos.x, channel.positionKeys_);
+				findFrameBeforeTick(ar.tickRange_.x, framePos.y, channel.rotationKeys_);
+				findFrameBeforeTick(ar.tickRange_.x, framePos.z, channel.scalingKeys_);
+				ar.startFramePosition_[a] = framePos;
+			} else {
+				ar.startFramePosition_[a] = framePos;
+			}
 		}
 	}
 
@@ -290,21 +341,15 @@ void BoneTree::animate(double dt_ms) {
 	for (uint32_t instanceIdx = 0; instanceIdx < numInstances_; instanceIdx++) {
 		auto &instance = instanceData_[instanceIdx];
 		if (instance.numActiveRanges_ == 0) continue;
-		Track *animationTrack = nullptr;
-		float weightSum = 0.0f;
 
+		// Advance time in active ranges
 		for (AnimationHandle rangeIdx = 0;
 				rangeIdx < static_cast<AnimationHandle>(instance.ranges_.size());
 				rangeIdx++) {
 			ActiveRange &range = instance.ranges_[rangeIdx];
 			if (range.trackIdx_ == -1) continue;
-
 			Track &track = animTracks_[range.trackIdx_];
-			if (animationTrack == nullptr) {
-				animationTrack = &track;
-			}
 			range.elapsedTime_ += dt_ms;
-
 			// map into anim's duration
 			range.timeInTicks_ = std::min(range.duration_,
 				range.elapsedTime_ * timeFactor_ * track.ticksPerSecond_);
@@ -313,55 +358,71 @@ void BoneTree::animate(double dt_ms) {
 				range.timeInTicks_ = -range.timeInTicks_;
 			}
 			range.timeInTicks_ += range.startTick_;
-			weightSum += range.weight_;
 		}
-		if (!animationTrack || weightSum < 1e-6) continue;
-		const uint32_t numChannels = animationTrack->channels_->size();
 
-		bool hasWeightChanged = (abs(instance.lastWeightSum_ - weightSum) > 1e-6f);
-		instance.lastWeightSum_ = weightSum;
-
-		// update transformations
-		for (uint32_t i = 0; i < numChannels; i++) {
-			const AnimationChannel &channel = animationTrack->channels_->data()[i];
+		// Update transformation for each node
+		for (uint32_t nodeIdx = 0; nodeIdx < nodes_.size(); nodeIdx++) {
+			// Compute per-bone effective weights
+			float weightSum = 0.0f;
+			for (auto &range : instance.ranges_) {
+				if (range.trackIdx_ == -1) continue;
+				auto &track = animTracks_[range.trackIdx_];
+				if (track.staticData_->channels[nodeIdx].isAnimated == false) continue;
+				if (range.nodeWeights_) {
+					weightSum += range.weight_ * range.nodeWeights_[nodeIdx];
+				} else {
+					weightSum += range.weight_;
+				}
+			}
+			if (weightSum < 1e-5f) continue; // skip bone, or set to base pose
 
 			accRot_ = Quaternion(0, 0, 0, 0);
 			accPos_ = Vec3f::zero();
 			accScale_ = Vec3f::zero();
+
+			auto &nodeData = nodes_[nodeIdx];
+			bool hasWeightChanged = (abs(nodeData->lastWeightSum - weightSum) > 1e-6f);
+			nodeData->lastWeightSum = weightSum;
 			bool isDirty = (hasWeightChanged);
 
-			for (auto & range : instance.ranges_) {
+			for (auto &range : instance.ranges_) {
 				if (range.trackIdx_ == -1) continue;
-				// Normalized weight
-				float weight = range.weight_ / weightSum;
+				auto &track = animTracks_[range.trackIdx_];
+				auto &channel = track.staticData_->channels[nodeIdx];
+				// Compute normalized weight for this bone.
+				float weight = range.weight_;
+				if (range.nodeWeights_) {
+					weight *= range.nodeWeights_[nodeIdx];
+				}
+				weight /= weightSum;
 
-				if (channel.rotationKeys_->empty()) {
+				if (channel.rotationKeys_.empty()) {
 					accRot_ += (Quaternion(1, 0, 0, 0) * weight);
-				} else if (channel.rotationKeys_->size() == 1) {
-					accRot_ += (channel.rotationKeys_->data()[0].value * weight);
+				} else if (channel.rotationKeys_.size() == 1) {
+					accRot_ += (channel.rotationKeys_.data()[0].value * weight);
 				} else {
-					accRot_ += (nodeRotation(range, channel, isDirty, i) * weight);
+					accRot_ += (nodeRotation(range, channel, isDirty, nodeIdx) * weight);
 				}
-				if (channel.scalingKeys_->empty()) {
+				if (channel.scalingKeys_.empty()) {
 					accScale_ += (Vec3f::one() * weight);
-				} else if (channel.scalingKeys_->size() == 1) {
-					accScale_ += (channel.scalingKeys_->data()[0].value * weight);
+				} else if (channel.scalingKeys_.size() == 1) {
+					accScale_ += (channel.scalingKeys_.data()[0].value * weight);
 				} else {
-					accScale_ += (nodeScaling(range, channel, isDirty, i) * weight);
+					accScale_ += (nodeScaling(range, channel, isDirty, nodeIdx) * weight);
 				}
-				if (channel.positionKeys_->empty()) {
-				} else if (channel.positionKeys_->size() == 1) {
-					accPos_ += (channel.positionKeys_->data()[0].value * weight);
+				if (channel.positionKeys_.empty()) {
+				} else if (channel.positionKeys_.size() == 1) {
+					accPos_ += (channel.positionKeys_.data()[0].value * weight);
 				} else {
-					accPos_ += (nodePosition(range, channel, isDirty, i) * weight);
+					accPos_ += (nodePosition(range, channel, isDirty, nodeIdx) * weight);
 				}
 			}
 			if (isDirty) {
-				nodes_[channel.nodeIndex_]->localDirty = true;
+				nodes_[nodeIdx]->localDirty = true;
 				if (instance.numActiveRanges_ > 1) {
 					accRot_.normalize();
 				}
-				Mat4f &m = blendedTransforms_[instanceIdx * numNodes + channel.nodeIndex_];
+				Mat4f &m = blendedTransforms_[instanceIdx * numNodes + nodeIdx];
 				m = accRot_.calculateMatrix();
 				m.scale(accScale_);
 				m.x[3] = accPos_.x;
@@ -454,8 +515,8 @@ static inline void findFrame(BoneTree::ActiveRange &ar,
 }
 
 Vec3f BoneTree::nodePosition(ActiveRange &ar, const AnimationChannel &channel, bool &isDirty, uint32_t i) {
-	const uint32_t keyCount = channel.positionKeys_->size();
-	auto &keys = *channel.positionKeys_.get();
+	const uint32_t keyCount = channel.positionKeys_.size();
+	auto &keys = channel.positionKeys_;
 	// Find present frame number.
 	uint32_t frame, lastFrame;
 	findFrame<Vec3f,0>(ar, i, frame, lastFrame, keys);
@@ -481,18 +542,18 @@ Vec3f BoneTree::nodePosition(ActiveRange &ar, const AnimationChannel &channel, b
 }
 
 Quaternion BoneTree::nodeRotation(ActiveRange &ar, const AnimationChannel &channel, bool &isDirty, uint32_t i) {
-	const uint32_t keyCount = channel.rotationKeys_->size();
-	auto &keys = *channel.rotationKeys_.get();
+	const uint32_t keyCount = channel.rotationKeys_.size();
+	auto &keys = channel.rotationKeys_;
 	// Find present frame number.
 	uint32_t frame, lastFrame;
 	findFrame<Quaternion,1>(ar, i, frame, lastFrame, keys);
 
 	// lookup nearest two keys
-	Stamped<Quaternion> &key = keys[frame];
+	const Stamped<Quaternion> &key = keys[frame];
 	tmpRot_.value = Quaternion(1, 0, 0, 0);
 	// interpolate between this frame's value and next frame's value
 	if (!handleFrameLoop(tmpRot_, frame, lastFrame, channel, key, keys[0])) {
-		Stamped<Quaternion> &nextKey = keys[(frame + 1) % keyCount];
+		const Stamped<Quaternion> &nextKey = keys[(frame + 1) % keyCount];
 		double fac = 0.0;
 		if (computeInterpolation<Quaternion,1>(ar, i, frame, lastFrame, key, nextKey, isDirty, fac)) {
 #ifdef INTERPOLATE_QUATERNION_LINEAR
@@ -512,7 +573,7 @@ Quaternion BoneTree::nodeRotation(ActiveRange &ar, const AnimationChannel &chann
 }
 
 Vec3f BoneTree::nodeScaling(ActiveRange &ar, const AnimationChannel &channel, bool &isDirty, uint32_t i) {
-	auto &keys = *channel.scalingKeys_.get();
+	auto &keys = channel.scalingKeys_;
 	// Find present frame number.
 	uint32_t frame, lastFrame;
 	findFrame<Vec3f,2>(ar, i, frame, lastFrame, keys);
@@ -521,7 +582,7 @@ Vec3f BoneTree::nodeScaling(ActiveRange &ar, const AnimationChannel &channel, bo
 	auto &key = keys[frame];
 	// set current value
 	if (!handleFrameLoop(tmpScale_, frame, lastFrame, channel, key, keys[0])) {
-		Stamped<Vec3f> &nextKey = keys[(frame + 1) % keys.size()];
+		const Stamped<Vec3f> &nextKey = keys[(frame + 1) % keys.size()];
 		double fac = 0.0;
 		if (computeInterpolation<Vec3f,2>(ar, i, frame, lastFrame, key, nextKey, isDirty, fac)) {
 			tmpScale_.value = key.value + (nextKey.value - key.value) * static_cast<float>(fac);

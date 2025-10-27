@@ -59,6 +59,15 @@ namespace regen {
 	 */
 	bool isInterruptibleMotion(MotionType type);
 
+	/**
+	 * Get the body part weights for the given motion type.
+	 * The returned array contains one weight per body part, in the order defined
+	 * by the BodyPart enum, plus one base weight at index 0.
+	 * @param type The motion type.
+	 * @return A pointer to an array of floats containing the body part weights.
+	 */
+	const float* motionBodyPartWeights(MotionType type);
+
 	std::ostream &operator<<(std::ostream &out, const MotionType &v);
 
 	std::istream &operator>>(std::istream &in, MotionType &v);

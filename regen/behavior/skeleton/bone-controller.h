@@ -7,13 +7,15 @@
 #include "regen/behavior/skeleton/motion-type.h"
 #include "regen/animation/bone-tree.h"
 #include "regen/behavior/blackboard.h"
+#include "regen/behavior/world/body-part.h"
 
 namespace regen {
 	/** An item that contains a bone animation and its associated ranges and clips. */
 	struct BoneAnimationItem {
-		ref_ptr<BoneTree> animation;
+		ref_ptr<BoneTree> boneTree;
 		std::vector<AnimationRange> ranges;
 		std::vector<MotionClip> clips;
+		std::unordered_map<std::string,BodyPart> startNodesOfBodyParts;
 	};
 
 	/**
@@ -135,6 +137,8 @@ namespace regen {
 			ClipStatus clipStatus = CLIP_INACTIVE;
 			// Also store the action type that triggered this motion.
 			ActionType action = ActionType::LAST_ACTION;
+			// Per bone weights for this motion type.
+			std::vector<float> boneWeights;
 		};
 		// Data item for each motion type.
 		std::vector<MotionData> motionToData_;
@@ -170,11 +174,17 @@ namespace regen {
 
 		void stopMotionClip(MotionData &motion);
 
-		void setMotionWeight(MotionData &motion, float weight);
+		void setMotionWeight(MotionData &motion, float weight) const;
 
 		MotionType lastActiveMotion(MotionData &motion) const;
 
 		bool isClipInFinalStage(MotionData &motion) const;
+
+		BoneTree::AnimationHandle startBoneAnimation(MotionData &motion, const AnimationRange *range);
+
+		BodyPart getBodyPartType(const std::string &startNodeName) const;
+
+		void initializeBoneWeights(MotionData &motionData, MotionType type) const;
 	};
 } // namespace
 

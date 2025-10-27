@@ -39,6 +39,7 @@ namespace regen {
 		bool isBoneNode;
 		bool localDirty = true;
 		bool globalDirty = true;
+		float lastWeightSum = 0.0f;
 
 		/**
 		 * @param name the node name.
@@ -85,16 +86,26 @@ namespace regen {
 		explicit BoneTree(const ref_ptr<BoneNode> &rootNode, uint32_t numInstances = 1);
 
 		/**
+		 * @return the root node.
+		 */
+		BoneNode* rootNode() const { return rootNode_.get(); }
+
+		/**
+		 * @return the number of nodes in the bone tree.
+		 */
+		uint32_t numNodes() const { return static_cast<uint32_t>(nodes_.size()); }
+
+		/**
 		 * Add an animation.
 		 * @param trackName the track name.
-		 * @param channels the key frames.
+		 * @param animData the static animation data.
 		 * @param duration animation duration.
 		 * @param ticksPerSecond number of animation ticks per second.
 		 * @return the animation index.
 		 */
-		int32_t addChannels(
+		int32_t addAnimationTrack(
 				const std::string &trackName,
-				ref_ptr<std::vector<AnimationChannel>> &channels,
+				ref_ptr<StaticAnimationData> &animData,
 				double duration,
 				double ticksPerSecond);
 
@@ -111,9 +122,13 @@ namespace regen {
 		 * @param instanceIdx the instance index.
 		 * @param trackIdx the animation track index as returned by getTrackIndex().
 		 * @param tickRange the tick range, negative values indicate full range.
+		 * @param nodeWeights optional per-node weights for blending, if null all nodes have weight 1.0.
 		 * @return the animation handle or -1 if the animation could not be started.
 		 */
-		AnimationHandle startBoneAnimation(uint32_t instanceIdx, int32_t trackIdx, const Vec2d &tickRange);
+		AnimationHandle startBoneAnimation(
+			uint32_t instanceIdx, int32_t trackIdx,
+			const Vec2d &tickRange,
+			float *nodeWeights=nullptr);
 
 		/**
 		 * Stop an active animation.
@@ -224,7 +239,11 @@ namespace regen {
 			// last update time in ticks
 			double lastTime_ = 0.0;
 			double timeInTicks_ = 0.0;
+			// Overall weight for this animation range, weights of nodes
+			// are multiplied with this.
 			float weight_ = 1.0;
+			// Per node weights for blending.
+			float *nodeWeights_;
 			// Remember last frame of each channel for interpolation.
 			std::vector<Vec3ui> lastFramePosition_;
 			std::vector<Vec3ui> startFramePosition_;
@@ -248,7 +267,7 @@ namespace regen {
 			// Duration of the animation in ticks.
 			double duration_;
 			// Static animation data
-			ref_ptr<std::vector<AnimationChannel>> channels_;
+			ref_ptr<StaticAnimationData> staticData_;
 		};
 		std::vector<Track> animTracks_;
 
@@ -259,8 +278,6 @@ namespace regen {
 			// The number of active ranges, i.e. animations that are active in parallel.
 			// This is usually a very small number.
 			uint32_t numActiveRanges_ = 0;
-			// The last sum of weights of all active ranges.
-			float lastWeightSum_ = 0.0f;
 		};
 		std::vector<InstanceData> instanceData_;
 		// per-instance + per-node local node transformation

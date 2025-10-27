@@ -1115,17 +1115,11 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 	}
 
 	ref_ptr<BoneTree> anim = ref_ptr<BoneTree>::alloc(rootNode_, animConfig.numInstances);
-	ref_ptr<vector<AnimationChannel>> channels;
-	ref_ptr<vector<Stamped<Vec3f>>> scalingKeys;
-	ref_ptr<vector<Stamped<Vec3f>>> positionKeys;
-	ref_ptr<vector<Stamped<Quaternion>>> rotationKeys;
 
 	for (uint32_t i = 0; i < scene_->mNumAnimations; ++i) {
 		aiAnimation *assimpAnim = scene_->mAnimations[i];
 		// extract ticks per second. Assume default value if not given
-		GLdouble ticksPerSecond = (assimpAnim->mTicksPerSecond != 0.0 ?
-								   assimpAnim->mTicksPerSecond : animConfig.ticksPerSecond);
-
+		double ticksPerSecond = (assimpAnim->mTicksPerSecond != 0.0 ? assimpAnim->mTicksPerSecond : animConfig.ticksPerSecond);
 		auto animName = assimpAnim->mName.C_Str();
 		double duration = assimpAnim->mDuration;
 
@@ -1136,72 +1130,70 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 
 		if (assimpAnim->mNumChannels <= 0) continue;
 
-		channels = ref_ptr<vector<AnimationChannel> >::alloc(assimpAnim->mNumChannels);
-		auto &channelsPtr = *channels.get();
+		ref_ptr<StaticAnimationData> animData = ref_ptr<StaticAnimationData>::alloc();
+		animData->channels.resize(assimpAnim->mNumChannels);
 
 		for (uint32_t j = 0; j < assimpAnim->mNumChannels; ++j) {
 			aiNodeAnim *nodeAnim = assimpAnim->mChannels[j];
+			auto &channel = animData->channels[j];
 
-			auto scalingKeys = ref_ptr<vector<Stamped<Vec3f>>>::alloc(nodeAnim->mNumScalingKeys);
-			auto &scalingKeys_ = *scalingKeys.get();
-			GLboolean useScale = false;
+			channel.scalingKeys_.resize(nodeAnim->mNumScalingKeys);
+			auto &scalingKeys = channel.scalingKeys_;
+			bool useScale = false;
 			for (uint32_t k = 0; k < nodeAnim->mNumScalingKeys; ++k) {
-				auto &key = scalingKeys_[k];
+				auto &key = scalingKeys[k];
 				key.time = nodeAnim->mScalingKeys[k].mTime;
 				key.value = *((Vec3f *) &(nodeAnim->mScalingKeys[k].mValue.x));
 				if (key.time > 0.0001) useScale = true;
 			}
 
-			if (!useScale && !scalingKeys_.empty()) {
-				if (scalingKeys_[0].value.isApprox(Vec3f::one(), 1e-6)) {
-					scalingKeys_.resize(0);
+			if (!useScale && !scalingKeys.empty()) {
+				if (scalingKeys[0].value.isApprox(Vec3f::one(), 1e-6)) {
+					scalingKeys.resize(0);
 				} else {
-					scalingKeys_.resize(1, scalingKeys_[0]);
+					scalingKeys.resize(1, scalingKeys[0]);
 				}
 			}
 
 			////////////
-
-			positionKeys = ref_ptr<vector<Stamped<Vec3f>>>::alloc(nodeAnim->mNumPositionKeys);
-			auto &positionKeys_ = *positionKeys.get();
-			GLboolean usePosition = false;
+			channel.positionKeys_.resize(nodeAnim->mNumPositionKeys);
+			auto &positionKeys = channel.positionKeys_;
+			bool usePosition = false;
 
 			for (uint32_t k = 0; k < nodeAnim->mNumPositionKeys; ++k) {
-				auto &key = positionKeys_[k];
+				auto &key = positionKeys[k];
 				key.time = nodeAnim->mPositionKeys[k].mTime;
 				key.value = *((Vec3f *) &(nodeAnim->mPositionKeys[k].mValue.x));
 				if (key.time > 0.0001) usePosition = true;
 			}
 
-			if (!usePosition && !positionKeys_.empty()) {
-				if (positionKeys_[0].value.isApprox(Vec3f::zero(), 1e-6)) {
-					positionKeys_.resize(0);
+			if (!usePosition && !positionKeys.empty()) {
+				if (positionKeys[0].value.isApprox(Vec3f::zero(), 1e-6)) {
+					positionKeys.resize(0);
 				} else {
-					positionKeys_.resize(1, positionKeys_[0]);
+					positionKeys.resize(1, positionKeys[0]);
 				}
 			}
 
 			///////////
-
-			rotationKeys = ref_ptr<vector<Stamped<Quaternion>>>::alloc(nodeAnim->mNumRotationKeys);
-			auto &rotationKeys_ = *rotationKeys.get();
-			GLboolean useRotation = false;
+			channel.rotationKeys_.resize(nodeAnim->mNumRotationKeys);
+			auto &rotationKeys = channel.rotationKeys_;
+			bool useRotation = false;
 			for (uint32_t k = 0; k < nodeAnim->mNumRotationKeys; ++k) {
-				auto &key = rotationKeys_[k];
+				auto &key = rotationKeys[k];
 				key.time = nodeAnim->mRotationKeys[k].mTime;
 				key.value = *((Quaternion *) &(nodeAnim->mRotationKeys[k].mValue.w));
 				if (key.time > 0.0001) useRotation = true;
 			}
 
-			if (!useRotation && !rotationKeys_.empty()) {
-				if (rotationKeys_[0].value == Quaternion(1, 0, 0, 0)) {
-					rotationKeys_.resize(0);
+			if (!useRotation && !rotationKeys.empty()) {
+				if (rotationKeys[0].value == Quaternion(1, 0, 0, 0)) {
+					rotationKeys.resize(0);
 				} else {
-					rotationKeys_.resize(1, rotationKeys_[0]);
+					rotationKeys.resize(1, rotationKeys[0]);
 				}
 			}
 
-			auto &channel = channelsPtr[j];
 			channel.nodeName_ = string(nodeAnim->mNodeName.data);
 			if (animConfig.forceStates) {
 				channel.postState = animConfig.postState;
@@ -1210,14 +1202,11 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 				channel.postState = animState(nodeAnim->mPostState);
 				channel.preState = animState(nodeAnim->mPreState);
 			}
-			channel.scalingKeys_ = scalingKeys;
-			channel.positionKeys_ = positionKeys;
-			channel.rotationKeys_ = rotationKeys;
 		}
 
-		anim->addChannels(
+		anim->addAnimationTrack(
 				string(assimpAnim->mName.data),
-				channels,
+				animData,
 				assimpAnim->mDuration,
 				ticksPerSecond
 		);

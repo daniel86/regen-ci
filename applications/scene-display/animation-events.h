@@ -32,7 +32,7 @@ public:
 		// Load the track index for each range.
 		for (auto &range: animItem_->ranges) {
 			if (!range.trackName.empty()) {
-				range.trackIndex = animItem_->animation->getTrackIndex(range.trackName);
+				range.trackIndex = animItem_->boneTree->getTrackIndex(range.trackName);
 			}
 		}
 	}
@@ -42,7 +42,7 @@ public:
 	void call(EventObject *ev, EventData *data) override {
 		BoneTree::BoneEvent *evData = (BoneTree::BoneEvent *) data;
 		int index = rand() % animItem_->ranges.size();
-		setAnimationRangeActive(animItem_->animation, evData->instanceIdx, animItem_->ranges[index]);
+		setAnimationRangeActive(animItem_->boneTree, evData->instanceIdx, animItem_->ranges[index]);
 	}
 
 protected:

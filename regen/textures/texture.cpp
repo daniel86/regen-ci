@@ -499,7 +499,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 	if (input.hasAttribute("file")) {
 		TextureConfig texConfig;
 		texConfig.forcedInternalFormat = glenum::textureInternalFormat(
-				input.getValue<std::string>("forced-internal-format", "NONE"));
+				input.getValue<std::string>("internal-format", "NONE"));
 		texConfig.forcedFormat = glenum::textureFormat(
 				input.getValue<std::string>("forced-format", "NONE"));
 		texConfig.forcedSize =
@@ -508,6 +508,13 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 		texConfig.useMipmaps = input.getValue<bool>("mipmap", false);
 		const std::string filePath =
 				resourcePath(input.getValue("file"));
+
+		REGEN_DEBUG("Loading texture from file " << filePath << " with config: "
+					<< " internal-format=0x" << std::hex << texConfig.forcedInternalFormat << std::dec
+					<< " format=0x" << std::hex << texConfig.forcedFormat << std::dec
+					<< " size=" << texConfig.forcedSize
+					<< " keep-data=" << texConfig.keepData
+					<< " use-mipmaps=" << texConfig.useMipmaps);
 
 		try {
 			if (input.getValue<bool>("is-cube", false)) {
@@ -701,7 +708,7 @@ void Texture::configure(ref_ptr<Texture> &tex, scene::SceneInputNode &input) {
 				input.getValue<std::string>("wrapping", "CLAMP_TO_EDGE")));
 	}
 	if (!input.getValue("aniso").empty()) {
-		tex->set_aniso(input.getValue<GLfloat>("aniso", 2.0f));
+		tex->set_aniso(input.getValue<float>("aniso", 2.0f));
 	}
 	if (!input.getValue("lod").empty()) {
 		tex->set_lod(input.getValue<Vec2f>("lod", Vec2f(1.0f)));

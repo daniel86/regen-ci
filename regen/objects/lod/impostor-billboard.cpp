@@ -108,9 +108,14 @@ void ImpostorBillboard::updateExtrudeAttributes() {
 }
 
 void ImpostorBillboard::addMesh(const ref_ptr<Mesh> &mesh, const ref_ptr<State> &drawState) {
+	// TODO: Consider the case of different materials/textures as we allow an impostor to be composed
+	//       of multiple meshes below. I think we really need a pass in update for each mesh/material combination.
 	auto &imitation = meshes_.emplace_back();
 	imitation.meshOrig = mesh;
 	imitation.meshCopy = ref_ptr<Mesh>::alloc(mesh);
+	if (mesh->hasMaterial()) {
+		imitation.meshCopy->joinStates(mesh->material());
+	}
 	imitation.drawState = drawState;
 	imitation.shaderState = ref_ptr<ShaderState>::alloc();
 
@@ -246,6 +251,9 @@ void ImpostorBillboard::createResources() {
 	}
 
 	for (auto &viewMesh : meshes_) {
+		if (viewMesh.meshOrig->hasMaterial()) {
+			viewMesh.meshCopy->setMaterial(viewMesh.meshOrig->material());
+		}
 		StateConfigurer meshConfigurer;
 		meshConfigurer.addState(snapshotState_.get());
 		meshConfigurer.addState(snapshotFBO_.get());
@@ -526,7 +534,7 @@ ref_ptr<ImpostorBillboard> ImpostorBillboard::load(LoadingContext &ctx, scene::S
 		input.removeChild(updateStateNode);
 	}
 
-	// add meshes to the impostor
+	// Add meshes to the impostor
 	auto indexRange = MeshVector::loadIndexRange(input, "base-mesh");
 	if (indexRange.empty()) { indexRange.push_back(0); }
 	for (auto &index: indexRange) {

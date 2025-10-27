@@ -17,6 +17,10 @@
     <node id="configuration"
           date="01-09-2014 10:00:00"
           time-scale="60.0">
+        <world id="canyon" height-map="ground-height">
+            <place id="tmp" type="home" point="-8.5,-30.0" radius="19.799">
+            </place>
+        </world>
         <controller camera="main-camera" mode="first-person"
                 speed="0.05"
                 eye-offset="0.0,0.0,0.0"
@@ -38,8 +42,8 @@
                     indexed-shape="hyena-shape"
                     spatial-index="main-index"
                     height-map="ground-height"
-                    territory-size="57.275, 32.373"
-                    territory-center="-4.5166,-33.8134"
+                    territory-size="28.0, 28.0"
+                    territory-center="-8.5,-30.0"
                     decision-interval="0.25"
                     perception-interval="0.1"
                     base-time-activity="60.0"
@@ -62,8 +66,6 @@
                     velocity-orientation-weight="0.75">
             <behavior-tree import="dog-like-carnivore"/>
         </controller>
-        <world id="canyon" height-map="ground-height">
-        </world>
     </node>
 
     <!-- FBO for deferred shading -->
@@ -163,14 +165,18 @@
            file="res/models/hyena/hyena.fbx"
            texture-path="res/models/hyena"
            use-animation="1"
-           base-orientation="0.0"
            animation-force-states="1"
            animation-post-state="LINEAR"
            animation-pre-state="LINEAR"
            animation-tps="60.0">
         <!-- define named animation ranges. -->
         <bone-animation>
-            <!-- TODO: verify the clips! -->
+            <body-part type="head" start-node="bip01_neck1"/>
+            <body-part type="leg" start-node="bip01_l_thigh"/>
+            <body-part type="leg" start-node="bip01_r_thigh"/>
+            <body-part type="arm" start-node="bip01_l_clavicle"/>
+            <body-part type="arm" start-node="bip01_r_clavicle"/>
+            <body-part type="torso" start-node="spine2"/>
             <!-- lying on right side, then getting up -->
             <range motion="revive" name="get-up" track="Hyenas_A15_Up" range="1.0,50.0"/>
             <range motion="die" name="fall-down" track="Hyenas_A15_Die" range="1.0,100.0"/>

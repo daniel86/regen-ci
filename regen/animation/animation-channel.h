@@ -34,6 +34,8 @@ namespace regen {
 		std::string nodeName_;
 		/** The index of the node affected by this animation. */
 		uint32_t nodeIndex_ = 0;
+		/** Indicates whether this channel has any key frames. */
+		bool isAnimated = true;
 		/**
 		 * Defines how the animation behaves after the last key was processed.
 		 * The default value is ANIM_BEHAVIOR_DEFAULT
@@ -46,9 +48,16 @@ namespace regen {
 		 * (the original transformation matrix of the affected node is used).
 		 */
 		AnimationChannelBehavior preState;
-		ref_ptr<std::vector<Stamped<Vec3f>> > scalingKeys_; /**< Scaling key frames. */
-		ref_ptr<std::vector<Stamped<Vec3f>> > positionKeys_; /**< Position key frames. */
-		ref_ptr<std::vector<Stamped<Quaternion>> > rotationKeys_; /**< Rotation key frames. */
+		std::vector<Stamped<Vec3f>> scalingKeys_; /**< Scaling key frames. */
+		std::vector<Stamped<Vec3f>> positionKeys_; /**< Position key frames. */
+		std::vector<Stamped<Quaternion>> rotationKeys_; /**< Rotation key frames. */
+	};
+
+	/**
+	 * \brief Static animation data containing all channels for an animation.
+	 */
+	struct StaticAnimationData {
+		std::vector<AnimationChannel> channels;
 	};
 
 	std::ostream &operator<<(std::ostream &out, const AnimationChannelBehavior &v);

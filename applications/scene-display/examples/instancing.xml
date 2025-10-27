@@ -376,6 +376,12 @@
            animation-tps="10.0"
            animation-instances="{{num-dwarves}}">
         <bone-animation>
+            <body-part type="head" start-node="head"/>
+            <body-part type="leg" start-node="lhip"/>
+            <body-part type="leg" start-node="rhip"/>
+            <body-part type="arm" start-node="lsholda"/>
+            <body-part type="arm" start-node="rsholda"/>
+            <body-part type="torso" start-node="spine2"/>
             <range motion="walk" name="walk" range="1.0,13.0"/>
             <range motion="run" name="run" range="15.0,25.0"/>
             <range motion="jump" name="jump" range="27.0,39.0"/>

@@ -107,6 +107,11 @@ void Mesh::setMaterial(const ref_ptr<Material> &material) {
 		//      such that XML can add textures that blend ontop.
 		//joinStates(material_);
 	}
+	for (auto &lod : meshLODs_) {
+		if (lod.impostorMesh.get()) {
+			lod.impostorMesh->setMaterial(material_);
+		}
+	}
 }
 
 ref_ptr<BufferReference> Mesh::updateVertexData() {
@@ -547,6 +552,9 @@ void Mesh::setMeshLODs(const std::vector<MeshLOD> &meshLODs) {
 	meshLODs_ = meshLODs;
 	for (auto &lod : meshLODs_) {
 		if (lod.impostorMesh.get()) {
+			if (material_.get()) {
+				lod.impostorMesh->setMaterial(material_);
+			}
 			if(cullShape_.get()) {
 				lod.impostorMesh->setCullShape(cullShape_);
 			}
@@ -567,6 +575,9 @@ void Mesh::addMeshLOD(const MeshLOD &meshLOD) {
 	ensureLOD();
 	meshLODs_.push_back(meshLOD);
 	if (meshLOD.impostorMesh.get()) {
+		if (material_.get()) {
+			meshLOD.impostorMesh->setMaterial(material_);
+		}
 		if(cullShape_.get()) {
 			meshLOD.impostorMesh->setCullShape(cullShape_);
 		}

@@ -20,6 +20,7 @@
 #include <regen/scene/shader-define-processor.h>
 
 #include "regen/behavior/skeleton/bone-controller.h"
+#include "regen/behavior/world/body-part.h"
 
 using namespace regen::scene;
 using namespace regen;
@@ -299,6 +300,7 @@ ref_ptr<BoneAnimationItem> SceneLoader::getAnimationRanges(const std::string &as
 	ref_ptr<BoneAnimationItem> item = ref_ptr<BoneAnimationItem>::alloc();
 	auto clipsXML = boneAnimNode->getChildren("clip");
 	auto rangesXML = boneAnimNode->getChildren("range");
+	auto bodyPartsXML = boneAnimNode->getChildren("body-part");
 	const uint32_t numRanges = static_cast<uint32_t>(rangesXML.size());
 	// create temporary name map for clip creation
 	std::unordered_map<std::string, AnimationRange *> rangeNameMap;
@@ -316,9 +318,16 @@ ref_ptr<BoneAnimationItem> SceneLoader::getAnimationRanges(const std::string &as
 		if (rangeNode->hasAttribute("motion")) {
 			auto &newClip = item->clips.emplace_back();
 			newClip.motion = rangeNode->getValue<MotionType>("motion", MotionType::IDLE);
-			newClip.range = &range;
+			newClip.loop = &range;
 		}
 		rangeIdx += 1u;
+	}
+
+	// load body parts
+	for (auto &bodyPartNode: bodyPartsXML) {
+		BodyPart partType = bodyPartNode->getValue<BodyPart>("type", BodyPart::LAST);
+		std::string startNode = bodyPartNode->getValue("start-node");
+		item->startNodesOfBodyParts[startNode] = partType;
 	}
 
 	// finally also load clips defining some renaming, and composite motions
@@ -335,7 +344,7 @@ ref_ptr<BoneAnimationItem> SceneLoader::getAnimationRanges(const std::string &as
 		}
 		auto &newClip = item->clips.emplace_back();
 		newClip.motion = clipNode->getValue<MotionType>("motion", MotionType::IDLE);
-		newClip.range = clipRange;
+		newClip.loop = clipRange;
 
 		if (clipNode->hasAttribute("begin")) {
 			it = rangeNameMap.find(clipNode->getValue("begin"));
@@ -359,11 +368,11 @@ ref_ptr<BoneAnimationItem> SceneLoader::getAnimationRanges(const std::string &as
 
 	auto asset = getResources()->getAsset(this, assetID);
 	if (asset.get()) {
-		item->animation = asset->getNodeAnimation();
+		item->boneTree = asset->getNodeAnimation();
 		// Load the track index for each range.
 		for (auto &range: item->ranges) {
 			if (!range.trackName.empty()) {
-				range.trackIndex = item->animation->getTrackIndex(range.trackName);
+				range.trackIndex = item->boneTree->getTrackIndex(range.trackName);
 			}
 		}
 	} else {

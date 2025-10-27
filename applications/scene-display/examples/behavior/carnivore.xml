@@ -19,7 +19,7 @@
                     <action type="PerformDesiredAction" />
                 </sequence>
                 <sequence>
-                    <action type="SetDesiredAction" value="INSPECT" duration="0.5"/>
+                    <action type="SetDesiredAction" value="INSPECT" duration="5.0"/>
                     <action type="PerformDesiredAction" />
                 </sequence>
             </selector>

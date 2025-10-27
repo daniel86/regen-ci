@@ -49,12 +49,11 @@
     </fbo>
     <!-- Textures -->
     <texture id="sky-texture"
-             is-cube="1"
-             cube-flip-back="1"
+             is-cube="1" cube-flip-back="1"
              file="res/textures/cube-maps/grace.hdr"
              mipmap="1"
              wrapping="CLAMP_TO_EDGE"
-             forced-internal-format="R11F_G11F_B10F"
+             internal-format="R11F_G11F_B10F"
              aniso="2.0"/>
     <!-- Cameras -->
     <camera id="main-camera"
@@ -124,9 +123,14 @@
         <texture name="blurTexture" id="blurred-scene"/>
 
         <input type="float" name="blurAmount" value="0.5"/>
+        <input type="float" name="effectAmount" value="1.2"/>
+        <input type="float" name="exposure" value="1.6"/>
+        <input type="float" name="gamma" value="0.9"/>
+        <!--
         <input type="float" name="effectAmount" value="0.2"/>
         <input type="float" name="exposure" value="16.0"/>
         <input type="float" name="gamma" value="0.5"/>
+        -->
         <input type="float" name="radialBlurSamples" value="36.0"/>
         <input type="float" name="radialBlurStartScale" value="1.0"/>
         <input type="float" name="radialBlurScaleMul" value="0.9555"/>

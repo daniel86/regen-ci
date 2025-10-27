@@ -1,5 +1,7 @@
 #include "bone-controller.h"
 
+#include "regen/behavior/world/body-part.h"
+
 using namespace regen;
 
 //#define BONE_CONTROLLER_DEBUG_ACTION ActionType::ATTACKING
@@ -36,19 +38,27 @@ BoneController::BoneController(uint32_t instanceIdx, const ref_ptr<BoneAnimation
 	motionToData_.resize(static_cast<size_t>(MotionType::MOTION_LAST));
 	for (uint32_t clipIdx = 0; clipIdx < animItem_->clips.size(); ++clipIdx) {
 		auto &clip = animItem_->clips[clipIdx];
-		motionToData_[static_cast<int>(clip.motion)].clips.push_back(clipIdx);
+		auto &motionData = motionToData_[static_cast<int>(clip.motion)];
+		motionData.clips.push_back(clipIdx);
+	}
+	// Initialize bone weights for motions with clips.
+	for (size_t i = 0; i < motionToData_.size(); ++i) {
+		auto &motionData = motionToData_[i];
+		if (!motionData.clips.empty()) {
+			initializeBoneWeights(motionData, static_cast<MotionType>(i));
+		}
 	}
 
 	// Extract some special motion parameters that are useful for navigation.
 	if (!motionToData_[static_cast<int>(MotionType::WALK)].clips.empty()) {
 		auto walkClip = animItem_->clips[motionToData_[static_cast<int>(MotionType::WALK)].clips[0]];
-		auto walkTPS = animItem_->animation->ticksPerSecond(walkClip.range->trackIndex);
-		walkTime_ = 1000.0f * (walkClip.range->range.y - walkClip.range->range.x) / walkTPS;
+		auto walkTPS = animItem_->boneTree->ticksPerSecond(walkClip.loop->trackIndex);
+		walkTime_ = 1000.0f * (walkClip.loop->range.y - walkClip.loop->range.x) / walkTPS;
 	}
 	if (!motionToData_[static_cast<int>(MotionType::RUN)].clips.empty()) {
 		auto runClip = animItem_->clips[motionToData_[static_cast<int>(MotionType::RUN)].clips[0]];
-		auto runTPS = animItem_->animation->ticksPerSecond(runClip.range->trackIndex);
-		runTime_ = 1000.0f * (runClip.range->range.y - runClip.range->range.x) / runTPS;
+		auto runTPS = animItem_->boneTree->ticksPerSecond(runClip.loop->trackIndex);
+		runTime_ = 1000.0f * (runClip.loop->range.y - runClip.loop->range.x) / runTPS;
 	}
 
 	// initialize the action-to-motion mapping.
@@ -80,6 +90,45 @@ BoneController::BoneController(uint32_t instanceIdx, const ref_ptr<BoneAnimation
 	actionToMotion_[static_cast<size_t>(ActionType::FLOCKING)] = { MotionType::MOTION_LAST };
 }
 
+BodyPart BoneController::getBodyPartType(const std::string &startNodeName) const {
+	auto it = animItem_->startNodesOfBodyParts.find(startNodeName);
+	if (it != animItem_->startNodesOfBodyParts.end()) {
+		return it->second;
+	}
+	return BodyPart::LAST;
+}
+
+void BoneController::initializeBoneWeights(MotionData &motionData, MotionType motionType) const {
+	Stack<std::pair<const BoneNode*,BodyPart>> traversalStack;
+	const BoneNode *rootNode = animItem_->boneTree->rootNode();
+	traversalStack.push(std::make_pair(rootNode, getBodyPartType(rootNode->name)));
+
+	// Get the body part weights for this motion type.
+	const float *partWeights = motionBodyPartWeights(motionType);
+	float baseWeight = partWeights[0];
+	partWeights += 1; // skip base weight
+	// Initialize the bone weights array.
+	motionData.boneWeights.resize(animItem_->boneTree->numNodes());
+
+	// Here the idea is that we keep track of the current body part as we traverse
+	// such that we can find the correct weight per bone which can later be indexed by node index.
+	while (!traversalStack.isEmpty()) {
+		auto [node,currentBodyPart] = traversalStack.top();
+		traversalStack.pop();
+		if (currentBodyPart == BodyPart::LAST) {
+			motionData.boneWeights[node->nodeIdx] = baseWeight;
+		} else {
+			motionData.boneWeights[node->nodeIdx] = partWeights[static_cast<size_t>(currentBodyPart)];
+		}
+
+		for (const auto &child : node->children) {
+			BodyPart childPartType = getBodyPartType(child->name);
+			if (childPartType == BodyPart::LAST) childPartType = currentBodyPart;
+			traversalStack.push(std::make_pair(child.get(), childPartType));
+		}
+	}
+}
+
 int32_t BoneController::getAnimationHandle(MotionType type) const {
 	return motionToData_[static_cast<int>(type)].handle;
 }
@@ -91,8 +140,8 @@ bool BoneController::isCurrentBoneAnimation(MotionType type) const {
 	return false;
 }
 
-void BoneController::setMotionWeight(MotionData &motion, float weight) {
-	animItem_->animation->setAnimationWeight(instanceIdx_, motion.handle, weight);
+void BoneController::setMotionWeight(MotionData &motion, float weight) const {
+	animItem_->boneTree->setAnimationWeight(instanceIdx_, motion.handle, weight);
 }
 
 void BoneController::addActiveMotion(MotionType motion) {
@@ -126,7 +175,7 @@ void BoneController::updateDesiredMotion(
 }
 
 void BoneController::updateDesiredMotions(const ActionType *desiredActions, uint32_t numDesiredActions) {
-	auto anim = animItem_->animation;
+	auto anim = animItem_->boneTree;
 
 	for (uint32_t i = 0; i < numDesiredActions; ++i) {
 		MotionType desiredMotion = MotionType::MOTION_LAST;
@@ -205,34 +254,38 @@ bool BoneController::startMotionClip(MotionData &motion, float initialWeight) {
 		motion.fadeTime = 0.0f;
 	}
 	if (hasBeginRange) {
-		motion.handle = animItem_->animation->startBoneAnimation(
-			instanceIdx_, clip.begin->trackIndex, clip.begin->range);
+		motion.handle = startBoneAnimation(motion, clip.begin);
 		BONE_CTRL_DEBUG(clip.motion, REGEN_STRING(
 			"is starting clip '" << clip.begin->name << "' with begin range " <<
 			" in track " << clip.begin->trackIndex));
 	} else {
-		motion.handle = animItem_->animation->startBoneAnimation(
-			instanceIdx_, clip.range->trackIndex, clip.range->range);
+		motion.handle = startBoneAnimation(motion, clip.loop);
 		BONE_CTRL_DEBUG(clip.motion, REGEN_STRING(
 			"is starting clip '" << clip.range->name << "' with no begin range" <<
 			" in track " << clip.range->trackIndex));
 	}
 	setMotionWeight(motion, initialWeight);
-	animItem_->animation->startAnimation();
+	animItem_->boneTree->startAnimation();
 
 	return true;
 }
 
 void BoneController::stopMotionClip(MotionData &motion) {
-	animItem_->animation->stopBoneAnimation(instanceIdx_, motion.handle);
+	animItem_->boneTree->stopBoneAnimation(instanceIdx_, motion.handle);
 	motion.handle = -1;
 	motion.status = MOTION_INACTIVE;
+}
+
+BoneTree::AnimationHandle BoneController::startBoneAnimation(
+		MotionData &motion, const AnimationRange *range) {
+	return animItem_->boneTree->startBoneAnimation(instanceIdx_,
+		range->trackIndex, range->range, motion.boneWeights.data());
 }
 
 void BoneController::updateMotionClip(MotionData &motion, MotionClip &clip) {
 	// animation-status is ACTIVE | FADING_OUT | FADING_IN
 	// clip-status is BEGINNING | LOOPING | ENDING
-	auto &anim = animItem_->animation;
+	auto &anim = animItem_->boneTree;
 	// Check if the current segment is still active, if so we are done.
 	bool isActive = anim->isBoneAnimationActive(instanceIdx_, motion.handle);
 	if (isActive) return;
@@ -242,20 +295,20 @@ void BoneController::updateMotionClip(MotionData &motion, MotionClip &clip) {
 
 	if (motion.clipStatus == CLIP_BEGINNING) {
 		// Beginning segment is done, now start looping segment if any...
-		if (clip.range && (!isFadingOut || !hasEndRange)) {
+		if (clip.loop && (!isFadingOut || !hasEndRange)) {
 			// Activate the looping segment, unless we are fading out and have an end segment.
 			// In that case we skip the looping segment and go directly to the end segment.
-			motion.handle = anim->startBoneAnimation(instanceIdx_, clip.range->trackIndex, clip.range->range);
+			motion.handle = startBoneAnimation(motion, clip.loop);
 			motion.clipStatus = CLIP_LOOPING;
 			BONE_CTRL_DEBUG(clip.motion, "is now looping");
 		} else if (clip.end) {
 			// Start the ending segment directly.
-			motion.handle = anim->startBoneAnimation(instanceIdx_, clip.end->trackIndex, clip.end->range);
+			motion.handle = startBoneAnimation(motion, clip.end);
 			motion.clipStatus = CLIP_ENDING;
 			BONE_CTRL_DEBUG(clip.motion, "is now ending");
 		} else if (!isFadingOut) {
 			// Switch back to beginning.
-			motion.handle = anim->startBoneAnimation(instanceIdx_, clip.begin->trackIndex, clip.begin->range);
+			motion.handle = startBoneAnimation(motion, clip.begin);
 			motion.clipStatus = CLIP_BEGINNING;
 		} else {
 			// TODO: Make BoneTree return the last transform until faded out?
@@ -269,10 +322,10 @@ void BoneController::updateMotionClip(MotionData &motion, MotionClip &clip) {
 		if (!isFadingOut) {
 			// Restart the looping segment.
 			//BONE_CTRL_DEBUG(clip.motion, "is now restarting");
-			motion.handle = anim->startBoneAnimation(instanceIdx_, clip.range->trackIndex, clip.range->range);
+			motion.handle = startBoneAnimation(motion, clip.loop);
 		} else if (clip.end) {
 			// Switch to ending segment if we are fading out, i.e. if the motion is no longer desired.
-			motion.handle = anim->startBoneAnimation(instanceIdx_, clip.end->trackIndex, clip.end->range);
+			motion.handle = startBoneAnimation(motion, clip.end);
 			motion.clipStatus = CLIP_ENDING;
 			BONE_CTRL_DEBUG(clip.motion, "is now ending");
 		} else {
@@ -296,7 +349,7 @@ bool BoneController::isClipInFinalStage(MotionData &motion) const {
 	auto &clip = animItem_->clips[motion.clips[motion.lastClip]];
 	return (motion.clipStatus == CLIP_ENDING ||
 		(motion.clipStatus == CLIP_LOOPING && clip.end == nullptr) ||
-		(motion.clipStatus == CLIP_BEGINNING && clip.range == nullptr && clip.end == nullptr));
+		(motion.clipStatus == CLIP_BEGINNING && clip.loop == nullptr && clip.end == nullptr));
 }
 
 void BoneController::updateMotionClip(MotionData &motion, float dt_s) {

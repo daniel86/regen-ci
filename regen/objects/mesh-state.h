@@ -136,6 +136,16 @@ namespace regen {
 		void setMaterial(const ref_ptr<Material> &material);
 
 		/**
+		 * @return true if this mesh has a material assigned.
+		 */
+		bool hasMaterial() const { return material_.get() != nullptr; }
+
+		/**
+		 * @return material assigned to this mesh.
+		 */
+		const ref_ptr<Material> &material() const { return material_; }
+
+		/**
 		 * @return VBO that manages the vertex array data.
 		 */
 		const ref_ptr<VBO> &vertexBuffer() const { return vertexBuffer_; }
