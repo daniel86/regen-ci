@@ -11,9 +11,16 @@ STBLoader::STBLoader() {
 }
 
 bool STBLoader::canLoad(std::string_view fileExt) const {
-	if (fileExt == ".png" || fileExt == ".jpg" || fileExt == ".jpeg" ||
-		fileExt == ".bmp" || fileExt == ".tga" || fileExt == ".gif" ||
-		fileExt == ".hdr" || fileExt == ".psd" || fileExt == ".pic") {
+	if (fileExt == ".png"
+		|| fileExt == ".jpg"
+		|| fileExt == ".jpeg"
+		|| fileExt == ".bmp"
+		|| fileExt == ".tga"
+		|| fileExt == ".gif"
+		// TODO: Support loading float textures, but need to use a different API.
+		// || fileExt == ".hdr"
+		|| fileExt == ".psd"
+		|| fileExt == ".pic") {
 		return true;
 	}
 	return false;

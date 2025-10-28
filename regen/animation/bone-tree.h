@@ -238,6 +238,7 @@ namespace regen {
 			double elapsedTime_ = 0.0;
 			// last update time in ticks
 			double lastTime_ = 0.0;
+			// the current time in ticks
 			double timeInTicks_ = 0.0;
 			// Overall weight for this animation range, weights of nodes
 			// are multiplied with this.

@@ -27,9 +27,9 @@ namespace regen {
 	 */
 	struct AssimpAnimationConfig {
 		explicit AssimpAnimationConfig(float tps=20.0f)
-				: useAnimation(GL_TRUE),
+				: useAnimation(true),
 				  numInstances(1u),
-				  forceStates(GL_TRUE),
+				  forceStates(true),
 				  ticksPerSecond(tps),
 				  postState(AnimationChannelBehavior::LINEAR),
 				  preState(AnimationChannelBehavior::LINEAR) {}
@@ -37,22 +37,22 @@ namespace regen {
 		/**
 		 * If false animations are ignored n the asset.
 		 */
-		GLboolean useAnimation;
+		bool useAnimation;
 		/**
 		 * Number of animation copies that
 		 * should be created. Can be used in combination
 		 * with instanced rendering.
 		 */
-		GLuint numInstances;
+		uint32_t numInstances;
 		/**
 		 * Flag indicating if pre/post states should be forced.
 		 */
-		GLboolean forceStates;
+		bool forceStates;
 		/**
 		 * Animation ticks per second. Influences how fast
 		 * a animation plays.
 		 */
-		GLfloat ticksPerSecond;
+		float ticksPerSecond;
 		/**
 		 * Behavior when an animation stops.
 		 */

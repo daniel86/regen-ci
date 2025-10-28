@@ -109,6 +109,7 @@ void AssetImporter::setAiProcessFlags_Regen() {
 			| aiProcess_OptimizeMeshes
 			| aiProcess_OptimizeGraph
 			| aiProcess_JoinIdenticalVertices
+			| aiProcess_LimitBoneWeights
 			| 0;
 }
 
@@ -1078,7 +1079,7 @@ static AnimationChannelBehavior animState(aiAnimBehaviour b) {
 
 ref_ptr<BoneNode> AssetImporter::loadNodeTree() {
 	if (scene_->HasAnimations()) {
-		GLboolean hasAnimations = false;
+		bool hasAnimations = false;
 		for (uint32_t i = 0; i < scene_->mNumAnimations; ++i) {
 			if (scene_->mAnimations[i]->mNumChannels > 0) {
 				hasAnimations = true;
@@ -1120,7 +1121,13 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 		aiAnimation *assimpAnim = scene_->mAnimations[i];
 		// extract ticks per second. Assume default value if not given
 		double ticksPerSecond = (assimpAnim->mTicksPerSecond != 0.0 ? assimpAnim->mTicksPerSecond : animConfig.ticksPerSecond);
-		auto animName = assimpAnim->mName.C_Str();
+		std::string animName(assimpAnim->mName.C_Str());
+		// Some exporters like blender tend to prepend path into the names like "Armature|Hyenas_A15_Atk".
+		// We are not interested in the path for now, so let's strip it.
+		size_t sepPos = animName.find_last_of("|/");
+		if (sepPos != std::string::npos) {
+			animName = animName.substr(sepPos + 1);
+		}
 		double duration = assimpAnim->mDuration;
 
 		REGEN_DEBUG("Loading animation " << animName <<
@@ -1205,11 +1212,10 @@ void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
 		}
 
 		anim->addAnimationTrack(
-				string(assimpAnim->mName.data),
+				animName,
 				animData,
 				assimpAnim->mDuration,
-				ticksPerSecond
-		);
+				ticksPerSecond);
 	}
 	nodeAnimation_ = anim;
 }

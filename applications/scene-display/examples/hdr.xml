@@ -123,14 +123,9 @@
         <texture name="blurTexture" id="blurred-scene"/>
 
         <input type="float" name="blurAmount" value="0.5"/>
-        <input type="float" name="effectAmount" value="1.2"/>
-        <input type="float" name="exposure" value="1.6"/>
-        <input type="float" name="gamma" value="0.9"/>
-        <!--
         <input type="float" name="effectAmount" value="0.2"/>
         <input type="float" name="exposure" value="16.0"/>
         <input type="float" name="gamma" value="0.5"/>
-        -->
         <input type="float" name="radialBlurSamples" value="36.0"/>
         <input type="float" name="radialBlurStartScale" value="1.0"/>
         <input type="float" name="radialBlurScaleMul" value="0.9555"/>

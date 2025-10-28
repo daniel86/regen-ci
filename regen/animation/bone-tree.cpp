@@ -350,6 +350,7 @@ void BoneTree::animate(double dt_ms) {
 			if (range.trackIdx_ == -1) continue;
 			Track &track = animTracks_[range.trackIdx_];
 			range.elapsedTime_ += dt_ms;
+			range.lastTime_ = range.timeInTicks_;
 			// map into anim's duration
 			range.timeInTicks_ = std::min(range.duration_,
 				range.elapsedTime_ * timeFactor_ * track.ticksPerSecond_);
@@ -374,7 +375,12 @@ void BoneTree::animate(double dt_ms) {
 					weightSum += range.weight_;
 				}
 			}
-			if (weightSum < 1e-5f) continue; // skip bone, or set to base pose
+			if (weightSum < 1e-5f) {
+				// fallback to local transform for this node (avoid stale data)
+				Mat4f &m = blendedTransforms_[instanceIdx * numNodes + nodeIdx];
+				m = nodes_[nodeIdx]->localTransform;
+				continue;
+			}
 
 			accRot_ = Quaternion(0, 0, 0, 0);
 			accPos_ = Vec3f::zero();
@@ -399,9 +405,17 @@ void BoneTree::animate(double dt_ms) {
 				if (channel.rotationKeys_.empty()) {
 					accRot_ += (Quaternion(1, 0, 0, 0) * weight);
 				} else if (channel.rotationKeys_.size() == 1) {
-					accRot_ += (channel.rotationKeys_.data()[0].value * weight);
+					tmpRot_.value = (channel.rotationKeys_.data()[0].value * weight);
+					if (accRot_.dot(tmpRot_.value) < 0.0f) {
+						tmpRot_.value = -tmpRot_.value;
+					}
+					accRot_ += tmpRot_.value;
 				} else {
-					accRot_ += (nodeRotation(range, channel, isDirty, nodeIdx) * weight);
+					tmpRot_.value = nodeRotation(range, channel, isDirty, nodeIdx);
+					if (accRot_.dot(tmpRot_.value) < 0.0f) {
+						tmpRot_.value = -tmpRot_.value;
+					}
+					accRot_ += tmpRot_.value;
 				}
 				if (channel.scalingKeys_.empty()) {
 					accScale_ += (Vec3f::one() * weight);
@@ -635,8 +649,7 @@ void BoneNode::calculateGlobalTransform() {
 
 void BoneNode::updateTransforms(uint32_t instanceIdx, Mat4f *transforms) {
 #ifndef LOCAL_ROOT_IS_IDENTITY
-	globalTransform = channelIndex!=-1 ? transforms[channelIndex] : localTransform;
-	Mat4f rootInverse = globalTransform.inverse();
+	Mat4f rootInverse = localTransform.inverse();
 #endif
 	if (isBoneNode) {
 		boneTransformationMatrix[instanceIdx] = offsetMatrix;
@@ -680,7 +693,7 @@ void BoneNode::updateTransforms(uint32_t instanceIdx, Mat4f *transforms) {
 #ifdef LOCAL_ROOT_IS_IDENTITY
 			n->boneTransformationMatrix[instanceIdx] = (n->globalTransform * n->offsetMatrix).transpose();
 #else
-			n->boneTransformationMatrix = (rootInverse*n->globalTransform*n->offsetMatrix).transpose();
+			n->boneTransformationMatrix[instanceIdx] = (rootInverse * n->globalTransform * n->offsetMatrix).transpose();
 #endif
 		}
 

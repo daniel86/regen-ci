@@ -127,6 +127,13 @@ namespace regen {
 		}
 
 		/**
+		 * @return the negated Quaternion.
+		 */
+		inline Quaternion operator-() const {
+			return {-w, -x, -y, -z};
+		}
+
+		/**
 		 * Construction from euler angles.
 		 * @param fPitch the pith angle.
 		 * @param fYaw the yaw angle.
@@ -365,6 +372,14 @@ namespace regen {
 			x = -x;
 			y = -y;
 			z = -z;
+		}
+
+		/**
+		 * @param b another Quaternion.
+		 * @return the dot product.
+		 */
+		inline float dot(const Quaternion &b) const {
+			return w * b.w + x * b.x + y * b.y + z * b.z;
 		}
 
 		/**
