@@ -87,6 +87,7 @@
             reflector-normal="0,1,0"
             reflector-point="0,{{water-level}},0">
         <culling index="main-index" />
+        <culling index="terrain-index" />
     </camera>
     <!-- Assets -->
     <asset id="fish-asset" type="asset"

@@ -2,7 +2,7 @@
 #include "blackboard.h"
 #include "world/action-type.h"
 
-#define NPC_ACTIONS_DEBUG
+//#define NPC_ACTIONS_DEBUG
 
 using namespace regen;
 

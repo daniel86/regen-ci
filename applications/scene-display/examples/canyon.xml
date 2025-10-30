@@ -147,6 +147,7 @@
             num-layer="{{num-cascades}}"
             split-weight="0.7">
         <culling index="main-index"/>
+        <culling index="terrain-index" />
     </camera>
     <camera id="reflection-camera"
             lod-shift="1,1,1,0"

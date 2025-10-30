@@ -150,6 +150,25 @@ namespace regen {
 
 		friend class InstanceUpdater;
 	};
+
+	/**
+	 * @brief State to set the base LOD of a mesh
+	 */
+	class SetBaseLOD : public State {
+	public:
+		explicit SetBaseLOD(const ref_ptr<Mesh> &mesh) : mesh_(mesh) {}
+
+		~SetBaseLOD() override = default;
+
+		// Override enable
+		void enable(RenderState *rs) override {
+			State::enable(rs);
+			mesh_->activateLOD(0);
+		}
+
+	protected:
+		ref_ptr<Mesh> mesh_;
+	};
 }
 
 

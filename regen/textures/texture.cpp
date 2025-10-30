@@ -86,7 +86,6 @@ Texture::~Texture() {
 	if (oldValue == 1) {
 		// we are the last copy, make sure the texture is not bound anymore
 		if (textureChannel_ != -1) {
-			REGEN_WARN("Releasing texture bound to channel " << textureChannel_ << ".");
 			TextureBinder::release(this);
 		}
 	}

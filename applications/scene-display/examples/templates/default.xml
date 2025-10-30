@@ -76,8 +76,8 @@
                 direction="0, -1, -1"/>
     -->
     <camera id="overview-camera"
-            fov="45.0" near="0.1" far="300.0"
-            position="0.0, 200.0, 0.0"
+            fov="45.0" near="1.0" far="500.0"
+            position="0.0, 400.0, 0.0"
             direction="0, -1, 0"/>
     <fbo id="overview-buffer"
          size-mode="rel" size="1.0,1.0"

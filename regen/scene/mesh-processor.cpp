@@ -41,9 +41,6 @@ static ref_ptr<LODState> createCullState(
 	auto spatialIndex = cullShape->spatialIndex();
 	if (spatialIndex.get() && !spatialIndex->hasCamera(*cam.get())) {
 		// no need to create LOD state if the camera is not used by the spatial index
-		// TODO: still should reset to base LOD level? because maybe we get
-		//       LOD level configuration from previous pass?
-		REGEN_WARN("Camera for '" << input.getDescription() << "' is not registered in spatial index.");
 		return {};
 	}
 	auto lodState = ref_ptr<LODState>::alloc(cam, cullShape);
@@ -120,6 +117,9 @@ void MeshNodeProvider::processInput(
 						}
 						// set sorting mode
 						meshCopy->setSortMode(lodState->instanceSortMode());
+					} else {
+						auto setBaseLOD = ref_ptr<SetBaseLOD>::alloc(meshCopy);
+						meshNode->state()->joinStates(setBaseLOD);
 					}
 				} else {
 					REGEN_WARN("Mesh '" << input.getDescription() << "' has no cull shape.");
