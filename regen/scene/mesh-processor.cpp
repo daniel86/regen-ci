@@ -41,8 +41,6 @@ static ref_ptr<LODState> createCullState(
 	auto spatialIndex = cullShape->spatialIndex();
 	if (spatialIndex.get() && !spatialIndex->hasCamera(*cam.get())) {
 		// no need to create LOD state if the camera is not used by the spatial index
-		// TODO: still should reset to base LOD level? because maybe we get
-		//       LOD level configuration from previous pass?
 		return {};
 	}
 	auto lodState = ref_ptr<LODState>::alloc(cam, cullShape);
@@ -113,12 +111,15 @@ void MeshNodeProvider::processInput(
 						meshCopy->setInstanceBuffer(lodState->instanceBuffer());
 						if (lodState->hasIndirectDrawBuffers()) {
 							meshCopy->setIndirectDrawBuffer(
-								lodState->indirectDrawBuffer(partIdx),
+								lodState->getIndirectDrawBuffer(meshOriginal),
 								0u,
 								lodState->numDrawLayers());
 						}
 						// set sorting mode
 						meshCopy->setSortMode(lodState->instanceSortMode());
+					} else {
+						auto setBaseLOD = ref_ptr<SetBaseLOD>::alloc(meshCopy);
+						meshNode->state()->joinStates(setBaseLOD);
 					}
 				} else {
 					REGEN_WARN("Mesh '" << input.getDescription() << "' has no cull shape.");
@@ -128,7 +129,7 @@ void MeshNodeProvider::processInput(
 				auto cam = ref_ptr<Camera>::dynamicCast(parent->getParentCamera());
 				if (cam.get() && cullShape.get()) {
 					if (cullShape->hasIndirectDrawBuffers()) {
-						auto dibo = cullShape->indirectDrawBuffer(partIdx);
+						auto dibo = cullShape->getIndirectDrawBuffer(meshOriginal);
 						meshCopy->setIndirectDrawBuffer(dibo, 0u, cam->numLayer());
 					}
 					if (cullShape->hasInstanceBuffer()) {

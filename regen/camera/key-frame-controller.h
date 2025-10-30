@@ -2,7 +2,7 @@
 #define REGEN_CAMERA_KEY_FRAME_CONTROLLER_H
 
 #include <regen/camera/camera-controller-base.h>
-#include <regen/animations/animation.h>
+#include <regen/animation/animation.h>
 #include "camera-anchor.h"
 
 namespace regen {

@@ -27,7 +27,23 @@ namespace regen {
 		/**
 		 * @param splitWeight the weight of the split between frustums.
 		 */
-		void setSplitWeight(GLdouble splitWeight);
+		void setSplitWeight(double splitWeight) { splitWeight_ = splitWeight; }
+
+		/**
+		 * @param depthPadding the padding to add to the near and far planes in light space.
+		 */
+		void setDepthPadding(double depthPadding) { depthPadding_ = depthPadding; }
+
+		/**
+		 * @param orthoPadding the padding to add to the orthographic projection in light space.
+		 */
+		void setOrthoPadding(double orthoPadding) { orthoPadding_ = orthoPadding; }
+
+		/**
+		 * This is less efficient, but avoids some artifacts when sampling between cascades.
+		 * @param useUniformDepthRange if true, all frustums use the same depth range.
+		 */
+		void setUseUniformDepthRange(bool useUniformDepthRange) { useUniformDepthRange_ = useUniformDepthRange; }
 
 		// override
 		bool updateLight() override;
@@ -36,7 +52,11 @@ namespace regen {
 		ref_ptr<Camera> userCamera_;
 		std::vector<Frustum> userCameraFrustum_;
 		std::vector<Vec3f> userFrustumCentroids_;
+		std::vector<Bounds<Vec3f>> lightSpaceBounds_;
 		double splitWeight_ = 0.9;
+		double depthPadding_ = 0.0;
+		double orthoPadding_ = 0.0;
+		bool useUniformDepthRange_ = true;
 
 		bool updateDirectionalLight();
 

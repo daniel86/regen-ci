@@ -4,6 +4,7 @@
 #include "spatial-index.h"
 #include "quad-tree.h"
 #include "cull-shape.h"
+#include "spatial-index-debug.h"
 
 // NOTE: this piece of code is performance critical! For many execution paths:
 // - avoid the use of std::set, std::unordered_set, std::map, std::unordered_map, etc. here
@@ -17,7 +18,14 @@ SpatialIndex::SpatialIndex() {
 }
 
 void SpatialIndex::addToIndex(const ref_ptr<BoundingShape> &shape) {
-	nameToShape_[shape->name()].push_back(shape);
+	auto it = nameToShape_.find(shape->name());
+	if (it == nameToShape_.end()) {
+		auto shapeVector = ref_ptr<std::vector<ref_ptr<BoundingShape>>>::alloc();
+		shapeVector->push_back(shape);
+		nameToShape_[shape->name()] = shapeVector;
+	} else {
+		it->second->push_back(shape);
+	}
 	for (auto &ic: cameras_) {
 		createIndexShape(ic.second, shape);
 	}
@@ -26,9 +34,9 @@ void SpatialIndex::addToIndex(const ref_ptr<BoundingShape> &shape) {
 void SpatialIndex::removeFromIndex(const ref_ptr<BoundingShape> &shape) {
 	auto it = nameToShape_.find(shape->name());
 	if (it != nameToShape_.end()) {
-		auto jt = std::find(it->second.begin(), it->second.end(), shape);
-		if (jt != it->second.end()) {
-			it->second.erase(jt);
+		auto jt = std::find(it->second->begin(), it->second->end(), shape);
+		if (jt != it->second->end()) {
+			it->second->erase(jt);
 		}
 	}
 }
@@ -44,7 +52,7 @@ void SpatialIndex::addCamera(
 	data.sortMode = sortMode;
 	data.lodShift = lodShift;
 	for (auto &pair: nameToShape_) {
-		for (auto &shape: pair.second) {
+		for (auto &shape: *pair.second.get()) {
 			createIndexShape(data, shape);
 		}
 	}
@@ -121,6 +129,14 @@ ref_ptr<IndexedShape> SpatialIndex::getIndexedShape(const ref_ptr<Camera> &camer
 	return it->second.nameToShape_[shapeName];
 }
 
+ref_ptr<std::vector<ref_ptr<BoundingShape>>> SpatialIndex::getShapes(std::string_view shapeName) const {
+	auto it = nameToShape_.find(shapeName);
+	if (it != nameToShape_.end()) {
+		return it->second;
+	}
+	return {};
+}
+
 bool SpatialIndex::isVisible(const Camera &camera, uint32_t layerIdx, std::string_view shapeID) {
 	auto it = cameras_.find(&camera);
 	if (it == cameras_.end()) {
@@ -143,8 +159,20 @@ GLuint SpatialIndex::numInstances(std::string_view shapeID) const {
 
 ref_ptr<BoundingShape> SpatialIndex::getShape(std::string_view shapeID) const {
 	auto it = nameToShape_.find(shapeID);
-	if (it != nameToShape_.end() && !it->second.empty()) {
-		return it->second.front();
+	if (it != nameToShape_.end() && !it->second->empty()) {
+		return it->second->front();
+	}
+	return {};
+}
+
+ref_ptr<BoundingShape> SpatialIndex::getShape(std::string_view shapeID, uint32_t instance) const {
+	auto it = nameToShape_.find(shapeID);
+	if (it != nameToShape_.end() && !it->second->empty()) {
+		for (auto &shape: *it->second.get()) {
+			if (instance == shape->instanceID()) {
+				return shape;
+			}
+		}
 	}
 	return {};
 }
@@ -168,7 +196,7 @@ void SpatialIndex::handleIntersection(const BoundingShape& b_shape, void* userDa
     // compute LOD level for this shape by distance to camera.
     // each mesh may have its own thresholds for switching LOD levels, so we need
     // to let the (base) mesh decide which LOD level to use.
-	const float lodDistance = (b_shape.getShapeOrigin() - *data->camPos).lengthSquared();
+	const float lodDistance = (b_shape.tfOrigin() - *data->camPos).lengthSquared();
 	const uint32_t k = getLODLevel(b_shape, i_shape, lodDistance);
 
 	// Finally bin the shape into the (lod, layer) bin
@@ -189,7 +217,11 @@ void SpatialIndex::updateLayerVisibility(
 	} else {
 		traversalData.camPos = &ic.sortCamera->position(0);
 	}
-	foreachIntersection(camera_shape, handleIntersection, &traversalData);
+	// TODO: support another traversal bit here?
+	foreachIntersection(camera_shape,
+		handleIntersection,
+		&traversalData,
+		BoundingShape::TRAVERSAL_BIT_DRAW);
 }
 
 void SpatialIndex::updateVisibility() {
@@ -215,6 +247,9 @@ void SpatialIndex::updateVisibility() {
 			}
 		}
 
+		// TODO: do not re-create OrthogonalProjection of camera each time.
+		//         - we can store it here locally, but only quad tree uses it.
+		//         - could also store it centrally with camera
 		auto &frustumShapes = ic.first->frustum();
 		for (uint32_t layerIdx = 0; layerIdx < frustumShapes.size(); ++layerIdx) {
 			updateLayerVisibility(ic.second, layerIdx, frustumShapes[layerIdx]);
@@ -283,6 +318,56 @@ void SpatialIndex::updateLOD_Major(IndexCamera &indexCamera, IndexedShape *index
 	indexShape->unmapInstanceData_internal();
 }
 
+void SpatialIndex::addDebugShape(const ref_ptr<BoundingShape> &shape) {
+	debugShapes_.push_back(shape);
+}
+
+void SpatialIndex::removeDebugShape(const ref_ptr<BoundingShape> &shape) {
+	auto it = std::find(debugShapes_.begin(), debugShapes_.end(), shape);
+	if (it != debugShapes_.end()) {
+		debugShapes_.erase(it);
+	}
+}
+
+void SpatialIndex::debugBoundingShape(DebugInterface &debug, const BoundingShape &shape) const {
+	SpatialIndexDebug &sid = static_cast<SpatialIndexDebug &>(debug);
+	switch (shape.shapeType()) {
+		case BoundingShapeType::BOX: {
+			auto box = static_cast<const BoundingBox *>(&shape);
+			sid.drawBox(*box);
+			break;
+		}
+		case BoundingShapeType::SPHERE: {
+			auto sphere = static_cast<const BoundingSphere *>(&shape);
+			sid.drawSphere(*sphere);
+			break;
+		}
+		case BoundingShapeType::FRUSTUM:
+			auto frustum = static_cast<const Frustum *>(&shape);
+			sid.drawFrustum(*frustum);
+			break;
+	}
+}
+
+void SpatialIndex::debugDraw(DebugInterface &debug) const {
+	SpatialIndexDebug &sid = static_cast<SpatialIndexDebug &>(debug);
+	for (auto &shape: shapes()) {
+		for (auto &instance: *shape.second.get()) {
+			if (instance->traversalMask() == 0) continue;
+			debugBoundingShape(debug, *instance.get());
+		}
+	}
+	for (auto &shape : debugShapes_) {
+		if (shape->traversalMask() == 0) continue;
+		debugBoundingShape(debug, *shape.get());
+	}
+	for (auto &camera: cameras()) {
+		for (auto &frustum: camera->frustum()) {
+			sid.debugFrustum(frustum, Vec3f(1.0f, 0.0f, 1.0f));
+		}
+	}
+}
+
 ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 	auto indexType = input.getValue<std::string>("type", "quadtree");
 	ref_ptr<SpatialIndex> index;
@@ -303,7 +388,12 @@ ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputN
 			}
 		}
 		if (input.hasAttribute("close-distance")) {
-			quadTree->setCloseDistanceSquared(input.getValue<float>("close-distance", 20.0f));
+			auto dst = input.getValue<float>("close-distance", 20.0f);
+			dst = std::max(0.0f, dst);
+			quadTree->setCloseDistanceSquared(dst * dst);
+		}
+		if (input.hasAttribute("subdivision-threshold")) {
+			quadTree->setSubdivisionThreshold(input.getValue<GLuint>("subdivision-threshold", 4u));
 		}
 
 		index = quadTree;

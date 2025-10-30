@@ -132,7 +132,7 @@ ref_ptr<Texture> textures::load(
 
 	DevilLoader::scaleImage(texCfg.forcedSize.x, texCfg.forcedSize.y, texCfg.forcedSize.z);
 	DevilLoader::convertImage(texCfg.forcedFormat, GL_NONE);
-	GLint depth = ilGetInteger(IL_IMAGE_DEPTH);
+	int depth = ilGetInteger(IL_IMAGE_DEPTH);
 
 	ref_ptr<Texture> tex;
 	if (depth > 1) {
@@ -293,13 +293,13 @@ ref_ptr<TextureCube> textures::loadCube(
 	}
 	auto &firstImage = imgData[0];
 
-	GLint faceWidth, faceHeight;
-	GLint faces[12];
+	int faceWidth, faceHeight;
+	int faces[12];
 	// guess layout
 	if (firstImage->width > firstImage->height) {
 		faceWidth = firstImage->width / 4;
 		faceHeight = firstImage->height / 3;
-		GLint faces_[12] = {
+		int faces_[12] = {
 				-1, TextureCube::TOP, -1, -1,
 				TextureCube::LEFT, TextureCube::BACK, TextureCube::RIGHT, TextureCube::FRONT,
 				-1, TextureCube::BOTTOM, -1, -1
@@ -425,9 +425,9 @@ ref_ptr<Texture> textures::loadRAW(
 }
 
 ref_ptr<Texture> textures::loadSpectrum(
-		GLdouble t1,
-		GLdouble t2,
-		GLint numTexels,
+		double t1,
+		double t2,
+		int numTexels,
 		bool useMipmaps) {
 	auto *data = new unsigned char[numTexels * 4];
 	spectrum(t1, t2, numTexels, data);

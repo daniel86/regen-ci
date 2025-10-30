@@ -31,6 +31,13 @@ namespace regen {
 		ref_ptr<IndexedShape> getIndexedShape(const ref_ptr<Camera> &camera, std::string_view shapeName);
 
 		/**
+		 * @brief Get all shapes with a given name
+		 * @param shapeName The shape name
+		 * @return The shapes
+		 */
+		ref_ptr<std::vector<ref_ptr<BoundingShape>>> getShapes(std::string_view shapeName) const;
+
+		/**
 		 * @brief Add a camera to the index
 		 * @param camera The camera
 		 */
@@ -72,6 +79,14 @@ namespace regen {
 		ref_ptr<BoundingShape> getShape(std::string_view shapeID) const;
 
 		/**
+		 * @brief Get the shape with a given ID and instance
+		 * @param shapeID The shape ID
+		 * @param instance The instance ID
+		 * @return The shape
+		 */
+		ref_ptr<BoundingShape> getShape(std::string_view shapeID, uint32_t instance) const;
+
+		/**
 		 * @brief Get the shapes in the index
 		 * @return The shapes
 		 */
@@ -104,32 +119,41 @@ namespace regen {
 		/**
 		 * @brief Check if the index has intersection with a shape
 		 * @param shape The shape
+		 * @param traversalMask The traversal mask
 		 * @return True if there is an intersection, false otherwise
 		 */
-		virtual bool hasIntersection(const BoundingShape &shape) = 0;
+		virtual bool hasIntersection(const BoundingShape &shape, uint32_t traversalMask) = 0;
 
 		/**
 		 * @brief Get the number of intersections with a shape
 		 * @param shape The shape
+		 * @param traversalMask The traversal mask
 		 * @return The number of intersections
 		 */
-		virtual int numIntersections(const BoundingShape &shape) = 0;
+		virtual int numIntersections(const BoundingShape &shape, uint32_t traversalMask) = 0;
 
 		/**
 		 * @brief Iterate over all intersections with a shape
 		 * @param shape The shape
 		 * @param callback The callback function
+		 * @param userData User data passed to the callback
+		 * @param traversalMask The traversal mask
 		 */
 		virtual void foreachIntersection(
 				const BoundingShape &shape,
 				void (*callback)(const BoundingShape&, void*),
-				void *userData) = 0;
+				void *userData,
+				uint32_t traversalMask) = 0;
 
 		/**
 		 * @brief Draw debug information
 		 * @param debug The debug interface
 		 */
-		virtual void debugDraw(DebugInterface &debug) const = 0;
+		virtual void debugDraw(DebugInterface &debug) const;
+
+		void addDebugShape(const ref_ptr<BoundingShape> &shape);
+
+		void removeDebugShape(const ref_ptr<BoundingShape> &shape);
 
 	protected:
 		struct IndexCamera {
@@ -142,8 +166,10 @@ namespace regen {
 			SortMode sortMode = SortMode::FRONT_TO_BACK;
 			Vec4i lodShift = Vec4i(0);
 		};
-		std::unordered_map<std::string_view, std::vector<ref_ptr<BoundingShape>>> nameToShape_;
+		std::unordered_map<std::string_view, ref_ptr<std::vector<ref_ptr<BoundingShape>>>> nameToShape_;
 		std::unordered_map<const Camera *, IndexCamera> cameras_;
+		// additional shapes for debugging only
+		std::vector<ref_ptr<BoundingShape>> debugShapes_;
 
 		void updateVisibility();
 
@@ -160,6 +186,8 @@ namespace regen {
 		 * @param shape The shape to remove
 		 */
 		void removeFromIndex(const ref_ptr<BoundingShape> &shape);
+
+		void debugBoundingShape(DebugInterface &debug, const BoundingShape &shape) const;
 
 		static void createIndexShape(IndexCamera &ic, const ref_ptr<BoundingShape> &shape);
 

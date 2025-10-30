@@ -17,7 +17,7 @@ add_library( qt-application STATIC
        TextureWidget.cpp
        shader-input-widget.cpp
        qt-application.cpp
-       qt-camera-events.cpp
+       qt-events.cpp
        ${QT_APP_HEADERS_MOC}
        ${UI_HEADERS}
        )

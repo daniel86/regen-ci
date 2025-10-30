@@ -54,6 +54,51 @@ Vec3f KeyFrameController::interpolatePosition(const Vec3f &v0, const Vec3f &v1, 
 }
 
 Vec3f KeyFrameController::interpolateDirection(const Vec3f &v0, const Vec3f &v1, GLdouble t) const {
+	if (v0 == v1) return v0;
+
+	double sample = easeInOutIntensity_ > 0.0
+		? easeInOutCubic(t, easeInOutIntensity_)
+		: t;
+
+	// --- exact slerp (no jump at endpoints) ---
+	Vec3f dirSlerp = math::slerp(v0, v1, sample);
+
+	// --- yaw/pitch interpolation (bias toward yaw) ---
+	auto toAngles = [](const Vec3f &v) {
+		double yaw   = atan2(v.x, v.z);
+		double pitch = asin(std::clamp((double)v.y, -1.0, 1.0));
+		return std::pair<double,double>(yaw, pitch);
+	};
+
+	auto [yaw0, pitch0] = toAngles(v0);
+	auto [yaw1, pitch1] = toAngles(v1);
+
+	double dyaw = yaw1 - yaw0;
+	if (dyaw > M_PI)  dyaw -= 2*M_PI;
+	if (dyaw < -M_PI) dyaw += 2*M_PI;
+	double yaw   = yaw0 + sample * dyaw;
+
+	double pitch = pitch0 + sample * (pitch1 - pitch0);
+
+	Vec3f dirYawPitch(
+		cos(pitch) * sin(yaw),
+		sin(pitch),
+		cos(pitch) * cos(yaw)
+	);
+	dirYawPitch.normalize();
+
+	// --- blend curves: more yaw bias in the middle, exact slerp at ends ---
+	double bias = sin(sample * M_PI);
+	// 0 at t=0/1 -> pure slerp (endpoint match)
+	// 1 at t=0.5 -> pure yaw/pitch (yaw-friendly in the middle)
+	Vec3f result = math::mix(dirSlerp, dirYawPitch, bias);
+	result.normalize();
+
+	return result;
+}
+
+/**
+Vec3f KeyFrameController::interpolateDirection(const Vec3f &v0, const Vec3f &v1, GLdouble t) const {
 	GLdouble sample;
 	// skip if the direction is the same
 	if (v0 == v1) {
@@ -66,6 +111,7 @@ Vec3f KeyFrameController::interpolateDirection(const Vec3f &v0, const Vec3f &v1,
 	}
     return math::slerp(v0, v1, sample);
 }
+**/
 
 void KeyFrameController::animate(GLdouble dt) {
 	GLdouble dtSeconds = dt / 1000.0;

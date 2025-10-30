@@ -56,6 +56,8 @@ public slots:
 
 	void loadWood();
 
+	void saveImage();
+
 protected:
 	QtApplication *app_;
 	Ui_mainWindow ui_;

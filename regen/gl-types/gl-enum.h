@@ -118,6 +118,8 @@ namespace regen {
 				case GL_ALPHA:
 				case GL_LUMINANCE:
 				case GL_DEPTH_COMPONENT:
+				case GL_STENCIL_INDEX:
+				case GL_DEPTH_STENCIL:
 					return 1;
 				case GL_RG:
 				case GL_LUMINANCE_ALPHA:

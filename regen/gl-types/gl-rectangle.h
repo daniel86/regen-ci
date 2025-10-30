@@ -2,7 +2,7 @@
 #define GL_RECTANGLE_H_
 
 #include <regen/gl-types/gl-object.h>
-#include "regen/glsl/shader-input.h"
+#include "regen/shader/shader-input.h"
 
 namespace regen {
 	/**
@@ -30,6 +30,11 @@ namespace regen {
 				ReleaseObjectFunc releaseObjects,
 				GLenum objectTarget,
 				GLuint numObjects = 1);
+
+		/**
+		 * Copy constructor.
+		 */
+		GLRectangle(const GLRectangle &other);
 
 		/**
 		 * Set the buffer size.

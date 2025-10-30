@@ -11,7 +11,7 @@
 #include <QSettings>
 
 #include "ui_mesh-viewer-gui.h"
-#include "regen/meshes/assimp-importer.h"
+#include "regen/objects/assimp-importer.h"
 #include "regen/camera/camera-controller.h"
 #include "applications/qt/shader-input-widget.h"
 

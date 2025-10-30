@@ -1,18 +1,11 @@
-/*
- * resource-manager.h
- *
- *  Created on: Nov 4, 2013
- *      Author: daniel
- */
-
-#ifndef RESOURCE_MANAGER_H_
-#define RESOURCE_MANAGER_H_
+#ifndef REGEN_RESOURCE_MANAGER_H_
+#define REGEN_RESOURCE_MANAGER_H_
 
 #include "regen/shapes/spatial-index.h"
-#include "regen/meshes/mesh-vector.h"
+#include "regen/objects/mesh-vector.h"
 #include "scene-loader.h"
 #include "regen/textures/texture.h"
-#include "regen/sky/sky.h"
+#include "regen/objects/sky/sky.h"
 #include "loadable-input.h"
 
 namespace regen {
@@ -22,6 +15,10 @@ namespace regen {
 		 */
 		class ResourceManager {
 		public:
+			ResourceManager();
+
+			virtual ~ResourceManager() = default;
+
 			/**
 			 * @param parser The scene parser that contains resources.
 			 * @param id the resource id.
@@ -166,12 +163,20 @@ namespace regen {
 
 			void putSky(const std::string &id, const ref_ptr<Sky> &sky);
 
+			void putWorldObject(const std::string &id, const ref_ptr<WorldObjectVec> &obj);
+
+			ref_ptr<WorldObjectVec> getWorldObject(SceneLoader *parser, const std::string &id);
+
+			ref_ptr<WorldModel> getWorldModel() const { return worldModel_; }
+
 			/**
 			 * Load all resources with given id.
 			 * @param parser the SceneParser instance.
 			 * @param id resource id.
 			 */
 			void loadResources(SceneLoader *parser, const std::string &id);
+
+			ref_ptr<Resource> createResource(SceneLoader *parser, scene::SceneInputNode &input);
 
 		protected:
 			LoadableResource<SpatialIndex> indices_ = LoadableResource<SpatialIndex>("index");
@@ -184,9 +189,11 @@ namespace regen {
 			LoadableResource<Camera> cameras_ = LoadableResource<Camera>("camera");
 			LoadableResource<MeshVector> meshes_ = LoadableResource<MeshVector>("mesh");
 			LoadableResource<Sky> skies_ = LoadableResource<Sky>("sky");
+			LoadableResource<WorldObjectVec> worldObjects_ = LoadableResource<WorldObjectVec>("object");
 			std::map<std::string, ref_ptr<ModelTransformation> > transforms_;
+			ref_ptr<WorldModel> worldModel_;
 		};
 	}
 }
 
-#endif /* RESOURCE_MANAGER_H_ */
+#endif /* REGEN_RESOURCE_MANAGER_H_ */

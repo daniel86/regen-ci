@@ -5,7 +5,7 @@
 #include "material-state.h"
 #include "regen/utility/filesystem.h"
 #include "regen/textures/texture-loader.h"
-#include "regen/meshes/assimp-importer.h"
+#include "regen/objects/assimp-importer.h"
 
 using namespace regen;
 

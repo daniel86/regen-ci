@@ -12,51 +12,15 @@
 #include "scene-input.h"
 #include "regen/states/state-node.h"
 #include "scene-processors.h"
-#include "regen/physics/bullet-physics.h"
+#include "../simulation/bullet-physics.h"
 #include "regen/scene/scene.h"
 #include "screen.h"
+#include "regen/animation/bone-tree.h"
+#include "regen/behavior/skeleton/bone-controller.h"
 
 namespace regen::scene {
 	// forward declaration due to circular dependency.
 	class ResourceManager;
-
-	/**
-	 * A named animation range.
-	 * Unit might be ticks.
-	 */
-	struct AnimRange {
-		/**
-		 * Default constructor.
-		 */
-		AnimRange() : range(Vec2d(0.0, 0.0)) {}
-
-		/**
-		 * Constructor with name and range.
-		 * @param n The range name.
-		 * @param r The range value.
-		 * @param i The animation index.
-		 */
-		AnimRange(std::string_view n, const Vec2d &r, GLuint i = 0)
-				: name(n), range(r), channelIndex(i) {}
-
-		/**
-		 * Constructor with name, range and channel name.
-		 * @param n The range name.
-		 * @param r The range value.
-		 * @param channelName The channel name.
-		 */
-		AnimRange(std::string_view n, const Vec2d &r, std::string channelName)
-				: name(n), range(r), channelName(channelName) {}
-
-		/** The range name. */
-		std::string name;
-		/** The range value. */
-		Vec2d range;
-		/** The animation index. */
-		GLuint channelIndex = 0;
-		/** The channel name. */
-		std::string channelName;
-	};
 
 	/**
 	 * Allows processing of input resources.
@@ -111,6 +75,18 @@ namespace regen::scene {
 		 * @return The mouse position.
 		 */
 		const ref_ptr<ShaderInput2f> &getMouseTexco() const;
+
+		/**
+		 * @return The world model.
+		 */
+		ref_ptr<WorldModel> worldModel() const { return worldModel_; }
+
+		/**
+		 * @param worldModel The world model.
+		 */
+		void setWorldModel(const ref_ptr<WorldModel> &worldModel) {
+			worldModel_ = worldModel;
+		}
 
 		/**
 		 * Add Application event handler.
@@ -192,7 +168,7 @@ namespace regen::scene {
 		 * @param assetID the AssetImporter resource id.
 		 * @return Animation ranges associated to asset.
 		 */
-		std::vector<AnimRange> getAnimationRanges(const std::string &assetID);
+		ref_ptr<BoneAnimationItem> getAnimationRanges(const std::string &assetID);
 
 		/**
 		 * @param id The StateNode ID.
@@ -239,6 +215,8 @@ namespace regen::scene {
 			return putResource(ResourceType::TYPE_NAME, name, v);
 		}
 
+		ref_ptr<Resource> createResource(scene::SceneInputNode &input);
+
 		void loadResources(const std::string &name);
 
 		void loadShapes();
@@ -254,6 +232,7 @@ namespace regen::scene {
 		std::map<std::string, ref_ptr<StateNode> > nodes_;
 		std::map<std::string, ref_ptr<State> > states_;
 		ref_ptr<BulletPhysics> physics_;
+		ref_ptr<WorldModel> worldModel_;
 
 		void init();
 

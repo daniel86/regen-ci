@@ -35,6 +35,11 @@ namespace regen {
 		float getFragmentationScore() const;
 
 		/**
+		 * @return the size of the largest free range in the list.
+		 */
+		uint32_t getMaxFreeSize() const;
+
+		/**
 		 * Adopts a new sub-range of the list, if possible.
 		 * The adopted range can then be exclusively used by the caller.
 		 * The caller must further ensure to call orphan() on the range

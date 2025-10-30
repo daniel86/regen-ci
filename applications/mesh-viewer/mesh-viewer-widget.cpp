@@ -8,15 +8,15 @@
 #include <boost/filesystem/path.hpp>
 #include <assimp/postprocess.h>
 
-#include "regen/glsl/shader-state.h"
+#include "regen/shader/shader-state.h"
 #include "regen/textures/fbo-state.h"
 #include <regen/states/blit-state.h>
 #include <regen/utility/filesystem.h>
-#include <regen/animations/animation-manager.h>
-#include <regen/meshes/lod/mesh-simplifier.h>
-#include <regen/meshes/lod/impostor-billboard.h>
+#include <regen/animation/animation-manager.h>
+#include <regen/objects/lod/mesh-simplifier.h>
+#include <regen/objects/lod/impostor-billboard.h>
 #include <regen/states/direct-shading.h>
-#include <applications/qt/qt-camera-events.h>
+#include <applications/qt/qt-events.h>
 #include <applications/qt/ColorWidget.h>
 #include <applications/scene-display/animation-events.h>
 
@@ -216,6 +216,12 @@ void MeshViewerWidget::updateLoDButtons() {
 	ui_.lodControls->setEnabled(true);
 	auto &firstMesh = meshes_[0];
 	auto numLODs = firstMesh->numLODs();
+	for (auto &mesh: meshes_) {
+		if (mesh->numLODs() > numLODs) {
+			numLODs = mesh->numLODs();
+		}
+	}
+	REGEN_INFO("Number of LODs: " << numLODs);
 	ui_.lod0Button->setEnabled(true);
 	ui_.lod1Button->setEnabled(numLODs > 1);
 	ui_.lod2Button->setEnabled(numLODs > 2);
@@ -228,6 +234,7 @@ void MeshViewerWidget::loadMeshes_GL(const std::string &assetPath) {
 	meshRoot_->clear();
 	lodMeshRoot_->clear();
 	meshNodes_.clear();
+	meshes_.clear();
 
 	// Read values from UI spinner
 	bool simplify = ui_.simplifyCheckBox->isChecked();
@@ -319,16 +326,16 @@ void MeshViewerWidget::loadResources_GL() {
 }
 
 void MeshViewerWidget::loadAnimation(const ref_ptr<Mesh> &mesh, uint32_t index) {
-	std::list<ref_ptr<AnimationNode> > meshBones;
-	GLuint numBoneWeights = asset_->numBoneWeights(mesh.get());
-	GLuint numBones = 0u;
+	std::list<ref_ptr<BoneNode> > meshBones;
+	uint32_t numBoneWeights = asset_->numBoneWeights(mesh.get());
+
 	// Find bones influencing this mesh
-	for (auto &nodeAnim_i : asset_->getNodeAnimations()) {
-		auto boneNodes_i = asset_->loadMeshBones(mesh.get(), nodeAnim_i.get());
-		meshBones.insert(meshBones.end(), boneNodes_i.begin(), boneNodes_i.end());
-		numBones = boneNodes_i.size();
-		nodeAnim_i->startAnimation();
-	}
+	auto nodeAnim = asset_->getNodeAnimation();
+	auto boneNodes = asset_->loadMeshBones(mesh.get(), nodeAnim.get());
+	meshBones.insert(meshBones.end(), boneNodes.begin(), boneNodes.end());
+	uint32_t numBones = boneNodes.size();
+	nodeAnim->startAnimation();
+
 	// Create Bones state that is responsible for uploading animation data to GL.
 	if (!meshBones.empty()) {
 		ref_ptr<Bones> bonesState = ref_ptr<Bones>::alloc(numBoneWeights, numBones);
@@ -338,14 +345,12 @@ void MeshViewerWidget::loadAnimation(const ref_ptr<Mesh> &mesh, uint32_t index) 
 		mesh->joinStates(bonesState);
 	}
 
-	for (const auto &anim: asset_->getNodeAnimations()) {
-		ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater2>::alloc(anim);
-		anim->connect(Animation::ANIMATION_STOPPED, animStopped);
-		{
-			EventData evData;
-			evData.eventID = Animation::ANIMATION_STOPPED;
-			animStopped->call(anim.get(), &evData);
-		}
+	ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater2>::alloc(nodeAnim);
+	nodeAnim->connect(Animation::ANIMATION_STOPPED, animStopped);
+	{
+		EventData evData;
+		evData.eventID = Animation::ANIMATION_STOPPED;
+		animStopped->call(nodeAnim.get(), &evData);
 	}
 }
 
@@ -399,8 +404,8 @@ void MeshViewerWidget::createCameraController() {
 	cameraController_->startAnimation();
 
 	std::vector<CameraCommandMapping> keyMappings;
-	ref_ptr<QtFirstPersonEventHandler> cameraEventHandler =
-			ref_ptr<QtFirstPersonEventHandler>::alloc(cameraController_, keyMappings);
+	ref_ptr<QtCameraEventHandler> cameraEventHandler =
+			ref_ptr<QtCameraEventHandler>::alloc(cameraController_, keyMappings);
 	cameraEventHandler->set_sensitivity(0.005f);
 	app_->connect(Scene::KEY_EVENT, cameraEventHandler);
 	app_->connect(Scene::BUTTON_EVENT, cameraEventHandler);
@@ -705,7 +710,7 @@ void MeshViewerWidget::toggleRotate(bool isEnabled) {
 }
 
 void MeshViewerWidget::setAssImpFlags() {
-	asset_->setAiProcessFlag(aiProcess_GenNormals);
+	asset_->setAiProcessFlag(aiProcess_GenSmoothNormals);
 	if (ui_.genNorCheck->checkState() == Qt::Checked) {
 		asset_->setAiProcessFlag(aiProcess_ForceGenNormals);
 	} else {

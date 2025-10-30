@@ -32,8 +32,12 @@ namespace regen {
 				return out << "custom";
 			case TextureState::MAPPING_TEXCO:
 				return out << "texco";
+			case TextureState::MAPPING_SKINNED_TEXCO:
+				return out << "skinned_texco";
 			case TextureState::MAPPING_XZ_PLANE:
 				return out << "xz_plane";
+			case TextureState::MAPPING_TRIPLANAR:
+				return out << "triplanar";
 		}
 		return out;
 	}
@@ -53,8 +57,10 @@ namespace regen {
 		else if (val == "planar_reflection") mode = TextureState::MAPPING_PLANAR_REFLECTION;
 		else if (val == "paraboloid_reflection") mode = TextureState::MAPPING_PARABOLOID_REFLECTION;
 		else if (val == "texco") mode = TextureState::MAPPING_TEXCO;
+		else if (val == "skinned_texco") mode = TextureState::MAPPING_SKINNED_TEXCO;
 		else if (val == "custom") mode = TextureState::MAPPING_CUSTOM;
 		else if (val == "xz_plane") mode = TextureState::MAPPING_XZ_PLANE;
+		else if (val == "triplanar") mode = TextureState::MAPPING_TRIPLANAR;
 		else {
 			REGEN_WARN("Unknown Texture Mapping '" << val <<
 												   "'. Using default CUSTOM Mapping.");
@@ -362,6 +368,11 @@ void TextureState::set_texcoTransfer(TransferTexco mode) {
 		REGEN_STRING("regen.states.textures.transfer.texco_" << mode)));
 }
 
+void TextureState::set_texcoScale(float scale) {
+	texcoScale_ = scale;
+	shaderDefine(REGEN_TEX_NAME("TEXCO_SCALE"), REGEN_STRING(texcoScale_));
+}
+
 void TextureState::set_texcoTransfer(const ref_ptr<ShaderFunction> &function) {
 	texcoTransfer_ = function;
 	shaderDefine(REGEN_TEX_NAME("TEXCO_TRANSFER_NAME"), function->functor());
@@ -419,15 +430,17 @@ ref_ptr<Texture> TextureState::getTexture(
 		const auto val = input.getValue<std::string>(attachmentKey, "0");
 		if (val == "depth") {
 			tex = fbo->depthTexture();
-		}
-		else if (val == "stencil") {
-			if (fbo->stencilTexture().get()) {
-				tex = fbo->stencilTexture();
-			} else {
+			if (!tex) {
 				tex = fbo->depthStencilTexture();
 			}
-		}
-		else {
+		} else if (val == "stencil") {
+			tex = fbo->stencilTexture();
+			if (!tex) {
+				tex = fbo->depthStencilTexture();
+			}
+		} else if (val == "depth-stencil" || val == "stencil-depth") {
+			tex = fbo->depthStencilTexture();
+		} else {
 			std::vector<ref_ptr<Texture> > &textures = fbo->colorTextures();
 
 			unsigned int attachment;
@@ -521,6 +534,11 @@ ref_ptr<TextureState> TextureState::load(LoadingContext &ctx, scene::SceneInputN
 		if (customTexcoTransfer.get()) {
 			texState->set_texcoTransfer(customTexcoTransfer);
 		}
+	}
+
+	if (input.hasAttribute("texco-scale")) {
+		auto scale = input.getValue<GLfloat>("texco-scale", 1.0f);
+		texState->set_texcoScale(scale);
 	}
 
 	if (input.hasAttribute("texco-flipping")) {

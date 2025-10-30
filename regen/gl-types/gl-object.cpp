@@ -7,12 +7,13 @@ GLObject::GLObject(
 		ReleaseObjectFunc releaseObjects,
 		GLuint numObjects)
 		: ids_(new GLuint[numObjects]),
+		  copyCounter_(ref_ptr<std::atomic<uint32_t>>::alloc(1)),
 		  numObjects_(numObjects),
 		  objectIndex_(0),
 		  releaseObjects_(releaseObjects),
 		  createObjects_(createObjects),
 		  createObjects2_(nullptr) {
-	createObjects_(numObjects_, ids_);
+	createObjects_(static_cast<int>(numObjects_), ids_);
 }
 
 GLObject::GLObject(
@@ -21,38 +22,38 @@ GLObject::GLObject(
 		GLenum objectTarget,
 		GLuint numObjects)
 		: ids_(new GLuint[numObjects]),
+		  copyCounter_(ref_ptr<std::atomic<uint32_t>>::alloc(1)),
 		  numObjects_(numObjects),
 		  objectIndex_(0),
 		  objectTarget_(objectTarget),
 		  releaseObjects_(releaseObjects),
 		  createObjects_(nullptr),
 		  createObjects2_(createObjects) {
-	createObjects2_(objectTarget_, numObjects_, ids_);
+	createObjects2_(objectTarget_, static_cast<int>(numObjects_), ids_);
 }
-
 GLObject::GLObject(const GLObject &o)
-		: ids_(new GLuint[o.numObjects_]),
+		: ids_(o.ids_),
+		  copyCounter_(ref_ptr<std::atomic<uint32_t>>::alloc(1)),
 		  numObjects_(o.numObjects_),
 		  objectIndex_(o.objectIndex_),
 		  objectTarget_(o.objectTarget_),
 		  releaseObjects_(o.releaseObjects_),
 		  createObjects_(o.createObjects_),
 		  createObjects2_(o.createObjects2_) {
-	if (createObjects2_ != nullptr) {
-		createObjects2_(objectTarget_, numObjects_, ids_);
-	} else if (createObjects_ != nullptr) {
-		createObjects_(numObjects_, ids_);
-	} else {
-		REGEN_ERROR("No create function defined for GLObject copy constructor.");
-	}
+	// increase the atomic copy counter
+	std::atomic<uint32_t> &counter = *(o.copyCounter_.get());
+	counter.fetch_add(1);
 }
 
 GLObject::~GLObject() {
-	// XXX: The deleted object could be part of RenderState.
-	//  After releasing the name another object with the same name could be generated.
-	//  Then the new object may is never activated.
-	releaseObjects_(numObjects_, ids_);
-	delete[] ids_;
+	// decrease the atomic copy counter
+	std::atomic<uint32_t> &counter = *(copyCounter_.get());
+	auto oldValue = counter.fetch_sub(1);
+	if (oldValue == 1) {
+		// we are the last copy, release the resources
+		releaseObjects_(static_cast<int>(numObjects_), ids_);
+		delete[] ids_;
+	}
 }
 
 void GLObject::nextObject() {
@@ -61,13 +62,3 @@ void GLObject::nextObject() {
 		objectIndex_ = 0;
 	}
 }
-
-GLuint GLObject::objectIndex() const { return objectIndex_; }
-
-void GLObject::set_objectIndex(GLuint bufferIndex) { objectIndex_ = bufferIndex % numObjects_; }
-
-GLuint GLObject::numObjects() const { return numObjects_; }
-
-GLuint GLObject::id() const { return ids_[objectIndex_]; }
-
-GLuint *GLObject::ids() const { return ids_; }

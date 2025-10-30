@@ -99,6 +99,44 @@
          <widget class="QComboBox" name="textureSelectionBox"/>
         </item>
         <item>
+         <widget class="QWidget" name="widget" native="true">
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <spacer name="horizontalSpacer_2">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>639</width>
+               <height>10</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="updateButton">
+             <property name="text">
+              <string>Update</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
          <layout class="QHBoxLayout" name="horizontalLayout">
           <property name="topMargin">
            <number>0</number>
@@ -136,7 +174,8 @@
              <string/>
             </property>
             <property name="icon">
-             <iconset theme="remove"/>
+             <iconset theme="remove">
+              <normaloff>.</normaloff>.</iconset>
             </property>
            </widget>
           </item>
@@ -146,7 +185,8 @@
              <string/>
             </property>
             <property name="icon">
-             <iconset theme="add"/>
+             <iconset theme="add">
+              <normaloff>.</normaloff>.</iconset>
             </property>
            </widget>
           </item>
@@ -439,22 +479,6 @@
    </hints>
   </connection>
   <connection>
-   <sender>parameterTable</sender>
-   <signal>itemChanged(QTableWidgetItem*)</signal>
-   <receiver>mainWindow</receiver>
-   <slot>updateTexture()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>310</x>
-     <y>427</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>221</x>
-     <y>169</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
    <sender>textureSelectionBox</sender>
    <signal>activated(int)</signal>
    <receiver>mainWindow</receiver>
@@ -573,8 +597,8 @@
    <slot>removeInput()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>743</x>
-     <y>77</y>
+     <x>754</x>
+     <y>118</y>
     </hint>
     <hint type="destinationlabel">
      <x>495</x>
@@ -589,12 +613,44 @@
    <slot>addInput()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>776</x>
-     <y>79</y>
+     <x>788</x>
+     <y>118</y>
     </hint>
     <hint type="destinationlabel">
      <x>679</x>
      <y>617</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>updateButton</sender>
+   <signal>clicked()</signal>
+   <receiver>mainWindow</receiver>
+   <slot>updateTexture()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>735</x>
+     <y>75</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>635</x>
+     <y>689</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionSave_File</sender>
+   <signal>triggered()</signal>
+   <receiver>mainWindow</receiver>
+   <slot>saveImage()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>399</x>
+     <y>299</y>
     </hint>
    </hints>
   </connection>
@@ -612,5 +668,6 @@
   <slot>loadClouds()</slot>
   <slot>removeInput()</slot>
   <slot>addInput()</slot>
+  <slot>saveImage()</slot>
  </slots>
 </ui>

@@ -81,7 +81,7 @@ namespace regen {
 		 * @param partIdx the index of the mesh part
 		 * @return the indirect draw buffer for the mesh part
 		 */
-		ref_ptr<SSBO> indirectDrawBuffer(uint32_t partIdx) const { return indirectDrawBuffers_[partIdx]; }
+		ref_ptr<SSBO> getIndirectDrawBuffer(const ref_ptr<Mesh> &mesh) const;
 
 		// override
 		void enable(RenderState *rs) override;
@@ -149,6 +149,25 @@ namespace regen {
 		void traverseGPU(RenderState *rs);
 
 		friend class InstanceUpdater;
+	};
+
+	/**
+	 * @brief State to set the base LOD of a mesh
+	 */
+	class SetBaseLOD : public State {
+	public:
+		explicit SetBaseLOD(const ref_ptr<Mesh> &mesh) : mesh_(mesh) {}
+
+		~SetBaseLOD() override = default;
+
+		// Override enable
+		void enable(RenderState *rs) override {
+			State::enable(rs);
+			mesh_->activateLOD(0);
+		}
+
+	protected:
+		ref_ptr<Mesh> mesh_;
 	};
 }
 

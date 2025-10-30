@@ -64,6 +64,39 @@ GLenum DevilLoader::convertImage(GLenum format, GLenum type) {
 	return dstFormat;
 }
 
+void DevilLoader::save(const ref_ptr<ImageData> &img, std::string_view file) {
+	static bool devilInitialized = false;
+	if (!devilInitialized) {
+		devilInitialized = true;
+		ilInit();
+	}
+	// remove existing file
+	if (boost::filesystem::exists(file)) {
+		boost::filesystem::remove(file);
+	}
+	GLuint ilID;
+	ilGenImages(1, &ilID);
+	ilBindImage(ilID);
+	REGEN_INFO("Saving image to '" << file << "'"
+		<< " width=" << img->width
+		<< " height=" << img->height
+		<< " depth=" << img->depth
+		<< " bpp=" << img->bpp
+		<< " format=0x" << std::hex << img->format << std::dec
+		<< " type=0x" << std::hex << img->pixelType << std::dec);
+	auto format = img->format;
+	if (format == GL_RED) {
+		format = GL_LUMINANCE;
+	}
+	ilTexImage(img->width, img->height, img->depth, img->bpp, format, img->pixelType, img->pixels);
+	if (ilSaveImage(file.data()) == IL_FALSE) {
+		ilDeleteImages(1, &ilID);
+		throw textures::Error(REGEN_STRING("ilSaveImage failed for file '"
+			<< file << "': 0x" << std::hex << ilGetError() << std::dec));
+	}
+	ilDeleteImages(1, &ilID);
+}
+
 ImageDataArray DevilLoader::load(std::string_view file, const TextureConfig &cfg) {
 	static bool devilInitialized = false;
 	if (!devilInitialized) {

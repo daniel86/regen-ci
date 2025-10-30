@@ -697,21 +697,33 @@ void ClientBuffer::setDataPointer(ClientBuffer *owner, byte *dataPtr, uint32_t s
 
 inline void spinWaitUntil1(std::atomic_flag &flag) {
 	for (int i = 0; flag.test(std::memory_order_acquire) != 0; ++i) {
-		if (i < 20) CPU_PAUSE();
-		else std::this_thread::yield();
+		if (i < 16) { CPU_PAUSE(); }
+		else if (i < 256) { std::this_thread::yield(); }
+		else { std::this_thread::sleep_for(std::chrono::microseconds(1)); }
 	}
 }
 
 inline void spinWaitUntil2(std::atomic<uint32_t> &count) {
 	for (int i = 0; count.load(std::memory_order_acquire) != 0; ++i) {
-		if (i < 20) CPU_PAUSE();
-		else std::this_thread::yield();
+		if (i < 16) { CPU_PAUSE(); }
+		else if (i < 256) { std::this_thread::yield(); }
+		else { std::this_thread::sleep_for(std::chrono::microseconds(1)); }
 	}
 }
 
 void ClientBuffer::writeLockAll() const {
 	auto *currentOwner = dataOwner_;
 
+	// Indicate intent to acquire all write locks
+	currentOwner->writerPending_.store(true, std::memory_order_release);
+
+	for (auto &readerCount: currentOwner->readerCounts_) {
+		// wait for any active readers to finish.
+		// It is important to wait for readers before acquiring
+		// the write lock, else we could deadlock if a reader
+		// sneaks in after we acquired the write lock.
+		spinWaitUntil2(readerCount);
+	}
 	for (auto &writerFlag: currentOwner->writerFlags_) {
 		// get exclusive write access to the data slot:
 		// block any attempt to write concurrently to this slot.
@@ -719,10 +731,9 @@ void ClientBuffer::writeLockAll() const {
 			CPU_PAUSE(); // spin-wait for writers
 		}
 	}
-	for (auto &readerCount: currentOwner->readerCounts_) {
-		// wait for any active readers to finish.
-		spinWaitUntil2(readerCount);
-	}
+
+	// Writer now owns all slots
+	currentOwner->writerPending_.store(false, std::memory_order_release);
 }
 
 void ClientBuffer::writeUnlockAll(uint32_t writeOffset, uint32_t writeSize) const {
@@ -734,6 +745,11 @@ int ClientBuffer::readLock() const {
 	while (true) {
 		// Note: ownership may change while waiting for the lock.
 		auto *currentOwner = dataOwner_;
+		// Check if a writer is pending, if so give them priority.
+		if (currentOwner->writerPending_.load(std::memory_order_acquire)) {
+			std::this_thread::yield(); // back off and give writer a chance
+			continue;
+		}
 		// Get the current slot index for reading.
 		// note that every writer will flip the slot index, so we need to keep loading
 		// it within this loop in case we cannot obtain the lock on first try, e.g.
@@ -806,9 +822,13 @@ bool ClientBuffer::readLock_SingleBuffer() const {
 	// slot (with index 0), or else return false.
 	// and the only thing preventing us from doing so would be a writer that is currently writing to the slot
 	// which would be indicated by the writerFlags_[0] being set.
-	dataOwner_->readerCounts_[0].fetch_add(1, std::memory_order_relaxed);
-	if (dataOwner_->writerFlags_[0].test(std::memory_order_acquire) != 0) {
-		dataOwner_->readerCounts_[0].fetch_sub(1, std::memory_order_relaxed);
+	auto *owner = dataOwner_;
+
+	if (owner->writerPending_.load(std::memory_order_acquire)) return false;
+
+	owner->readerCounts_[0].fetch_add(1, std::memory_order_relaxed);
+	if (owner->writerFlags_[0].test(std::memory_order_acquire) != 0) {
+		owner->readerCounts_[0].fetch_sub(1, std::memory_order_relaxed);
 		return false; // Busy writing
 	} else {
 		return true;

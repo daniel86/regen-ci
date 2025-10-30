@@ -14,7 +14,7 @@
                 look-at-interval="10"
     />
     <node id="configuration">
-        <camera id="main-camera" type="key-frames" interpolation="quadratic" dt="3.0" ease-in-out-intensity="0.0">
+        <controller camera="main-camera" type="key-frames" interpolation="quadratic" dt="3.0" ease-in-out="0.0">
             <key-frame pos=" 0.0, 0.0,  2.0" dir=" 0.0,  0.0,-2.0" dt="0.0"/>
             <key-frame pos=" 2.0, 0.5, 0.0" dir="-2.0,-0.5, 0.0"/>
             <key-frame pos=" 0.0, 0.5,-2.0" dir=" 0.0,-0.5, 2.0"/>
@@ -25,7 +25,7 @@
             <key-frame pos=" 0.0, -0.5,-2.0" dir=" 0.0, 0.5, 2.0"/>
             <key-frame pos="-2.0,  0.0,  0.0" dir=" 2.0,  0.0, 0.0"/>
             <key-frame pos=" 0.0,  0.0,  2.0" dir=" 0.0,  0.0,-2.0"/>
-        </camera>
+        </controller>
     </node>
 
     <include xml-file="scene-display/examples/templates/default.xml"/>
@@ -49,12 +49,11 @@
     </fbo>
     <!-- Textures -->
     <texture id="sky-texture"
-             is-cube="1"
-             cube-flip-back="1"
+             is-cube="1" cube-flip-back="1"
              file="res/textures/cube-maps/grace.hdr"
              mipmap="1"
              wrapping="CLAMP_TO_EDGE"
-             forced-internal-format="R11F_G11F_B10F"
+             internal-format="R11F_G11F_B10F"
              aniso="2.0"/>
     <!-- Cameras -->
     <camera id="main-camera"
@@ -87,10 +86,10 @@
     <node id="Reflection-Sphere">
         <transform update-frequency="NEVER"/>
         <material update-frequency="NEVER"/>
-        <texture id="sky-texture" map-to="COLOR"
+        <texture name="skyRefraction" id="sky-texture" map-to="COLOR"
                  blend-mode="SRC"
                  mapping="CUBE_REFRACTION"/>
-        <texture id="sky-texture" map-to="COLOR"
+        <texture name="skyReflection" id="sky-texture" map-to="COLOR"
                  blend-mode="MIX" blend-factor="0.35"
                  mapping="CUBE_REFLECTION"/>
         <mesh id="sprite-sphere" shader="regen.models.sprite-sphere"/>

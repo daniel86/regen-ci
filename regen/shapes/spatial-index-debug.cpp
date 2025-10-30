@@ -77,7 +77,7 @@ void SpatialIndexDebug::drawBox(const BoundingBox &box) {
 }
 
 void SpatialIndexDebug::drawSphere(const BoundingSphere &sphere) {
-	auto &center = sphere.getShapeOrigin();
+	auto &center = sphere.tfOrigin();
 	auto radius = sphere.radius();
 	Vec3f color = Vec3f(0.0f, 1.0f, 1.0f);
 
@@ -158,31 +158,6 @@ void SpatialIndexDebug::debugFrustum(const Frustum &frustum, const Vec3f &color)
 void SpatialIndexDebug::traverse(regen::RenderState *rs) {
 	state()->enable(rs);
 	rs->arrayBuffer().apply(vbo_);
-	for (auto &shape: index_->shapes()) {
-		for (auto &instance: shape.second) {
-			switch (instance->shapeType()) {
-				case BoundingShapeType::BOX: {
-					auto box = dynamic_cast<BoundingBox *>(instance.get());
-					drawBox(*box);
-					break;
-				}
-				case BoundingShapeType::SPHERE: {
-					auto sphere = dynamic_cast<BoundingSphere *>(instance.get());
-					drawSphere(*sphere);
-					break;
-				}
-				case BoundingShapeType::FRUSTUM:
-					auto frustum = dynamic_cast<Frustum *>(instance.get());
-					drawFrustum(*frustum);
-					break;
-			}
-		}
-	}
-	for (auto &camera: index_->cameras()) {
-		for (auto &frustum: camera->frustum()) {
-			debugFrustum(frustum, Vec3f(1.0f, 0.0f, 1.0f));
-		}
-	}
 	index_->debugDraw(*this);
 	state()->disable(rs);
 }

@@ -19,6 +19,13 @@ GLRectangle::GLRectangle(
 	set_rectangleSize(2, 2);
 }
 
+GLRectangle::GLRectangle(const GLRectangle &other)
+		: GLObject(other),
+		  sizeUI_(other.sizeUI_),
+		  size_(other.size_),
+		  sizeInverse_(other.sizeInverse_) {
+}
+
 void GLRectangle::set_rectangleSize(uint32_t width, uint32_t height) {
 	sizeUI_.x = width;
 	sizeUI_.y = height;

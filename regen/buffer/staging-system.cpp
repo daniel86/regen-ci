@@ -342,10 +342,10 @@ StagingSystem::Arena *StagingSystem::addToArena(const BlockPtr &block, ArenaType
 	// disable swapping for the staging buffer, we do it manually in the staging system
 	targetArena->stagingBuffer->setSwappingOnAccess(false);
 	if (isMoved) {
-		REGEN_INFO("Moved \"" << block->name()
+		REGEN_DEBUG("Moved \"" << block->name()
 			<< "\" to \"" << targetArena->type << "\" arena.");
 	} else {
-		REGEN_INFO("Added \"" << block->name()
+		REGEN_DEBUG("Added \"" << block->name()
 			<< "\" to \"" << targetArena->type << "\" arena.");
 	}
 	return targetArena;
@@ -707,7 +707,9 @@ bool StagingSystem::updateArenaSize(Arena *arena) {
 					// force resize of the arena, as BO could not reserve memory in the staging arena.
 					forceResize = true;
 					REGEN_INFO("BO '" << managed.bo->name()
-									  << "' is too large in \"" << arena->type << "\" arena");
+									  << "' is too large in \"" << arena->type << "\" arena."
+									  << " Required: " << boAlignedSize / 1024.0f << " KiB"
+									  << " but only " << arena->freeList->getMaxFreeSize() / 1024.0f << " KiB free.");
 				}
 			}
 		} else if (managed.stagedSize != boAlignedSize) {
@@ -720,7 +722,9 @@ bool StagingSystem::updateArenaSize(Arena *arena) {
 				// force resize of the arena, as BO could not reserve memory in the staging arena.
 				forceResize = true;
 				REGEN_INFO("BO '" << managed.bo->name()
-									  << "' is too large in \"" << arena->type << "\" arena");
+									  << "' is too large in \"" << arena->type << "\" arena."
+									  << " Required: " << boAlignedSize / 1024.0f << " KiB"
+									  << " but only " << arena->freeList->getMaxFreeSize() / 1024.0f << " KiB free.");
 			} else {
 				// successfully reserved new space, update the unaligned size
 				arena->unalignedSize += boAlignedSize;

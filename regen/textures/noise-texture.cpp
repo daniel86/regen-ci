@@ -369,6 +369,23 @@ ref_ptr<NoiseGenerator> loadGenerator(
 	else if (generatorType == "add") {
 		generator = ref_ptr<NoiseGenerator>::alloc("add", ref_ptr<module::Add>::alloc());
 	}
+	else if (generatorType == "multiply") {
+		generator = ref_ptr<NoiseGenerator>::alloc("multiply", ref_ptr<module::Multiply>::alloc());
+	}
+	else if (generatorType == "max") {
+		generator = ref_ptr<NoiseGenerator>::alloc("max", ref_ptr<module::Max>::alloc());
+	}
+	else if (generatorType == "min") {
+		generator = ref_ptr<NoiseGenerator>::alloc("min", ref_ptr<module::Min>::alloc());
+	}
+	else if (generatorType == "select") {
+		auto select = ref_ptr<module::Select>::alloc();
+		select->SetEdgeFalloff(input.getValue<double>("edge-falloff", 0.0));
+		select->SetBounds(
+				input.getValue<double>("lower-bound", -0.25),
+				input.getValue<double>("upper-bound", 0.25));
+		generator = ref_ptr<NoiseGenerator>::alloc("select", select);
+	}
 	else {
 		REGEN_WARN("Unknown noise generator type '" << generatorType << "'.");
 		return {};

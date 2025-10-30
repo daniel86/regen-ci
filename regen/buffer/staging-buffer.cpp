@@ -134,7 +134,7 @@ bool StagingBuffer::resizeBuffer(uint32_t segmentSize, uint32_t numRingSegments)
 	} else {
 		stagingRef_ = {};
 	}
-	REGEN_INFO("Resized staging buffer to "
+	REGEN_DEBUG("Resized staging buffer to "
 					   << segmentSize_ / 1024.0 << " KiB per segment, "
 					   << numSegments << " segments, total: "
 					   << (segmentSize_ * numSegments) / 1024.0 << " KiB "

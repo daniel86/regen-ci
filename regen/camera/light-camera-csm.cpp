@@ -4,28 +4,6 @@ using namespace regen;
 
 #undef CSM_USE_SINGLE_VIEW
 
-static inline Vec2f findZRange(const Vec3f &lightDir, const Vec3f *frustumPoints) {
-    Vec2f range;
-    range.x = std::numeric_limits<float>::max();
-    range.y = std::numeric_limits<float>::lowest();
-
-    for (GLint i = 0; i < 8; ++i) {
-        float projection = frustumPoints[i].dot(lightDir);
-        if (projection < range.x) {
-            range.x = projection;
-        }
-        if (projection > range.y) {
-            range.y = projection;
-        }
-    }
-
-    return range;
-}
-
-static inline float findZValue(const Vec3f &lightDir, const Vec3f &point) {
-	return point.dot(lightDir);
-}
-
 LightCamera_CSM::LightCamera_CSM(
 		const ref_ptr<Light> &light,
 		const ref_ptr<Camera> &userCamera,
@@ -34,7 +12,10 @@ LightCamera_CSM::LightCamera_CSM(
 		  LightCamera(light, this),
 		  userCamera_(userCamera),
 		  userCameraFrustum_(numLayer),
-		  userFrustumCentroids_(numLayer) {
+		  userFrustumCentroids_(numLayer),
+		  lightSpaceBounds_(numLayer, Bounds<Vec3f>(
+			std::numeric_limits<float>::max(),
+			std::numeric_limits<float>::lowest())) {
 	shaderDefine("RENDER_TARGET", "2D_ARRAY");
 	shaderDefine("RENDER_TARGET_MODE", "CASCADE");
 
@@ -95,10 +76,6 @@ LightCamera_CSM::LightCamera_CSM(
 	setInput(userCamera_->cameraBlock(), "UserCamera", "_User");
 
 	updateDirectionalLight();
-}
-
-void LightCamera_CSM::setSplitWeight(GLdouble splitWeight) {
-	splitWeight_ = splitWeight;
 }
 
 bool LightCamera_CSM::updateLight() {
@@ -196,20 +173,7 @@ bool LightCamera_CSM::updateLightView() {
 	}
 #else
 	for (unsigned int i = 0; i < numLayer_; ++i) {
-#if 0
-		auto &u_frustum = userCameraFrustum_[i];
-		// compute the z-range of the frustum in light space as if light were positioned at (0,0,0)
-		auto zRange = findZRange(f, u_frustum.points);
-		// get z value of the centroid in light space as if light were positioned at (0,0,0)
-		auto centroid_z = findZValue(f, userFrustumCentroids_[i]);
-		// offset by min z such that we get a near value of 0.0 for the frustum points
-		centroid_z -= zRange.x;
-		// move near plane to 1.0
-		centroid_z += 1.0f;
-		setPosition(i, userFrustumCentroids_[i] - f*centroid_z);
-#else
-		setPosition(i, userFrustumCentroids_[i] - f*userCameraFrustum_[i].far);
-#endif
+		setPosition(i, userFrustumCentroids_[i]);
 		setView(i, Mat4f::lookAtMatrix(position(i), f, Vec3f::up()));
 		setViewInverse(i, view(i).lookAtInverse());
 	}
@@ -223,35 +187,61 @@ bool LightCamera_CSM::updateLightProjection() {
 	if (stamp == viewStamp_) { return false; }
 	viewStamp_ = stamp;
 
+	Vec2f zRange = Vec2f(
+		std::numeric_limits<float>::max(),
+		std::numeric_limits<float>::lowest());
 	for (unsigned int layerIndex = 0; layerIndex < numLayer_; ++layerIndex) {
 		auto &u_frustum = userCameraFrustum_[layerIndex];
-		Bounds<Vec3f> bounds_ls(
-			std::numeric_limits<float>::max(),
-			std::numeric_limits<float>::lowest());
+		auto &bounds = lightSpaceBounds_[layerIndex];
+		bounds.min = Vec3f(std::numeric_limits<float>::max());
+		bounds.max = Vec3f(std::numeric_limits<float>::lowest());
 		for (int frustumIndex = 0; frustumIndex < 8; ++frustumIndex) {
+			// TODO: matrix multiplication can probably be avoided here.
 #ifdef CSM_USE_SINGLE_VIEW
 			auto point_ls = view_[0] ^ Vec4f(u_frustum.points[frustumIndex], 1.0f);
 #else
-			auto point_ls = view(layerIndex) ^
-					Vec4f(u_frustum.points[frustumIndex], 1.0f);
+			auto point_ls = view(layerIndex) ^ Vec4f(u_frustum.points[frustumIndex], 1.0f);
 #endif
-			bounds_ls.min.setMin(point_ls.xyz_());
-			bounds_ls.max.setMax(point_ls.xyz_());
+			bounds.min.setMin(point_ls.xyz_());
+			bounds.max.setMax(point_ls.xyz_());
+			zRange.x = std::min(zRange.x, point_ls.z);
+			zRange.y = std::max(zRange.y, point_ls.z);
 		}
-		auto buf = bounds_ls.max;
-		bounds_ls.max.z = -bounds_ls.min.z;
-		bounds_ls.min.z = -buf.z;
+	}
 
+	for (unsigned int layerIndex = 0; layerIndex < numLayer_; ++layerIndex) {
+		auto &bounds = lightSpaceBounds_[layerIndex];
+		if (useUniformDepthRange_) {
+			// use z-range that fits all frustums. This is less efficient, but
+			// avoids some artifacts when sampling between cascades.
+			bounds.min.z = zRange.x;
+			bounds.max.z = zRange.y;
+		}
+		if (depthPadding_ > 0.0) {
+			// add some padding to the orthographic projection
+			float zPadding = depthPadding_ * (zRange.y - zRange.x);
+			bounds.min.z -= zPadding;
+			bounds.max.z += zPadding;
+		}
+		if (orthoPadding_ > 0.0) {
+			// also pad x/y
+			float xPadding = orthoPadding_ * (bounds.max.x - bounds.min.x);
+			float yPadding = orthoPadding_ * (bounds.max.y - bounds.min.y);
+			bounds.min.x -= xPadding;
+			bounds.max.x += xPadding;
+			bounds.min.y -= yPadding;
+			bounds.max.y += yPadding;
+		}
 		setProjection(layerIndex, Mat4f::orthogonalMatrix(
-				bounds_ls.min.x, bounds_ls.max.x,
-				bounds_ls.min.y, bounds_ls.max.y,
-				bounds_ls.min.z, bounds_ls.max.z));
+				bounds.min.x, bounds.max.x,
+				bounds.min.y, bounds.max.y,
+				bounds.min.z, bounds.max.z));
 		setProjectionInverse(layerIndex,
 				projection(layerIndex).orthogonalInverse());
 		frustum_[layerIndex].setOrtho(
-				bounds_ls.min.x, bounds_ls.max.x,
-				bounds_ls.min.y, bounds_ls.max.y,
-				bounds_ls.min.z, bounds_ls.max.z);
+				bounds.min.x, bounds.max.x,
+				bounds.min.y, bounds.max.y,
+				bounds.min.z, bounds.max.z);
 		frustum_[layerIndex].update(
 			position(layerIndex), direction(0));
 	}

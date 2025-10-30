@@ -13,11 +13,11 @@ AABB::AABB(const Bounds<Vec3f> &bounds)
 }
 
 bool AABB::updateTransform(bool forceUpdate) {
-	const uint32_t tfStamp = transformStamp();
-	if (!forceUpdate && tfStamp == lastTransformStamp_) {
+	const uint32_t stamp = tfStamp();
+	if (!forceUpdate && stamp == lastTransformStamp_) {
 		return false;
 	} else {
-		lastTransformStamp_ = tfStamp;
+		lastTransformStamp_ = stamp;
 		updateAABB();
 		return true;
 	}
@@ -38,32 +38,43 @@ void AABB::setVertices(const Bounds<Vec3f> &minMax) {
 }
 
 void AABB::updateAABB() {
-	// initialize vertices based on bounds
-	setVertices(bounds());
+	// initialize vertices with base bounds (= without transform)
+	// we will apply the transform below on each vertex
+	// to compute the transformed bounds.
+	setVertices(baseBounds());
+	tfOrigin_ = basePosition_;
 
-	updateShapeOrigin();
 	// apply transform
 	if (transform_.get()) {
-		if (transform_->hasModelOffset()) {
-			auto &modelOffset = transform_->modelOffset();
-			for (int i = 0; i < 8; ++i) {
-				vertices_[i] += modelOffset->getVertexClamped(transformIndex_).r.xyz_();
-			}
-		}
 		if (transform_->hasModelMat()) {
 			auto tf = transform_->modelMat()->getVertexClamped(transformIndex_);
 			// compute transformed bounds
-			Vec3f transformed;
-			Vec3f transformedMin = getShapeOrigin();
-			Vec3f transformedMax = transformedMin;
-			for (int i = 0; i < 8; ++i) {
+			Vec3f &transformed = tfOrigin_; // note: borrow allocated memory for the loop.
+			tfBounds_.min = (tf.r ^ vertices_[0]).xyz_();
+			tfBounds_.max = tfBounds_.min;
+			for (int i = 1; i < 8; ++i) {
 				transformed = (tf.r ^ vertices_[i]).xyz_();
-				transformedMin.setMin(transformed);
-				transformedMax.setMax(transformed);
+				tfBounds_.min.setMin(transformed);
+				tfBounds_.max.setMax(transformed);
 			}
+			tfOrigin_ = tfBounds_.center();
 			// set vertices based on transformed bounds
-			setVertices(Bounds<Vec3f>(transformedMin, transformedMax));
+			setVertices(tfBounds_);
+		} else {
+			tfBounds_ = baseBounds_;
 		}
+		if (transform_->hasModelOffset()) {
+			auto &modelOffset = transform_->modelOffset();
+			auto offset = modelOffset->getVertexClamped(transformIndex_);
+			tfBounds_.min += offset.r.xyz_();
+			tfBounds_.max += offset.r.xyz_();
+			tfOrigin_ += offset.r.xyz_();
+			for (int i = 0; i < 8; ++i) {
+				vertices_[i] += offset.r.xyz_();
+			}
+		}
+	} else {
+		tfBounds_ = baseBounds_;
 	}
 }
 
@@ -77,21 +88,18 @@ const Vec3f *AABB::boxAxes() const {
 }
 
 bool AABB::hasIntersectionWithAABB(const AABB &other) const {
-	auto &a_p = translation();
-	auto &b_p = other.translation();
-	Vec3f aMin = a_p + bounds().min;
-	Vec3f aMax = a_p + bounds().max;
-	Vec3f bMin = b_p + other.bounds().min;
-	Vec3f bMax = b_p + other.bounds().max;
+	const Vec3f &aMin = tfBounds().min;
+	const Vec3f &aMax = tfBounds().max;
+	const Vec3f &bMin = other.tfBounds().min;
+	const Vec3f &bMax = other.tfBounds().max;
 	return aMin.x < bMax.x && aMax.x > bMin.x &&
 		   aMin.y < bMax.y && aMax.y > bMin.y &&
 		   aMin.z < bMax.z && aMax.z > bMin.z;
 }
 
 Vec3f AABB::closestPointOnSurface(const Vec3f &point) const {
-	auto &a_p = translation();
-	Vec3f aMin = a_p + bounds().min;
-	Vec3f aMax = a_p + bounds().max;
+	const Vec3f &aMin = tfBounds().min;
+	const Vec3f &aMax = tfBounds().max;
 	Vec3f closestPoint;
 	closestPoint.x = point.x < aMin.x ? aMin.x : (point.x > aMax.x ? aMax.x : point.x);
 	closestPoint.y = point.y < aMin.y ? aMin.y : (point.y > aMax.y ? aMax.y : point.y);

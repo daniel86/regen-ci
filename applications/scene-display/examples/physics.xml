@@ -7,16 +7,14 @@
     <node id="configuration"
           date="01-09-2014 06:00:00"
           time-scale="60.0">
-        <camera id="main-camera"
-                mode="third-person"
-                type="impulse"
-                mesh="sphere-mesh0"
-                mesh-distance="26.0"
+        <controller type="user-impulse"
+                mode="third-person" camera="main-camera"
+                mesh="sphere-mesh0" mesh-distance="26.0"
                 vertical-orientation="0.4"
                 transform="sphere0-tf"
                 eye-offset="0.0,0.0,0.0"
                 eye-orientation="3.14159265359">
-        </camera>
+        </controller>
     </node>
 
     <!-- FBOs -->
@@ -102,24 +100,28 @@
             close-distance="20.0"/>
     <!-- Cameras -->
     <camera id="main-camera"
-            culling-index="main-index"
             fov="45.0" near="0.1" far="200.0"
             position="0.0,1.5,-8.0"
-            direction="0.0,-0.25,1.0"/>
+            direction="0.0,-0.25,1.0">
+        <culling index="main-index" />
+    </camera>
     <camera id="sun-camera" light="sky-sun"
-            culling-index="main-index"
             camera="main-camera"
             lod-shift="1,1,1,0"
             num-layer="{{num-cascades}}"
-            split-weight="0.9"/>
+            split-weight="0.9">
+        <culling index="main-index" />
+    </camera>
     <camera id="paraboloid-camera"
-            culling-index="main-index"
             type="paraboloid"
-            tf="sphere0-tf"/>
+            tf="sphere0-tf">
+        <culling index="main-index" />
+    </camera>
     <camera id="cube-camera"
-            culling-index="main-index"
             type="cube"
-            tf="sphere1-tf"/>
+            tf="sphere1-tf">
+        <culling index="main-index" />
+    </camera>
     <!--
     <camera id="spot-camera" light="spot-light" camera="main-camera" />
     -->

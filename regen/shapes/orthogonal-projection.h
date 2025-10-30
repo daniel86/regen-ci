@@ -17,7 +17,8 @@ namespace regen {
 		enum Type {
 			CIRCLE = 0,
 			RECTANGLE,
-			TRIANGLE
+			TRIANGLE,
+			CONVEX_HULL
 		};
 
 		explicit OrthogonalProjection(const BoundingShape &shape);
@@ -36,9 +37,9 @@ namespace regen {
 		void update(const BoundingShape &shape);
 
 	protected:
-		void frustumProjectionTriangle(const Frustum &frustum);
+		std::vector<Vec2f> tmpPoints;
 
-		void frustumProjectionRectangle(const Frustum &frustum);
+		void createConvexHull(const Vec3f *inputPoints, uint32_t numPoints);
 	};
 }
 

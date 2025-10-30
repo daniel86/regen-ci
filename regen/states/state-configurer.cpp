@@ -1,5 +1,5 @@
 #include <regen/states/light-state.h>
-#include <regen/meshes/mesh-state.h>
+#include <regen/objects/mesh-state.h>
 #include <regen/utility/string-util.h>
 
 #include "state-configurer.h"
@@ -173,7 +173,7 @@ void StateConfigurer::addState(const State *s) {
 			auto it = cfg_.textures_.insert({ x2->name(), { x2->texture(), texIdx } });
 			needle = it.first;
 		}
-		auto texIdx = textureStates_.size();
+		auto texIdx = needle->second.second;
 		define(REGEN_STRING("TEX_ID" << texIdx), REGEN_STRING(x2->stateID()));
 		define(REGEN_STRING("TEX_ID_" << x2->name()), REGEN_STRING(x2->stateID()));
 		needle->second.first = x2->texture();

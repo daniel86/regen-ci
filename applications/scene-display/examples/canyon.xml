@@ -10,13 +10,18 @@
     <constant name="far-plane*0.5" value="100.0"/>
     <constant name="num-cascades" value="4"/>
     <constant name="num-fish" value="2000"/>
-
+    <constant name="collision-bit" value="2"/>
     <include xml-file="scene-display/examples/templates/default.xml"/>
+    <include xml-file="scene-display/examples/behavior/carnivore.xml"/>
+
     <node id="configuration"
-            date="01-09-2014 10:00:00"
-            time-scale="60.0">
-        <camera id="main-camera"
-                mode="first-person"
+          date="01-09-2014 10:00:00"
+          time-scale="60.0">
+        <world id="canyon" height-map="ground-height">
+            <place id="tmp" type="home" point="-8.5,-30.0" radius="19.799">
+            </place>
+        </world>
+        <controller camera="main-camera" mode="first-person"
                 speed="0.05"
                 eye-offset="0.0,0.0,0.0"
                 horizontal-orientation="4.71225"
@@ -24,31 +29,43 @@
                 ease-in-out="1.8"
                 anchor-pause-time="0.7"
                 anchor-time-scale="0.8">
-            <anchor type="look-at" transform="grass-tf" offset="-40.0, 14.0, 0.0" />
-            <anchor type="look-at" transform="grass-tf" offset="0.0, 40.0, 60.0" />
-            <anchor type="look-at" transform="grass-tf" offset="0.0, 20.0, 40.0" />
-            <anchor type="look-at" transform="grass-tf" offset="80.0, 20.0, 0.0" />
-            <anchor type="look-at" transform="hyena-tf" offset="0.0, -4.0, 1.0" follow="1" />
-            <anchor type="look-at" transform="grass-tf" offset="-40.0, 14.0, 0.0" />
-        </camera>
-        <animation id="hyena-asset" type="asset" idle="idle1">
-            <controller id="hyena-controller"
-                type="animal"
-                tf="hyena-tf"
-                height-map="ground-height"
-                height-map-center="0, 0"
-                height-map-size="{{map-size}}, {{map-size}}"
-                height-map-factor="{{map-height}}"
-                floor-height="-4.0"
-                territory-size="57.275, 32.373"
-                territory-center="-4.5166,-33.8134"
-                laziness="0.5"
-                run-speed="4.0"
-                walk-speed="1">
-                <special name="bark" />
-                <special name="lick" />
-            </controller>
-        </animation>
+            <anchor type="look-at" transform="grass-tf" offset="-40.0, 14.0, 0.0"/>
+            <anchor type="look-at" transform="grass-tf" offset="0.0, 40.0, 60.0"/>
+            <anchor type="look-at" transform="grass-tf" offset="0.0, 20.0, 40.0"/>
+            <anchor type="look-at" transform="grass-tf" offset="80.0, 20.0, 0.0"/>
+            <anchor type="look-at" transform="hyena-tf" offset="0.0, -4.0, 1.0" follow="1"/>
+            <anchor type="look-at" transform="grass-tf" offset="-40.0, 14.0, 0.0"/>
+        </controller>
+        <controller id="hyena-controller" type="animal"
+                    mesh="hyena-mesh" tf="hyena-tf"
+                    animation-asset="hyena-asset"
+                    indexed-shape="hyena-shape"
+                    spatial-index="main-index"
+                    height-map="ground-height"
+                    territory-size="28.0, 28.0"
+                    territory-center="-8.5,-30.0"
+                    decision-interval="0.25"
+                    perception-interval="0.1"
+                    base-time-activity="60.0"
+                    base-time-place="300.0"
+                    base-orientation="4.7124"
+                    collision-bit="{{collision-bit}}"
+                    run-speed="4.0" walk-speed="1.0"
+                    max-turn-angle="90.0"
+                    avoidance-weight="1.0"
+                    avoidance-decay="0.1"
+                    wall-avoidance="1.0"
+                    wall-tangent-weight="0.25"
+                    character-avoidance="4.0"
+                    cohesion-weight="1.0"
+                    member-separation-weight="0.4"
+                    group-separation-weight="0.2"
+                    push-through-distance="2.0"
+                    look-ahead-threshold="8.0"
+                    personal-space="2.5"
+                    velocity-orientation-weight="0.75">
+            <behavior-tree import="dog-like-carnivore"/>
+        </controller>
     </node>
 
     <!-- FBO for deferred shading -->
@@ -74,56 +91,71 @@
         <texture id="normal"/>
         <depth id="depth" pixel-size="24"/>
     </fbo>
-    <fbo id="sun-shadow" size-mode="abs" size="2048,2048,{{num-cascades}}" >
+    <fbo id="sun-shadow" size-mode="abs" size="2048,2048,{{num-cascades}}">
         <depth id="depth" pixel-size="24" pixel-type="FLOAT"
-            target="TEXTURE_2D_ARRAY"
-            wrapping="REPEAT"
-            min-filter="NEAREST"
-            mag-filter="NEAREST"
-            compare-mode="COMPARE_R_TO_TEXTURE"
-            compare-function="LEQUAL"
-            sampler-type="sampler2DArrayShadow" />
+               target="TEXTURE_2D_ARRAY"
+               wrapping="REPEAT"
+               min-filter="NEAREST"
+               mag-filter="NEAREST"
+               compare-mode="COMPARE_R_TO_TEXTURE"
+               compare-function="LEQUAL"
+               sampler-type="sampler2DArrayShadow"/>
     </fbo>
     <!-- Textures -->
     <texture id="ground-color" file="res/textures/terrain/canyon/diffuse.png"/>
     <texture id="ground-normal" file="res/textures/terrain/canyon/normal.png"/>
-    <texture id="ground-height" file="res/textures/terrain/canyon/height.png"/>
+    <texture id="ground-height" type="height" file="res/textures/terrain/canyon/height.png" mipmap="1"
+             map-center="0.0,0.0"
+             map-size="{{map-size}},{{map-size}}"
+             map-factor="{{map-height}}"
+             wrapping="CLAMP_TO_EDGE"/>
     <texture id="ground-noise" type="noise" size="1024.0,1024.0" is-seamless="0"
-            output-generator="0" noise-scale="1.0">
+             output-generator="0" noise-scale="1.0">
         <generator id="0" type="perlin" octaves="4" frequency="2.0" persistence="0.5" lacunarity="2.0"/>
     </texture>
     <texture id="grass-mask" file="res/textures/terrain/canyon/mask-grass.png"/>
     <texture id="tree-mask" file="res/textures/terrain/canyon/mask-trees.png"/>
-    <texture id="grass-color" file="res/textures/materials/grass/0/color.png" wrapping="CLAMP_TO_EDGE" />
-    <texture id="fir-color" file="res/textures/materials/tree-twig/fir/color.png" wrapping="REPEAT" />
+    <texture id="grass-color" file="res/textures/materials/grass/0/color.png" wrapping="CLAMP_TO_EDGE"/>
+    <texture id="fir-color" file="res/textures/materials/tree-twig/fir/color.png" wrapping="REPEAT"/>
     <texture id="wind-flowmap" file="res/textures/wind/flowmap0.png" wrapping="REPEAT"/>
     <texture id="wind-noise" type="noise" preset="cloud"
-            size="128.0,128.0,1.0" noise-scale="1.0"
-            swizzle-g="RED" swizzle-b="RED"/>
+             size="128.0,128.0,1.0" noise-scale="1.0"
+             swizzle-g="RED" swizzle-b="RED"/>
     <!-- Spatial Index -->
     <index id="main-index" type="quadtree"
-            max-objects-per-node="4"
-            test-mode-3d="closest"
-            close-distance="20.0"/>
+           min-node-size="0.1"
+           subdivision-threshold="4"
+           test-mode-3d="closest"
+           close-distance="10.0"/>
+    <index id="terrain-index" type="quadtree"
+           min-node-size="5.0"
+           subdivision-threshold="8"
+           test-mode-3d="closest"
+           close-distance="10.0"/>
     <!-- Cameras -->
     <camera id="main-camera"
-            culling-index="main-index"
             fov="45.0" near="0.1" far="200.0"
-            position="-40.0, 14.0, 0.0"/>
+            position="-40.0, 14.0, 0.0">
+        <culling index="main-index"/>
+        <culling index="terrain-index" />
+    </camera>
     <camera id="sun-camera"
-            culling-index="main-index"
             lod-shift="0,0,0,0"
             lod-camera="main-camera"
             camera="main-camera"
             light="sky-sun"
             num-layer="{{num-cascades}}"
-            split-weight="0.7" />
+            split-weight="0.7">
+        <culling index="main-index"/>
+        <culling index="terrain-index" />
+    </camera>
     <camera id="reflection-camera"
-            culling-index="main-index"
             lod-shift="1,1,1,0"
             camera="main-camera"
             reflector-normal="0,1,0"
-            reflector-point="0,{{water-level}},0"/>
+            reflector-point="0,{{water-level}},0">
+        <culling index="main-index"/>
+    </camera>
     <!-- Assets -->
     <asset id="fish-asset" type="asset"
            file="res/models/fish-puffer/PufferFish.fbx"
@@ -139,50 +171,70 @@
            animation-pre-state="LINEAR"
            animation-tps="60.0">
         <!-- define named animation ranges. -->
-        <anim-range name="walk" channel="Hyenas_A15_Walk" range="1.0,80.0" />
-        <anim-range name="up" channel="Hyenas_A15_Up" range="1.0,50.0" />
-        <anim-range name="tired" channel="Hyenas_A15_Tired" range="1.0,135.0" />
-        <anim-range name="swim2" channel="Hyenas_A15_Swim2" range="1.0,60.0" />
-        <anim-range name="swim1" channel="Hyenas_A15_Swim" range="1.0,100.0" />
-        <anim-range name="stretch" channel="Hyenas_A15_Stretch" range="1.0,300.0" />
-        <anim-range name="smell2" channel="Hyenas_A15_Smell2" range="1.0,300.0" />
-        <anim-range name="smell1" channel="Hyenas_A15_Smell" range="1.0,185.0" />
-        <anim-range name="sleep2" channel="Hyenas_A15_Sleep2" range="1.0,249.0" />
-        <anim-range name="sleep1" channel="Hyenas_A15_Sleep" range="1.0,60.0" />
-        <anim-range name="sit2" channel="Hyenas_A15_Sit2" range="1.0,430.0" />
-        <anim-range name="sit1" channel="Hyenas_A15_Sit" range="1.0,220.0" />
-        <anim-range name="run" channel="Hyenas_A15_Run" range="1.0,30.0" />
-        <anim-range name="roar3" channel="Hyenas_A15_Roar3" range="1.0,110.0" />
-        <anim-range name="roar2" channel="Hyenas_A15_Roar2" range="1.0,100.0" />
-        <anim-range name="roar1" channel="Hyenas_A15_Roar" range="1.0,130.0" />
-        <anim-range name="jump" channel="Hyenas_A15_jump" range="1.0,125.0" />
-        <anim-range name="idle3" channel="Hyenas_A15_Idle3" range="1.0,140.0" />
-        <anim-range name="idle2" channel="Hyenas_A15_Idle2" range="1.0,120.0" />
-        <anim-range name="idle1" channel="Hyenas_A15_Idle" range="1.0,150.0" />
-        <anim-range name="die" channel="Hyenas_A15_Die" range="1.0,100.0" />
-        <anim-range name="breadth" channel="Hyenas_A15_BreathFast" range="1.0,60.0" />
-        <anim-range name="bark" channel="Hyenas_A15_Bark" range="1.0,160.0" />
-        <anim-range name="lick" channel="Hyenas_A15_Atk4" range="1.0,150.0" />
-        <anim-range name="attack3" channel="Hyenas_A15_Atk3" range="1.0,80.0" />
-        <anim-range name="attack2" channel="Hyenas_A15_Atk2" range="1.0,120.0" />
-        <anim-range name="attack1" channel="Hyenas_A15_Atk" range="1.0,35.0" />
+        <bone-animation>
+            <body-part type="head" start-node="bip01_neck1"/>
+            <body-part type="leg" start-node="bip01_l_thigh"/>
+            <body-part type="leg" start-node="bip01_r_thigh"/>
+            <body-part type="arm" start-node="bip01_l_clavicle"/>
+            <body-part type="arm" start-node="bip01_r_clavicle"/>
+            <body-part type="torso" start-node="spine2"/>
+            <!-- lying on right side, then getting up -->
+            <range motion="revive" name="get-up" track="Hyenas_A15_Up" range="1.0,50.0"/>
+            <range motion="die" name="fall-down" track="Hyenas_A15_Die" range="1.0,100.0"/>
+            <range motion="idle" name="idle1" track="Hyenas_A15_Idle" range="5.0,150.0"/>
+            <range motion="walk" name="walk" track="Hyenas_A15_Walk" range="1.0,80.0"/>
+            <range motion="run" name="run" track="Hyenas_A15_Run" range="1.0,30.0"/>
+            <range motion="swim" name="swim" track="Hyenas_A15_Swim2" range="1.0,60.0"/>
+            <range motion="attack" name="attack3" track="Hyenas_A15_Atk3" range="1.0,80.0"/>
+            <range motion="attack" name="attack2" track="Hyenas_A15_Atk2" range="1.0,120.0"/>
+            <range motion="attack" name="attack1" track="Hyenas_A15_Atk" range="1.0,35.0"/>
+            <range motion="jump" name="jump" track="Hyenas_A15_jump" range="1.0,125.0"/>
+            <range motion="inspect" name="smell2" track="Hyenas_A15_Smell2" range="1.0,300.0"/>
+            <range motion="inspect" name="smell1" track="Hyenas_A15_Smell" range="1.0,185.0"/>
+            <range motion="intimidate" name="roar3" track="Hyenas_A15_Roar3" range="1.0,110.0"/>
+            <range motion="intimidate" name="roar2" track="Hyenas_A15_Roar2" range="1.0,100.0"/>
+            <range motion="intimidate" name="roar1" track="Hyenas_A15_Roar" range="1.0,130.0"/>
+            <range motion="vocalize" name="bark" track="Hyenas_A15_Bark" range="1.0,160.0"/>
+            <range motion="stretch" name="stretch" track="Hyenas_A15_Stretch" range="1.0,300.0"/>
+            <range motion="grooming" name="lick" track="Hyenas_A15_Atk4" range="1.0,150.0"/>
+            <!-- Loop sleeping on the right side. -->
+            <range name="sleep1-loop" track="Hyenas_A15_Sleep" range="1.0,60.0"/>
+            <clip motion="sleep" begin="fall-down" range="sleep1-loop" end="get-up" />
+            <!-- Special begin/end motions for sleeping (not on side). -->
+            <range name="sleep2-begin" track="Hyenas_A15_Sleep2" range="1.0,297.0"/>
+            <range name="sleep2-loop" track="Hyenas_A15_Sleep2" range="297.0,483.0"/>
+            <range name="sleep2-end" track="Hyenas_A15_Sleep2" range="483.0,991.0"/>
+            <clip motion="sleep" begin="sleep2-begin" range="sleep2-loop" end="sleep2-end" />
+            <range name="sit-down" track="Hyenas_A15_Sit" range="1.0,69.0" />
+            <range name="sit-loop" track="Hyenas_A15_Sit" range="69.0,149.0" />
+            <!-- this can be used as alternative loop: -->
+            <!-- <range name="sit-loop" track="Hyenas_A15_Idle2" range="1.0,120.0"/> -->
+            <range name="sit-up" track="Hyenas_A15_Sit" range="149.0,220.0" />
+            <clip motion="sit" begin="sit-down" range="sit-loop" end="sit-up" />
+            <!-- unused at the moment -->
+            <range name="breadth" track="Hyenas_A15_BreathFast" range="1.0,60.0"/>
+            <range name="exhausted-idle" track="Hyenas_A15_Idle3" range="1.0,140.0"/>
+            <range name="tired-idle" track="Hyenas_A15_Tired" range="1.0,135.0"/>
+            <range name="swim1" track="Hyenas_A15_Swim" range="1.0,100.0"/>
+            <range name="sit2" track="Hyenas_A15_Sit2" range="1.0,430.0"/>
+        </bone-animation>
     </asset>
     <!-- Sky -->
-    <sky id="sky" camera="main-camera" update-interval="200.0" >
-        <star-map texture="res/sky/milkyway.png" scattering="0.8" delta-magnitude="0.015" lod="0" />
+    <sky id="sky" camera="main-camera" update-interval="200.0">
+        <star-map texture="res/sky/milkyway.png" scattering="0.8" delta-magnitude="0.015" lod="0"/>
         <stars catalog="res/sky/bright-stars.bin" scale="1.4"
-            scattering="1.0" scintillation="0.2" apparent-magnitude="6.0"
-            glare-intensity="0.08" glare-scale="0.2"
-            color="0.66,0.78,1.0" color-ratio="0.66"/>
+               scattering="1.0" scintillation="0.2" apparent-magnitude="6.0"
+               glare-intensity="0.08" glare-scale="0.2"
+               color="0.66,0.78,1.0" color-ratio="0.66"/>
         <moon texture="res/sky/moon.png" scale="0.04" scattering="4.0"
-            sun-shine-color="0.923,0.786,0.636" sun-shine-intensity="128.0"
-            earth-shine-color="0.88,0.96,1.0" earth-shine-intensity="8.0" />
+              sun-shine-color="0.923,0.786,0.636" sun-shine-intensity="128.0"
+              earth-shine-color="0.88,0.96,1.0" earth-shine-intensity="8.0"/>
         <atmosphere preset="earth" size="256" lod="0">
-            <input type="float" name="cirrus" value="0.4" />
-            <input type="float" name="cumulus" value="0.2" />
-            <input type="float" name="dithering" value="0.2" />
-            <input type="float" name="ditheringScale" value="100.0" />
-            <input type="float" name="cloudTimeFactor" value="0.3" />
+            <input type="float" name="cirrus" value="0.4"/>
+            <input type="float" name="cumulus" value="0.2"/>
+            <input type="float" name="dithering" value="0.2"/>
+            <input type="float" name="ditheringScale" value="100.0"/>
+            <input type="float" name="cloudTimeFactor" value="0.3"/>
         </atmosphere>
     </sky>
     <node id="Sky">
@@ -212,25 +264,27 @@
         <transform id="ground-tf" update-frequency="NEVER"/>
         <materials>
             <material type="grass" name="ground/grass" variant="1" uv-scale="0.25"
-                    height="0.25,0.75,0.25" slope="0.0,25.0,10.0"/>
+                      height="0.25,0.75,0.25" slope="0.0,25.0,10.0"/>
             <material type="rock" name="ground/stone" variant="8" uv-scale="2.0"
-                    slope="30.0,180.0,30.0"/>
+                      slope="30.0,180.0,30.0"/>
             <material type="sand" name="ground/sand" variant="3" uv-scale="0.05"
-                    height="0.0,0.3,0.2" slope="0.0,15.0,15.0"/>
+                      height="0.0,0.3,0.2" slope="0.0,15.0,15.0"/>
             <material type="dirt" name="ground/dirt" variant="1" uv-scale="0.5" is-fallback="1"
-                    height="0.0,0.75,0.2" slope="10.0,180.0,20.0"/>
+                      height="0.0,0.75,0.2" slope="10.0,180.0,20.0"/>
         </materials>
         <biomes>
             <biome type="conifer" height="0.55,0.8,0.2" slope="0.0,25.0,6.0" rockiness="0.0,0.4,0.15"/>
             <biome type="rocky" height="0.7,1.0,0.15" slope="35.0,90.0,10.0" rockiness="0.6,1.0,0.15"/>
             <biome type="scree" height="0.0,0.6,0.2" slope="70.0,120.0,10.0" rockiness="0.4,1.0,0.15"
-                moisture="0.0,0.7,0.2" />
+                   moisture="0.0,0.7,0.2"/>
             <biome type="sand" height="0.0,0.4,0.20" slope="0.0,12.0,6.0" concavity="0.3,0.7,0.10"
-                rockiness="0.0,0.5,0.10" temperature="0.4,1.0,0.20" moisture="0.0,0.6,0.10" />
+                   rockiness="0.0,0.5,0.10" temperature="0.4,1.0,0.20" moisture="0.0,0.6,0.10"/>
         </biomes>
         <shape id="ground-shape" cull="1" index="1" type="obb" mesh-index="0"
-            mesh-id="ground-mesh" transform-id="ground-tf">
-            <has-part mesh-id="ground-mesh" mesh-index="1" />
+               spatial-index="terrain-index"
+               mesh-id="ground-mesh" transform-id="ground-tf"
+               height-map="ground-height">
+            <has-part mesh-id="ground-mesh" mesh-index="1"/>
         </shape>
     </mesh>
 
@@ -264,22 +318,22 @@
           scaling="2.0,1.0,2.0"
           ground-size="{{map-size}},{{map-size}}"
           update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.terrain.grass" />
+        <shader mesh-index="0" key="regen.terrain.grass"/>
         <transform id="grass-tf" mode="offset" update-frequency="NEVER">
             <translate value="0.0,{{map-y-min}},0.0"/>
         </transform>
         <shape id="grass-shape" index="1" cull="1" type="aabb"
-                box-size="2.0, {{map-height}}, 2.0"
-                box-center="0.0, {{map-height-half}}, 0.0"
-                transform-id="grass-tf">
-            <has-part mesh-id="grass-patches" />
+               box-size="2.0, {{map-height}}, 2.0"
+               box-center="0.0, {{map-height-half}}, 0.0"
+               transform-id="grass-tf">
+            <has-part mesh-id="grass-patches"/>
         </shape>
     </mesh>
 
     <node id="Grass">
         <material diffuse="1.0, 1.0, 1.0"
-                specular="0.0, 0.0, 0.0" shininess="256.0"
-                update-frequency="NEVER"/>
+                  specular="0.0, 0.0, 0.0" shininess="256.0"
+                  update-frequency="NEVER"/>
         <!-- size and position -->
         <input name="quadSize" type="vec2" value="0.5, 0.3"/>
         <input name="posVariation" type="float" value="0.4"/>
@@ -289,13 +343,13 @@
         <input name="uvDarken" type="float" value="0.25"/>
         <!-- height -->
         <texture name="heightTexture" id="ground-height" map-to="HEIGHT" mapping="xz_plane"
-                     blend-mode="ADD" blend-factor="{{map-height}}"/>
+                 blend-mode="ADD" blend-factor="{{map-height}}"/>
         <!-- wind -->
-        <texture name="windFlow" id="wind-flowmap" />
+        <texture name="windFlow" id="wind-flowmap"/>
         <input name="stiffness" type="float" value="1.0"/>
         <node id="Grass-Albedo">
             <alpha discard-threshold="0.25"/>
-            <mesh id="grass-patches" />
+            <mesh id="grass-patches"/>
         </node>
         <!--
         <node id="Grass-Depth">
@@ -321,7 +375,7 @@
           lod-thresholds="20.0, 50.0, 0.0"
           scaling="0.7,0.3,0.7"
           update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.models.mesh" />
+        <shader mesh-index="0" key="regen.models.mesh"/>
         <!--
         <transform id="big-stones-tf" num-instances="20" is-instanced="1">
             <rotate value="0.0, 1.57079632, 0.0"/>
@@ -332,23 +386,23 @@
         -->
         <transform id="big-stones-tf" update-frequency="NEVER">
             <set mode="plane"
-                area-mask-texture="ground-mesh-biome-map-0"
-                area-mask-index="1"
-                area-mask-threshold="0.8"
-                area-height-texture="ground-height"
-                area-max-height="{{map-height}}"
-                area-size="{{map-size}},{{map-size}}"
-                cell-size="5.0,5.0"
-                cell-offset="0.0,{{map-y-min}},0.0"
-                obj-min-scale="0.1"
-                obj-max-scale="0.6"
-                obj-pos-variation="0.2"
-                obj-density="3.0"
-                obj-mesh="big-stones"
-              />
+                 area-mask-texture="ground-mesh-biome-map-0"
+                 area-mask-index="1"
+                 area-mask-threshold="0.8"
+                 area-height-texture="ground-height"
+                 area-max-height="{{map-height}}"
+                 area-size="{{map-size}},{{map-size}}"
+                 cell-size="5.0,5.0"
+                 cell-offset="0.0,{{map-y-min}},0.0"
+                 obj-min-scale="0.1"
+                 obj-max-scale="0.6"
+                 obj-pos-variation="0.2"
+                 obj-density="3.0"
+                 obj-mesh="big-stones"
+            />
         </transform>
         <material preset="stone" variant="0" max-offset="0.2" update-frequency="NEVER"
-                color-blend-mode="mul" diffuse="0.646662, 0.555062, 0.42034" />
+                  color-blend-mode="mul" diffuse="0.646662, 0.555062, 0.42034"/>
         <shape id="big-stones-shape" index="1" cull="1" type="sphere"
                mesh-id="big-stones" transform-id="big-stones-tf" radius="1.6"/>
     </mesh>
@@ -360,53 +414,53 @@
     <!-- NOTE: trunk uses mesh index 0, twigs use index 1 -->
     <!-- TODO: idea use lower level LOD for trees surrounded by other trees. -->
     <mesh id="tree-mesh" type="proctree"
-            lods="3,2,1"
-            lod-thresholds="10.0, 50.0, 100.0"
-            use-silhouette="1"
-            tile-counts="4,2,2,2"
-            alpha-cut="0.1"
-            coverage-threshold="0.01"
-            silhouette-padding="1"
-            preset="fir">
+          lods="3,2,1"
+          lod-thresholds="10.0, 50.0, 100.0"
+          use-silhouette="1"
+          tile-counts="4,2,2,2"
+          alpha-cut="0.1"
+          coverage-threshold="0.01"
+          silhouette-padding="1"
+          preset="fir">
         <shader mesh-index="0" key="regen.models.mesh"/>
         <shader mesh-index="1" key="regen.models.mesh">
             <define key="POS_WORLD_TRANSFER_KEY" value="regen.weather.wind.wavingBaseTransfer"/>
         </shader>
         <transform id="tree-tf" update-frequency="NEVER">
             <set mode="plane"
-                area-mask-texture="ground-mesh-biome-map-0"
-                area-mask-index="0"
-                area-height-texture="ground-height"
-                area-max-height="{{map-height}}"
-                area-size="{{map-size}},{{map-size}}"
-                cell-size="5.0,5.0"
-                cell-offset="0.0,{{map-y-min}},0.0"
-                obj-min-scale="0.4"
-                obj-max-scale="0.75"
-                obj-pos-variation="0.5"
-                obj-density="3.4"
-                obj-mesh="tree-mesh"
-              />
+                 area-mask-texture="ground-mesh-biome-map-0"
+                 area-mask-index="0"
+                 area-height-texture="ground-height"
+                 area-max-height="{{map-height}}"
+                 area-size="{{map-size}},{{map-size}}"
+                 cell-size="5.0,5.0"
+                 cell-offset="0.0,{{map-y-min}},0.0"
+                 obj-min-scale="0.4"
+                 obj-max-scale="0.75"
+                 obj-pos-variation="0.5"
+                 obj-density="3.4"
+                 obj-mesh="tree-mesh"
+            />
         </transform>
         <input join="0" mesh="tree-mesh" mesh-index="1" component="matDiffuse">
             <set mode="random" min="0.6,0.4,0" max="1,1,1"/>
         </input>
         <lod-meshes>
             <mesh id="twig-impostor"
-                    type="impostor-billboard"
-                    base-mesh="tree-mesh"
-                    base-mesh-index="1"
-                    depth-offset="0.5"
-                    normal-correction="1"
-                    depth-correction="0"
-                    hemispherical="0"
-                    top-view="0"
-                    bottom-view="0"
-                    longitude-steps="16"
-                    latitude-steps="0"
-                    texture-size="256,256"
-                    update-frequency="NEVER">
-                <shader mesh-index="0" key="regen.models.impostor" />
+                  type="impostor-billboard"
+                  base-mesh="tree-mesh"
+                  base-mesh-index="1"
+                  depth-offset="0.5"
+                  normal-correction="1"
+                  depth-correction="0"
+                  hemispherical="0"
+                  top-view="0"
+                  bottom-view="0"
+                  longitude-steps="16"
+                  latitude-steps="0"
+                  texture-size="256,256"
+                  update-frequency="NEVER">
+                <shader mesh-index="0" key="regen.models.impostor"/>
                 <update-state>
                     <alpha discard-threshold="0.25"/>
                     <depth test="1" write="1"/>
@@ -416,43 +470,43 @@
             </mesh>
         </lod-meshes>
         <shape id="tree-shape" cull="1" index="1" type="aabb" mesh-id="tree-mesh" mesh-index="0" transform-id="tree-tf">
-            <has-part mesh-id="tree-mesh" mesh-index="1" />
+            <has-part mesh-id="tree-mesh" mesh-index="1"/>
         </shape>
     </mesh>
 
     <node id="Trees-SM">
         <node id="tree-trunk">
-            <mesh id="tree-mesh" mesh-index="0" update-visibility="1" />
+            <mesh id="tree-mesh" mesh-index="0" update-visibility="1"/>
         </node>
         <node id="tree-twig">
-            <texture name="windFlow" id="wind-flowmap" mapping="custom" />
+            <texture name="windFlow" id="wind-flowmap" mapping="custom"/>
             <input name="stiffness" type="float" value="0.5"/>
             <node id="twig-depth">
                 <alpha discard-threshold="0.25"/>
-                <define key="DEPTH_FACE" value="BACK" />
-                <mesh id="tree-mesh" mesh-index="1" update-visibility="0" />
+                <define key="DEPTH_FACE" value="BACK"/>
+                <mesh id="tree-mesh" mesh-index="1" update-visibility="0"/>
             </node>
         </node>
     </node>
 
     <node id="Trees-Albedo">
         <node id="tree-trunk">
-            <mesh id="tree-mesh" mesh-index="0" update-visibility="1" />
+            <mesh id="tree-mesh" mesh-index="0" update-visibility="1"/>
         </node>
         <node id="tree-twig">
-            <texture name="windFlow" id="wind-flowmap" mapping="custom" />
+            <texture name="windFlow" id="wind-flowmap" mapping="custom"/>
             <input name="stiffness" type="float" value="0.5"/>
             <node id="twig-depth">
                 <alpha discard-threshold="0.25"/>
-                <define key="OUTPUT_TYPE" value="DEPTH" />
-                <define key="DEPTH_FACE" value="FRONT" />
+                <define key="OUTPUT_TYPE" value="DEPTH"/>
+                <define key="DEPTH_FACE" value="FRONT"/>
                 <color-mask mask="0,0,0,0"/>
-                <mesh id="tree-mesh" mesh-index="1" update-visibility="0" />
+                <mesh id="tree-mesh" mesh-index="1" update-visibility="0"/>
             </node>
             <node id="twig-color">
-                <depth function="EQUAL" test="1" write="0" />
+                <depth function="EQUAL" test="1" write="0"/>
                 <!-- <toggle key="SAMPLE_ALPHA_TO_COVERAGE" value="1" /> -->
-                <mesh id="tree-mesh" mesh-index="1" update-visibility="0" />
+                <mesh id="tree-mesh" mesh-index="1" update-visibility="0"/>
             </node>
         </node>
     </node>
@@ -468,8 +522,8 @@
         <node id="Reflection-Pass-Deferred">
             <depth test="1" write="1"/>
             <fbo id="reflection-buffer"
-                clear-buffers="0,1,2,3" clear-depth="1"
-                draw-buffers="0,1,2,3"/>
+                 clear-buffers="0,1,2,3" clear-depth="1"
+                 draw-buffers="0,1,2,3"/>
             <node import="Shadow-Caster-Albedo"/>
         </node>
 
@@ -501,7 +555,7 @@
         </view>
         <view id="Blurred Reflection">
             <fbo id="SCREEN"/>
-            <texture name="inputTexture" id="blurred-reflection" />
+            <texture name="inputTexture" id="blurred-reflection"/>
             <fullscreen-pass shader="regen.filter.sampling"/>
         </view>
     </node>
@@ -572,7 +626,7 @@
         <input name="ReflectionCamera" state="reflection-camera" component="Camera" member-suffix="_Reflection"/>
         <input name="SunLight" state="sky-sun" component="Light" member-suffix="_Sun"/>
 
-        <mesh id="water-mesh" shader="regen.terrain.water.plane" />
+        <mesh id="water-mesh" shader="regen.terrain.water.plane"/>
     </node>
 
     <!-- Render surface plane into depth buffer to be used for post-processing effects -->
@@ -582,7 +636,7 @@
         <depth test="1" write="1"/>
         <define key="IS_VIEW_ALIGNED_GROUND_QUAD" value="TRUE"/>
         <define key="OUTPUT_TYPE" value="DEPTH"/>
-        <mesh id="water-mesh" shader="regen.models.mesh" />
+        <mesh id="water-mesh" shader="regen.models.mesh"/>
     </node>
 
     <!--**************************-->
@@ -590,58 +644,58 @@
     <!--**************************-->
 
     <mesh id="fish-mesh" type="asset"
-            asset="fish-asset" asset-indices="*" asset-animation="0"
-            lod-simplification="0.6, 0.4, 0.2"
-            lod-thresholds="5.0, 15.0, 40.0"
-            num-instances="{{num-fish}}"
-            update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.models.mesh" />
+          asset="fish-asset" asset-indices="*" asset-animation="0"
+          lod-simplification="0.6, 0.4, 0.2"
+          lod-thresholds="5.0, 15.0, 40.0"
+          num-instances="{{num-fish}}"
+          update-frequency="NEVER">
+        <shader mesh-index="0" key="regen.models.mesh"/>
         <transform id="fish-tf" num-instances="{{num-fish}}" is-instanced="1"
-            update-frequency="PER_FRAME" gpu-usage="BUFFER_GPU_WRITE">
+                   update-frequency="PER_FRAME" gpu-usage="BUFFER_GPU_WRITE">
             <scale value="0.001, 0.001, 0.001"/>
             <translate value="0.0, -0.5, -10.0"/>
             <set mode="circle" target="translate" radius="1.0" variance="0.8"
-                dir-x="1.0, 0.0, 0.0" dir-z="0.0, 1.0, 1.0"/>
+                 dir-x="1.0, 0.0, 0.0" dir-z="0.0, 1.0, 1.0"/>
             <animation type="boids"
-                sim-mode="CPU"
-                base-orientation="1.570796"
-                max-speed="4.0"
-                max-neighbors="100"
-                visual-range="1.6"
-                look-ahead="2.0"
-                repulsion="8.0"
-                coherence-weight="10.0"
-                alignment-weight="10.0"
-                avoidance-weight="10.0"
-                avoidance-distance="0.5"
-                separation-weight="10.0"
-                bounds-min="-50.0, {{map-y-min}}, -9.0"
-                bounds-max="50.0, {{water-level}}, 10.8"
-                map-center="0, {{map-y-min}}, 0"
-                map-size="{{map-size}}, {{map-size}}"
-                height-map="ground-height"
-                height-map-factor="{{map-height}}">
-                <home-point value="37.0, -2.0, 6.3" />
-                <home-point value="-38.87, -2.0, 2.44" />
-                <home-point value="-22.31, -2.0, -2.03" />
-                <home-point value="7.35, -2.0, 2.15" />
+                       sim-mode="CPU"
+                       base-orientation="1.570796"
+                       max-speed="4.0"
+                       max-neighbors="100"
+                       visual-range="1.6"
+                       look-ahead="2.0"
+                       repulsion="8.0"
+                       coherence-weight="10.0"
+                       alignment-weight="10.0"
+                       avoidance-weight="10.0"
+                       avoidance-distance="0.5"
+                       separation-weight="10.0"
+                       bounds-min="-50.0, {{map-y-min}}, -9.0"
+                       bounds-max="50.0, {{water-level}}, 10.8"
+                       map-center="0, {{map-y-min}}, 0"
+                       map-size="{{map-size}}, {{map-size}}"
+                       height-map="ground-height"
+                       height-map-factor="{{map-height}}">
+                <home-point value="37.0, -2.0, 6.3"/>
+                <home-point value="-38.87, -2.0, 2.44"/>
+                <home-point value="-22.31, -2.0, -2.03"/>
+                <home-point value="7.35, -2.0, 2.15"/>
             </animation>
         </transform>
         <lod-meshes>
             <mesh id="fish-impostor"
-                    type="impostor-billboard"
-                    base-mesh="fish-mesh"
-                    base-mesh-index="0"
-                    depth-offset="0.5"
-                    normal-correction="1"
-                    depth-correction="0"
-                    hemispherical="1"
-                    top-view="0"
-                    bottom-view="0"
-                    longitude-steps="8"
-                    latitude-steps="2"
-                    texture-size="64,64"
-                    update-frequency="NEVER">
+                  type="impostor-billboard"
+                  base-mesh="fish-mesh"
+                  base-mesh-index="0"
+                  depth-offset="0.5"
+                  normal-correction="1"
+                  depth-correction="0"
+                  hemispherical="1"
+                  top-view="0"
+                  bottom-view="0"
+                  longitude-steps="8"
+                  latitude-steps="2"
+                  texture-size="64,64"
+                  update-frequency="NEVER">
                 <shader mesh-index="0" key="regen.models.impostor">
                     <alpha discard-threshold="0.5"/>
                 </shader>
@@ -650,30 +704,41 @@
                 </update-state>
             </mesh>
         </lod-meshes>
-        <shape id="fish-shape" cull="1" gpu="1" type="sphere" mesh-id="fish-mesh" transform-id="fish-tf" />
+        <shape id="fish-shape" cull="1" gpu="1" type="sphere" mesh-id="fish-mesh" transform-id="fish-tf"/>
     </mesh>
 
     <mesh id="hyena-mesh" type="asset"
-            asset="hyena-asset" asset-indices="*" asset-animation="1"
-            update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.models.mesh" />
+          asset="hyena-asset"
+          asset-indices="*"
+          asset-animation="1"
+          update-frequency="NEVER">
+        <shader mesh-index="0" key="regen.models.mesh"/>
         <transform id="hyena-tf" update-frequency="PER_FRAME">
-            <rotate value="0, 1.57079, 1.57079"/>
+            <!-- rotate to pointing forward and upright -->
+            <rotate value="0.0, 3.141593, 1.57079"/>
             <scale value="0.005, 0.005, 0.005"/>
-            <translate value="-2, 2.5, -24"/>
+            <translate value="-2.0, 0.0, -24.0"/>
+            <height map="ground-height"/>
         </transform>
-        <shape id="hyena-shape" index="1" cull="1" type="obb" mesh-id="hyena-mesh" transform-id="hyena-tf" />
+        <shape id="hyena-shape" index="1" cull="1" type="obb" mesh-id="hyena-mesh" transform-id="hyena-tf">
+            <traversal-bit value="{{collision-bit}}"/>
+        </shape>
+        <object id="hyena" type="animal" mesh="hyena-mesh" mesh-index="0" radius="5.0">
+            <!--
+            <affordance type="attack" num-slots="8" radius="10.0" min-distance="4.0"/>
+            -->
+        </object>
     </mesh>
 
     <node id="Mammals">
         <node id="hyena0">
-            <mesh id="hyena-mesh" mesh-index="0" />
+            <mesh id="hyena-mesh" mesh-index="0"/>
         </node>
     </node>
 
     <node id="Fish">
         <node id="fish0">
-            <mesh id="fish-mesh" mesh-index="0" />
+            <mesh id="fish-mesh" mesh-index="0"/>
         </node>
     </node>
 
@@ -693,7 +758,7 @@
             -->
             <input type="vec2" name="farDistance" value="100.0,200.0"/>
             <input name="SunLight" state="sky-sun" component="Light" member-suffix="_Sun"/>
-            <input type="vec3" name="warmTint" value="0.6, 0.4, 0.3" />
+            <input type="vec3" name="warmTint" value="0.6, 0.4, 0.3"/>
             <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
             <texture name="gColorTexture" fbo="g-buffer" attachment="0"/>
             <texture name="skyColorTexture" id="sky"/>
@@ -737,14 +802,14 @@
         <input type="vec3" name="lightAmbient" value="0.2,0.2,0.2"/>
         <node id="Light-Shading">
             <node>
-                <define key="DEBUG_SHADOW_SLICES" value="0" />
+                <define key="DEBUG_SHADOW_SLICES" value="0"/>
                 <light-pass type="DIRECTIONAL" ambient="1"
-                    shader="regen.shading.deferred.directional"
-                    shadow-filter="PCF_GAUSSIAN">
+                            shader="regen.shading.deferred.directional"
+                            shadow-filter="PCF_GAUSSIAN">
                     <light id="sky-sun"
-                        shadow-buffer="sun-shadow"
-                        shadow-attachment="depth"
-                        shadow-camera="sun-camera" />
+                           shadow-buffer="sun-shadow"
+                           shadow-attachment="depth"
+                           shadow-camera="sun-camera"/>
                 </light-pass>
             </node>
         </node>
@@ -780,8 +845,8 @@
                    a "stencil-blit" would be cheaper... -->
         <node id="Water-Blit-Albedo">
             <blit filter-mode="NEAREST"
-                src-fbo="g-buffer" src-attachment="1"
-                dst-fbo="g-buffer" dst-attachment="0"/>
+                  src-fbo="g-buffer" src-attachment="1"
+                  dst-fbo="g-buffer" dst-attachment="0"/>
         </node>
         <node import="Water-Rendering">
             <fbo id="g-buffer" draw-buffers="0"/>
@@ -823,7 +888,7 @@
 
         <view id="Blurred Scene">
             <fbo id="SCREEN"/>
-            <texture name="inputTexture" id="blurred-scene" />
+            <texture name="inputTexture" id="blurred-scene"/>
             <fullscreen-pass shader="regen.filter.sampling"/>
         </view>
     </node>
@@ -848,8 +913,43 @@
     <!--**************************-->
     <!--**************************-->
 
+    <node id="Debug-Views">
+        <view id="Sun Shadow Map">
+            <fbo id="SCREEN"/>
+            <texture name="inputTexture" fbo="sun-shadow" attachment="depth"/>
+            <input type="int" name="arrayTextureSize" value="{{num-cascades}}"/>
+            <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
+        </view>
+        <view id="World Model">
+            <node import="world-debug">
+                <fbo id="g-buffer" draw-buffers="1"/>
+            </node>
+            <node>
+                <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+            </node>
+        </view>
+        <node id="spatial-index-debug">
+            <depth test="1" write="0" function="LEQUAL"/>
+            <polygon offset-fill="1.1,4.0"/>
+            <view id="Main Index">
+                <node id="Main Index Debug">
+                    <debugger type="spatial-index" resource="main-index"/>
+                    <fbo id="g-buffer" draw-buffers="1"/>
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </node>
+            </view>
+            <view id="Terrain Index">
+                <node id="Terrain Index Debug">
+                    <debugger type="spatial-index" resource="terrain-index"/>
+                    <fbo id="g-buffer" draw-buffers="1"/>
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </node>
+            </view>
+        </node>
+    </node>
+
     <node id="root">
-        <resource id="sky" />
+        <resource id="sky"/>
         <input name="planeSize" type="vec2" value="{{map-size}}, {{map-size}}"/>
         <input name="wind" type="vec2" value="0.6, 0.6"/>
         <input name="windFlowScale" type="float" value="50.0"/>
@@ -858,20 +958,14 @@
 
         <node id="Pre-Render">
             <node id="Shadow-Pass">
-                <define key="OUTPUT_TYPE" value="DEPTH" />
+                <define key="OUTPUT_TYPE" value="DEPTH"/>
                 <color-mask mask="0,0,0,0"/>
                 <polygon offset-fill="1.1,4.0"/>
-                <cull mode="FRONT" />
-                <fbo id="sun-shadow" clear-depth="1" />
-                <camera id="sun-camera" />
-                <node import="Shadow-Caster-SM" />
+                <cull mode="FRONT"/>
+                <fbo id="sun-shadow" clear-depth="1"/>
+                <camera id="sun-camera"/>
+                <node import="Shadow-Caster-SM"/>
             </node>
-            <view id="Sun Shadow Map">
-                <fbo id="SCREEN"/>
-                <texture name="inputTexture" fbo="sun-shadow" attachment="depth"/>
-                <input type="int" name="arrayTextureSize" value="{{num-cascades}}"/>
-                <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
-            </view>
             <node import="Reflection-Pass"/>
         </node>
 
@@ -884,13 +978,13 @@
         <node id="Render">
             <!-- Note: best to not having a FBO state in global scope, as this might cause
                  a lot of unnecessary FBO switches. -->
-            <camera id="main-camera" />
+            <camera id="main-camera"/>
 
             <node id="Geometry-Pass">
                 <fbo id="g-buffer"
-                        clear-buffers="0,1,2,3,4"
-                        clear-depth="1"
-                        draw-buffers="0,1,2,3,4"/>
+                     clear-buffers="0,1,2,3,4"
+                     clear-depth="1"
+                     draw-buffers="0,1,2,3,4"/>
                 <depth test="1" write="1"/>
                 <node import="Shadow-Caster-Albedo"/>
                 <node import="Non-Shadow-Caster"/>
@@ -900,12 +994,12 @@
 
             <view id="Material Weights">
                 <fbo id="SCREEN"/>
-                <texture name="inputTexture" id="ground-mesh-weight-map-0" />
+                <texture name="inputTexture" id="ground-mesh-weight-map-0"/>
                 <fullscreen-pass shader="regen.filter.sampling"/>
             </view>
             <view id="Biomes">
                 <fbo id="SCREEN"/>
-                <texture name="inputTexture" id="ground-mesh-biome-map-0" />
+                <texture name="inputTexture" id="ground-mesh-biome-map-0"/>
                 <fullscreen-pass shader="regen.filter.sampling"/>
             </view>
 
@@ -925,16 +1019,7 @@
 
             <node import="Foliage-Pass"/>
             <node import="Post-Pass"/>
-
-            <view id="Spatial Index">
-                <node import="spatial-index-debug">
-                    <camera id="main-camera"/>
-                    <fbo id="g-buffer" draw-buffers="0"/>
-                </node>
-                <node>
-                    <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
-                </node>
-            </view>
+            <node import="Debug-Views"/>
 
             <node import="GUI-Pass">
                 <fbo id="g-buffer" draw-buffers="0"/>

@@ -4,8 +4,8 @@
 #include <regen/states/state.h>
 #include <regen/states/state-node.h>
 #include <regen/states/state-configurer.h>
-#include "regen/glsl/shader-state.h"
-#include <regen/meshes/primitives/rectangle.h>
+#include "regen/shader/shader-state.h"
+#include <regen/objects/primitives/rectangle.h>
 
 namespace regen {
 	/**

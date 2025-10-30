@@ -1,0 +1,41 @@
+#include "star-map.h"
+
+#include <regen/objects/sky/earth.h>
+#include <regen/textures/texture-loader.h>
+
+using namespace regen;
+
+StarMap::StarMap(const ref_ptr<Sky> &sky, int levelOfDetail)
+		: SkyLayer(sky) {
+	// Note: Assuming star map is first, we do not need blending.
+
+	scattering_ = ref_ptr<ShaderInput1f>::alloc("scattering");
+	scattering_->setUniformData(defaultScattering());
+	state()->setInput(scattering_);
+
+	deltaM_ = ref_ptr<ShaderInput1f>::alloc("deltaM");
+	deltaM_->setUniformData(0.5f);
+	state()->setInput(deltaM_);
+
+	set_apparentMagnitude(6.5);
+
+	meshState_ = ref_ptr<SkyBox>::alloc(levelOfDetail, "regen.weather.star-map");
+}
+
+float StarMap::defaultScattering() {
+	return 0.2;
+}
+
+void StarMap::set_texture(std::string_view textureFile) {
+	meshState_->setCubeMap(textures::loadCube(textureFile));
+}
+
+void StarMap::set_apparentMagnitude(float apparentMagnitude) {
+	// Precompute brightness based on logarithmic scale.
+	// (Similar to starsgeode vertex shader.)
+	deltaM_->setVertex(0, powf(2.512f, apparentMagnitude - Earth::apparentMagnitudeLimit()));
+}
+
+void StarMap::set_deltaMagnitude(float deltaMagnitude) {
+	deltaM_->setVertex(0, deltaMagnitude);
+}

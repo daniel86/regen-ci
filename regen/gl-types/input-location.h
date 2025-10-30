@@ -1,7 +1,7 @@
 #ifndef REGEN_INPUT_LOCATION_H_
 #define REGEN_INPUT_LOCATION_H_
 
-#include "regen/glsl/shader-input.h"
+#include "regen/shader/shader-input.h"
 
 namespace regen {
 	/**

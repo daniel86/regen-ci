@@ -4,7 +4,7 @@
     <include xml-file="scene-display/examples/templates/default.xml"/>
 
     <node id="configuration">
-        <camera id="main-camera"
+        <controller camera="main-camera"
                 mode="first-person"
                 eye-offset="0.0,0.0,0.0"
                 eye-orientation="0.0"
@@ -20,7 +20,7 @@
             <anchor pos="-10.0, 0.5, 0.0" dir="1.0,0.0,0.0"/>
             <anchor pos="0.0, 0.5, -10.0" dir="0.0,0.0,1.0"/>
             <anchor pos="0.0, 0.5, -30.0" dir="0.0,0.0,1.0"/>
-        </camera>
+        </controller>
     </node>
 
     <!-- FBOs -->
@@ -48,18 +48,38 @@
          pixel-type="FLOAT" pixel-size="24">
         <texture id="color" pixel-components="4"/>
     </fbo>
+    <!-- Textures -->
+    <texture id="headlight-mask" file="res/textures/logo/splats/palladio.png" wrapping="REPEAT"/>
     <!-- Lights -->
     <light id="spot-light" type="SPOT"
            position="3.0,8.0,-8.0"
            direction="-0.37,-0.95,0.8"
-           diffuse="0.48,0.48,0.68"
+           diffuse="0.38,0.38,0.58"
            specular="0.8, 0.8, 0.8"
            radius="10.0,21.0"
            cone-angles="11.5,25.5"
            update-frequency="NEVER"/>
+    <light id="headlight" type="SPOT"
+           position="1.0,-5.0,-6.0"
+           direction="-0.37,0.2,0.8"
+           diffuse="0.8,0.48,0.68"
+           specular="0.8, 0.8, 0.8"
+           radius="10.0,21.0"
+           cone-angles="11.5,25.5"
+           update-frequency="NEVER">
+        <input type="vec3" name="headlightDir" join="0" state="headlight" component="lightDirection">
+            <animation type="key-frames" dt="3.0">
+                <key-frame dt="0.0" value="-0.37, 0.4, 0.8"/>
+                <key-frame value="-0.1, 0.6, 0.95"/>
+                <key-frame value="0.37, 0.6, 0.8"/>
+                <key-frame value="-0.37, 0.4, 0.8"/>
+            </animation>
+        </input>
+    </light>
     <!-- Cameras -->
     <camera id="main-camera" fov="45.0" near="0.1" far="200.0" position="0.25,0.5,-9.0" direction="-0.5,0.0,1.0"/>
     <camera id="spot-camera" light="spot-light" camera="main-camera"/>
+    <camera id="headlight-camera" light="headlight" camera="main-camera"/>
     <!-- Assets -->
     <asset id="asset-teapot" type="asset" file="res/models/teapot.obj" use-animation="0"/>
     <asset id="asset-venus" type="asset" file="res/models/venus.obj" use-animation="0"/>
@@ -88,7 +108,7 @@
     <mesh id="platform" type="box" use-normal="1" use-tangent="0" lod="0"
           scaling="1.0,60.0,1.0"
           update-frequency="NEVER">
-        <material preset="copper" ambient="0.0, 0.0, 0.0" specular="0.0, 0.0, 0.0" update-frequency="NEVER"/>
+        <material preset="copper" specular="0.0, 0.0, 0.0" update-frequency="NEVER"/>
     </mesh>
 
     <mesh id="mesh-teapot" type="asset" asset="asset-teapot"
@@ -196,7 +216,7 @@
 
     <node id="Shading-Pass">
         <depth test="0" write="0"/>
-        <input type="vec3" name="lightAmbient" value="0.01,0.01,0.01"/>
+        <input type="vec3" name="lightAmbient" value="0.2,0.2,0.2"/>
         <blend mode="add"/>
 
         <node id="Ambient-Shading">
@@ -205,13 +225,22 @@
         <node id="Light-Shading">
             <input type="float" name="toonThreshold1" value="0.3"/>
             <input type="float" name="toonThreshold2" value="0.6"/>
-            <light-pass type="SPOT" ambient="0" shader="regen.shading.deferred.spot">
-                <light id="spot-light"
-                       shadow-buffer="spot-shadow"
-                       shadow-attachment="depth"
-                       shadow-color-attachment="0"
-                       shadow-camera="spot-camera"/>
-            </light-pass>
+            <node id="Main-Light">
+                <light-pass type="SPOT" ambient="0" shader="regen.shading.deferred.spot">
+                    <light id="spot-light"
+                           shadow-buffer="spot-shadow"
+                           shadow-attachment="depth"
+                           shadow-color-attachment="0"
+                           shadow-camera="spot-camera"/>
+                </light-pass>
+            </node>
+            <node id="Headlight">
+                <texture name="headlightMask" id="headlight-mask" />
+                <input type="float" name="lightUVScale" value="20.0"/>
+                <light-pass type="SPOT" ambient="0" shader="regen.shading.deferred.spot">
+                    <light id="headlight" shadow-camera="headlight-camera"/>
+                </light-pass>
+            </node>
         </node>
     </node>
 

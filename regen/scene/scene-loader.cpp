@@ -19,14 +19,17 @@
 #include <regen/scene/loadable-input.h>
 #include <regen/scene/shader-define-processor.h>
 
+#include "regen/behavior/skeleton/bone-controller.h"
+#include "regen/behavior/world/body-part.h"
+
 using namespace regen::scene;
 using namespace regen;
 
 SceneLoader::SceneLoader(
-		Scene *application,
-		const ref_ptr<SceneInput> &inputProvider)
-		: application_(application),
-		  inputProvider_(inputProvider) {
+	Scene *application,
+	const ref_ptr<SceneInput> &inputProvider)
+	: application_(application),
+	  inputProvider_(inputProvider) {
 	resources_ = ref_ptr<ResourceManager>::alloc();
 	physics_ = ref_ptr<BulletPhysics>::alloc();
 	physics_->setAnimationName("BulletPhysics");
@@ -35,14 +38,14 @@ SceneLoader::SceneLoader(
 }
 
 SceneLoader::SceneLoader(
-		Scene *application,
-		const ref_ptr<SceneInput> &inputProvider,
-		const ref_ptr<ResourceManager> &resources,
-		const ref_ptr<BulletPhysics> &physics)
-		: application_(application),
-		  inputProvider_(inputProvider),
-		  resources_(resources),
-		  physics_(physics) {
+	Scene *application,
+	const ref_ptr<SceneInput> &inputProvider,
+	const ref_ptr<ResourceManager> &resources,
+	const ref_ptr<BulletPhysics> &physics)
+	: application_(application),
+	  inputProvider_(inputProvider),
+	  resources_(resources),
+	  physics_(physics) {
 	init();
 }
 
@@ -51,39 +54,39 @@ void SceneLoader::init() {
 	setNodeProcessor(ref_ptr<SceneNodeProcessor>::alloc());
 	setNodeProcessor(ref_ptr<DebugNodeProcessor>::alloc());
 	setNodeProcessor(ref_ptr<MeshNodeProvider>::alloc());
-	setNodeProcessor(ref_ptr<LoadableNode<BloomPass>>::alloc("bloom"));
-	setNodeProcessor(ref_ptr<LoadableNode<GeomPicking>>::alloc("picking"));
-	setNodeProcessor(ref_ptr<LoadableNode<DirectShading>>::alloc("direct-shading"));
-	setNodeProcessor(ref_ptr<LoadableNode<SkyView>>::alloc("sky"));
+	setNodeProcessor(ref_ptr<LoadableNode<BloomPass> >::alloc("bloom"));
+	setNodeProcessor(ref_ptr<LoadableNode<GeomPicking> >::alloc("picking"));
+	setNodeProcessor(ref_ptr<LoadableNode<DirectShading> >::alloc("direct-shading"));
+	setNodeProcessor(ref_ptr<LoadableNode<SkyView> >::alloc("sky"));
 	// add some default state processors
 	setStateProcessor(ref_ptr<ShaderInputProcessor>::alloc());
 	setStateProcessor(ref_ptr<ShaderDefineProcessor>::alloc());
 	setStateProcessor(ref_ptr<ResourceStateProvider>::alloc());
 	setStateProcessor(ref_ptr<ShapeProcessor>::alloc());
 	setStateProcessor(ref_ptr<AnimationProcessor>::alloc());
-	setStateProcessor(ref_ptr<LoadableState<BlendState>>::alloc("blend"));
-	setStateProcessor(ref_ptr<LoadableState<AlphaState>>::alloc("alpha"));
-	setStateProcessor(ref_ptr<LoadableState<BlitState>>::alloc("blit"));
-	setStateProcessor(ref_ptr<LoadableState<FBOState>>::alloc("fbo"));
-	setStateProcessor(ref_ptr<LoadableState<Material>>::alloc("material"));
-	setStateProcessor(ref_ptr<LoadableState<DepthState>>::alloc("depth"));
-	setStateProcessor(ref_ptr<LoadableState<StateSequence>>::alloc("state-sequence"));
-	setStateProcessor(ref_ptr<LoadableState<TesselationState>>::alloc("tesselation"));
-	setStateProcessor(ref_ptr<LoadableState<TextureIndexState>>::alloc("texture-index"));
-	setStateProcessor(ref_ptr<LoadableState<TextureState>>::alloc("texture"));
-	setStateProcessor(ref_ptr<LoadableState<ToggleState>>::alloc("toggle"));
-	setStateProcessor(ref_ptr<LoadableState<PolygonState>>::alloc("polygon"));
-	setStateProcessor(ref_ptr<LoadableState<ColorMaskState>>::alloc("color-mask"));
-	setStateProcessor(ref_ptr<LoadableState<CullState>>::alloc("cull"));
-	setStateProcessor(ref_ptr<LoadableState<FullscreenPass>>::alloc("fullscreen-pass"));
-	setStateProcessor(ref_ptr<LoadableState<FilterSequence>>::alloc("filter-sequence"));
-	setStateProcessor(ref_ptr<LoadableState<LightPass>>::alloc("light-pass"));
-	setStateProcessor(ref_ptr<LoadableState<MotionBlur>>::alloc("motion-blur"));
-	setStateProcessor(ref_ptr<LoadableState<ShaderState>>::alloc("shader"));
-	setStateProcessor(ref_ptr<LoadableState<StencilState>>::alloc("stencil"));
-	setStateProcessor(ref_ptr<LoadableState<SampleShadingState>>::alloc("sample-shading"));
-	setStateProcessor(ref_ptr<LoadableState2<ModelTransformation>>::alloc("transform"));
-	setStateProcessor(ref_ptr<StateResource<Camera>>::alloc("camera"));
+	setStateProcessor(ref_ptr<LoadableState<BlendState> >::alloc("blend"));
+	setStateProcessor(ref_ptr<LoadableState<AlphaState> >::alloc("alpha"));
+	setStateProcessor(ref_ptr<LoadableState<BlitState> >::alloc("blit"));
+	setStateProcessor(ref_ptr<LoadableState<FBOState> >::alloc("fbo"));
+	setStateProcessor(ref_ptr<LoadableState<Material> >::alloc("material"));
+	setStateProcessor(ref_ptr<LoadableState<DepthState> >::alloc("depth"));
+	setStateProcessor(ref_ptr<LoadableState<StateSequence> >::alloc("state-sequence"));
+	setStateProcessor(ref_ptr<LoadableState<TesselationState> >::alloc("tesselation"));
+	setStateProcessor(ref_ptr<LoadableState<TextureIndexState> >::alloc("texture-index"));
+	setStateProcessor(ref_ptr<LoadableState<TextureState> >::alloc("texture"));
+	setStateProcessor(ref_ptr<LoadableState<ToggleState> >::alloc("toggle"));
+	setStateProcessor(ref_ptr<LoadableState<PolygonState> >::alloc("polygon"));
+	setStateProcessor(ref_ptr<LoadableState<ColorMaskState> >::alloc("color-mask"));
+	setStateProcessor(ref_ptr<LoadableState<CullState> >::alloc("cull"));
+	setStateProcessor(ref_ptr<LoadableState<FullscreenPass> >::alloc("fullscreen-pass"));
+	setStateProcessor(ref_ptr<LoadableState<FilterSequence> >::alloc("filter-sequence"));
+	setStateProcessor(ref_ptr<LoadableState<LightPass> >::alloc("light-pass"));
+	setStateProcessor(ref_ptr<LoadableState<MotionBlur> >::alloc("motion-blur"));
+	setStateProcessor(ref_ptr<LoadableState<ShaderState> >::alloc("shader"));
+	setStateProcessor(ref_ptr<LoadableState<StencilState> >::alloc("stencil"));
+	setStateProcessor(ref_ptr<LoadableState<SampleShadingState> >::alloc("sample-shading"));
+	setStateProcessor(ref_ptr<LoadableState2<ModelTransformation> >::alloc("transform"));
+	setStateProcessor(ref_ptr<StateResource<Camera> >::alloc("camera"));
 }
 
 void SceneLoader::loadShapes() {
@@ -107,7 +110,7 @@ void SceneLoader::loadShapes() {
 }
 
 void SceneLoader::addEventHandler(GLuint eventID,
-								  const ref_ptr<EventHandler> &eventHandler) {
+                                  const ref_ptr<EventHandler> &eventHandler) {
 	application_->connect(eventID, eventHandler);
 }
 
@@ -234,9 +237,15 @@ void SceneLoader::putResource(const std::string &category, const std::string &na
 		resources_->putMesh(name, ref_ptr<MeshVector>::dynamicCast(v));
 	} else if (category == "State") {
 		putState(name, ref_ptr<State>::dynamicCast(v));
+	} else if (category == "WorldObject") {
+		resources_->putWorldObject(name, ref_ptr<WorldObjectVec>::dynamicCast(v));
 	} else {
 		REGEN_WARN("Unknown resource category '" << category << "'.");
 	}
+}
+
+ref_ptr<Resource> SceneLoader::createResource(scene::SceneInputNode &input) {
+	return resources_->createResource(this, input);
 }
 
 void SceneLoader::loadResources(const std::string &name) {
@@ -244,9 +253,9 @@ void SceneLoader::loadResources(const std::string &name) {
 }
 
 void SceneLoader::processNode(
-		const ref_ptr<StateNode> &parent,
-		const std::string &nodeName,
-		const std::string &nodeCategory) {
+	const ref_ptr<StateNode> &parent,
+	const std::string &nodeName,
+	const std::string &nodeCategory) {
 	ref_ptr<NodeProcessor> processor = getNodeProcessor(nodeCategory);
 	if (processor.get() == nullptr) {
 		REGEN_WARN("No Processor registered for node category '" << nodeCategory << "'.");
@@ -255,17 +264,17 @@ void SceneLoader::processNode(
 	ref_ptr<SceneInputNode> input = getRoot()->getFirstChild(nodeCategory, nodeName);
 	if (input.get() == nullptr) {
 		REGEN_WARN("No input for node category '" <<
-												  nodeCategory << "' and node name '" << nodeName << "'.");
+			nodeCategory << "' and node name '" << nodeName << "'.");
 		return;
 	}
 	processor->processInput(this, *input.get(), parent);
 }
 
 void SceneLoader::processState(
-		const ref_ptr<StateNode> &parentNode,
-		const ref_ptr<State> &parent,
-		const std::string &nodeCategory,
-		const ref_ptr<SceneInputNode> &input) {
+	const ref_ptr<StateNode> &parentNode,
+	const ref_ptr<State> &parent,
+	const std::string &nodeCategory,
+	const ref_ptr<SceneInputNode> &input) {
 	ref_ptr<StateProcessor> processor = getStateProcessor(nodeCategory);
 	if (processor.get() == nullptr) {
 		REGEN_WARN("No Processor registered for node category '" << nodeCategory << "'.");
@@ -274,33 +283,101 @@ void SceneLoader::processState(
 	processor->processInput(this, *input.get(), parentNode, parent);
 }
 
-std::vector<AnimRange> SceneLoader::getAnimationRanges(const std::string &assetID) {
+ref_ptr<BoneAnimationItem> SceneLoader::getAnimationRanges(const std::string &assetID) {
+	if (assetID.empty()) return {};
 	ref_ptr<SceneInputNode> root = getRoot();
 	ref_ptr<SceneInputNode> importer = root->getFirstChild("asset", assetID);
 	if (importer.get() == nullptr) {
 		REGEN_WARN("No asset with id '" << assetID << "' known.");
 		return {};
-	} else {
-		const std::list<ref_ptr<SceneInputNode> > &childs = importer->getChildren();
-
-		GLuint animRangeCount = 0u;
-		for (const auto & child : childs) {
-			if (child->getCategory() == "anim-range") animRangeCount += 1;
-		}
-
-		std::vector<AnimRange> out(animRangeCount);
-		animRangeCount = 0u;
-
-		for (const auto& n : childs) {
-			if (n->getCategory() != "anim-range") continue;
-			out[animRangeCount].name = n->getValue("name");
-			out[animRangeCount].range = n->getValue<Vec2d>("range", Vec2d(0.0));
-			out[animRangeCount].channelName = n->getValue("channel");
-			out[animRangeCount].channelIndex = n->getValue<GLuint>("index", 0u);
-			animRangeCount += 1u;
-		}
-
-		return out;
 	}
-}
 
+	ref_ptr<SceneInputNode> boneAnimNode = importer->getFirstChild("bone-animation");
+	if (!boneAnimNode) {
+		return {};
+	}
+
+	ref_ptr<BoneAnimationItem> item = ref_ptr<BoneAnimationItem>::alloc();
+	auto clipsXML = boneAnimNode->getChildren("clip");
+	auto rangesXML = boneAnimNode->getChildren("range");
+	auto bodyPartsXML = boneAnimNode->getChildren("body-part");
+	const uint32_t numRanges = static_cast<uint32_t>(rangesXML.size());
+	// create temporary name map for clip creation
+	std::unordered_map<std::string, AnimationRange *> rangeNameMap;
+
+	// first load ranges, some also define clips
+	item->ranges.resize(numRanges);
+	uint32_t rangeIdx = 0;
+	for (auto &rangeNode: rangesXML) {
+		auto &range = item->ranges[rangeIdx];
+		range.name = rangeNode->getValue("name");
+		range.range = rangeNode->getValue<Vec2d>("range", Vec2d(0.0));
+		range.trackName = rangeNode->getValue("track");
+		range.trackIndex = rangeNode->getValue<GLuint>("track-index", 0u);
+		rangeNameMap[range.name] = &range;
+		if (rangeNode->hasAttribute("motion")) {
+			auto &newClip = item->clips.emplace_back();
+			newClip.motion = rangeNode->getValue<MotionType>("motion", MotionType::IDLE);
+			newClip.loop = &range;
+		}
+		rangeIdx += 1u;
+	}
+
+	// load body parts
+	for (auto &bodyPartNode: bodyPartsXML) {
+		BodyPart partType = bodyPartNode->getValue<BodyPart>("type", BodyPart::LAST);
+		std::string startNode = bodyPartNode->getValue("start-node");
+		item->startNodesOfBodyParts[startNode] = partType;
+	}
+
+	// finally also load clips defining some renaming, and composite motions
+	for (auto &clipNode: clipsXML) {
+		AnimationRange *clipRange = nullptr;
+		auto clipRangeName = clipNode->getValue("range");
+		auto it = rangeNameMap.find(clipRangeName);
+		if (it != rangeNameMap.end()) {
+			clipRange = it->second;
+		} else {
+			REGEN_WARN("Unable to find range with name '" << clipNode->getValue("range")
+				<< "' for clip in asset '" << assetID << "'.");
+			continue;
+		}
+		auto &newClip = item->clips.emplace_back();
+		newClip.motion = clipNode->getValue<MotionType>("motion", MotionType::IDLE);
+		newClip.loop = clipRange;
+
+		if (clipNode->hasAttribute("begin")) {
+			it = rangeNameMap.find(clipNode->getValue("begin"));
+			if (it == rangeNameMap.end()) {
+				REGEN_WARN("Unable to find begin-range with name '" << clipNode->getValue("begin")
+					<< "' for clip in asset '" << assetID << "'.");
+			} else {
+				newClip.begin = it->second;
+			}
+		}
+		if (clipNode->hasAttribute("end")) {
+			it = rangeNameMap.find(clipNode->getValue("end"));
+			if (it == rangeNameMap.end()) {
+				REGEN_WARN("Unable to find end-range with name '" << clipNode->getValue("end")
+					<< "' for clip in asset '" << assetID << "'.");
+			} else {
+				newClip.end = it->second;
+			}
+		}
+	}
+
+	auto asset = getResources()->getAsset(this, assetID);
+	if (asset.get()) {
+		item->boneTree = asset->getNodeAnimation();
+		// Load the track index for each range.
+		for (auto &range: item->ranges) {
+			if (!range.trackName.empty()) {
+				range.trackIndex = item->boneTree->getTrackIndex(range.trackName);
+			}
+		}
+	} else {
+		REGEN_WARN("Unable to find asset for animation with name '" << assetID << "'.");
+	}
+
+	return item;
+}

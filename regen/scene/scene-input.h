@@ -42,6 +42,21 @@ namespace regen::scene {
 				const std::string &nodeName);
 	};
 
+	struct IndexRange {
+		uint32_t from = 0;
+		uint32_t to = 0;
+		uint32_t step = 1;
+		explicit IndexRange(uint32_t singleIndex)
+			: from(singleIndex), to(singleIndex), step(1) {}
+		IndexRange(uint32_t from, uint32_t to, uint32_t step = 1)
+			: from(from), to(to), step(step) {}
+		bool isWithinRange(uint32_t index) const {
+			if (index < from || index > to) return false;
+			if (((index - from) % step) != 0) return false;
+			return true;
+		}
+	};
+
 	/**
 	 * Provides input to SceneParser.
 	 */
@@ -191,7 +206,7 @@ namespace regen::scene {
 		 * @param maxIndex Maximal index in output list.
 		 * @return The list of indices.
 		 */
-		std::list<GLuint> getIndexSequence(GLuint maxIndex);
+		std::list<IndexRange> getIndexSequence(GLuint maxIndex);
 
 	protected:
 		SceneInputNode *parent_;

@@ -1,7 +1,7 @@
 #ifndef REGEN_SCREEN_H
 #define REGEN_SCREEN_H
 
-#include <regen/glsl/shader-input.h>
+#include <regen/shader/shader-input.h>
 
 namespace regen {
 	/**

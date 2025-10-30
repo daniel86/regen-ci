@@ -2,8 +2,8 @@
 #define REGEN_LIGHT_PASS_H_
 
 #include <regen/states/state.h>
-#include "regen/glsl/shader-state.h"
-#include <regen/meshes/mesh-state.h>
+#include "regen/shader/shader-state.h"
+#include <regen/objects/mesh-state.h>
 #include <regen/camera/light-camera.h>
 
 namespace regen {

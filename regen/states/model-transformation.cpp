@@ -1,10 +1,11 @@
 #include <stack>
 #include "model-transformation.h"
-#include "regen/meshes/mesh-vector.h"
-#include "regen/animations/boids-cpu.h"
-#include "regen/animations/boids-gpu.h"
-#include "regen/animations/transform-animation.h"
+#include "regen/objects/mesh-vector.h"
+#include "../simulation/boids-cpu.h"
+#include "../simulation/boids-gpu.h"
+#include "regen/animation/transform-animation.h"
 #include "regen/scene/value-generator.h"
+#include "regen/textures/height-map.h"
 
 using namespace regen;
 
@@ -118,6 +119,8 @@ void ModelTransformation::enable(RenderState *rs) {
 }
 
 static void transformMatrix(
+		scene::SceneLoader *scene,
+		const ref_ptr<scene::SceneInputNode> &input,
 		const std::string &target,
 		Mat4f &mat,
 		const Vec3f &value) {
@@ -131,6 +134,21 @@ static void transformMatrix(
 		Quaternion q(0.0, 0.0, 0.0, 1.0);
 		q.setEuler(value.x, value.y, value.z);
 		mat *= q.calculateMatrix();
+	} else if (target == "height") {
+		if (input->hasAttribute("map")) {
+			auto tex2D = scene->getResources()->getTexture2D(scene, input->getValue("map"));
+			if (!tex2D.get()) {
+				REGEN_WARN("Unable to find height map for " << input->getDescription() << ".");
+				return;
+			}
+			auto heightMap = dynamic_cast<HeightMap*>(tex2D.get());
+			if (!heightMap) {
+				REGEN_WARN("Texture for height map is not a height map for " << input->getDescription() << ".");
+				return;
+			}
+			heightMap->ensureTextureData();
+			mat.x[13] += heightMap->sampleHeight(Vec2f(mat.x[12], mat.x[14]));
+		}
 	} else {
 		REGEN_WARN("Unknown distribute target '" << target << "'.");
 	}
@@ -543,7 +561,8 @@ static void transformAnimation(
 							   << child->getDescription() << " has no model matrix.");
 			return;
 		}
-		auto transformAnimation = ref_ptr<TransformAnimation>::alloc(tf);
+		auto transformAnimation = ref_ptr<TransformAnimation>::alloc(tf,
+			child->getValue<uint32_t>("tf-id", 0u));
 
 		if (child->hasAttribute("mesh-id")) {
 			auto meshID = child->getValue("mesh-id");
@@ -565,10 +584,11 @@ static void transformAnimation(
 				frameDir = keyFrameNode->getValue<Vec3f>("rotation", Vec3f(0.0f));
 			}
 			auto dt = keyFrameNode->getValue<GLdouble>("dt", 1.0);
-			transformAnimation->push_back(framePos, frameDir, dt);
+			transformAnimation->addTransformKeyframe(framePos, frameDir, dt);
 		}
 
 		transformAnimation->setAnimationName(child->getName());
+		transformAnimation->setLoopTransformAnimation(child->getValue<bool>("loop", true));
 		transformAnimation->startAnimation();
 		state->attach(transformAnimation);
 	}
@@ -582,7 +602,7 @@ static void transformMatrix(
 		const ref_ptr<ModelTransformation> &tf,
 		GLuint numInstances) {
 	for (auto &child: input.getChildren()) {
-		std::list<GLuint> indices = child->getIndexSequence(numInstances);
+		std::list<scene::IndexRange> indices = child->getIndexSequence(numInstances);
 
 		if (child->getCategory() == "set") {
 			if (!tf->hasModelMat()) {
@@ -600,12 +620,18 @@ static void transformMatrix(
 					std::memcpy((byte*)matrices.w.data(), (const byte*)matrices.r.data(),
 							sizeof(Mat4f) * tf->modelMat()->numInstances());
 				}
-				scene::ValueGenerator<Vec3f> generator(child.get(), indices.size(),
+				uint32_t numIndices = 0;
+				for (auto &range : indices) {
+					numIndices += (range.to - range.from + range.step - 1) / range.step;
+				}
+				scene::ValueGenerator<Vec3f> generator(child.get(), numIndices,
 													   child->getValue<Vec3f>("value", Vec3f(0.0f)));
 				const auto target = child->getValue<std::string>("target", "translate");
 
-				for (unsigned int &idx: indices) {
-					transformMatrix(target, matrices.w[idx], generator.next());
+				for (auto &range : indices) {
+					for (unsigned int j = range.from; j <= range.to; j = j + range.step) {
+						transformMatrix(scene, child, target, matrices.w[j], generator.next());
+					}
 				}
 			}
 		} else if (child->getCategory() == "animation") {
@@ -618,10 +644,12 @@ static void transformMatrix(
 					std::memcpy((byte*)matrices.w.data(), (const byte*)matrices.r.data(),
 							sizeof(Mat4f) * tf->modelMat()->numInstances());
 				}
-				for (unsigned int &j: indices) {
-					transformMatrix(
-							child->getCategory(), matrices.w[j],
-							child->getValue<Vec3f>("value", Vec3f(0.0f)));
+				for (auto &range : indices) {
+					for (unsigned int j = range.from; j <= range.to; j = j + range.step) {
+						transformMatrix(scene, child,
+								child->getCategory(), matrices.w[j],
+								child->getValue<Vec3f>("value", Vec3f(0.0f)));
+					}
 				}
 			} else if (tf->hasModelOffset()) {
 				auto &modelOffset = tf->modelOffset();
@@ -631,10 +659,12 @@ static void transformMatrix(
 					std::memcpy((byte*)offsets.w.data(), (const byte*)offsets.r.data(),
 							sizeof(Vec4f) * modelOffset->numInstances());
 				}
-				for (unsigned int &j: indices) {
-					transformOffset(
-							child->getCategory(), offsets.w[j],
-							child->getValue<Vec3f>("value", Vec3f(0.0f)));
+				for (auto &range : indices) {
+					for (unsigned int j = range.from; j <= range.to; j = j + range.step) {
+						transformOffset(
+								child->getCategory(), offsets.w[j],
+								child->getValue<Vec3f>("value", Vec3f(0.0f)));
+					}
 				}
 			}
 		}

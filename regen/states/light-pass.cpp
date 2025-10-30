@@ -1,6 +1,6 @@
 #include <regen/states/state-configurer.h>
-#include <regen/meshes/primitives/box.h>
-#include <regen/meshes/primitives/rectangle.h>
+#include <regen/objects/primitives/box.h>
+#include <regen/objects/primitives/rectangle.h>
 
 #include "light-pass.h"
 #include "regen/scene/shader-input-processor.h"
@@ -127,6 +127,8 @@ void LightPass::createShader(const StateConfig &cfg) {
 		if (firstLight.camera.get()) {
 			auto &shadowBuffer = firstLight.camera->shadowBuffer();
 			_cfg.addInput(shadowBuffer->name(), shadowBuffer);
+			_cfg.addInput("LightCamera", firstLight.camera->lightCamera()->cameraBlock(),
+				"", "_Light");
 		}
 	}
 	if (numInstances_ > 1) {

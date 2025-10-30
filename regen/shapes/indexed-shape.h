@@ -1,7 +1,7 @@
 #ifndef REGEN_INDEXED_SHAPE_H_
 #define REGEN_INDEXED_SHAPE_H_
 
-#include "regen/glsl/shader-input.h"
+#include "regen/shader/shader-input.h"
 #include "regen/shapes/bounding-shape.h"
 #include "regen/camera/camera.h"
 
@@ -77,6 +77,15 @@ namespace regen {
 		 * \return The shape
 		 */
 		auto &shape() const { return shape_; }
+
+		/**
+		 * \brief Get the bounding shape for a given instance
+		 * \param instance The instance ID
+		 * \return The bounding shape
+		 */
+		const ref_ptr<BoundingShape> &boundingShape(uint32_t instance) const {
+			return boundingShapes_[instance];
+		}
 
 		/**
 		 * @param mode The sort mode to set

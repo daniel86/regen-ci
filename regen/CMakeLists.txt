@@ -10,20 +10,19 @@ set(SOURCE_DIRS
     math
     av
     gl-types
-    glsl
+    shader
     buffer
     utility
     shapes
-    animations
-    physics
+    animation
+    simulation
+    behavior
     textures
-    text
     states
     camera
-    meshes
+    objects
     effects
     scene
-    sky
     external)
 
 # collect sources from sub directories

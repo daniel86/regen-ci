@@ -2,7 +2,6 @@
 #define REGEN_OBB_H_
 
 #include <regen/shapes/bounding-box.h>
-#include <regen/shapes/aabb.h>
 
 namespace regen {
 	/**
@@ -46,6 +45,8 @@ namespace regen {
 		bool overlapOnAxis(const BoundingBox &b, const Vec3f &axis) const;
 
 		void updateOBB();
+
+		void applyTransform(const Mat4f &tf);
 	};
 } // namespace
 

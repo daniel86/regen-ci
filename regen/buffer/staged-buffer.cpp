@@ -268,7 +268,7 @@ uint32_t StagedBuffer::updateStagedInputs() {
 	//  Initialize the client buffer here lazily.
 	if (hasClientData_ && !stagedInputs_.empty() && !clientBuffer_->hasSegments()) {
 		std::vector<ref_ptr<ClientBuffer>> segments(stagedInputs_.size());
-		REGEN_INFO("Initializing client buffer for block " << name()
+		REGEN_DEBUG("Initializing client buffer for block " << name()
 														   << " with " << stagedInputs_.size() << " segments");
 		for (size_t i = 0; i < stagedInputs_.size(); ++i) {
 			auto &blockInput = stagedInputs_[i];
@@ -455,7 +455,7 @@ void StagedBuffer::updateDrawBuffer() {
 		setBufferData(mapped.r);
 	}
 
-	REGEN_INFO("Created "
+	REGEN_DEBUG("Created "
 					   << StagingBuffer::getBufferSizeClass(requiredSize_)
 					   << " " << stagingFlags_.target
 					   << " \"" << name() << "\" with"

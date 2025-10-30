@@ -4,7 +4,7 @@
 #include <string>
 #include <regen/gl-types/gl-rectangle.h>
 #include <regen/gl-types/render-state.h>
-#include "regen/glsl/shader-input.h"
+#include "regen/shader/shader-input.h"
 #include "regen/shapes/bounds.h"
 #include "regen/scene/scene-input.h"
 #include "regen/textures/texture-file.h"
@@ -42,9 +42,15 @@ namespace regen {
 		 */
 		explicit Texture(GLenum textureTarget, uint32_t numTextures = 1);
 
-		~Texture() override;
+		/**
+		 * Copy constructor.
+		 */
+		Texture(const Texture &other);
 
-		Texture(const Texture &) = delete;
+		/**
+		 * Destructor.
+		 */
+		~Texture() override;
 
 		/**
 		 * Loads a texture from the given input node.
@@ -409,8 +415,8 @@ namespace regen {
 		T sampleLinear(const Vec2f &uv, const ref_ptr<ImageData> &textureData) const {
 			const auto i_w = static_cast<int32_t>(width());
 			const auto i_h = static_cast<int32_t>(height());
-			const float f_x = uv.x * static_cast<float>(i_w);
-			const float f_y = uv.y * static_cast<float>(i_h);
+			const float f_x = std::clamp(uv.x,0.0f,1.0f) * static_cast<float>(i_w);
+			const float f_y = std::clamp(uv.y,0.0f,1.0f) * static_cast<float>(i_h);
 			const auto i_x0 = std::min(static_cast<int32_t>(f_x), i_w - 1);
 			const auto i_y0 = std::min(static_cast<int32_t>(f_y), i_h - 1);
 			const int32_t i_x1 = std::min(i_x0 + 1, i_w - 1);
@@ -464,6 +470,7 @@ namespace regen {
 							 const std::string &sizeMode, const Vec3f &size);
 
 	protected:
+		// an atomic copy counter, for protecting deletion of shared data
 		uint32_t dim_;
 		// format of pixel data
 		GLenum format_;
@@ -526,6 +533,9 @@ namespace regen {
 		void updateSubImage_noop(GLint, GLubyte*) {}
 
 		unsigned int texelIndex(const Vec2f &texco) const;
+
+	private:
+		ref_ptr<std::atomic<uint32_t>> texCopyCounter_;
 	};
 
 	/**
