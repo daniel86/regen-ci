@@ -12,14 +12,44 @@
 
 ![CI](https://github.com/daniel86/regen/workflows/CI/badge.svg)
 
-`regen` -- Real-time Graphics Engine -- is a portable OpenGL library written in C++.
-The purpose of this library is to help creating real-time rendering software.
+`regen` -- **Real-time Graphics Engine** -- is a modular OpenGL-based C++ engine designed for research and experimentation in real-time rendering, GPU compute, and virtual world simulation.
+
+Unlike typical game engines, `regen` is built as a **computational framework**: it provides a unified runtime environment for **rendering**, **simulation**, and **AI behavior control**, where CPU and GPU workloads are explicitly modeled, profiled, and optimized.
+It serves as a testbed for exploring **hybrid CPU–GPU algorithms**, **procedural world generation**, and **agent-based systems** in dynamic 3D environments.
+
+A graphics card supporting the OpenGL 4.6 API is required for `regen`.
+The engine was tested with NVIDIA, ATI and Intel drivers and should work with Unix based operating systems and Windows.
+
 Some example renderings created by regen are shown in the GIFs above.
 For each of them you can find an example configuration for regen [here](https://github.com/daniel86/regen/tree/master/applications/scene-display/examples).
 
-A graphics card supporting the OpenGL 4.6 API is required for `regen`.
-The engine was tested with NVIDIA, ATI and Intel drivers and should work with
-Unix based operating systems and Windows.
+Overview
+=========================
+
+<p align="center">
+    <img src="img/modules.png" width="800" height="370" />
+</p>
+
+| Subsystem    |    Description |
+| ------------- | ------------- |
+| Rendering Core    |    Modern OpenGL 4.6 pipeline with deferred and forward rendering paths, HDR lighting, PBR materials, post-processing, and volumetric effects. |
+| GPU Compute Framework    |    Compute-shader-based LOD, culling, and simulation modules with shared memory abstractions and radix sorting for high parallel throughput. |
+| AI & Simulation    |    Integrated support for multi-agent behavior control, including behavior trees, collision avoidance, flocking, and navigation with A* pathfinding. |
+| World Model    |    Semantic representation of environment entities (locations, groups, and relationships), enabling high-level reasoning about scene composition and interaction. |
+| Physics & Dynamics    |    GPU/CPU particle and boid systems, rigid-body interfaces, and environmental dynamics such as weather, wind, and water. |
+| Animation System    |    Skeletal animation controller with per-bone updates, procedural blending, and integration with NPC decision layers. |
+| Tools & Extensibility    |    XML-based scene descriptions, GLSL preprocessor extensions, and an easily hackable modular architecture for research and prototyping. |
+
+Recent Highlights (Summer 2025)
+=========================
+
+Recent developments focus on agent intelligence and environmental interaction within the Regen framework:
+
+- 🧭 **Navigation Controller**: Modular path planning based on A*, integrated with dynamic collision avoidance using quad-tree spatial indexing.
+- 🤝 **Social Flocking**: Multi-agent behavior layer for group formation, coordination, and motion blending.
+- 🧩 **Behavior Tree System**: Real-time decision logic for NPCs, allowing parallelized evaluation and seamless integration with animation and navigation layers.
+- 🌍 **Semantic World Model**: World graph representing spatial relations, group memberships, and environmental semantics — enabling AI behaviors that respond to world structure.
+- 💀 **Bone Animation Controller**: Procedural and data-driven animation blending for humanoid and animal agents, supporting layered control from behavior trees.
 
 Features at a Glance
 =========================
@@ -31,19 +61,24 @@ Features at a Glance
   - Large-scale terrain rendering
   - Procedural grass and vegetation generation
   - Water surfaces with reflection, refraction, and wave animation
-- 🐟 **GPU Boid Simulation**: Real-time simulation of flocking behavior (boids) running both on GPU and CPU for benchmarking and experimentation.
+- 🐟 **GPU Flocking Simulation**: Real-time simulation of flocking behavior (boids) running both on GPU and CPU for benchmarking and experimentation.
 - 🔥 **Particles**: GPU-simulated systems with configurable behaviors
 - 🌌 **High-Quality Scene Rendering**: Deferred shading, volumetric effects, post-processing, physically-based lighting, and sky simulation.
 
-Why Regen?
+These systems together form a complete simulation loop: from perception and reasoning to motion and rendering; within a fully customizable engine architecture.
+
+Research & Experimentation Focus
 =========================
 
-While many game engines focus on tooling or asset pipelines, `regen` is built to explore
-**real-time rendering algorithms**,
-**GPU compute programming**, and **systems-level optimization** in a clean, portable C++ codebase.
+`regen` is designed for **algorithmic exploration** and **systems research**. It enables controlled experimentation with:
 
-Whether you're building a research demo, experimenting with procedural environments,
-or learning advanced OpenGL techniques, `regen` is designed for **deep customization and experimentation**.
+- GPU-driven simulation and procedural content generation.
+- Hybrid CPU–GPU workload balancing.
+- SIMD optimization and data-oriented design.
+- Integration of world semantics into real-time systems.
+- Benchmarking between CPU and GPU implementations.
+
+This makes it ideal not only for graphics programming but also for **AI–graphics integration research** and **engine architecture prototyping**.
 
 Feature List
 =========================
@@ -177,8 +212,8 @@ Videos of regen in action
     <a href="http://www.youtube.com/watch?v=waBatPmNW9Y">
         <img src="http://img.youtube.com/vi/waBatPmNW9Y/0.jpg"  width="160" height="120" />
     </a>
-    <a href="http://www.youtube.com/watch?v=nNI9y0Ey_m8">
-        <img src="http://img.youtube.com/vi/nNI9y0Ey_m8/0.jpg"  width="160" height="120" />
+    <a href="http://www.youtube.com/watch?v=iL94kSPJ4Ic">
+        <img src="http://img.youtube.com/vi/iL94kSPJ4Ic/0.jpg"  width="160" height="120" />
     </a>
     <a href="http://www.youtube.com/watch?v=VYKM_JCpGYk">
         <img src="http://img.youtube.com/vi/VYKM_JCpGYk/0.jpg"  width="160" height="120" />
@@ -186,11 +221,14 @@ Videos of regen in action
     <a href="http://www.youtube.com/watch?v=7nJSMTlSmjo">
         <img src="http://img.youtube.com/vi/7nJSMTlSmjo/0.jpg"  width="160" height="120" />
     </a>
-    <a href="http://www.youtube.com/watch?v=kzlMzHjgKpg">
-        <img src="http://img.youtube.com/vi/kzlMzHjgKpg/0.jpg"  width="160" height="120" />
+    <a href="https://www.youtube.com/watch?v=SYN62gZrNe4">
+        <img src="http://img.youtube.com/vi/SYN62gZrNe4/0.jpg"  width="160" height="120" />
     </a>
-    <a href="http://www.youtube.com/watch?v=Msn6Teot7ZU">
-        <img src="http://img.youtube.com/vi/Msn6Teot7ZU/0.jpg"  width="160" height="120" />
+    <a href="https://www.youtube.com/watch?v=b1BqlESlgdM">
+        <img src="http://img.youtube.com/vi/b1BqlESlgdM/0.jpg"  width="160" height="120" />
+    </a>
+    <a href="http://www.youtube.com/watch?v=nNI9y0Ey_m8">
+        <img src="http://img.youtube.com/vi/nNI9y0Ey_m8/0.jpg"  width="160" height="120" />
     </a>
     <a href="http://www.youtube.com/watch?v=jaFgTxK6WjU">
         <img src="http://img.youtube.com/vi/jaFgTxK6WjU/0.jpg"  width="160" height="120" />
