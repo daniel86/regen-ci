@@ -21,6 +21,7 @@
 #include "silhouette-mesh.h"
 #include "primitives/blanket.h"
 #include "terrain/blanket-trail.h"
+#include "terrain/ground-path.h"
 
 using namespace regen;
 
@@ -306,6 +307,10 @@ ref_ptr<MeshVector> MeshVector::load(LoadingContext &ctx, scene::SceneInputNode 
 			(*out) = MeshVector(1);
 			(*out)[0] = groundMesh;
 		}
+	} else if (meshType == "ground-path") {
+		auto pathMesh = GroundPath::load(ctx, input);
+		(*out) = MeshVector(1);
+		(*out)[0] = pathMesh;
 	} else if (meshType == "proctree") {
 		auto procTree = ref_ptr<ProcTree>::alloc(input);
 		procTree->update();

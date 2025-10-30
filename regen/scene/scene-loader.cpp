@@ -208,6 +208,8 @@ ref_ptr<Resource> SceneLoader::getResource(const std::string &category, const st
 		return resources_->getSky(this, name);
 	} else if (category == "State") {
 		return getState(name);
+	} else if (category == "WorldObject") {
+		return resources_->getWorldObject(this, name);
 	} else {
 		REGEN_WARN("Unknown resource category '" << category << "'.");
 		return {};

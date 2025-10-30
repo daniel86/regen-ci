@@ -154,9 +154,22 @@ namespace regen {
 	 * An action node that sets a specific patient (object) for the desired activity.
 	 */
 	class SetPatient : public BehaviorActionNode {
-		ref_ptr<WorldObject> patient = {};
+		std::vector<ref_ptr<WorldObject>> options = {};
+		std::string affordanceName;
 	public:
-		explicit SetPatient(const ref_ptr<WorldObject> &obj) : BehaviorActionNode(), patient(obj) {}
+		explicit SetPatient(const ref_ptr<WorldObject> &obj, std::string_view affordanceName)
+				: BehaviorActionNode(), affordanceName(affordanceName) {
+			options.push_back(obj);
+		}
+
+		explicit SetPatient(const WorldObjectVec* objs, std::string_view affordanceName)
+				: BehaviorActionNode(), affordanceName(affordanceName) {
+			if (objs) {
+				for (const auto &obj: *objs) {
+					options.push_back(obj);
+				}
+			}
+		}
 
 		~SetPatient() override = default;
 

@@ -6,6 +6,8 @@
 #ifndef REGEN_BEZIER_H
 #define REGEN_BEZIER_H
 
+#include <vector>
+
 namespace regen::math {
 	struct ArcLengthLUT {
 		std::vector<float> s; // normalized arc length
@@ -55,7 +57,7 @@ namespace regen::math {
 		 * @param t the time [0, 1].
 		 * @return the tangent.
 		 */
-		T tangent(float t) {
+		T tangent(float t) const {
 			float u = 1.0f - t;
 			float tt = t * t;
 			float uu = u * u;

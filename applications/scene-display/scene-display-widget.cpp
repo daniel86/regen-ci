@@ -730,6 +730,7 @@ void SceneDisplayWidget::handleControllerConfiguration(
 
 float getHeight(const Vec2f &pos, const ref_ptr<HeightMap> &heightMap) {
 	if (heightMap.get()) {
+		heightMap->ensureTextureData();
 		return heightMap->sampleHeight(pos);
 	} else {
 		return 0.0f;
@@ -769,7 +770,6 @@ static ref_ptr<WorldModel> loadWorldModel(
 		auto place = ref_ptr<Place>::alloc(placeNode->getName(), placeType);
 		place->setRadius(placeRadius);
 		place->setPosition(Vec3f(placePos.x, placeHeight + 0.1f, placePos.y));
-		worldModel->places.push_back(place);
 		ref_ptr<WorldObject> placeWO = place;
 		ref_ptr<WorldObjectVec> placeWOVec = ref_ptr<WorldObjectVec>::alloc();
 		placeWOVec->push_back(placeWO);
@@ -824,6 +824,7 @@ static ref_ptr<WorldModel> loadWorldModel(
 			auto pathType = s->getValue<PathwayType>("type", PathwayType::STROLL);
 			place->addPathWay(pathType, pathPoints);
 		}
+		worldModel->places.push_back(place);
 		worldModel->addWorldObject(place);
 	}
 
@@ -957,6 +958,14 @@ void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
 	sceneParser.setNodeProcessor(ref_ptr<ViewNodeProcessor>::alloc(&viewNodes_));
 	ref_ptr<SceneInputNode> root = sceneParser.getRoot();
 
+	// Note: configurations may refer to resources, so better to load them after the root node.
+	ref_ptr<SceneInputNode> configurationNode = root->getFirstChild("node", "configuration");
+	if (configurationNode.get() == nullptr) { configurationNode = root; }
+
+	// load world model
+	auto worldModel = loadWorldModel(sceneParser, configurationNode);
+	app_->setWorldModel(worldModel);
+
 	// Note: We need to do this before processing the root node, so that
 	// any buffer objects created in the initialization node are available
 	// when processing the root node.
@@ -978,14 +987,6 @@ void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
 	REGEN_INFO("Loading shapes from scene...");
 	sceneParser.loadShapes();
 	REGEN_INFO("Shapes loaded.");
-
-	// Note: configurations may refer to resources, so better to load them after the root node.
-	ref_ptr<SceneInputNode> configurationNode = root->getFirstChild("node", "configuration");
-	if (configurationNode.get() == nullptr) { configurationNode = root; }
-
-	// load world model
-	auto worldModel = loadWorldModel(sceneParser, configurationNode);
-	app_->setWorldModel(worldModel);
 
 	// Process the root node
 	sceneParser.processNode(tree, "root", "node");

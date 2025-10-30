@@ -16,10 +16,14 @@ namespace regen {
 			return objects_;
 		}
 
-		std::vector<ref_ptr<Place> > places;
-		std::vector<ref_ptr<WayPoint> > wayPoints;
-		std::map<std::string, ref_ptr<WayPoint> > wayPointMap;
-		std::vector<std::pair<ref_ptr<WayPoint>, ref_ptr<WayPoint> > > wayPointConnections;
+		WayPoint* getClosestTo(const WayPoint &other, const std::vector<const WayPoint*> &excludeWayPoints);
+
+		using Connection = std::pair<ref_ptr<WayPoint>, ref_ptr<WayPoint> >;
+
+		std::vector<ref_ptr<Place>> places;
+		std::vector<ref_ptr<WayPoint>> wayPoints;
+		std::map<std::string, ref_ptr<WayPoint>> wayPointMap;
+		std::vector<Connection> wayPointConnections;
 	protected:
 		std::vector<ref_ptr<WorldObject>> objects_;
 	};

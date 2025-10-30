@@ -287,7 +287,7 @@ static BehaviorTree::Node* loadNode(LoadingContext &ctx, scene::SceneInputNode &
 				REGEN_WARN("Cannot find world object in '" << xmlNode.getDescription() << "'.");
 				return nullptr;
 			}
-			node = new SetPatient(wo->front());
+			node = new SetPatient(wo.get(), xmlNode.getValue("affordance"));
 		}
 		else {
 			REGEN_WARN("Ignoring " << xmlNode.getDescription() << ", unknown action type '" << actionType << "'.");

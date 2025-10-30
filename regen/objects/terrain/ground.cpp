@@ -145,10 +145,11 @@ void Ground::addMask(
 		auto &ch = maskChannels[i];
 		shaderDefine(_MASK_KEY("BLEND_MODE_" << i), REGEN_STRING(ch.blendMode));
 		shaderDefine(_MASK_KEY("CHANNEL_" << i), REGEN_STRING(ch.channelIdx));
+		shaderDefine(_MASK_KEY("INVERT_" << i), ch.invert ? "1" : "0");
 		shaderDefine(_MASK_KEY("BLEND_FACTOR_" << i), REGEN_STRING(ch.blendFactor));
 	}
 #undef _MASK_KEY
-	shaderDefine("NUM_GROUND_MASKS", REGEN_STRING(maskChannels.size()));
+	shaderDefine("NUM_GROUND_MASKS", REGEN_STRING(groundMasks_.size()));
 }
 
 void Ground::updatePatchSize() {
@@ -757,6 +758,7 @@ ref_ptr<Ground> Ground::load(LoadingContext &ctx, scene::SceneInputNode &input) 
 					ch.channelIdx = n->getValue<uint32_t>("index", 0);
 					ch.blendMode = n->getValue<BlendMode>("blend-mode", BLEND_MODE_MULTIPLY);
 					ch.blendFactor = n->getValue<float>("blend-factor", 1.0f);
+					ch.invert = n->getValue<bool>("invert", false);
 				}
 
 				if (maskChannels.empty()) {

@@ -403,6 +403,7 @@ void ShapeProcessor::processInput(
 		isMeshShape = 1;
 	}
 	auto numInstances = 1u;
+	auto shapeName = input.getName();
 
 	ref_ptr<HeightMap> heightMap;
 	if (input.hasAttribute("height-map")) {
@@ -479,7 +480,7 @@ void ShapeProcessor::processInput(
 					continue;
 				}
 				shape->setUseLocalStamp(useLocalStamp);
-				shape->setName(input.getName());
+				shape->setName(shapeName);
 				shape->setInstanceID(i);
 				shape->setTraversalMask(traversalMask);
 				if (transform.get()) {
@@ -494,7 +495,7 @@ void ShapeProcessor::processInput(
 				spatialIndex->insert(shape);
 			}
 
-			auto indexedShapes = spatialIndex->getShapes(input.getName());
+			auto indexedShapes = spatialIndex->getShapes(shapeName);
 			if (indexedShapes.get()) {
 				if (mesh.get()) {
 					mesh->setIndexedShapes(indexedShapes);
@@ -526,6 +527,7 @@ void ShapeProcessor::processInput(
 	if (isGPUShape || isMeshShape) {
 		auto shape = createShape(input, mesh, parts);
 		if (shape.get()) {
+			shape->setName(shapeName);
 			if (mesh.get()) {
 				mesh->setBoundingShape(shape);
 			}
