@@ -11,6 +11,7 @@ using namespace regen;
 #define LOCAL_ROOT_IS_IDENTITY
 //#define BONE_TREE_DEBUG_TIME
 //#define BONE_TREE_DEBUG_CULLING
+//#define BONE_TREE_DEBUG_TREE_STRUCTURE
 
 static void countNodes(BoneNode *n, uint32_t &count) {
 	count++;
@@ -19,6 +20,7 @@ static void countNodes(BoneNode *n, uint32_t &count) {
 	}
 }
 
+#ifdef BONE_TREE_DEBUG_TREE_STRUCTURE
 static void printTree(BoneNode *n, int level, std::stringstream &ss) {
 	for (int i = 0; i < level; i++) ss << "  ";
 	ss << n->name << "\n";
@@ -32,6 +34,7 @@ static void printTree(BoneNode *n) {
 	printTree(n, 0, boneTreeStr);
 	REGEN_INFO("Bone tree:\n" << boneTreeStr.str());
 }
+#endif
 
 static void loadNodes(BoneNode *n, std::vector<BoneNode*> &vec, uint32_t &count) {
 	// Build a map of node names as were loaded by the asset loader.
@@ -54,7 +57,9 @@ BoneTree::BoneTree(const ref_ptr<BoneNode> &rootNode, uint32_t numInstances)
 	nodes_.resize(numNodes);
 	numNodes = 0;
 	loadNodes(rootNode_.get(), nodes_, numNodes);
-	//printTree(rootNode_.get());
+#ifdef BONE_TREE_DEBUG_TREE_STRUCTURE
+	printTree(rootNode_.get());
+#endif
 
 	// Also load the name-to-node map, and resize the per-instance matrix array.
 	for (uint32_t n = 0; n < numNodes; n++) {
