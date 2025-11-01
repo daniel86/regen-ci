@@ -201,9 +201,8 @@ void SpatialIndex::handleIntersection(const BoundingShape& b_shape, void* userDa
 
 	// Finally bin the shape into the (lod, layer) bin
 	const uint32_t b = CullShape::binIdx(k, l, L);
-	i_shape->tmp_layerShapes_[l].push_back({
-		b_shape.instanceID(),
-		lodDistance });
+	i_shape->tmp_layerShapes_.push_back({
+		b_shape.instanceID(), l, lodDistance });
 	i_shape->tmp_binCounts_[b] += 1;
 }
 
@@ -237,9 +236,7 @@ void SpatialIndex::updateVisibility() {
 			// need to be reset first.
 			std::memset(indexShape->tmp_binCounts_.data(), 0, sizeof(uint32_t) * B);
 			// Clear the per-layer bins.
-			for (uint32_t l=0; l<L; ++l) {
-				indexShape->tmp_layerShapes_[l].clear();
-			}
+			indexShape->tmp_layerShapes_.clear();
 			// Remember the index shape to bounding shape mapping such that we can
 			// obtain index shape from bounding shape directly (else a hash lookup would be required).
 			for (auto &bs: indexShape->boundingShapes_) {
@@ -254,7 +251,27 @@ void SpatialIndex::updateVisibility() {
 		for (uint32_t layerIdx = 0; layerIdx < frustumShapes.size(); ++layerIdx) {
 			updateLayerVisibility(ic.second, layerIdx, frustumShapes[layerIdx]);
 		}
+		static auto sortFrontToBack = [](
+					const IndexedShape::ShapeDistance &a,
+					const IndexedShape::ShapeDistance &b) {
+			// sort b two kes: (1) layerIdx, (2) distance
+			return a.layerIdx != b.layerIdx ? (a.layerIdx < b.layerIdx) :  (a.distance < b.distance);
+		};
+		static auto sortBackToFront = [](
+					const IndexedShape::ShapeDistance &a,
+					const IndexedShape::ShapeDistance &b) {
+			// sort b two kes: (1) layerIdx, (2) distance
+			return a.layerIdx != b.layerIdx ? (a.layerIdx < b.layerIdx) :  (a.distance > b.distance);
+		};
 		for (auto &indexShape: ic.second.indexShapes_) {
+			// TODO: We could move tmp_layerShapes_ into indexCamera maybe, and only sort once all shapes?
+			auto& vec = indexShape->tmp_layerShapes_;
+			if (indexCamera.sortMode == SortMode::FRONT_TO_BACK) {
+				std::ranges::sort(vec, sortFrontToBack);
+			} else if (indexCamera.sortMode == SortMode::BACK_TO_FRONT) {
+				std::ranges::sort(vec, sortBackToFront);
+			}
+			// Update LOD-major arrays
 			updateLOD_Major(indexCamera, indexShape);
 		}
 	}
@@ -290,16 +307,9 @@ void SpatialIndex::updateLOD_Major(IndexCamera &indexCamera, IndexedShape *index
 	std::memcpy(mapped_base, indexShape->tmp_binBase_.data(), sizeof(uint32_t) * B);
 
     // Sort inside each bin and write IDs to mapped buffer
+	uint32_t layerBase = 0;
+	auto& vec = indexShape->tmp_layerShapes_;
     for (uint32_t l = 0; l < L; ++l) {
-    	auto& vec = indexShape->tmp_layerShapes_[l];
-    	if (vec.empty()) continue;
-
-		if (indexCamera.sortMode == SortMode::FRONT_TO_BACK) {
-			std::ranges::sort(vec, std::ranges::less(), &IndexedShape::ShapeDistance::distance);
-		} else if (indexCamera.sortMode == SortMode::BACK_TO_FRONT) {
-			std::ranges::sort(vec, std::ranges::greater(), &IndexedShape::ShapeDistance::distance);
-		}
-		uint32_t layerBase = 0;
 		for (uint32_t k = 0; k < K; ++k) {
 			const uint32_t b = CullShape::binIdx(k, l, L);
 			const uint32_t base = indexShape->tmp_binBase_[b];

@@ -134,9 +134,10 @@ namespace regen {
 
 		struct ShapeDistance {
 			uint32_t instanceID;
+			uint32_t layerIdx;
 			float distance;
 		};
-		std::vector<std::vector<ShapeDistance>> tmp_layerShapes_; // size = numLayers
+		std::vector<ShapeDistance> tmp_layerShapes_; // size = numLayers * numInstances
 
 		struct MappedData {
 			explicit MappedData(

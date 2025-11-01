@@ -22,10 +22,7 @@ IndexedShape::IndexedShape(
 	tmp_binCounts_.resize(B, 0);
 	tmp_binBase_.resize(B, 0);
 	tmp_layerVisibility_.resize(L, false);
-	tmp_layerShapes_.resize(L, {});
-	for (auto &bin : tmp_layerShapes_) {
-		bin.reserve(I);
-	}
+	tmp_layerShapes_.reserve(L * I);
 
 	visible_.resize(L, true);
 }
