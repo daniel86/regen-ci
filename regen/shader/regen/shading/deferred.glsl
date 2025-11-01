@@ -340,7 +340,8 @@ void main() {
     vec4 spec = texture(in_gSpecularTexture, texco);
     vec4 diff = texture(in_gDiffuseTexture, texco);
     vec3 lightVec = in_lightPosition.xyz - P;
-    vec3 L = normalize(lightVec);
+    float lightDist = length(lightVec);
+    vec3 L = lightVec / lightDist;
 #ifdef USE_AMBIENT_LIGHT
     vec3 lightColor = in_lightAmbient * diff.rgb;
 #else
@@ -348,8 +349,7 @@ void main() {
 #endif
     
     // calculate attenuation
-    float attenuation = radiusAttenuation(
-        length(lightVec), in_lightRadius.x, in_lightRadius.y);
+    float attenuation = radiusAttenuation(lightDist, in_lightRadius.x, in_lightRadius.y);
 #ifdef IS_SPOT_LIGHT
     attenuation *= spotConeAttenuation(L,in_lightDirection.xyz,in_lightConeAngles);
 #endif
@@ -359,7 +359,6 @@ void main() {
     if(attenuation*nDotL >= 0.0) {
 #else
     // discard if facing away
-    // TODO: better don't discard and just multiply in the end?
     if(attenuation*nDotL < 0.0) discard;
 #endif
 #ifdef HAS_headlightMask
