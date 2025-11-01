@@ -16,6 +16,9 @@ namespace regen {
 	struct ImageData {
 		ImageData() = default;
 		~ImageData() {
+			if (pixelType != GL_FLOAT && floatPixels) {
+				delete[] floatPixels;
+			}
 			delete[] pixels;
 		}
 		ImageData(const ImageData &) = delete;
@@ -27,6 +30,7 @@ namespace regen {
 		GLenum pixelType = GL_UNSIGNED_BYTE;
 		GLenum wrapping = GL_CLAMP_TO_EDGE;
 		byte *pixels = nullptr; // contiguous image data
+		float *floatPixels = nullptr; // contiguous image data as floats
 	};
 
 	/** \brief Array of ImageData pointers. */

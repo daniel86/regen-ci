@@ -251,6 +251,23 @@ const TextureBind &Texture::textureBind() {
 
 void Texture::setTextureData(const ref_ptr<ImageData> &textureData) {
 	textureData_ = textureData;
+	if (!textureData_->floatPixels) {
+		if (textureData_->pixelType == GL_FLOAT) {
+			// already float data
+			textureData_->floatPixels = reinterpret_cast<float *>(textureData_->pixels);
+		} else if (textureData_->pixelType == GL_UNSIGNED_BYTE) {
+			// convert to float data
+			const uint32_t numPixels = static_cast<uint32_t>(textureData_->width) *
+									   static_cast<uint32_t>(textureData_->height) *
+									   static_cast<uint32_t>(textureData_->depth);
+			const uint32_t numComponents = static_cast<uint32_t>(textureData_->bpp);
+			auto *floatPixels = new float[numPixels * numComponents];
+			for (uint32_t i = 0; i < numPixels * numComponents; ++i) {
+				floatPixels[i] = static_cast<float>(textureData_->pixels[i]) / 255.0f;
+			}
+			textureData_->floatPixels = floatPixels;
+		}
+	}
 }
 
 void Texture::unsetTextureData() {

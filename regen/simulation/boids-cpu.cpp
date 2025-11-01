@@ -883,8 +883,8 @@ bool BoidsCPU::avoidCollisions(
 		uv1.y = math::clamp(uv1.y, 0.0f, 1.0f);
 
 		if (collisionMapType_ == COLLISION_VECTOR_FIELD) {
-			Vec3f sample0 = collisionMap_->sampleLinear<Vec3f>(uv0, collisionMap_->textureData());
-			Vec3f sample1 = collisionMap_->sampleLinear<Vec3f>(uv1, collisionMap_->textureData());
+			Vec3f sample0 = collisionMap_->sampleLinear<Vec3f,3>(uv0, collisionMap_->textureData());
+			Vec3f sample1 = collisionMap_->sampleLinear<Vec3f,3>(uv1, collisionMap_->textureData());
 			Vec2f collisionFlow = sample0.xy_();
 			float collisionStrength = sample0.z;
 			if (sample1.z > collisionStrength) {
@@ -911,17 +911,17 @@ bool BoidsCPU::avoidCollisions(
 				uvSample.x = 1.0f - std::clamp(uvSample.x, 0.0f, 1.0f);
 				uvSample.y = std::clamp(uvSample.y, 0.0f, 1.0f);
 				collisionValue = std::max(collisionValue,
-					collisionMap_->sampleLinear<float>(uvSample, collisionMap_->textureData()));
+					collisionMap_->sampleLinear<float,1>(uvSample, collisionMap_->textureData()));
 			}
 
 			if (collisionValue > 0.05f) {
 				const float eps = 1.0f / float(collisionMap_->width());
 				uv0.x = 1.0f - uv0.x; // flip x for sampling
-				float c = collisionMap_->sampleLinear<float>(uv0, collisionMap_->textureData()); // central sample
-				float dx = collisionMap_->sampleLinear<float>(uv0 + Vec2f(eps,0), collisionMap_->textureData())
-						 - collisionMap_->sampleLinear<float>(uv0 - Vec2f(eps,0), collisionMap_->textureData());
-				float dy = collisionMap_->sampleLinear<float>(uv0 + Vec2f(0,eps), collisionMap_->textureData())
-						 - collisionMap_->sampleLinear<float>(uv0 - Vec2f(0,eps), collisionMap_->textureData());
+				float c = collisionMap_->sampleLinear<float,1>(uv0, collisionMap_->textureData()); // central sample
+				float dx = collisionMap_->sampleLinear<float,1>(uv0 + Vec2f(eps,0), collisionMap_->textureData())
+						 - collisionMap_->sampleLinear<float,1>(uv0 - Vec2f(eps,0), collisionMap_->textureData());
+				float dy = collisionMap_->sampleLinear<float,1>(uv0 + Vec2f(0,eps), collisionMap_->textureData())
+						 - collisionMap_->sampleLinear<float,1>(uv0 - Vec2f(0,eps), collisionMap_->textureData());
 
 				Vec3f normal(dx, 0.0f, dy);
 				if (normal.lengthSquared() > 1e-8f) normal.normalize();
@@ -946,12 +946,12 @@ bool BoidsCPU::avoidCollisions(
 	if (heightMap_.get()) {
 		// boid position in height map space [0, 1]
 		auto boidCoord = computeUV(boidPos, mapCenter_, mapSize_);
-		auto currentY = heightMap_->sampleLinear<float>(boidCoord, heightMap_->textureData());
+		auto currentY = heightMap_->sampleLinear<float,1>(boidCoord, heightMap_->textureData());
 		currentY *= heightMapFactor_;
 		currentY += mapCenter_.y + priv_->avoidanceDistanceHalf_;
 		// sample the height map at the projected boid position
 		boidCoord = computeUV(lookAhead, mapCenter_, mapSize_);
-		auto nextY = heightMap_->sampleLinear<float>(boidCoord, heightMap_->textureData());
+		auto nextY = heightMap_->sampleLinear<float,1>(boidCoord, heightMap_->textureData());
 		nextY *= heightMapFactor_;
 		nextY += mapCenter_.y + priv_->avoidanceDistanceHalf_;
 
