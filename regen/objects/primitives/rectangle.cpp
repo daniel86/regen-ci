@@ -58,9 +58,9 @@ Rectangle::Config::Config()
 void Rectangle::generateLODLevel(const Config &cfg,
 								 const Tessellation &tessellation,
 								 const Mat4f &rotMat,
-								 GLuint vertexOffset,
-								 GLuint indexOffset,
-								 GLuint /*lodLevel*/) {
+								 uint32_t vertexOffset,
+								 uint32_t indexOffset,
+								 uint32_t /*lodLevel*/) {
 	// map client data for writing
 	auto v_pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
 	auto v_nor = (cfg.isNormalRequired ?
@@ -72,14 +72,14 @@ void Rectangle::generateLODLevel(const Config &cfg,
 	auto indices = (byte*)indices_->clientBuffer()->clientData(0);
 	auto indexType = indices_->baseType();
 
-	GLuint nextIndex = indexOffset;
+	uint32_t nextIndex = indexOffset;
 	for (auto &tessFace: tessellation.outputFaces) {
 		setIndexValue(indices, indexType, nextIndex++, vertexOffset + tessFace.v1);
 		setIndexValue(indices, indexType, nextIndex++, vertexOffset + tessFace.v2);
 		setIndexValue(indices, indexType, nextIndex++, vertexOffset + tessFace.v3);
 	}
 
-	GLuint triIndices[3];
+	uint32_t triIndices[3];
 	Vec3f triVertices[3];
 	Vec2f triTexco[3];
 	Vec3f normal = rotMat.transformVector(Vec3f(0.0, -1.0, 0.0));
@@ -90,9 +90,9 @@ void Rectangle::generateLODLevel(const Config &cfg,
 		startPos = Vec3f(0.0f, 0.0f, 0.0f);
 	}
 
-	for (GLuint faceIndex = 0; faceIndex < tessellation.outputFaces.size(); ++faceIndex) {
+	for (uint32_t faceIndex = 0; faceIndex < tessellation.outputFaces.size(); ++faceIndex) {
 		auto &face = tessellation.outputFaces[faceIndex];
-		GLuint faceVertIndex = 0;
+		uint32_t faceVertIndex = 0;
 
 		for (auto &tessIndex: {face.v1, face.v2, face.v3}) {
 			auto &vertex = tessellation.vertices[tessIndex];
@@ -119,7 +119,7 @@ void Rectangle::generateLODLevel(const Config &cfg,
 
 		if (cfg.isTangentRequired) {
 			Vec4f tangent = calculateTangent(triVertices, triTexco, normal);
-			for (GLuint i = 0; i < 3; ++i) {
+			for (uint32_t i = 0; i < 3; ++i) {
 				v_tan[triIndices[i]] = tangent;
 			}
 		}
@@ -132,8 +132,8 @@ void Rectangle::tessellateRectangle(uint32_t lod, Tessellation &t) {
 
 void Rectangle::updateAttributes() {
 	std::vector<Tessellation> tessellations;
-	GLuint numVertices = 0;
-	GLuint numIndices = 0;
+	uint32_t numVertices = 0;
+	uint32_t numIndices = 0;
 	{
 		Tessellation baseTess;
 		baseTess.vertices.resize(4);
@@ -145,7 +145,7 @@ void Rectangle::updateAttributes() {
 		baseTess.inputFaces[0] = TessellationFace(0, 1, 3);
 		baseTess.inputFaces[1] = TessellationFace(1, 2, 3);
 
-		for (GLuint lodLevel: rectangleConfig_.levelOfDetails) {
+		for (uint32_t lodLevel: rectangleConfig_.levelOfDetails) {
 			auto &lodTess = tessellations.emplace_back();
 			lodTess.vertices = baseTess.vertices;
 			lodTess.inputFaces = baseTess.inputFaces;

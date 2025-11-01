@@ -30,8 +30,7 @@
                 vertical-orientation="0.16"
                 transform="dwarf-tf"
                 eye-offset="0.0,2.75,0.0">
-            <!-- TODO: jump-spot animation -->
-            <key-mapping key=" " camera="jump" motion="jump" range="jump-spot"/>
+            <key-mapping key="Space" camera="jump" motion="jump" />
             <key-mapping key="C" camera="crouch" motion="crouch" toggle="1" />
             <key-mapping key="W" camera="move_forward" motion="walk"/>
             <key-mapping key="A" camera="move_left" motion="walk"/>
@@ -173,6 +172,53 @@
             <object type="attractor" value="8.0, 4.0, -8.0" />
         </animation>
     </light>
+    <asset id="dwarf-asset"
+           type="asset"
+           file="res/models/psionic/dwarf/x/dwarf.x"
+           texture-path="res/models/psionic/dwarf/x"
+           use-animation="1"
+           animation-force-states="1"
+           animation-post-state="LINEAR"
+           animation-pre-state="LINEAR"
+           animation-tps="20.0">
+        <bone-animation>
+            <body-part type="head" start-node="head"/>
+            <body-part type="leg" start-node="lhip"/>
+            <body-part type="leg" start-node="rhip"/>
+            <body-part type="arm" start-node="lsholda"/>
+            <body-part type="arm" start-node="rsholda"/>
+            <body-part type="torso" start-node="spine2"/>
+            <range motion="attack" name="attack1" range="111.0,125.0" />
+            <range motion="attack" name="attack2" range="127.0,141.0" />
+            <range motion="attack" name="attack3" range="143.0,159.0" />
+            <range motion="attack" name="attack4" range="161.0,179.0" />
+            <range motion="attack" name="attack5" range="181.0,191.0" />
+            <range motion="block" name="block" range="193.0,209.0" />
+            <range motion="walk" name="walk" range="1.0,13.0" />
+            <range motion="run" name="run" range="15.0,25.0" />
+            <!--
+            <range motion="jump" name="jump" range="27.0,39.0" />
+            -->
+            <range motion="jump" name="jump-spot" range="41.0,53.0" />
+            <range name="crouch-down" range="55.0,58.0" />
+            <range name="crouch-loop" range="59.0,68.0" />
+            <range name="get-up" range="69.0,73.0" />
+            <range motion="die" name="dieFwd" range="211.0,226.0" />
+            <range motion="die" name="dieBack" range="229.0,250.0" />
+            <range motion="agree" name="yes" range="252.0,271.0" />
+            <range motion="disagree" name="no" range="273.0,289.0" />
+            <range motion="idle" name="idle1" range="291.0,324.0" />
+            <range motion="idle" name="idle2" range="326.0,359.0" />
+            <!--
+            <range name="battleIdle1" range="74.0,87.0"/>
+            <range name="battleIdle2" range="89.0,109.0"/>
+            -->
+            <!-- Define some composite motions. -->
+            <clip motion="crouch" range="crouch-loop" begin="crouch-down" end="get-up" />
+            <clip motion="pray" range="crouch-loop" begin="crouch-down" end="get-up" />
+            <clip motion="revive" range="get-up" />
+        </bone-animation>
+    </asset>
     <!-- Sky -->
     <sky id="sky" camera="main-camera" update-interval="200.0" >
         <star-map texture="res/sky/milkyway.png" scattering="0.8" delta-magnitude="0.05" lod="0" />

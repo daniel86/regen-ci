@@ -261,8 +261,8 @@ bool BoneController::startMotionClip(MotionData &motion, float initialWeight) {
 	} else {
 		motion.handle = startBoneAnimation(motion, clip.loop);
 		BONE_CTRL_DEBUG(clip.motion, REGEN_STRING(
-			"is starting clip '" << clip.range->name << "' with no begin range" <<
-			" in track " << clip.range->trackIndex));
+			"is starting clip '" << clip.loop->name << "' with no begin range" <<
+			" in track " << clip.loop->trackIndex));
 	}
 	setMotionWeight(motion, initialWeight);
 	animItem_->boneTree->startAnimation();
@@ -303,7 +303,12 @@ void BoneController::updateMotionClip(MotionData &motion, MotionClip &clip) {
 			BONE_CTRL_DEBUG(clip.motion, "is now looping");
 		} else if (clip.end) {
 			// Start the ending segment directly.
-			motion.handle = startBoneAnimation(motion, clip.end);
+			if (motion.nextHandle != -1) {
+				motion.handle = motion.nextHandle;
+				motion.nextHandle = -1;
+			} else {
+				motion.handle = startBoneAnimation(motion, clip.end);
+			}
 			motion.clipStatus = CLIP_ENDING;
 			BONE_CTRL_DEBUG(clip.motion, "is now ending");
 		} else if (!isFadingOut) {
@@ -311,8 +316,6 @@ void BoneController::updateMotionClip(MotionData &motion, MotionClip &clip) {
 			motion.handle = startBoneAnimation(motion, clip.begin);
 			motion.clipStatus = CLIP_BEGINNING;
 		} else {
-			// TODO: Make BoneTree return the last transform until faded out?
-			//           Or just deactivate the motion early?
 			motion.status = MOTION_INACTIVE;
 			BONE_CTRL_DEBUG(clip.motion, "is now inactive");
 		}
@@ -325,9 +328,16 @@ void BoneController::updateMotionClip(MotionData &motion, MotionClip &clip) {
 			motion.handle = startBoneAnimation(motion, clip.loop);
 		} else if (clip.end) {
 			// Switch to ending segment if we are fading out, i.e. if the motion is no longer desired.
-			motion.handle = startBoneAnimation(motion, clip.end);
+			if (motion.nextHandle != -1) {
+				motion.handle = motion.nextHandle;
+				motion.nextHandle = -1;
+				BONE_CTRL_DEBUG(clip.motion, REGEN_STRING("early faded to ending, time: "
+					<< motion.fadeTime / motionFadeDuration_));
+			} else {
+				motion.handle = startBoneAnimation(motion, clip.end);
+				BONE_CTRL_DEBUG(clip.motion, "is now ending");
+			}
 			motion.clipStatus = CLIP_ENDING;
-			BONE_CTRL_DEBUG(clip.motion, "is now ending");
 		} else {
 			// No ending segment, so toggle the motion off.
 			motion.status = MOTION_INACTIVE;
@@ -384,31 +394,34 @@ void BoneController::updateMotionClip(MotionData &motion, float dt_s) {
 			}
 			break;
 		case MOTION_FADING_OUT:
-			if (!isClipInFinalStage(motion)) {
-				// Only allow fading out after we reached the final clip segment.
-				// E.g. if motion is toggled undesired while in beginning or looping segment,
-				// we wait until we reach the end segment before starting to fade out
-				// in case the current clip has an end segment.
-				break;
-			}
 			auto undesiredMotion = lastActiveMotion(motion);
 			if (!isInterruptibleMotion(undesiredMotion)) {
 				// Avoid interrupting some motions in the middle by fading them out
 				// e.g. attack/block animations should play to the end.
-				// TODO: Rather add another state "PLAY_UNTIL_END" that stops the motion after
-				//     the current clip ends?
 				break;
 			}
-			// TODO: Add support for blending from loop range to end range here? i.e. without
-			//       having to wait until the loop ends naturally.
-			//       Currently, eg. when sitting, the loop animation will need to reach its end
-			//       before the stand-up animation is started.
+
 			motion.fadeTime -= dt_s;
 			if (motion.fadeTime <= 0.0f) {
 				stopMotionClip(motion);
-				BONE_CTRL_DEBUG(undesiredMotion, "stopped after fade out");
+				if (motion.nextHandle != -1) {
+					// Start the next handle if any.
+					motion.handle = motion.nextHandle;
+					motion.nextHandle = -1;
+					motion.fadeTime = motionFadeDuration_;
+					motion.status = MOTION_FADING_OUT;
+					motion.clipStatus = CLIP_ENDING;
+					setMotionWeight(motion, 1.0f);
+					BONE_CTRL_DEBUG(undesiredMotion, "fading out ending segment");
+				} else {
+					BONE_CTRL_DEBUG(undesiredMotion, "stopped after fade out");
+				}
 			} else {
-				setMotionWeight(motion, motion.fadeTime / motionFadeDuration_);
+				float w = motion.fadeTime / motionFadeDuration_;
+				setMotionWeight(motion, w);
+				if (motion.nextHandle != -1) {
+					animItem_->boneTree->setAnimationWeight(instanceIdx_, motion.nextHandle, 1.0f - w);
+				}
 			}
 			break;
 	}
@@ -429,6 +442,7 @@ void BoneController::updateBoneController(float dt_s, const Blackboard &kb) {
 }
 
 void BoneController::updateBoneController(float dt_s, const MotionType *desiredMotions, uint32_t numDesiredMotions) {
+	// TODO: Delay setting IDLE as desired when a motion is active.
 	// Unset all desired flags.
 	for (uint32_t activeIdx = 0; activeIdx < numActiveMotions_; ++activeIdx) {
 		auto &motion = motionToData_[static_cast<int>(activeMotions_[activeIdx])];
@@ -453,6 +467,12 @@ void BoneController::updateBoneController(float dt_s) {
 			BONE_CTRL_DEBUG(activeMotions_[activeIdx], "fading out");
 			motion.status = MOTION_FADING_OUT;
 			motion.fadeTime = motionFadeDuration_;
+			// Fade into the end segment if any.
+			auto &clip = animItem_->clips[motion.clips[motion.lastClip]];
+			if (motion.clipStatus != CLIP_ENDING && clip.end) {
+				motion.nextHandle = startBoneAnimation(motion, clip.end);
+				BONE_CTRL_DEBUG(activeMotions_[activeIdx], "starting end segment");
+			}
 		}
 		// Update the motion state, start/stop animations, set animation weights for fading etc.
 		updateMotionClip(motion, dt_s);

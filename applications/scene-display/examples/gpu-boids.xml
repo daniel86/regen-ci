@@ -130,7 +130,7 @@
 
     <mesh id="ground-mesh"
           type="ground"
-          lod-levels="6,5,4,2"
+          lod-levels="8,7,6,5"
           lod-thresholds="40.0, 80.0, 120.0"
           patch-density="35"
           map-size="{{map-size}},{{map-height}},{{map-size}}"

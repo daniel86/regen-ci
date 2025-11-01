@@ -249,9 +249,6 @@ void SpatialIndex::updateVisibility() {
 			}
 		}
 
-		// TODO: do not re-create OrthogonalProjection of camera each time.
-		//         - we can store it here locally, but only quad tree uses it.
-		//         - could also store it centrally with camera
 		auto &frustumShapes = ic.first->frustum();
 		for (uint32_t layerIdx = 0; layerIdx < frustumShapes.size(); ++layerIdx) {
 			updateLayerVisibility(ic.second, layerIdx, frustumShapes[layerIdx]);
@@ -314,7 +311,7 @@ void SpatialIndex::updateLOD_Major(IndexCamera &indexCamera, IndexedShape *index
 	std::memcpy(mapped_counts, indexShape->tmp_binCounts_.data(), sizeof(uint32_t) * B);
 	std::memcpy(mapped_base, indexShape->tmp_binBase_.data(), sizeof(uint32_t) * B);
 
-    // Sort inside each bin and write IDs to mapped buffer
+    // Write IDs to mapped buffer
 	uint32_t layerBase = 0;
 	auto& vec = indexShape->tmp_layerShapes_;
     for (uint32_t l = 0; l < L; ++l) {

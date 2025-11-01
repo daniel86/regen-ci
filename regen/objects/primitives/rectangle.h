@@ -35,13 +35,13 @@ namespace regen {
 			/** scaling vector for TEXCO_MODE_UV. */
 			Vec2f texcoScale;
 			/** generate normal attribute */
-			GLboolean isNormalRequired;
+			bool isNormalRequired;
 			/** generate texture coordinates */
-			GLboolean isTexcoRequired;
+			bool isTexcoRequired;
 			/** generate tangent attribute */
-			GLboolean isTangentRequired;
+			bool isTangentRequired;
 			/** flag indicating if the quad center should be translated to origin. */
-			GLboolean centerAtOrigin;
+			bool centerAtOrigin;
 			/** Buffer usage hints. */
 			ClientAccessMode accessMode = BUFFER_CPU_WRITE;
 			BufferUpdateFlags updateHint = BufferUpdateFlags::NEVER;
@@ -103,9 +103,9 @@ namespace regen {
 		virtual void generateLODLevel(const Config &cfg,
 				const Tessellation &tessellation,
 				const Mat4f &rotMat,
-				GLuint vertexOffset,
-				GLuint indexOffset,
-				GLuint lodLevel);
+				uint32_t vertexOffset,
+				uint32_t indexOffset,
+				uint32_t lodLevel);
 
 		virtual void tessellateRectangle(uint32_t lod, Tessellation &t);
 	};

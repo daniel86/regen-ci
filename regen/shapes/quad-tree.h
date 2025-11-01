@@ -148,12 +148,13 @@ namespace regen {
 		uint32_t subdivisionThreshold_ = 4;
 
 		std::vector<Node*> nodes_;
-		Node *root_ = nullptr;
-		std::unordered_map<const BoundingShape*, Item*> shapeToItem_;
 		std::vector<Item *> items_;
 		std::vector<Item *> newItems_;
 		std::stack<Node *> nodePool_;
 		std::stack<Item *> itemPool_;
+		Node *root_ = nullptr;
+
+		std::unordered_map<const BoundingShape*, Item*> shapeToItem_;
 		float minNodeSize_ = 0.1f;
 		uint32_t numNodes_ = 0;
 		uint32_t numLeaves_ = 0;
@@ -164,7 +165,7 @@ namespace regen {
 		Bounds<Vec2f> newBounds_;
 		std::vector<Item *> changedItems_;
 
-		QuadTree::Item* getItem(const ref_ptr<BoundingShape> &shape);
+		Item* getItem(const ref_ptr<BoundingShape> &shape);
 
 		Node *createNode(const Vec2f &min, const Vec2f &max);
 

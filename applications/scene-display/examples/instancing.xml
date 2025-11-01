@@ -198,7 +198,7 @@
         <controller id="dwarf-controller" type="person"
                     mesh="dwarf" mesh-index="1" tf="dwarf-tf"
                     weapon-mesh="dwarf" weapon-mesh-index="0"
-                    animation-asset="dwarf-asset-instanced"
+                    animation-asset="dwarf-asset"
                     indexed-shape="dwarf-shape"
                     spatial-index="main-index"
                     footstep-mesh="dwarf-foot"
@@ -363,7 +363,7 @@
             up="0.0,0.0,-1.0"
             update-frequency="NEVER"/>
     <!-- Assets -->
-    <asset id="dwarf-asset-instanced"
+    <asset id="dwarf-asset"
            type="asset"
            file="res/models/psionic/dwarf/x/dwarf.x"
            texture-path="res/models/psionic/dwarf/x"
@@ -522,7 +522,7 @@
 
     <mesh id="ground-mesh"
           type="ground"
-          lod-levels="6,5,4,2"
+          lod-levels="8,7,6,5"
           lod-thresholds="40.0, 80.0, 120.0"
           patch-density="35"
           map-size="{{map-size}},{{map-height}},{{map-size}}"
@@ -840,7 +840,7 @@
 
     <mesh id="dwarf"
           type="asset"
-          asset="dwarf-asset-instanced"
+          asset="dwarf-asset"
           asset-indices="*"
           asset-animation="1"
           asset-material="0"
@@ -884,7 +884,7 @@
         </object>
     </mesh>
 
-    <mesh id="dwarf-base" type="asset" asset="dwarf-asset-instanced"
+    <mesh id="dwarf-base" type="asset" asset="dwarf-asset"
           asset-indices="1"
           asset-animation="0"
           num-instances="1"
@@ -1820,7 +1820,6 @@
             </node>
 
             <node import="Post-Pass"/>
-
             <node import="Debug-Views"/>
 
             <node import="GUI-Pass">
