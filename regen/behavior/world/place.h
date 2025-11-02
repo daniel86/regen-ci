@@ -64,6 +64,10 @@ namespace regen {
 		const std::vector<std::vector<ref_ptr<WayPoint>>>& getPathWays(PathwayType pathWayType) {
 			return pathWays_[pathWayType];
 		}
+
+		const std::map<PathwayType, std::vector<std::vector<ref_ptr<WayPoint>>>>& pathWays() const {
+			return pathWays_;
+		}
 	protected:
 		const PlaceType placeType_;
 		std::vector<ref_ptr<WorldObject>> objects_;

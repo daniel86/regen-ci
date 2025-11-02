@@ -79,14 +79,22 @@
     <texture id="fire-color" file="res/textures/fire/color.png" wrapping="CLAMP_TO_EDGE"/>
     <!-- Spatial Index -->
     <index id="main-index" type="quadtree"
-            min-node-size="2.0"
-            max-objects-per-node="4"/>
+           min-node-size="0.1"
+           subdivision-threshold="4"
+           test-mode-3d="closest"
+           close-distance="10.0"/>
+    <index id="terrain-index" type="quadtree"
+           min-node-size="5.0"
+           subdivision-threshold="8"
+           test-mode-3d="closest"
+           close-distance="10.0"/>
     <!-- Cameras -->
     <camera id="main-camera"
             fov="45.0" near="0.1" far="{{far-plane}}"
             position="40.0,4.0,40.0"
             direction="-1.0,0.0,-1.0">
         <culling index="main-index" />
+        <culling index="terrain-index" />
     </camera>
     <camera id="room-light-camera0"
             light="room-light0"
@@ -203,7 +211,7 @@
     <!--********* Ground *********-->
     <!--**************************-->
 
-    <mesh id="ground-mesh" type="rectangle" use-normal="1" use-texco="1" center="1" lod="1"
+    <mesh id="ground-mesh" type="rectangle" use-normal="1" use-texco="1" center="1" lod="2"
           rotation="0.0,0.0,3.1415"
           scaling="400.0,20.0,400.0"
           texco-scaling="100.0,100.0"
@@ -349,6 +357,7 @@
             <translate value="0.0,-1,8.0"/>
         </transform>
         <shape id="grass-shape" index="1" cull="1" type="aabb"
+                spatial-index="terrain-index"
                 box-size="10.0, {{map-height}}, 10.0"
                 box-center="0.0, {{map-height-half}}, 0.0"
                 transform-id="grass-tf">
@@ -691,6 +700,39 @@
         <node import="Collision-Initialize"/>
     </node>
 
+    <node id="Debug-Views">
+        <view id="Parabolic Shadow-Map">
+            <fbo id="SCREEN"/>
+            <texture name="inputTexture" fbo="room-light-shadow0" attachment="depth"/>
+            <input type="int" name="arrayTextureSize" value="1"/>
+            <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
+        </view>
+        <view id="Collision Map">
+            <fbo id="SCREEN"/>
+            <texture name="inputTexture1" id="collision-blur"/>
+            <texture name="inputTexture2" fbo="collision-fbo" attachment="1"/>
+            <fullscreen-pass shader="regen.filter.sampling.x2"/>
+        </view>
+        <node id="spatial-index-debug">
+            <depth test="1" write="0" function="LEQUAL"/>
+            <polygon offset-fill="1.1,4.0"/>
+            <view id="Main Index">
+                <node id="Main Index Debug">
+                    <debugger type="spatial-index" resource="main-index"/>
+                    <fbo id="g-buffer" draw-buffers="1"/>
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </node>
+            </view>
+            <view id="Terrain Index">
+                <node id="Terrain Index Debug">
+                    <debugger type="spatial-index" resource="terrain-index"/>
+                    <fbo id="g-buffer" draw-buffers="1"/>
+                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
+                </node>
+            </view>
+        </node>
+    </node>
+
     <node id="root">
         <input name="Wind" ubo="WindUBO"/>
         <resource id="sky"/>
@@ -700,18 +742,6 @@
             <node import="Shadow-Pass">
                 <polygon offset-fill="1.1,4.0"/>
             </node>
-            <view id="Parabolic Shadow-Map">
-                <fbo id="SCREEN"/>
-                <texture name="inputTexture" fbo="room-light-shadow0" attachment="depth"/>
-                <input type="int" name="arrayTextureSize" value="1"/>
-                <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
-            </view>
-            <view id="Collision Map">
-                <fbo id="SCREEN"/>
-                <texture name="inputTexture1" id="collision-blur"/>
-                <texture name="inputTexture2" fbo="collision-fbo" attachment="1"/>
-                <fullscreen-pass shader="regen.filter.sampling.x2"/>
-            </view>
         </node>
 
         <node id="Render">
@@ -784,20 +814,7 @@
             </node>
 
             <node import="Post-Pass"/>
-
-            <view id="Spatial Index">
-                <node import="spatial-index-debug">
-                    <fbo id="g-buffer" draw-buffers="1"/>
-                </node>
-                <node>
-                    <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
-                </node>
-            </view>
-            <!--
-            <node import="spatial-index-debug">
-                <fbo id="g-buffer" draw-buffers="1"/>
-            </node>
-            -->
+            <node import="Debug-Views"/>
 
             <node import="GUI-Pass">
                 <fbo id="g-buffer" draw-buffers="1"/>

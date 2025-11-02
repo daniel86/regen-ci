@@ -229,13 +229,13 @@ static void makeInstance(InstancePlaneGenerator &generator, PlaneCell &cell) {
 		return; // no mask or material map, nothing to do
 	}
 	if (tex->format() == GL_RGBA) {
-		density = tex->sampleLinear<Vec4f>(cell.uv, generator.maskData)[generator.maskIndex];
+		density = tex->sampleLinear<Vec4f,4>(cell.uv, generator.maskData)[generator.maskIndex];
 	} else if (tex->format() == GL_RGB) {
-		density = tex->sampleLinear<Vec3f>(cell.uv, generator.maskData)[generator.maskIndex];
+		density = tex->sampleLinear<Vec3f,3>(cell.uv, generator.maskData)[generator.maskIndex];
 	} else if (tex->format() == GL_RG) {
-		density = tex->sampleLinear<Vec2f>(cell.uv, generator.maskData)[generator.maskIndex];
+		density = tex->sampleLinear<Vec2f,2>(cell.uv, generator.maskData)[generator.maskIndex];
 	} else {
-		density = tex->sampleLinear<float>(cell.uv, generator.maskData);
+		density = tex->sampleLinear<float,1>(cell.uv, generator.maskData);
 	}
 	if (generator.hasGroundMaterial()) {
 		if (density < 0.5f) return;
@@ -278,7 +278,7 @@ static void makeInstance(InstancePlaneGenerator &generator, PlaneCell &cell) {
 	instanceMat.x[14] += pos.z;
 	// translate to height map position
 	if (generator.heightData.get()) {
-		instanceMat.x[13] += generator.areaMaxHeight * generator.heightMap->sampleLinear<float>(
+		instanceMat.x[13] += generator.areaMaxHeight * generator.heightMap->sampleLinear<float,1>(
 				cell.uv, generator.heightData);
 	}
 }

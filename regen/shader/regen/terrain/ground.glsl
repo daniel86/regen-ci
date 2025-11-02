@@ -639,6 +639,7 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
     // Apply mask to channels
         #for CH_I to ${_NUM_CH}
             #define2 _CHANNEL ${MASK_${MASK_I}_CHANNEL_${CH_I}}
+            #define2 _INVERT ${MASK_${MASK_I}_INVERT_${CH_I}}
             #define2 _BLEND_MODE ${MASK_${MASK_I}_BLEND_MODE_${CH_I}}
             #define2 _BLEND_FACTOR ${MASK_${MASK_I}_BLEND_FACTOR_${CH_I}}
             #if ${_CHANNEL} < 4
@@ -646,12 +647,18 @@ void customFragmentMapping(in vec3 worldPos, inout vec4 outColor, inout vec3 out
             #else
                 #define2 W_VEC materialWeights1
             #endif
+    maskVal *= ${_BLEND_FACTOR};
+            #if ${_INVERT} == 1
+    maskVal = 1.0 - maskVal;
+            #endif
             #if ${_BLEND_MODE} == mul
-    ${W_VEC}[${_CHANNEL}] *= (1.0 - (maskVal * ${_BLEND_FACTOR}));
-            #elif ${_BLEND_MODE} == add
-    ${W_VEC}[${_CHANNEL}] += (1.0 - (maskVal * ${_BLEND_FACTOR}));
+    ${W_VEC}[${_CHANNEL}] *= maskVal;
             #else
-    #warning "Unknown MASK_BLEND_MODE"
+                #if ${_BLEND_MODE} == add
+    ${W_VEC}[${_CHANNEL}] += maskVal;
+                #else
+    #warning "Unknown MASK_BLEND_MODE ${_BLEND_MODE}"
+                #endif
             #endif
         #endfor
     #endfor

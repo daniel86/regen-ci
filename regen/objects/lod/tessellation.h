@@ -14,14 +14,14 @@ namespace regen {
 		 * @param _p The vertex position.
 		 * @param _i The vertex index.
 		 */
-		TriangleVertex(const Vec3f &_p, const GLuint &_i) : p(_p), i(_i) {}
+		TriangleVertex(const Vec3f &_p, const uint32_t &_i) : p(_p), i(_i) {}
 
 		TriangleVertex() : i(0) {}
 
 		/** The vertex position. */
 		Vec3f p;
 		/** The vertex index. */
-		GLuint i;
+		uint32_t i;
 	};
 
 	/**
@@ -51,11 +51,11 @@ namespace regen {
 
 	struct TessellationFace {
 		TessellationFace() = default;
-		TessellationFace(const GLuint &_v1, const GLuint &_v2, const GLuint &_v3)
+		TessellationFace(uint32_t _v1, uint32_t _v2, uint32_t _v3)
 				: v1(_v1), v2(_v2), v3(_v3) {}
-		GLuint v1;
-		GLuint v2;
-		GLuint v3;
+		uint32_t v1;
+		uint32_t v2;
+		uint32_t v3;
 	};
 
 	/**
@@ -74,7 +74,7 @@ namespace regen {
 	 * @param lod Number of tessellation steps.
 	 * @param tessellation tessellation data.
 	 */
-	void tessellate(GLuint lod, Tessellation &tessellation);
+	void tessellate(uint32_t lod, Tessellation &tessellation);
 
 	/**
 	 * Tessellation input triangles.
@@ -84,7 +84,7 @@ namespace regen {
 	 * @param inputFaces input triangles.
 	 * @return tessellated faces.
 	 */
-	std::vector<TriangleFace> tessellate(GLuint lod, std::vector<TriangleFace> &inputFaces);
+	std::vector<TriangleFace> tessellate(uint32_t lod, std::vector<TriangleFace> &inputFaces);
 
 	/**
 	 * Tessellation input triangle.
@@ -94,7 +94,7 @@ namespace regen {
 	 * @param inputFace input triangle.
 	 * @return tessellated face.
 	 */
-	std::vector<TriangleFace> tessellate(GLuint lod, TriangleFace &inputFace);
+	std::vector<TriangleFace> tessellate(uint32_t lod, TriangleFace &inputFace);
 }
 
 #endif /* TESSELATION_H_ */

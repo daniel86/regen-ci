@@ -110,4 +110,43 @@
             </selector>
         </selector>
     </behavior-tree>
+    <!-- Specific behavior tree for shopkeeper NPCs -->
+    <behavior-tree id="shopkeeper">
+        <selector type="priority">
+            <selector id="main">
+                <sequence type="initial">
+                    <condition type="predicate" id="HasDesire" negate="1"/>
+                    <action type="PerformAction" value="IDLE" max-duration="3.0"/>
+                    <action type="SetDesiredAction" value="IDLE"/>
+                </sequence>
+                <sequence id="shopkeeper-routine">
+                    <action type="SetTargetPlace" value="market"/>
+                    <sequence id="engage-place">
+                        <action type="MoveToTargetPlace">
+                            <condition type="predicate" id="IsAtTargetPlace" negate="1" on-failure="SUCCESS"/>
+                        </action>
+                        <sequence id="at-place">
+                            <condition type="predicate" id="IsAtTargetPlace"/>
+                            <action type="SetDesiredAction" value="OBSERVE" max-duration="999999.0"/>
+                            <sequence id="use-affordance">
+                                    <selector>
+                                        <sequence>
+                                            <action type="SetPatient" value="trade-tent" affordance="shop-keeper" />
+                                            <selector id="engage-affordance">
+                                                <action type="PerformAffordedAction"/>
+                                                <action type="MoveToPatient"/>
+                                            </selector>
+                                        </sequence>
+                                        <sequence>
+                                            <action type="UnsetPatient"/>
+                                            <action type="PerformAction" value="IDLE" max-duration="5.0"/>
+                                        </sequence>
+                                    </selector>
+                            </sequence>
+                        </sequence>
+                    </sequence>
+                </sequence>
+            </selector>
+        </selector>
+    </behavior-tree>
 </node>

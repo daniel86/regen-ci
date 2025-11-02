@@ -418,6 +418,23 @@ BehaviorStatus SelectPlacePatient::tick(Blackboard& kb, float /*dt_s*/) {
 }
 
 BehaviorStatus SetPatient::tick(Blackboard &kb, float /*dt_s*/) {
+	ref_ptr<WorldObject> patient;
+	ref_ptr<Affordance> aff;
+	ActionType desiredAction = kb.desiredAction();
+	int affordanceSlot = -1;
+
+	for (const auto &option : options) {
+		aff = option->getAffordance(desiredAction, affordanceName);
+		affordanceSlot = reserveAffordanceSlot(kb, aff);
+		if (affordanceSlot != -1) {
+			patient = option;
+			break;
+		}
+	}
+	if (affordanceSlot == -1) {
+		return BehaviorStatus::FAILURE;
+	}
+
 	if (patient.get() == kb.interactionTarget().object.get()) {
 		// Already set
 		return BehaviorStatus::SUCCESS;
@@ -425,18 +442,11 @@ BehaviorStatus SetPatient::tick(Blackboard &kb, float /*dt_s*/) {
 		kb.unsetInteractionTarget();
 	}
 
-	ActionType desiredAction = kb.desiredAction();
-	auto aff = patient->getAffordance(desiredAction);
-	int slotIdx = reserveAffordanceSlot(kb, aff);
-	if (slotIdx == -1) {
-		return BehaviorStatus::FAILURE;
-	} else {
 #ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Setting patient to '" <<
-			patient->name() << "' for action " << desiredAction);
+	REGEN_INFO("["<<kb.instanceId()<<"] Setting patient to '" <<
+		patient->name() << "' for action " << desiredAction);
 #endif
-		return selectPatient(kb, patient, aff, slotIdx);
-	}
+	return selectPatient(kb, patient, aff, affordanceSlot);
 }
 
 BehaviorStatus UnsetPatient::tick(Blackboard &kb, float /*dt_s*/) {
@@ -525,7 +535,8 @@ BehaviorStatus MoveToLocation::tick(Blackboard& kb, float /*dt_s*/) {
 			REGEN_INFO("["<<kb.instanceId()<<"] Reached location '" << location->name() << "'.");
 #endif
 			return BehaviorStatus::SUCCESS;
-		} else {
+		} else if (kb.navigationTarget().affordance.get() == kb.interactionTarget().affordance.get()
+				&& kb.navigationTarget().affordanceSlot == kb.interactionTarget().affordanceSlot) {
 			// Already moving to location.
 			kb.setCurrentAction(ActionType::NAVIGATING);
 			return BehaviorStatus::RUNNING;

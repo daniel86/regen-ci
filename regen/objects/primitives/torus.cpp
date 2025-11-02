@@ -79,9 +79,9 @@ Torus::Config::Config()
 }
 
 void Torus::generateLODLevel(const Config &cfg,
-							 GLuint lodLevel,
-							 GLuint vertexOffset,
-							 GLuint indexOffset) {
+							 uint32_t lodLevel,
+							 uint32_t vertexOffset,
+							 uint32_t indexOffset) {
 	// map client data for writing
 	auto v_pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
 	auto v_nor = (cfg.isNormalRequired ?
@@ -93,16 +93,16 @@ void Torus::generateLODLevel(const Config &cfg,
 	auto indices = (byte*)indices_->clientBuffer()->clientData(0);
 	auto indexType = indices_->baseType();
 
-	GLuint vertexIndex = vertexOffset;
+	uint32_t vertexIndex = vertexOffset;
 	const float ringStep = 2.0f * M_PI / lodLevel;
 	const float tubeStep = 2.0f * M_PI / lodLevel;
 
-	for (GLuint i = 0; i <= lodLevel; ++i) {
+	for (uint32_t i = 0; i <= lodLevel; ++i) {
 		float theta = i * ringStep;
 		float cosTheta = cos(theta);
 		float sinTheta = sin(theta);
 
-		for (GLuint j = 0; j <= lodLevel; ++j) {
+		for (uint32_t j = 0; j <= lodLevel; ++j) {
 			float phi = j * tubeStep;
 			float cosPhi = cos(phi);
 			float sinPhi = sin(phi);
@@ -143,11 +143,11 @@ void Torus::generateLODLevel(const Config &cfg,
 		}
 	}
 
-	GLuint iOffset = indexOffset;
-	for (GLuint i = 0; i < lodLevel; ++i) {
-		for (GLuint j = 0; j < lodLevel; ++j) {
-			GLuint first = (i * (lodLevel + 1)) + j;
-			GLuint second = vertexOffset + first + lodLevel + 1;
+	uint32_t iOffset = indexOffset;
+	for (uint32_t i = 0; i < lodLevel; ++i) {
+		for (uint32_t j = 0; j < lodLevel; ++j) {
+			uint32_t first = (i * (lodLevel + 1)) + j;
+			uint32_t second = vertexOffset + first + lodLevel + 1;
 			first += vertexOffset;
 
 			setIndexValue(indices, indexType, iOffset++, first);
@@ -163,11 +163,11 @@ void Torus::generateLODLevel(const Config &cfg,
 
 void Torus::updateAttributes(const Config &cfg) {
 	// Generate multiple LOD levels of the torus
-	std::vector<GLuint> LODs;
-	GLuint vertexOffset = 0;
-	GLuint indexOffset = 0;
+	std::vector<uint32_t> LODs;
+	uint32_t vertexOffset = 0;
+	uint32_t indexOffset = 0;
 	for (auto &lod: cfg.levelOfDetails) {
-		GLuint lodLevel = 4u * pow(2u, lod);
+		uint32_t lodLevel = 4u * pow(2u, lod);
 		LODs.push_back(lodLevel);
 		auto &x = meshLODs_.emplace_back();
 		x.d->numVertices = (lodLevel + 1) * (lodLevel + 1);
@@ -177,8 +177,8 @@ void Torus::updateAttributes(const Config &cfg) {
 		vertexOffset += x.d->numVertices;
 		indexOffset += x.d->numIndices;
 	}
-	GLuint numVertices = vertexOffset;
-	GLuint numIndices = indexOffset;
+	uint32_t numVertices = vertexOffset;
+	uint32_t numIndices = indexOffset;
 
 	pos_->setVertexData(numVertices);
 	if (cfg.isNormalRequired) {

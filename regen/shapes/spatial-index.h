@@ -162,7 +162,7 @@ namespace regen {
 			std::unordered_map<std::string_view, ref_ptr<IndexedShape>> nameToShape_;
 			// flattened list of shapes for faster access
 			std::vector<IndexedShape*> indexShapes_;
-			// whether to sort instances by distance to camera
+			// how to sort instances by distance to camera
 			SortMode sortMode = SortMode::FRONT_TO_BACK;
 			Vec4i lodShift = Vec4i(0);
 		};

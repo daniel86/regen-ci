@@ -125,6 +125,8 @@ namespace regen {
 			std::vector<uint32_t> clips;
 			// The animation handle in case the motion type has an active animation.
 			BoneTree::AnimationHandle handle = -1;
+			// The next animation handle when transitioning between segments of a clip.
+			BoneTree::AnimationHandle nextHandle = -1;
 			// Flag indicating if this motion type is currently desired.
 			bool desired = false;
 			// Status flag for this motion type.

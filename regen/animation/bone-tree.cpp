@@ -410,13 +410,13 @@ void BoneTree::animate(double dt_ms) {
 				if (channel.rotationKeys_.empty()) {
 					accRot_ += (Quaternion(1, 0, 0, 0) * weight);
 				} else if (channel.rotationKeys_.size() == 1) {
-					tmpRot_.value = (channel.rotationKeys_.data()[0].value * weight);
+					tmpRot_.value = (channel.rotationKeys_.data()[0].value) * weight;
 					if (accRot_.dot(tmpRot_.value) < 0.0f) {
 						tmpRot_.value = -tmpRot_.value;
 					}
 					accRot_ += tmpRot_.value;
 				} else {
-					tmpRot_.value = nodeRotation(range, channel, isDirty, nodeIdx);
+					tmpRot_.value = nodeRotation(range, channel, isDirty, nodeIdx) * weight;
 					if (accRot_.dot(tmpRot_.value) < 0.0f) {
 						tmpRot_.value = -tmpRot_.value;
 					}

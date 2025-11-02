@@ -132,11 +132,12 @@ namespace regen {
 		std::vector<uint32_t> tmp_binCounts_;   // size = numLODs * numLayers
 		std::vector<uint32_t> tmp_binBase_;     // size = numLODs * numLayers
 
-		struct ShapeDistance {
-			uint32_t instanceID;
-			float distance;
-		};
-		std::vector<std::vector<ShapeDistance>> tmp_layerShapes_; // size = numLayers
+		// These vectors are filled up during traversal and sorted
+		// according to the instance distance to the camera.
+		std::vector<uint32_t> tmp_layerShapes_; // size = numLayers * numInstances
+		std::vector<uint32_t> tmp_layerInstances_; // size = numLayers * numInstances
+		std::vector<uint32_t> tmp_layerIndices_; // size = numLayers * numInstances
+		std::vector<float> tmp_layerDistances_; // size = numLayers * numInstances
 
 		struct MappedData {
 			explicit MappedData(

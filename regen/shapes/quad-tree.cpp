@@ -421,35 +421,31 @@ static inline std::pair<float, float> project(const Bounds<Vec2f> &b, const Vec2
 }
 
 bool QuadTree::Node::intersects(const OrthogonalProjection &projection) const {
-	switch (projection.type) {
-		case OrthogonalProjection::Type::CIRCLE: {
-			const auto &radiusSqr = projection.points[1].x; // = radius * radius
-			const auto &center = projection.points[0];
-			// Calculate the squared distance from the circle's center to the AABB
-			float sqDist = 0.0f;
-			if (center.x < bounds.min.x) {
-				sqDist += (bounds.min.x - center.x) * (bounds.min.x - center.x);
-			} else if (center.x > bounds.max.x) {
-				sqDist += (center.x - bounds.max.x) * (center.x - bounds.max.x);
-			}
-			if (center.y < bounds.min.y) {
-				sqDist += (bounds.min.y - center.y) * (bounds.min.y - center.y);
-			} else if (center.y > bounds.max.y) {
-				sqDist += (center.y - bounds.max.y) * (center.y - bounds.max.y);
-			}
-			return sqDist < radiusSqr;
+	if (projection.type == OrthogonalProjection::Type::CIRCLE) {
+		const auto &radiusSqr = projection.points[1].x; // = radius * radius
+		const auto &center = projection.points[0];
+		// Calculate the squared distance from the circle's center to the AABB
+		float sqDist = 0.0f;
+		if (center.x < bounds.min.x) {
+			sqDist += (bounds.min.x - center.x) * (bounds.min.x - center.x);
+		} else if (center.x > bounds.max.x) {
+			sqDist += (center.x - bounds.max.x) * (center.x - bounds.max.x);
 		}
-		case OrthogonalProjection::Type::CONVEX_HULL:
-		case OrthogonalProjection::Type::TRIANGLE:
-		case OrthogonalProjection::Type::RECTANGLE:
-			// Check for separation along the axes of the shape and the axis-aligned quad
-			for (const auto &axis: projection.axes) {
-				auto [minA, maxA] = project(bounds, axis.dir);
-				if (maxA < axis.min || axis.max < minA) {
-					return false;
-				}
+		if (center.y < bounds.min.y) {
+			sqDist += (bounds.min.y - center.y) * (bounds.min.y - center.y);
+		} else if (center.y > bounds.max.y) {
+			sqDist += (center.y - bounds.max.y) * (center.y - bounds.max.y);
+		}
+		return sqDist < radiusSqr;
+	} else {
+		// Check for separation along the axes of the shape and the axis-aligned quad
+		for (const auto &axis: projection.axes) {
+			auto [minA, maxA] = project(bounds, axis.dir);
+			if (maxA < axis.min || axis.max < minA) {
+				return false;
 			}
-			return true;
+		}
+		return true;
 	}
 	return false;
 }
@@ -771,9 +767,6 @@ void QuadTree::Private::processSuccessors(QuadTreeTraversal &td) {
 		auto successorIdx = successorIdx_[i];
 		auto successor = queuedNodes_[currIdx_][successorIdx];
 
-		// TODO: Consider using SIMD for processing quad tree leaf node batches.
-		//       One difficulty is that different shape types must be supported,
-		//       which also would use different code paths.
 		if (successor->shapes.size() > 0) {
 			processLeafNode(td, successor);
 		}
@@ -789,7 +782,7 @@ void QuadTree::Private::processSuccessors(QuadTreeTraversal &td) {
 }
 
 static bool isMasked(QuadTreeTraversal &td, const QuadTree::Item *item) {
-	// only include the item of the traversal bit is set
+	// only include the item if the traversal bit is set
 	if (td.traversalBit != 0 &&
 		(item->shape->traversalMask() & td.traversalBit) == 0) {
 		return true;
@@ -799,6 +792,9 @@ static bool isMasked(QuadTreeTraversal &td, const QuadTree::Item *item) {
 
 void QuadTree::Private::processLeafNode(QuadTreeTraversal &td, Node *leaf) {
 	// 3D intersection test with the shapes in the node
+	// TODO: Consider using SIMD for processing quad tree leaf node batches.
+	//       One difficulty is that different shape types must be supported,
+	//       which also would use different code paths.
 
 	if (td.tree->testMode3D_ == QUAD_TREE_3D_TEST_NONE) {
 		// no intersection test, just call the callback
@@ -852,6 +848,9 @@ void QuadTree::foreachIntersection(
 	auto &origin = shape.tfOrigin();
 	// project the shape onto the xz-plane for faster intersection tests
 	// with the quad tree nodes.
+	// TODO: do not re-create OrthogonalProjection of camera each time.
+	//         - we can store it here locally, but only quad tree uses it.
+	//         - could also store it centrally with camera
 	OrthogonalProjection shape_projection(shape);
 	QuadTreeTraversal td;
 	td.tree = this;
@@ -1083,7 +1082,7 @@ void QuadTree::debugDraw(DebugInterface &debug) const {
 
 	// draw 2d projections of the shapes
 	lineColor = Vec3f(0, 1, 0);
-	const GLfloat h = 5.1f;
+	const float h = 5.1f;
 	for (auto &item: items_) {
 		if (item->shape->traversalMask() == 0) continue;
 		auto &projection = item->projection;

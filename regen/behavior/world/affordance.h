@@ -46,6 +46,8 @@ namespace regen {
 		Vec3f baseOffset = Vec3f::zero();
 		// Precomputed slot positions in world space.
 		std::vector<Vec3f> slotPositions;
+		// Name of the affordance
+		std::string name;
 
 		/**
 		 * Create a new affordance for the given owner.

@@ -27,23 +27,23 @@ namespace std {
 }
 
 namespace regen {
-	std::vector<TriangleFace> tessellate(GLuint lod, TriangleFace &in) {
+	std::vector<TriangleFace> tessellate(uint32_t lod, TriangleFace &in) {
 		std::vector<TriangleFace> in_(1);
 		in_[0] = in;
 		return tessellate(lod, in_);
 	}
 
-	std::vector<TriangleFace> tessellate(GLuint lod, std::vector<TriangleFace> &in) {
-		GLuint inFaces = in.size();
-		// Each triangle is divided in 4 smaller triangles
+	std::vector<TriangleFace> tessellate(uint32_t lod, std::vector<TriangleFace> &in) {
+		uint32_t inFaces = in.size();
+		// Each triangle is divided in 3 smaller triangles
 		// for each LoD level.
-		GLuint outFaces = pow(4.0, lod) * inFaces;
+		uint32_t outFaces = pow(3.0, lod) * inFaces;
 		std::vector<TriangleFace> out(outFaces);
-		GLuint counter = inFaces;
+		uint32_t counter = inFaces;
 		TriangleVertex pa, pb, pc;
-		GLuint i, j;
+		uint32_t i, j;
 
-		GLuint lastIndex = 0;
+		uint32_t lastIndex = 0;
 		for (i = 0; i < inFaces; ++i) {
 			out[i] = in[i];
 
@@ -56,7 +56,7 @@ namespace regen {
 		}
 
 		for (j = 0; j < lod; ++j) {
-			const GLuint lastCount = counter;
+			const uint32_t lastCount = counter;
 			for (i = 0; i < lastCount; ++i) {
 				pa.p = (out[i].v1.p + out[i].v2.p) * 0.5;
 				pb.p = (out[i].v2.p + out[i].v3.p) * 0.5;
@@ -76,28 +76,28 @@ namespace regen {
 		return out;
 	}
 
-	void tessellate(GLuint lod, Tessellation &tess) {
-		GLuint inFaces = tess.inputFaces.size();
+	void tessellate(uint32_t lod, Tessellation &tess) {
+		uint32_t inFaces = tess.inputFaces.size();
 		// Each triangle is divided in 4 smaller triangles
 		// for each LoD level.
-		GLuint outFaces = pow(4.0, lod) * inFaces;
+		uint32_t outFaces = pow(4.0, lod) * inFaces;
 		tess.outputFaces.resize(outFaces);
-		GLuint counter = inFaces;
-		GLuint pa_i, pb_i, pc_i;
-		GLuint i, j;
+		uint32_t counter = inFaces;
+		uint32_t pa_i, pb_i, pc_i;
+		uint32_t i, j;
 
-		std::unordered_map<Edge, GLuint> edgeMidpointMap;
-		GLuint lastIndex = tess.vertices.size() - 1;
+		std::unordered_map<Edge, uint32_t> edgeMidpointMap;
+		uint32_t lastIndex = tess.vertices.size() - 1;
 
 		for (i = 0; i < inFaces; ++i) {
 			tess.outputFaces[i] = tess.inputFaces[i];
 		}
 
 		for (j = 0; j < lod; ++j) {
-			const GLuint lastCount = counter;
+			const uint32_t lastCount = counter;
 			for (i = 0; i < lastCount; ++i) {
 				auto &face = tess.outputFaces[i];
-				auto addMidpoint = [&](GLuint v1, GLuint v2) {
+				auto addMidpoint = [&](uint32_t v1, uint32_t v2) {
 					Edge edge = {v1, v2};
 					if (edgeMidpointMap.find(edge) == edgeMidpointMap.end()) {
 						tess.vertices.push_back((tess.vertices[v1] + tess.vertices[v2]) * 0.5);

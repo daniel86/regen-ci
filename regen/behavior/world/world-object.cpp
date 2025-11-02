@@ -100,11 +100,13 @@ bool WorldObject::hasAffordance(ActionType actionType) const {
 	return false;
 }
 
-ref_ptr<Affordance> WorldObject::getAffordance(ActionType actionType) const {
+ref_ptr<Affordance> WorldObject::getAffordance(ActionType actionType, std::string_view affordanceName) const {
 	for (const auto &aff: affordances_) {
-		if (aff->type == actionType) {
-			return aff;
+		if (aff->type != actionType) continue;
+		if (!affordanceName.empty() && aff->name != affordanceName) {
+			continue;
 		}
+		return aff;
 	}
 	return {};
 }
@@ -220,6 +222,7 @@ ref_ptr<WorldObject> WorldObject::load(LoadingContext &ctx, scene::SceneInputNod
 		affordance->layout = a->getValue<SlotLayout>("slot-layout", SlotLayout::CIRCULAR);
 		affordance->radius = a->getValue<float>("radius", 1.0f);
 		affordance->baseOffset = a->getValue<Vec3f>("base-offset", Vec3f(0.0f, 0.0f, 0.0f));
+		affordance->name = a->getName();
 		wo->addAffordance(affordance);
 	}
 
@@ -269,6 +272,17 @@ ref_ptr<WorldObjectVec> WorldObjectVec::load(LoadingContext &ctx, scene::SceneIn
 				for (uint32_t instance = r.from; instance <= r.to; instance += r.step) {
 					auto wo = WorldObject::load(ctx, n);
 					wo->setShape(mesh->indexedShape(instance), instance);
+
+					// Add to semantic places.
+					auto worldModel = ctx.scene()->getResources()->getWorldModel();
+					for (const auto &place: worldModel->places) {
+						if ((wo->position2D() - place->position2D()).lengthSquared() <= place->radius() * place->radius()) {
+							place->addWorldObject(wo);
+							wo->setPlaceOfObject(place);
+							break;
+						}
+					}
+
 					objVec->push_back(wo);
 				}
 			}

@@ -15,9 +15,9 @@ namespace regen {
 		/**
 		 * Create a new social group.
 		 * @param groupActivity the activity of the social group.
-		 * @param maxGroupSize the maximum size of the social group, default is 6.
+		 * @param maxGroupSize the maximum size of the social group, default is 3.
 		 */
-		explicit ObjectGroup(ActionType groupActivity, int32_t maxGroupSize = 6);
+		explicit ObjectGroup(ActionType groupActivity, int32_t maxGroupSize = 3);
 
 		~ObjectGroup() override = default;
 

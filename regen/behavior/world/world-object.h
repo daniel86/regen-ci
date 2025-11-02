@@ -83,7 +83,7 @@ namespace regen {
 
 		bool hasAffordance(ActionType actionType) const;
 
-		ref_ptr<Affordance> getAffordance(ActionType actionType) const;
+		ref_ptr<Affordance> getAffordance(ActionType actionType, std::string_view affordanceName="") const;
 
 		void setCurrentLocation(const ref_ptr<Location> &location);
 

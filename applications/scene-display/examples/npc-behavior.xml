@@ -18,8 +18,8 @@
     <constant name="village-center-b" value="{{village-center-b-x}},{{village-center-b-z}}"/>
     <constant name="market-x" value="8.0"/>
     <constant name="market-z" value="-240.0"/>
-    <constant name="market-training-x" value="-25.0"/>
-    <constant name="market-training-z" value="55.0"/>
+    <constant name="market-training-x" value="-64.0"/>
+    <constant name="market-training-z" value="0.0"/>
     <constant name="statue-a-x" value="-20.75"/>
     <constant name="statue-a-z" value="0.99"/>
     <constant name="statue-b-x" value="-30.63"/>
@@ -136,11 +136,11 @@
             </place>
             <place id="market" type="gathering" point="{{market-x}},{{market-z}}" radius="80.0">
                 <object id="market-square" type="location" point="0.0,0.0" radius="20.0">
-                    <affordance type="converse" radius="19.0" max-participants="12" max-group-size="4"/>
+                    <affordance type="converse" radius="19.0" max-participants="12" max-group-size="3"/>
                     <affordance type="observe" num-slots="14" radius="20.0" min-distance="4.0"/>
                 </object>
                 <object id="market-meet-up1" type="location" point="40.0,-35.0" radius="10.0">
-                    <affordance type="converse" max-participants="6" max-group-size="6"/>
+                    <affordance type="converse" max-participants="6" max-group-size="4"/>
                 </object>
                 <object id="training-spectators" point="{{market-training-x}},{{market-training-z}}" radius="25.0">
                     <affordance type="observe" num-slots="24" radius="25.0" min-distance="20.0"/>
@@ -198,7 +198,7 @@
         <controller id="dwarf-controller" type="person"
                     mesh="dwarf" mesh-index="1" tf="dwarf-tf"
                     weapon-mesh="dwarf" weapon-mesh-index="0"
-                    animation-asset="dwarf-asset-instanced"
+                    animation-asset="dwarf-asset"
                     indexed-shape="dwarf-shape"
                     spatial-index="main-index"
                     footstep-mesh="dwarf-foot"
@@ -225,6 +225,7 @@
                     look-ahead-threshold="8.0"
                     personal-space="2.5"
                     velocity-orientation-weight="0.75">
+            <behavior-tree from-instance="5" to-instance="7" import="shopkeeper"/>
             <behavior-tree import="villager"/>
         </controller>
         <controller id="user-controller"
@@ -286,27 +287,24 @@
                compare-function="LEQUAL"
                sampler-type="sampler2DArrayShadow"/>
     </fbo>
-    <fbo id="screen-space-footsteps" size-mode="rel" size="0.25,0.25"
-         pixel-type="UNSIGNED_BYTE" pixel-size="16">
-        <texture id="collision" pixel-components="1"
-                 min-filter="LINEAR" mag-filter="LINEAR"/>
-    </fbo>
-    <fbo id="footsteps-fbo0" size-mode="abs" size="256,256"
-         pixel-type="UNSIGNED_BYTE" pixel-size="16">
-        <texture id="collision" pixel-components="1"
-                 min-filter="LINEAR" mag-filter="LINEAR"/>
-    </fbo>
-    <fbo id="footsteps-fbo1" size-mode="abs" size="256,256,2"
-         target="TEXTURE_2D_ARRAY" pixel-components="1"
+    <fbo id="screen-density" size-mode="rel" size="0.25,0.25"
+         pixel-type="UNSIGNED_BYTE" pixel-size="16" pixel-components="1"
          min-filter="LINEAR" mag-filter="LINEAR">
-        <texture id="footsteps" pixel-components="1"
-                 min-filter="LINEAR" mag-filter="LINEAR"/>
+        <texture id="footsteps" />
+        <texture id="paths" />
+    </fbo>
+    <fbo id="footsteps-fbo0" size-mode="abs" size="256,256" pixel-type="UNSIGNED_BYTE" pixel-size="16">
+        <texture id="collision" pixel-components="1" min-filter="LINEAR" mag-filter="LINEAR"/>
+    </fbo>
+    <fbo id="footsteps-fbo1" size-mode="abs" size="256,256,2" target="TEXTURE_2D_ARRAY" pixel-components="1">
+        <texture id="footsteps" pixel-components="1" min-filter="LINEAR" mag-filter="LINEAR"/>
     </fbo>
     <!-- Textures -->
     <texture id="dwarf-body-albedo" is-array="1" file="res/models/psionic/dwarf/x/dwarf-skins/" mipmap="1"/>
     <texture id="dwarf-axe-albedo" file="res/models/psionic/dwarf/x/axe.jpg" mipmap="1"/>
     <texture id="snow-flake" file="res/textures/splats/flake.png"/>
     <texture id="snow" file="res/textures/ground/snow/2/diffuse.png" mipmap="1"/>
+    <texture id="wood" file="res/textures/materials/wood.png" mipmap="1"/>
     <texture id="wind-flowmap" file="res/textures/wind/flowmap0.png" wrapping="REPEAT"/>
     <texture id="ground-normal" file="res/textures/terrain/rocky1/normal.png" mipmap="1"/>
     <texture id="ground-height" type="height" file="res/textures/terrain/rocky1/height.png" mipmap="1"
@@ -365,7 +363,7 @@
             up="0.0,0.0,-1.0"
             update-frequency="NEVER"/>
     <!-- Assets -->
-    <asset id="dwarf-asset-instanced"
+    <asset id="dwarf-asset"
            type="asset"
            file="res/models/psionic/dwarf/x/dwarf.x"
            texture-path="res/models/psionic/dwarf/x"
@@ -524,7 +522,7 @@
 
     <mesh id="ground-mesh"
           type="ground"
-          lod-levels="6,5,4,2"
+          lod-levels="8,7,6,5"
           lod-thresholds="40.0, 80.0, 120.0"
           patch-density="35"
           map-size="{{map-size}},{{map-height}},{{map-size}}"
@@ -543,21 +541,28 @@
             <!--
             <material type="grass" name="ground/grass" variant="1" uv-scale="0.25"
                     height="0.25, 0.75, 0.25" slope="0.0, 25.0, 10.0"/>
-            <material type="sand" name="ground/sand" variant="3" uv-scale="0.05"
-                    height="0.0, 0.3, 0.2" slope="0.0, 15.0, 15.0"/>
             -->
             <material type="rock" name="ground/stone" variant="8" uv-scale="0.1"
                       slope="6.0, 180.0, 30.0"/>
+            <material type="dirt" name="ground/dirt" variant="3" uv-scale="0.1" is-fallback="1"
+                      height="0.0, 0.75, 0.2" slope="10.0, 180.0, 20.0"/>
+            <!--
             <material type="dirt" name="ground/stone" variant="7" uv-scale="0.1" is-fallback="1"
                       height="0.0, 0.75, 0.2" slope="10.0, 180.0, 20.0"/>
+            -->
             <material type="snow" name="ground/snow" variant="2" uv-scale="0.1"
                       height="0.2, 1.0, 0.1" slope="0.0, 15.0, 10.0"/>
+            <material type="path" name="ground/path" variant="1" uv-scale="0.05"
+                        height="0.0, 0.3, 0.2" slope="0.0, 0.0, 0.0"/>
         </materials>
         <masks>
-            <mask fbo="screen-space-footsteps" attachment="0"
-                  fallback-channel="1" fallback-intensity="0.4">
-                <!-- Blend footsteps with snow weight, to remove snow where footsteps are -->
-                <channel index="2" blend-mode="MUL" blend-factor="0.85"/>
+            <!-- Blend footsteps with snow weight, to remove snow where footsteps are -->
+            <mask fbo="screen-density" attachment="0" fallback-channel="1" fallback-intensity="0.4">
+                <channel index="2" blend-mode="MUL" blend-factor="0.85" invert="1"/>
+            </mask>
+            <!-- Add patches of dirt where paths are -->
+            <mask fbo="screen-density" attachment="1">
+                <channel index="3" blend-mode="ADD" blend-factor="2.5"/>
             </mask>
         </masks>
         <shape id="ground-shape" cull="1" index="1" type="obb" mesh-index="0"
@@ -566,6 +571,19 @@
                height-map="ground-height">
             <has-part mesh-id="ground-mesh" mesh-index="1"/>
         </shape>
+    </mesh>
+
+    <mesh id="ground-path"
+            type="ground-path"
+            lod-level="2"
+            use-texco="0" use-normal="0" use-tangent="0"
+            map-size="{{map-size}},{{map-height}},{{map-size}}"
+            map-center="0.0,0.0,0.0"
+            height-map="ground-height"
+            path-width="18.0"
+            base-height="-{{map-height-half}}">
+        <shader mesh-index="0" key="regen.models.mesh"/>
+        <transform id="ground-path-tf" update-frequency="NEVER"/>
     </mesh>
 
     <mesh id="ground-blanket" type="blanket"
@@ -600,11 +618,13 @@
     </node>
 
     <node id="Scene-Geometry">
-        <node id="Blanket">
+        <node id="Blankets">
             <input name="planeSize" type="vec2" value="{{map-size}},{{map-size}}"/>
             <texture name="heightTexture" id="ground-height" map-to="HEIGHT"
                      mapping="xz_plane" blend-mode="ADD" blend-factor="{{map-height}}"/>
-            <mesh id="ground-blanket"/>
+            <node id="Test">
+                <mesh id="ground-blanket"/>
+            </node>
         </node>
         <node import="Ground"/>
     </node>
@@ -769,19 +789,48 @@
     </node>
 
     <node id="Decals-No-Shadow">
-        <node id="Footsteps">
-            <fbo id="screen-space-footsteps" clear-buffers="0" draw-buffers="0"/>
+        <node id="Terrain-Masks">
+            <fbo id="screen-density" clear-buffers="0,1"/>
             <depth test="0" write="0"/>
-            <blend mode="ADD"/>
-            <mesh id="dwarf-foot"/>
+            <node id="Footstep-Mask">
+                <fbo id="screen-density" draw-buffers="0"/>
+                <mesh id="dwarf-foot"/>
+            </node>
+            <node id="Path-Mask">
+                <fbo id="screen-density" draw-buffers="1"/>
+                <input name="planeSize" type="vec2" value="{{map-size}},{{map-size}}"/>
+                <texture name="heightTexture" id="ground-height" map-to="HEIGHT"
+                         mapping="xz_plane" blend-mode="ADD" blend-factor="{{map-height}}"/>
+                <!-- TODO: output density only -->
+                <mesh id="ground-path"/>
+            </node>
+            <node id="Path-Mask-Blur">
+                <input type="int" name="numBlurPixels" value="8"/>
+                <input type="float" name="blurSigma" value="5.0"/>
+                <filter-sequence id="blurred-path" fbo="screen-density" attachment="1"
+                                 format="RED" internal-format="R16" pixel-type="BYTE">
+                    <filter shader="regen.filter.sampling" scale="1.0"/>
+                    <filter shader="regen.filter.blur.horizontal"/>
+                    <filter shader="regen.filter.blur.vertical"/>
+                </filter-sequence>
+            </node>
+            <node id="Copy-to-FBO">
+                <fbo id="screen-density" draw-buffers="1"/>
+                <texture name="inputTexture" id="blurred-path"/>
+                <fullscreen-pass shader="regen.filter.sampling"/>
+            </node>
         </node>
-        <node id="Apple">
+        <!--
+        <node id="Test">
+            <input name="planeSize" type="vec2" value="{{map-size}},{{map-size}}"/>
+            <texture name="heightTexture" id="ground-height" map-to="HEIGHT"
+                     mapping="xz_plane" blend-mode="ADD" blend-factor="{{map-height}}"/>
+            <mesh id="ground-path"/>
+        </node>
+        -->
+        <node id="Shop-Items">
             <mesh id="apple" mesh-index="0"/>
-        </node>
-        <node id="Pear">
             <mesh id="pear" mesh-index="0"/>
-        </node>
-        <node id="Pumpkin">
             <mesh id="pumpkin" mesh-index="0"/>
         </node>
     </node>
@@ -791,7 +840,7 @@
 
     <mesh id="dwarf"
           type="asset"
-          asset="dwarf-asset-instanced"
+          asset="dwarf-asset"
           asset-indices="*"
           asset-animation="1"
           asset-material="0"
@@ -835,7 +884,7 @@
         </object>
     </mesh>
 
-    <mesh id="dwarf-base" type="asset" asset="dwarf-asset-instanced"
+    <mesh id="dwarf-base" type="asset" asset="dwarf-asset"
           asset-indices="1"
           asset-animation="0"
           num-instances="1"
@@ -855,7 +904,7 @@
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <material preset="iron" variant="0"/>
         <transform id="mesh-cauldron-tf" update-frequency="NEVER" is-instanced="1">
-            <translate instance="0" value="50.0, 0.0, 40.0"/>
+            <translate instance="0" value="50.0, 0.0, 55.0"/>
             <translate instance="1" value="-50.0, 0.0, -40.0"/>
             <translate instance="2" value="50.0, 0.0, -40.0"/>
             <translate instance="3" value="-50.0, 0.0, 40.0"/>
@@ -870,7 +919,7 @@
 
     <mesh id="fire-sprite" type="point" update-frequency="NEVER" num-instances="6">
         <transform id="fire-sprite-tf" update-frequency="NEVER" is-instanced="1">
-            <translate instance="0" value="50.0, 5.5, 40.0"/>
+            <translate instance="0" value="50.0, 5.5, 55.0"/>
             <translate instance="1" value="-50.0, 5.5, -40.0"/>
             <translate instance="2" value="50.0, 5.5, -40.0"/>
             <translate instance="3" value="-50.0, 5.5, 40.0"/>
@@ -895,7 +944,7 @@
         <transform id="cart-tf" update-frequency="NEVER" is-instanced="1">
             <rotate instance="0" value="1.57, 0.0, 0.0"/>
             <rotate instance="1" value="2.57, 0.0, 0.0"/>
-            <translate instance="0" value="-75.0, 0.0, 30.0"/>
+            <translate instance="0" value="-125.0, 0.0, 30.0"/>
             <translate instance="1" value="15.0, 0.0, -75.0"/>
             <translate value="{{market-x}}, 0.0, {{market-z}}"/>
             <height map="ground-height"/>
@@ -916,8 +965,8 @@
         <shader key="regen.models.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="stable-tf" update-frequency="NEVER" is-instanced="1">
-            <rotate instance="0" value="-1.57, 0.0, 0.0"/>
-            <translate instance="0" value="-60.0, -0.2, 0.0"/>
+            <rotate instance="0" value="-1.67, 0.0, 0.0"/>
+            <translate instance="0" value="-120.0, -0.2, 0.0"/>
             <translate value="{{market-x}}, 0.0, {{market-z}}"/>
             <height map="ground-height"/>
         </transform>
@@ -957,7 +1006,7 @@
             <affordance id="shopper" type="observe" num-slots="6" slot-layout="grid"
                         spacing="4.0" min-distance="0.0"
                         base-offset="0.0,0.0,10.0"/>
-            <affordance id="shop-keeper" type="observe" num-slots="1" radius="0.1"
+            <affordance id="shop-keeper" type="observe" num-slots="1" radius="0.5"
                         base-offset="0.0,0.0,-3.0"/>
         </object>
     </mesh>
@@ -1142,27 +1191,6 @@
         </object>
     </mesh>
 
-    <mesh id="sphinx" type="asset" asset="asset-sphinx"
-          asset-indices="*" asset-animation="0"
-          scaling="0.005,0.005,0.005"
-          rotation="0.0,0.0,0.0"
-          translation="0.0,0.0,0.0"
-          update-frequency="NEVER"
-          num-instances="1">
-        <shader key="regen.models.mesh"/>
-        <transform id="sphinx-tf" update-frequency="NEVER" is-instanced="1">
-            <rotate value="0.0, 0.0, 1.57"/>
-            <rotate value="4.0, 0.0, 0.0"/>
-            <translate value="{{shrine-center-x}}, 0.0, {{shrine-center-z}}"/>
-            <translate value="-55.0, 0.0, 60.0"/>
-            <height map="ground-height"/>
-        </transform>
-        <shape id="sphinx-shape" index="1" cull="1" type="obb"
-               mesh-id="sphinx" transform-id="sphinx-tf">
-            <traversal-bit value="{{collision-bit}}"/>
-        </shape>
-    </mesh>
-
     <mesh id="shrine-stones" type="sphere" use-normal="1" use-texco="1" use-tangent="1"
           lod-levels="4, 3, 2"
           lod-thresholds="20.0, 50.0, 0.0"
@@ -1237,7 +1265,7 @@
             <set mode="row" target="translate"
                  x-step="12.0,0.0,0.0" z-step="0.0,0.0,16.0"
                  x-count="3"/>
-            <rotate value="4.0, 0.0, 0.0"/>
+            <rotate value="-1.57, 0.0, 0.0"/>
 
             <translate value="{{market-training-x}}, 0.0, {{market-training-z}}"/>
             <translate value="{{market-x}}, 0.0, {{market-z}}"/>
@@ -1368,13 +1396,13 @@
             <input name="matEmission" type="vec3" value="0.0,1.0,0.0"/>
             <mesh id="altar" mesh-index="0"/>
         </node>
-        <node id="Sphinx">
-            <mesh id="sphinx"/>
-        </node>
         <node id="Rack">
             <mesh id="rack" mesh-index="0"/>
         </node>
         <node id="Manikin">
+            <!-- note: mesh does not have UVs, but triplanar mapping can still be used -->
+            <texture name="wood" id="wood" map-to="DIFFUSE"
+                     mapping="TRIPLANAR" texco-scale="1.0"/>
             <mesh id="manikin" mesh-index="0"/>
         </node>
         <node id="Statue">
@@ -1689,8 +1717,11 @@
             <input type="int" name="arrayTextureSize" value="{{num-cascades}}"/>
             <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
         </view>
+        <view id="Screen Paths">
+            <blit src-fbo="screen-density" src-attachment="1" dst-fbo="SCREEN"/>
+        </view>
         <view id="Screen Footsteps">
-            <blit src-fbo="screen-space-footsteps" src-attachment="0" dst-fbo="SCREEN"/>
+            <blit src-fbo="screen-density" src-attachment="0" dst-fbo="SCREEN"/>
         </view>
         <view id="Blurred Footsteps">
             <fbo id="SCREEN"/>
@@ -1789,7 +1820,6 @@
             </node>
 
             <node import="Post-Pass"/>
-
             <node import="Debug-Views"/>
 
             <node import="GUI-Pass">

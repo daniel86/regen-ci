@@ -309,6 +309,7 @@ std::vector<ref_ptr<PersonController>> PersonController::load(
 		// NOTE: XML scene may define different behavior trees for different instances.
 		for (const auto &btNodeXML: node.getChildren("behavior-tree")) {
 			std::list<scene::IndexRange> indices = btNodeXML->getIndexSequence(tf->numInstances());
+			bool success = false;
 			for (auto &range: indices) {
 				if (range.isWithinRange(tfIdx)) {
 					auto importKey = btNodeXML->getValue("import");
@@ -317,6 +318,8 @@ std::vector<ref_ptr<PersonController>> PersonController::load(
 							auto btRootXML = btNodeXML->getChildren().front();
 							auto btRoot = BehaviorTree::load(ctx, *btRootXML.get());
 							controller->setBehaviorTree(std::move(btRoot));
+							success = true;
+							break;
 						}
 					} else {
 						// Load behavior tree node as child of root node.
@@ -328,10 +331,14 @@ std::vector<ref_ptr<PersonController>> PersonController::load(
 							auto btRootXML = btRoots->getChildren().front();
 							auto btRoot = BehaviorTree::load(ctx, *btRootXML.get());
 							controller->setBehaviorTree(std::move(btRoot));
+							success = true;
+							break;
 						}
 					}
-					break;
 				}
+			}
+			if (success) {
+				break;
 			}
 		}
 

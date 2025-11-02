@@ -65,6 +65,8 @@ namespace regen {
 			BlendMode blendMode = BLEND_MODE_MULTIPLY;
 			// The blend factor for the mask value with the material weight.
 			float blendFactor = 1.0f;
+			// Whether to invert the mask value.
+			bool invert = false;
 		};
 
 		struct MaskFallback {

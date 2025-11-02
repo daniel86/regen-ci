@@ -247,7 +247,7 @@
 
     <mesh id="ground-mesh"
           type="ground"
-          lod-levels="5,4,3,1"
+          lod-levels="8,7,6,5"
           lod-thresholds="10.0, 30.0, 60.0"
           patch-density="24"
           map-size="{{map-size}},{{map-height}},{{map-size}}"

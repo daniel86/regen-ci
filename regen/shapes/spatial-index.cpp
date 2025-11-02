@@ -201,9 +201,10 @@ void SpatialIndex::handleIntersection(const BoundingShape& b_shape, void* userDa
 
 	// Finally bin the shape into the (lod, layer) bin
 	const uint32_t b = CullShape::binIdx(k, l, L);
-	i_shape->tmp_layerShapes_[l].push_back({
-		b_shape.instanceID(),
-		lodDistance });
+	i_shape->tmp_layerShapes_.push_back(i_shape->tmp_layerShapes_.size());
+	i_shape->tmp_layerInstances_.push_back(b_shape.instanceID());
+	i_shape->tmp_layerIndices_.push_back(l);
+	i_shape->tmp_layerDistances_.push_back(lodDistance);
 	i_shape->tmp_binCounts_[b] += 1;
 }
 
@@ -237,9 +238,10 @@ void SpatialIndex::updateVisibility() {
 			// need to be reset first.
 			std::memset(indexShape->tmp_binCounts_.data(), 0, sizeof(uint32_t) * B);
 			// Clear the per-layer bins.
-			for (uint32_t l=0; l<L; ++l) {
-				indexShape->tmp_layerShapes_[l].clear();
-			}
+			indexShape->tmp_layerShapes_.clear();
+			indexShape->tmp_layerInstances_.clear();
+			indexShape->tmp_layerIndices_.clear();
+			indexShape->tmp_layerDistances_.clear();
 			// Remember the index shape to bounding shape mapping such that we can
 			// obtain index shape from bounding shape directly (else a hash lookup would be required).
 			for (auto &bs: indexShape->boundingShapes_) {
@@ -247,14 +249,34 @@ void SpatialIndex::updateVisibility() {
 			}
 		}
 
-		// TODO: do not re-create OrthogonalProjection of camera each time.
-		//         - we can store it here locally, but only quad tree uses it.
-		//         - could also store it centrally with camera
 		auto &frustumShapes = ic.first->frustum();
 		for (uint32_t layerIdx = 0; layerIdx < frustumShapes.size(); ++layerIdx) {
 			updateLayerVisibility(ic.second, layerIdx, frustumShapes[layerIdx]);
 		}
 		for (auto &indexShape: ic.second.indexShapes_) {
+			// TODO: We could move tmp_layerShapes_ into indexCamera maybe, and only sort once all shapes?
+			auto& vec = indexShape->tmp_layerShapes_;
+			if (indexCamera.sortMode == SortMode::FRONT_TO_BACK) {
+				std::ranges::sort(vec, [&](uint32_t shapeIdx1, uint32_t shapeIdx2) {
+					// sort b two kes: (1) layerIdx, (2) distance
+					const uint32_t l1 = indexShape->tmp_layerIndices_[shapeIdx1];
+					const uint32_t l2 = indexShape->tmp_layerIndices_[shapeIdx2];
+					const float d1 = indexShape->tmp_layerDistances_[shapeIdx1];
+					const float d2 = indexShape->tmp_layerDistances_[shapeIdx2];
+					return l1 != l2 ? (l1 < l2) : (d1 < d2);
+				});
+			} else if (indexCamera.sortMode == SortMode::BACK_TO_FRONT) {
+				std::ranges::sort(vec, [&](uint32_t shapeIdx1, uint32_t shapeIdx2) {
+					// sort b two kes: (1) layerIdx, (2) distance
+					const uint32_t l1 = indexShape->tmp_layerIndices_[shapeIdx1];
+					const uint32_t l2 = indexShape->tmp_layerIndices_[shapeIdx2];
+					const float d1 = indexShape->tmp_layerDistances_[shapeIdx1];
+					const float d2 = indexShape->tmp_layerDistances_[shapeIdx2];
+					// sort b two kes: (1) layerIdx, (2) distance
+					return l1 != l2 ? (l1 < l2) :  (d1 > d2);
+				});
+			}
+			// Update LOD-major arrays
 			updateLOD_Major(indexCamera, indexShape);
 		}
 	}
@@ -289,17 +311,10 @@ void SpatialIndex::updateLOD_Major(IndexCamera &indexCamera, IndexedShape *index
 	std::memcpy(mapped_counts, indexShape->tmp_binCounts_.data(), sizeof(uint32_t) * B);
 	std::memcpy(mapped_base, indexShape->tmp_binBase_.data(), sizeof(uint32_t) * B);
 
-    // Sort inside each bin and write IDs to mapped buffer
+    // Write IDs to mapped buffer
+	uint32_t layerBase = 0;
+	auto& vec = indexShape->tmp_layerShapes_;
     for (uint32_t l = 0; l < L; ++l) {
-    	auto& vec = indexShape->tmp_layerShapes_[l];
-    	if (vec.empty()) continue;
-
-		if (indexCamera.sortMode == SortMode::FRONT_TO_BACK) {
-			std::ranges::sort(vec, std::ranges::less(), &IndexedShape::ShapeDistance::distance);
-		} else if (indexCamera.sortMode == SortMode::BACK_TO_FRONT) {
-			std::ranges::sort(vec, std::ranges::greater(), &IndexedShape::ShapeDistance::distance);
-		}
-		uint32_t layerBase = 0;
 		for (uint32_t k = 0; k < K; ++k) {
 			const uint32_t b = CullShape::binIdx(k, l, L);
 			const uint32_t base = indexShape->tmp_binBase_[b];
@@ -310,7 +325,7 @@ void SpatialIndex::updateLOD_Major(IndexCamera &indexCamera, IndexedShape *index
 				vec.begin() + layerBase,
 				vec.begin() + layerBase + cnt,
 				mapped_ids + base,
-				[](const IndexedShape::ShapeDistance &sd) { return sd.instanceID; });
+				[&](uint32_t shapeIdx) { return indexShape->tmp_layerInstances_[shapeIdx]; });
 			layerBase += cnt;
 		}
 	}

@@ -6,10 +6,7 @@
 using namespace regen;
 
 bool regen::isInterruptibleMotion(MotionType type) {
-	return (type == MotionType::WALK ||
-			type == MotionType::RUN ||
-			type == MotionType::SWIM ||
-			type == MotionType::IDLE);
+	return (type != MotionType::ATTACK && type != MotionType::BLOCK);
 }
 
 const float* regen::motionBodyPartWeights(MotionType type) {

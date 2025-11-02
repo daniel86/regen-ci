@@ -411,27 +411,38 @@ namespace regen {
 		 * @param textureData texture data.
 		 * @return value.
 		 */
-		template<class T>
+		template<class T, uint32_t NumComponents>
 		T sampleLinear(const Vec2f &uv, const ref_ptr<ImageData> &textureData) const {
 			const auto i_w = static_cast<int32_t>(width());
 			const auto i_h = static_cast<int32_t>(height());
-			const float f_x = std::clamp(uv.x,0.0f,1.0f) * static_cast<float>(i_w);
-			const float f_y = std::clamp(uv.y,0.0f,1.0f) * static_cast<float>(i_h);
+			float f_x = std::clamp(uv.x,0.0f,1.0f) * static_cast<float>(i_w);
+			float f_y = std::clamp(uv.y,0.0f,1.0f) * static_cast<float>(i_h);
+
 			const auto i_x0 = std::min(static_cast<int32_t>(f_x), i_w - 1);
 			const auto i_y0 = std::min(static_cast<int32_t>(f_y), i_h - 1);
 			const int32_t i_x1 = std::min(i_x0 + 1, i_w - 1);
 			const int32_t i_y1 = std::min(i_y0 + 1, i_h - 1);
+			const int32_t indices[4] = {
+				i_y0 * i_w + i_x0,
+				i_y1 * i_w + i_x0,
+				i_y0 * i_w + i_x1,
+				i_y1 * i_w + i_x1 };
 
-			const T v00 = sampleNearest<T>(Vec2ui(i_x0, i_y0), textureData);
-			const T v01 = sampleNearest<T>(Vec2ui(i_x0, i_y1), textureData);
-			const T v10 = sampleNearest<T>(Vec2ui(i_x1, i_y0), textureData);
-			const T v11 = sampleNearest<T>(Vec2ui(i_x1, i_y1), textureData);
+			T vals[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+			auto *vals_f = reinterpret_cast<float *>(&vals[0]);
+			for (uint32_t valIdx=0; valIdx < 4; ++valIdx) {
+				float *vals_ff = vals_f + valIdx * NumComponents;
+				auto *textureData_ff = textureData->floatPixels + indices[valIdx] * NumComponents;
+				for (unsigned int i = 0; i < NumComponents; ++i) {
+					vals_ff[i] = textureData_ff[i];
+				}
+			}
 
-			const float dx = f_x - static_cast<float>(i_x0);
-			const float dy = f_y - static_cast<float>(i_y0);
+			f_x -= static_cast<float>(i_x0);
+			f_y -= static_cast<float>(i_y0);
 			return
-				(v00 * (1.0f - dx) + v10 * dx) * (1.0f - dy) +
-				(v01 * (1.0f - dx) + v11 * dx) * dy;
+				(vals[0] * (1.0f - f_x) + vals[2] * f_x) * (1.0f - f_y) +
+				(vals[1] * (1.0f - f_x) + vals[3] * f_x) * f_y;
 		}
 
 		/**
@@ -444,20 +455,9 @@ namespace regen {
 		T sample(unsigned int texelIndex, const ref_ptr<ImageData> &textureData) const {
 			T v(0.0f);
 			auto *typedData = (float *) &v;
-			if (pixelType_ == GL_UNSIGNED_BYTE) {
-				auto *dataOffset = textureData->pixels + texelIndex * numComponents_;
-				for (unsigned int i = 0; i < numComponents_; ++i) {
-					typedData[i] = static_cast<float>(dataOffset[i]) / 255.0f;
-				}
-			} else if (pixelType_ == GL_FLOAT) {
-				auto *dataOffset = ((float*) textureData->pixels) + texelIndex * numComponents_;
-				auto *floatData = dataOffset;
-				for (unsigned int i = 0; i < numComponents_; ++i) {
-					typedData[i] = floatData[i];
-				}
-			} else {
-				throw std::runtime_error(REGEN_STRING("Unsupported pixel type 0x" <<
-						std::hex << pixelType_ << std::dec << " in ImageData::sample"));
+			auto *floatData = textureData->floatPixels + texelIndex * numComponents_;
+			for (unsigned int i = 0; i < numComponents_; ++i) {
+				typedData[i] = floatData[i];
 			}
 			return v;
 		}
