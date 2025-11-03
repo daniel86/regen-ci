@@ -63,6 +63,39 @@ void Material::set_emission(const Vec3f &emission) {
 	}
 }
 
+void Material::setSpecularMultiplier(float factor) {
+	if (materialSpecularMultiplier_.get() == nullptr) {
+		materialSpecularMultiplier_ = ref_ptr<ShaderInput1f>::alloc("matSpecularMultiplier");
+		materialSpecularMultiplier_->setUniformData(factor);
+		materialSpecularMultiplier_->setSchema(InputSchema::scalar(0.0f, 100.0f));
+		materialUniforms_->addStagedInput(materialSpecularMultiplier_);
+	} else {
+		materialSpecularMultiplier_->setUniformData(factor);
+	}
+}
+
+void Material::setEmissionMultiplier(float factor) {
+	if (materialEmissionMultiplier_.get() == nullptr) {
+		materialEmissionMultiplier_ = ref_ptr<ShaderInput1f>::alloc("matEmissionMultiplier");
+		materialEmissionMultiplier_->setUniformData(factor);
+		materialEmissionMultiplier_->setSchema(InputSchema::scalar(0.0f, 100.0f));
+		materialUniforms_->addStagedInput(materialEmissionMultiplier_);
+	} else {
+		materialEmissionMultiplier_->setUniformData(factor);
+	}
+}
+
+void Material::setTransparentColor(const Vec4f &color) {
+	if (materialTransparentColor_.get() == nullptr) {
+		materialTransparentColor_ = ref_ptr<ShaderInput4f>::alloc("matTransparentColor");
+		materialTransparentColor_->setUniformData(color);
+		materialTransparentColor_->setSchema(InputSchema::color());
+		materialUniforms_->addStagedInput(materialTransparentColor_);
+	} else {
+		materialTransparentColor_->setUniformData(color);
+	}
+}
+
 void Material::set_fillMode(GLenum fillMode) {
 	if (fillMode == fillMode_) return;
 	disjoinStates(fillModeState_);

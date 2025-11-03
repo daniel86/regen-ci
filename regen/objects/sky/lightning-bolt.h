@@ -1,7 +1,7 @@
 #ifndef REGEN_LIGHTNING_BOLT_H
 #define REGEN_LIGHTNING_BOLT_H
 
-#include <regen/objects/mesh-state.h>
+#include <regen/objects/mesh.h>
 #include <regen/shapes/bounds.h>
 
 namespace regen {

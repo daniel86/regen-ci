@@ -1,6 +1,6 @@
 #include <regen/states/state-node.h>
 #include "lod-state.h"
-#include "regen/objects/mesh-vector.h"
+#include "regen/objects/composite-mesh.h"
 #include "regen/gl-types/gl-param.h"
 #include "regen/utility/conversion.h"
 #include "regen/camera/light-camera.h"

@@ -64,6 +64,8 @@ static Vec3f &aiToOgle(aiColor3D *v) { return *((Vec3f *) v); }
 
 static Vec3f &aiToOgle3f(aiColor4D *v) { return *((Vec3f *) v); }
 
+static Vec4f &aiToOgle4f(aiColor4D *v) { return *((Vec4f *) v); }
+
 AssetImporter::AssetImporter(const string &assetFile)
 		: assetFile_(assetFile),
 		  scene_(nullptr) {
@@ -625,17 +627,13 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 											 AI_MATKEY_COLOR_SPECULAR, &aiCol)) {
 			mat->specular()->setVertex(0, aiToOgle3f(&aiCol));
 		}
-		if (AI_SUCCESS == aiGetMaterialColor(aiMat,
-											 AI_MATKEY_COLOR_AMBIENT, &aiCol)) {
-			//mat->ambient()->setVertex(0, aiToOgle3f(&aiCol));
-		}
 
 		float emissionStrength = emissionStrength_;
 		if (aiGetMaterialFloatArray(aiMat, AI_MATKEY_EMISSIVE_INTENSITY,
 									&floatVal, &maxElements) == AI_SUCCESS) {
-			// TODO: add support for AI_MATKEY_EMISSIVE_INTENSITY
-			//mat->set_colorBlendFactor(floatVal);
-			emissionStrength *= floatVal;
+			if (floatVal > 0.0f && floatVal < 1.0f - 1e-5f) {
+				mat->setEmissionMultiplier(floatVal);
+			}
 		}
 		if (AI_SUCCESS == aiGetMaterialColor(aiMat,
 											 AI_MATKEY_COLOR_EMISSIVE, &aiCol)) {
@@ -646,7 +644,10 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 		// this is the color to be multiplied with the color of translucent light to
 		// construct the final 'destination color' for a particular position in the screen buffer.
 		if (AI_SUCCESS == aiGetMaterialColor(aiMat, AI_MATKEY_COLOR_TRANSPARENT, &aiCol)) {
-			// TODO: add support for AI_MATKEY_COLOR_TRANSPARENT
+			Vec4f tc = aiToOgle4f(&aiCol);
+			if (tc.x <= 1.0f - 1e-5f || tc.y <= 1.0f - 1e-5f || tc.z <= 1.0f - 1e-5f || tc.w <= 1.0f - 1e-5f) {
+				mat->setTransparentColor(aiToOgle4f(&aiCol));
+			}
 		}
 
 		maxElements = 1;
@@ -661,8 +662,7 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 		// This is simply a multiplier to the specular color of a material
 		if (aiGetMaterialFloatArray(aiMat, AI_MATKEY_SHININESS_STRENGTH,
 									&floatVal, &maxElements) == AI_SUCCESS) {
-			// TODO: add support for AI_MATKEY_SHININESS_STRENGTH
-			//mat->set_shininessStrength( floatVal );
+			mat->setSpecularMultiplier(floatVal);
 		}
 
 		maxElements = 1;

@@ -238,7 +238,7 @@ void SceneLoader::putResource(const std::string &category, const std::string &na
 	} else if (category == "SpatialIndex") {
 		resources_->putIndex(name, ref_ptr<SpatialIndex>::dynamicCast(v));
 	} else if (category == "Mesh") {
-		resources_->putMesh(name, ref_ptr<MeshVector>::dynamicCast(v));
+		resources_->putMesh(name, ref_ptr<CompositeMesh>::dynamicCast(v));
 	} else if (category == "State") {
 		putState(name, ref_ptr<State>::dynamicCast(v));
 	} else if (category == "WorldObject") {

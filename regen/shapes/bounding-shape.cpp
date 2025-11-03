@@ -4,7 +4,7 @@
 #include "bounding-sphere.h"
 #include "bounding-box.h"
 #include "frustum.h"
-#include "regen/objects/mesh-state.h"
+#include "regen/objects/mesh.h"
 
 using namespace regen;
 

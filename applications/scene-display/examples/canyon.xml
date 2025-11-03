@@ -858,7 +858,7 @@
                    However, the depth pass below cannot be moved before the water rendering,
                    as it needs to sample the depth buffer.
                    It could be that doing a stencil only pass first, then doing
-                   a "stencil-blit" would be cheaper... -->
+                   a "stencil-blit" would be cheaper. This is the case in all demos using water shader. -->
         <node id="Water-Blit-Albedo">
             <blit filter-mode="NEAREST"
                   src-fbo="g-buffer" src-attachment="1"

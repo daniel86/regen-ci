@@ -624,6 +624,9 @@ void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
 #endif
     applyBrightness(mat);
     textureMappingLight(posWorld, norWorld, mat);
+#ifdef HAS_matSpecularMultiplier
+    mat.specular *= in_matSpecularMultiplier;
+#endif
 
     Shading shading = shade(posWorld, norWorld, gl_FragCoord.z, mat.shininess);
     vec3 shadedColor =
@@ -696,12 +699,21 @@ void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
 #endif // USE_MATERIAL
     applyBrightness(mat);
     textureMappingLight(in_posWorld, norWorld, mat);
+#ifdef HAS_matSpecularMultiplier
+    mat.specular *= in_matSpecularMultiplier;
+#endif
+#ifdef HAS_matEmissionMultiplier && HAS_MATERIAL_EMISSION
+    mat.emission *= in_matEmissionMultiplier;
+#endif
 
     out_color.rgb = mat.diffuse.rgb;
 #ifdef HAS_ALPHA_CLIP_COEFFICIENTS
     clipAlpha(color);
 #endif
     out_color.a = color.a;
+#ifdef HAS_matTransparentColor
+    out_color *= in_matTransparentColor;
+#endif
 #ifdef HAS_ATTACHMENT_specular
     out_specular.rgb = mat.specular;
     // normalize shininess to [0,1]

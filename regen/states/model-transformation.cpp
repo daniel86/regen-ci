@@ -1,6 +1,6 @@
 #include <stack>
 #include "model-transformation.h"
-#include "regen/objects/mesh-vector.h"
+#include "regen/objects/composite-mesh.h"
 #include "../simulation/boids-cpu.h"
 #include "../simulation/boids-gpu.h"
 #include "regen/animation/transform-animation.h"
@@ -428,9 +428,9 @@ static GLuint transformMatrixPlane(
 		}
 	}
 	// get object bounds
-	auto meshes = scene->getResource<MeshVector>(input.getValue("obj-mesh"));
-	if (meshes.get() && !meshes.get()->empty()) {
-		auto &meshVec = *meshes.get();
+	auto compositeMesh = scene->getResource<CompositeMesh>(input.getValue("obj-mesh"));
+	if (compositeMesh.get() && !compositeMesh.get()->meshes().empty()) {
+		auto &meshVec = compositeMesh->meshes();
 		auto firstMesh = meshVec[0];
 		Bounds<Vec3f> bounds(firstMesh->minPosition(), firstMesh->maxPosition());
 		for (size_t i = 1; i < meshVec.size(); i++) {
@@ -554,9 +554,9 @@ static void transformAnimation(
 		if (child->hasAttribute("mesh-id")) {
 			auto meshID = child->getValue("mesh-id");
 			auto meshIndex = child->getValue<uint32_t>("mesh-index", 0u);
-			auto meshVec = scene->getResource<MeshVector>(meshID);
-			if (meshVec.get() != nullptr && meshVec->size() > meshIndex) {
-				auto mesh = (*meshVec.get())[meshIndex];
+			auto compositeMesh = scene->getResource<CompositeMesh>(meshID);
+			if (compositeMesh.get() != nullptr && compositeMesh->meshes().size() > meshIndex) {
+				auto mesh = compositeMesh->meshes()[meshIndex];
 				transformAnimation->setMesh(mesh);
 			}
 		}
