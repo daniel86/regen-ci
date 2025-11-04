@@ -12,6 +12,7 @@ LightningStrike::LightningStrike(uint32_t strikeIdx,
 	  source_(source),
 	  target_(target),
 	  alpha_(alpha) {
+	drawIndex_.store(0u, std::memory_order_release);
 }
 
 static Vec3f getPerpendicular1(const Vec3f &v) {
@@ -147,8 +148,6 @@ void LightningStrike::updateSegmentData(const Vec3f &source, const Vec3f &target
 	}
 
 	const uint32_t nextDrawIdx = updateIdx[lastIndex];
-	// Signal that an update is available.
-	hasUpdate_[nextDrawIdx].store(true, std::memory_order_release);
 	drawIndex_.store(nextDrawIdx, std::memory_order_release);
 }
 
@@ -454,17 +453,12 @@ void LightningBolt::glAnimate(RenderState *rs, GLdouble dt) {
 		if (strikeVertices == 0 || numVertices + strikeVertices > maxVertices) { continue; }
 		strikeBytes = strikeVertices * elementSize_;
 
-		if (strike->hasUpdate_[drawIdx].load(std::memory_order_acquire)) {
-			// Copy segment data to GPU buffer.
-			glNamedBufferSubData(
-				pos_->buffer(),
-				offset,
-				strikeBytes,
-				segment.data());
-			// Reset the update flag.
-			strike->hasUpdate_[drawIdx].store(false, std::memory_order_release);
-		}
-
+		// Copy segment data to GPU buffer.
+		glNamedBufferSubData(
+			pos_->buffer(),
+			offset,
+			strikeBytes,
+			segment.data());
 		numVertices += strikeVertices;
 		offset += strikeBytes;
 	}

@@ -126,9 +126,7 @@ namespace regen {
 		// It is atomically updated when a new segment is ready for drawing,
 		// however it is not safe to update the draw index while a draw is in progress
 		// as maybe the next update would start writing to the same segment before the draw is finished.
-		std::atomic<uint32_t> drawIndex_ = 0;
-		// A flag to indicate if a segment has been updated and is ready for drawing.
-		std::atomic<bool> hasUpdate_[3] = { false, false, false };
+		std::atomic<uint32_t> drawIndex_;
 		double u_time_ = 0.0f;
 		double u_maxLifetime_ = 0.0f;
 		float u_nextStrike_ = 0.0f;
