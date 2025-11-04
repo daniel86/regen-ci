@@ -125,14 +125,6 @@ namespace regen {
 		void setEmissionMultiplier(float factor);
 
 		/**
-		 * Sets the transparent color of the material.
-		 * This is the color to be multiplied with the color of translucent light to
-		 * construct the final 'destination color' for a particular position in the screen buffer.
-		 * @param color The transparent color.
-		 */
-		void setTransparentColor(const Vec4f &color);
-
-		/**
 		 * Defines how faces are shaded (FILL/LINE/POINT).
 		 */
 		void set_fillMode(GLenum mode);

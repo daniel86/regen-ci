@@ -711,9 +711,6 @@ void writeOutput(vec3 posWorld, vec3 norWorld, vec4 color) {
     clipAlpha(color);
 #endif
     out_color.a = color.a;
-#ifdef HAS_matTransparentColor
-    out_color *= in_matTransparentColor;
-#endif
 #ifdef HAS_ATTACHMENT_specular
     out_specular.rgb = mat.specular;
     // normalize shininess to [0,1]

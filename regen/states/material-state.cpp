@@ -85,17 +85,6 @@ void Material::setEmissionMultiplier(float factor) {
 	}
 }
 
-void Material::setTransparentColor(const Vec4f &color) {
-	if (materialTransparentColor_.get() == nullptr) {
-		materialTransparentColor_ = ref_ptr<ShaderInput4f>::alloc("matTransparentColor");
-		materialTransparentColor_->setUniformData(color);
-		materialTransparentColor_->setSchema(InputSchema::color());
-		materialUniforms_->addStagedInput(materialTransparentColor_);
-	} else {
-		materialTransparentColor_->setUniformData(color);
-	}
-}
-
 void Material::set_fillMode(GLenum fillMode) {
 	if (fillMode == fillMode_) return;
 	disjoinStates(fillModeState_);

@@ -64,8 +64,6 @@ static Vec3f &aiToOgle(aiColor3D *v) { return *((Vec3f *) v); }
 
 static Vec3f &aiToOgle3f(aiColor4D *v) { return *((Vec3f *) v); }
 
-static Vec4f &aiToOgle4f(aiColor4D *v) { return *((Vec4f *) v); }
-
 AssetImporter::AssetImporter(const string &assetFile)
 		: assetFile_(assetFile),
 		  scene_(nullptr) {
@@ -619,10 +617,26 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 			}
 		}
 
+		float opacity = mat->alpha()->getVertex(0).r;
+		Vec3f diffuseColor = Vec3f::one();
 		if (AI_SUCCESS == aiGetMaterialColor(aiMat,
 											 AI_MATKEY_COLOR_DIFFUSE, &aiCol)) {
-			mat->diffuse()->setVertex(0, aiToOgle3f(&aiCol));
+			diffuseColor = aiToOgle3f(&aiCol);
 		}
+		// AI_MATKEY_COLOR_TRANSPARENT is a bit confusing, it is meant as the color that
+		// should be fully transparent. e.g. if it is (1,0,0,1) then red parts should
+		// be fully transparent. However, AFAIK this is not supposed to be applied per-pixel,
+		// but rather as an overall material property.
+		if (AI_SUCCESS == aiGetMaterialColor(aiMat, AI_MATKEY_COLOR_TRANSPARENT, &aiCol)) {
+			// Apply color-key transparency
+			if (fabs(diffuseColor.x - aiCol.r) < 0.01f &&
+				fabs(diffuseColor.y - aiCol.g) < 0.01f &&
+				fabs(diffuseColor.z - aiCol.b) < 0.01f) {
+				opacity = 0.0f;
+			}
+		}
+		mat->diffuse()->setVertex(0, diffuseColor);
+
 		if (AI_SUCCESS == aiGetMaterialColor(aiMat,
 											 AI_MATKEY_COLOR_SPECULAR, &aiCol)) {
 			mat->specular()->setVertex(0, aiToOgle3f(&aiCol));
@@ -638,16 +652,6 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 		if (AI_SUCCESS == aiGetMaterialColor(aiMat,
 											 AI_MATKEY_COLOR_EMISSIVE, &aiCol)) {
 			mat->set_emission(aiToOgle3f(&aiCol) * emissionStrength);
-		}
-
-		// Defines the transparent color of the material,
-		// this is the color to be multiplied with the color of translucent light to
-		// construct the final 'destination color' for a particular position in the screen buffer.
-		if (AI_SUCCESS == aiGetMaterialColor(aiMat, AI_MATKEY_COLOR_TRANSPARENT, &aiCol)) {
-			Vec4f tc = aiToOgle4f(&aiCol);
-			if (tc.x <= 1.0f - 1e-5f || tc.y <= 1.0f - 1e-5f || tc.z <= 1.0f - 1e-5f || tc.w <= 1.0f - 1e-5f) {
-				mat->setTransparentColor(aiToOgle4f(&aiCol));
-			}
 		}
 
 		maxElements = 1;
@@ -669,9 +673,9 @@ vector<ref_ptr<Material> > AssetImporter::loadMaterials() {
 		// Defines the base opacity of the material
 		if (aiGetMaterialFloatArray(aiMat, AI_MATKEY_OPACITY,
 									&floatVal, &maxElements) == AI_SUCCESS) {
-			auto alpha = mat->alpha()->getVertex(0).r;
-			mat->alpha()->setVertex(0, alpha * floatVal);
+			opacity *= floatVal;
 		}
+		mat->alpha()->setVertex(0, opacity);
 
 		// Index of refraction of the material. This is used by some shading models,
 		// e.g. Cook-Torrance. The value is the ratio of the speed of light in a
