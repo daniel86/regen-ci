@@ -40,8 +40,8 @@ namespace regen {
 			int32_t parentIdx = -1;
 			int32_t childrenIdx[4];
 			uint32_t nodeIdx = 0;
-			std::vector<Item *> shapes;
-			std::vector<Item *> shapesTmp;
+			std::vector<uint32_t> shapes;
+			std::vector<uint32_t> shapesTmp;
 
 			Node(const Vec2f &min, const Vec2f &max);
 
@@ -154,7 +154,7 @@ namespace regen {
 		std::stack<Item *> itemPool_;
 		Node *root_ = nullptr;
 
-		std::unordered_map<const BoundingShape*, Item*> shapeToItem_;
+		std::unordered_map<const BoundingShape*, uint32_t> shapeToItem_;
 		float minNodeSize_ = 0.1f;
 		uint32_t numNodes_ = 0;
 		uint32_t numLeaves_ = 0;
@@ -163,9 +163,7 @@ namespace regen {
 		float closeDistanceSquared_ = 20.0f * 20.0f; // heuristic threshold for distance to camera position
 
 		Bounds<Vec2f> newBounds_;
-		std::vector<Item *> changedItems_;
-
-		Item* getItem(const ref_ptr<BoundingShape> &shape);
+		std::vector<uint32_t> changedItems_;
 
 		Node *createNode(const Vec2f &min, const Vec2f &max);
 
@@ -175,13 +173,13 @@ namespace regen {
 
 		void freeItem(Item *item);
 
-		bool reinsert(Item *shape, bool allowSubdivision);
+		bool reinsert(uint32_t itemIdx, bool allowSubdivision);
 
-		bool insert(Node *node, Item *shape, bool allowSubdivision);
+		bool insert(Node *node, uint32_t shapeIdx, bool allowSubdivision);
 
-		bool insert1(Node *node, Item *shape, bool allowSubdivision);
+		bool insert1(Node *node, uint32_t newShapeIdx, bool allowSubdivision);
 
-		Node* removeFromNode(Node *node, Item *shape, bool allowCollapse = true);
+		Node* removeFromNode(Node *node, uint32_t itemIdx, bool allowCollapse = true);
 
 		Node* collapse(Node *node);
 
