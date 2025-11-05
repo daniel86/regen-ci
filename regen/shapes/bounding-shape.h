@@ -2,7 +2,7 @@
 #define REGEN_BOUNDING_SHAPE_H_
 
 #include "regen/states/model-transformation.h"
-#include "bounds.h"
+#include "orthogonal-projection.h"
 
 namespace regen {
 	enum class BoundingShapeType {
@@ -229,6 +229,13 @@ namespace regen {
 		virtual Vec3f closestPointOnSurface(const Vec3f &point) const = 0;
 
 		/**
+		 * @brief Get the orthogonal projection of this shape.
+		 * If needed the projection is recomputed, ie. when the geometry or transform has changed.
+		 * @return The orthogonal projection
+		 */
+		const OrthogonalProjection& getOrthogonalProjection() const;
+
+		/**
 		 * Assign a world object to this shape.
 		 * This is used to link the shape to a world object.
 		 * @param obj The world object
@@ -264,6 +271,9 @@ namespace regen {
 		std::vector<ref_ptr<Mesh>> parts_;
 		Resource *worldObject_ = nullptr;
 
+		// Projection of the shape onto the xz-plane.
+		// This is computed in a lazy manner when requested.
+		mutable ref_ptr<OrthogonalProjection> orthoProjection_;
 		ref_ptr<ModelTransformation> transform_;
 		// only used in case no TF is set
 		Mat4f localTransform_ = Mat4f::identity();

@@ -848,14 +848,11 @@ void QuadTree::foreachIntersection(
 	auto &origin = shape.tfOrigin();
 	// project the shape onto the xz-plane for faster intersection tests
 	// with the quad tree nodes.
-	// TODO: do not re-create OrthogonalProjection of camera each time.
-	//         - we can store it here locally, but only quad tree uses it.
-	//         - could also store it centrally with camera
-	OrthogonalProjection shape_projection(shape);
+	const OrthogonalProjection &projection = shape.getOrthogonalProjection();
 	QuadTreeTraversal td;
 	td.tree = this;
 	td.shape = &shape;
-	td.projection = &shape_projection;
+	td.projection = &projection;
 	td.basePoint = Vec2f(origin.x, origin.z);
 	td.callback = callback;
 	td.userData = userData;
@@ -874,12 +871,12 @@ void QuadTree::foreachIntersection(
 	priv_->numSucceedingItems_ = 0;
 	priv_->addNodeToQueue(root_);
 
-	if (shape_projection.type == OrthogonalProjection::Type::CIRCLE) {
+	if (projection.type == OrthogonalProjection::Type::CIRCLE) {
 		priv_->intersectionLoop_sphere(td);
 	} else {
 		// call the templated intersection loop function with the number of axes
 		// as template parameter.
-		switch (const size_t numAxes = shape_projection.axes.size()) {
+		switch (const size_t numAxes = projection.axes.size()) {
 			case 0: // circle handled separately already
 				// shouldn't reach here for polygon/circle mix, but keep safe
 				REGEN_ERROR("unexpected axis count 0");
