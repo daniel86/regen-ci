@@ -114,9 +114,15 @@ namespace regen {
 
 		/**
 		 * Set the distance threshold for close distance tests.
-		 * @param distance The distance threshold to set
+		 * @param d The distance threshold to set
 		 */
 		void setCloseDistanceSquared(float d) { closeDistanceSquared_ = d * d; }
+
+		/**
+		 * Set the traversal bit used for intersection tests.
+		 * @param bit The traversal bit to set
+		 */
+		void setTraversalBit(uint32_t bit) { traversalBit_ = bit; }
 
 		// override SpatialIndex::insert
 		void insert(const ref_ptr<BoundingShape> &shape) override;
@@ -148,6 +154,7 @@ namespace regen {
 		Private *priv_;
 
 		uint32_t subdivisionThreshold_ = 4;
+		uint32_t traversalBit_ = BoundingShape::TRAVERSAL_BIT_DRAW;
 
 		std::vector<Node*> nodes_;
 		std::vector<Item *> items_;

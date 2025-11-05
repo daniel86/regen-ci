@@ -171,9 +171,9 @@ namespace regen {
 		// additional shapes for debugging only
 		std::vector<ref_ptr<BoundingShape>> debugShapes_;
 
-		void updateVisibility();
+		void updateVisibility(uint32_t traversalMask);
 
-		void updateLayerVisibility(IndexCamera &camera, uint32_t layerIdx, const BoundingShape &shape);
+		void updateLayerVisibility(IndexCamera &camera, uint32_t layerIdx, const BoundingShape &shape, uint32_t traversalMask);
 
 		/**
 		 * @brief Add a shape to the index

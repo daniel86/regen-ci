@@ -1044,7 +1044,7 @@ void QuadTree::update(float dt) {
 	}
 
 	// make the visibility computations
-	updateVisibility();
+	updateVisibility(traversalBit_);
 }
 
 inline Vec3f toVec3(const Vec2f &v, float y) {
