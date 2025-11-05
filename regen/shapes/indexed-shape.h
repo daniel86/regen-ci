@@ -121,7 +121,8 @@ namespace regen {
 		ref_ptr<ShaderInput> idVec_;
 		ref_ptr<ShaderInput> countVec_;
 		ref_ptr<ShaderInput> baseVec_;
-		// TODO: make atomic?
+		// note: this flag is currently only used by LODState CPU path, and the spatial index traversal
+		//       both are currently bound to the same thread, so we do not need atomic updates here.
 		std::vector<bool> visible_;
 		bool isVisibleInAnyLayer_ = false;
 

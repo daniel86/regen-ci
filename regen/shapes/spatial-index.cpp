@@ -302,8 +302,9 @@ void SpatialIndex::updateLOD_Major(IndexCamera &indexCamera, IndexedShape *index
 	// Copy over the visibility flags from tmp_layerVisibility_ into visible_
     bool isVisible = false;
 	for (uint32_t layer = 0; layer < L; ++layer) {
-		indexShape->visible_[layer] = indexShape->tmp_layerVisibility_[layer];
-		if (indexShape->visible_[layer]) { isVisible = true; }
+		bool visibleInLayer = indexShape->tmp_layerVisibility_[layer];
+		indexShape->visible_[layer] = visibleInLayer;
+		if (!isVisible && visibleInLayer) { isVisible = true; }
 	}
 	indexShape->isVisibleInAnyLayer_ = isVisible;
 
