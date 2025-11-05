@@ -249,7 +249,6 @@ namespace regen {
 		/**
 		 * Unset the world object from this shape.
 		 * This is used to unlink the shape from a world object.
-		 * @param obj The world object
 		 */
 		Resource *worldObject() const { return worldObject_; }
 
@@ -272,8 +271,7 @@ namespace regen {
 		Vec3f baseOffset_ = Vec3f::zero();
 
 		bool useLocalStamp_ = false;
-		// TODO: Check if we need to make this an atomic. I think we might.
-		uint32_t localStamp_ = 1u;
+		std::atomic<uint32_t> localStamp_;
 		uint32_t lastTransformStamp_ = 0;
 		uint32_t lastGeometryStamp_;
 		uint32_t nextGeometryStamp_ = 0u;
@@ -292,7 +290,7 @@ namespace regen {
 		}
 
 		uint32_t getLocalStamp() const {
-			return localStamp_;
+			return localStamp_.load(std::memory_order_acquire);
 		}
 
 		void updateStampFunction();

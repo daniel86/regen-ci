@@ -1,5 +1,3 @@
-#include <regen/utility/logging.h>
-
 #include "bounding-shape.h"
 #include "bounding-sphere.h"
 #include "bounding-box.h"
@@ -12,6 +10,7 @@ BoundingShape::BoundingShape(BoundingShapeType shapeType)
 		: shapeType_(shapeType),
 		  useLocalStamp_(false),
 		  lastGeometryStamp_(0u) {
+	localStamp_.store(0u);
 	updateStampFunction();
 }
 
@@ -103,11 +102,12 @@ void BoundingShape::setTransform(const ref_ptr<ModelTransformation> &transform, 
 void BoundingShape::setTransform(const Mat4f &localTransform) {
 	localTransform_ = localTransform;
 	if (transform_.get()) {
-		localStamp_ = transform_->stamp();
+		localStamp_.store(transform_->stamp() + 1u, std::memory_order_relaxed);
+		transform_ = {};
+		transformIndex_ = 0;
+	} else {
+		localStamp_.fetch_add(1u, std::memory_order_relaxed);
 	}
-	localStamp_ += 1u;
-	transform_ = {};
-	transformIndex_ = 0;
 }
 
 const Vec3f& BoundingShape::translation() const {
