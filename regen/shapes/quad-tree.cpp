@@ -201,7 +201,8 @@ bool QuadTree::reinsert(uint32_t shapeIdx, bool allowSubdivision) { // NOLINT(mi
 	auto &shape = items_[shapeIdx];
 	Node *m;
 	if (shape->node) {
-		m = removeFromNode(shape->node, shapeIdx, false);
+		m = shape->node;
+		removeFromNode(shape->node, shape->idxInNode);
 		shape->node = nullptr;
 	} else {
 		m = root_;
@@ -228,8 +229,9 @@ bool QuadTree::reinsert(uint32_t shapeIdx, bool allowSubdivision) { // NOLINT(mi
 	while (n->parentIdx != -1 && !n->contains(shape->projection)) {
 		n = nodes_[n->parentIdx];
 	}
-	n->shapes.push_back(shapeIdx);
 	shape->node = n;
+	shape->idxInNode = n->shapes.size();
+	n->shapes.push_back(shapeIdx);
 	if (shape->node != m) collapse(m);
 	return true;
 }
@@ -251,8 +253,9 @@ bool QuadTree::insert1(Node *node, uint32_t newShapeIdx, bool allowSubdivision) 
 		// 2. the node has reached the minimum size and cannot be subdivided further
 		// 3. the node was just created by subdividing a parent node
 		if (!allowSubdivision ||
-			node->shapes.size() < subdivisionThreshold_ ||
-			node->bounds.size() < minNodeSize_) {
+				node->shapes.size() < subdivisionThreshold_ ||
+				node->bounds.size() < minNodeSize_) {
+			newShape->idxInNode = node->shapes.size();
 			node->shapes.push_back(newShapeIdx);
 			newShape->node = node;
 			return true;
@@ -289,8 +292,9 @@ bool QuadTree::insert1(Node *node, uint32_t newShapeIdx, bool allowSubdivision) 
 				if (insert(child, newShapeIdx, allowSubdivision)) return true;
 			}
 		}
-		node->shapes.push_back(newShapeIdx);
 		newShape->node = node;
+		newShape->idxInNode = node->shapes.size();
+		node->shapes.push_back(newShapeIdx);
 		return true;
 	}
 }
@@ -303,23 +307,23 @@ void QuadTree::remove(const ref_ptr<BoundingShape> &shape) {
 	}
 	uint32_t itemIdx = it->second;
 	auto *item = items_[itemIdx];
-	removeFromNode(item->node, itemIdx);
+	removeFromNode(item->node, item->idxInNode);
+	collapse(item->node);
 	item->node = nullptr;
 }
 
-QuadTree::Node* QuadTree::removeFromNode(Node *node, uint32_t itemIdx, bool allowCollapse) {
-	// TODO: It would be good if we could avoid searching for the shape in the node, also avoid vector erase.
-	//        This can be done by storing index and introducing free/used index vectors.
-	auto it = std::ranges::find(node->shapes, itemIdx);
-	if (it == node->shapes.end()) {
-		return node;
-	} else if (allowCollapse) {
-		node->shapes.erase(it);
-		return collapse(node);
-	} else {
-		node->shapes.erase(it);
-		return node;
+void QuadTree::removeFromNode(Node *node, uint32_t idxInNode) {
+	// Here we remove item at index `idxInNode` from node->shapes array.
+	// We do this by moving the last item of the array into the position of the removed item,
+	// and then popping the last item.
+	uint32_t lastIdx = node->shapes.size() - 1;
+	if (idxInNode != lastIdx) {
+		// move the last item into the position of the removed item
+		uint32_t movedItemIdx = node->shapes[lastIdx];
+		node->shapes[idxInNode] = movedItemIdx;
+		items_[movedItemIdx]->idxInNode = idxInNode;
 	}
+	node->shapes.pop_back();
 }
 
 QuadTree::Node* QuadTree::collapse(Node *node) { // NOLINT(misc-no-recursion)
@@ -956,7 +960,8 @@ void QuadTree::update(float dt) {
 		//       so we can skip updating them, and remove them from the tree.
 		if (item->shape->traversalMask() == 0) {
 			if (item->node) {
-				removeFromNode(item->node, itemIdx, true);
+				removeFromNode(item->node, item->idxInNode);
+				collapse(item->node);
 				item->node = nullptr;
 			}
 			continue;

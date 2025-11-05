@@ -26,6 +26,8 @@ namespace regen {
 			ref_ptr<BoundingShape> shape;
 			OrthogonalProjection projection;
 			Node *node = nullptr;
+			// the position in the shape array of the node if any
+			uint32_t idxInNode = 0;
 
 			explicit Item(const ref_ptr<BoundingShape> &shape);
 		};
@@ -179,7 +181,7 @@ namespace regen {
 
 		bool insert1(Node *node, uint32_t newShapeIdx, bool allowSubdivision);
 
-		Node* removeFromNode(Node *node, uint32_t itemIdx, bool allowCollapse = true);
+		void removeFromNode(Node *node, uint32_t itemIdx);
 
 		Node* collapse(Node *node);
 
