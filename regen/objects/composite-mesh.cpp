@@ -260,6 +260,19 @@ ref_ptr<CompositeMesh> CompositeMesh::load(LoadingContext &ctx, scene::SceneInpu
 		} else {
 			(*out) = CompositeMesh();
 			out->addMesh(impostor);
+
+			ref_ptr<CompositeMesh> baseMeshComposite = ctx.scene()->getResource<CompositeMesh>(input.getValue("base-mesh"));
+			if (baseMeshComposite.get()) {
+				std::queue<std::pair<ref_ptr<Mesh>, uint32_t> > baseMeshQueue;
+				loadIndexRange(input, baseMeshComposite, baseMeshQueue, "base-mesh");
+				auto [baseMesh,_idx] = baseMeshQueue.front();
+				if (baseMeshQueue.size() > 1) {
+					REGEN_WARN("multiple base mesh indices in lod-mesh in '" << input.getDescription() << "'.");
+				}
+				baseMesh->addMeshLOD(Mesh::MeshLOD(impostor));
+			} else {
+				REGEN_WARN("Ignoring base-mesh in '" << input.getDescription() << "', failed to load base mesh.");
+			}
 		}
 	} else if (meshType == "silhouette") {
 		auto silhouette = SilhouetteMesh::load(ctx, input);
@@ -384,14 +397,12 @@ ref_ptr<CompositeMesh> CompositeMesh::load(LoadingContext &ctx, scene::SceneInpu
 	if (lodMeshInput.get() != nullptr) {
 		visited.push_back(lodMeshInput);
 		for (auto &meshChild: lodMeshInput->getChildren("mesh")) {
-			// TODO: also allow to load mesh by id with external declaration
-			std::queue<std::pair<ref_ptr<Mesh>, uint32_t> > baseMeshQueue;
-			CompositeMesh::loadIndexRange(*meshChild.get(), out_, baseMeshQueue, "base-mesh");
-			auto [baseMesh,_idx] = baseMeshQueue.front();
-			if (baseMeshQueue.size() > 1) {
-				REGEN_WARN("multiple base mesh indices in lod-mesh in '" << meshChild->getDescription() << "'.");
+			// First try to find existing CompositeMesh resource
+			ref_ptr<CompositeMesh> lodMeshVec = parser->getResources()->getMesh(parser, meshChild->getValue("id"));
+			if (lodMeshVec.get() == nullptr || lodMeshVec->meshes().empty()) {
+				// Else try to create new one from child node
+				lodMeshVec = parser->getResources()->createMesh(parser, *meshChild.get());
 			}
-			auto lodMeshVec = parser->getResources()->createMesh(parser, *meshChild.get());
 			if (lodMeshVec.get() == nullptr || lodMeshVec->meshes().empty()) {
 				REGEN_WARN("Ignoring " << meshChild->getDescription() << ", failed to load lod mesh.");
 				continue;
@@ -402,7 +413,6 @@ ref_ptr<CompositeMesh> CompositeMesh::load(LoadingContext &ctx, scene::SceneInpu
 			}
 			lodMesh->shaderDefine("HAS_LOD", "TRUE");
 			REGEN_DEBUG("Adding LOD mesh '" << meshChild->getName() << "' to base mesh.");
-			baseMesh->addMeshLOD(Mesh::MeshLOD(lodMesh));
 		}
 	}
 	// remove visited children

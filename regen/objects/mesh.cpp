@@ -826,20 +826,13 @@ void Mesh::drawMeshLOD(RenderState *rs, uint32_t lodLevel, uint32_t drawIdx, int
 	if (lod.impostorMesh.get()) {
 		// let the LOD mesh do the draw call.
 		if (hasIndirectDrawBuffer()) {
-			lod.impostorMesh->setIndirectDrawBuffer(
-					indirectDrawBuffer_,
-					drawIdx, numDrawLayers_);
-			// TODO: improve this
-			lod.impostorMesh->numDrawLayers_ = multiDrawCount;
+			lod.impostorMesh->setIndirectDrawBuffer(indirectDrawBuffer_, drawIdx, multiDrawCount);
 			lod.impostorMesh->numDrawLODs_ = 1;
-			lod.impostorMesh->updateDrawFunction();
 			lod.impostorMesh->draw(rs);
-			lod.impostorMesh->numDrawLayers_ = numDrawLayers_;
 		} else {
 			lod.impostorMesh->resetVisibility(true);
 			lod.impostorMesh->updateVisibility(0,
-					lod.d->numVisibleInstances,
-					lod.d->instanceOffset);
+					lod.d->numVisibleInstances, lod.d->instanceOffset);
 			lod.impostorMesh->draw(rs);
 		}
 	}
