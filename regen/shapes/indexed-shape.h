@@ -132,13 +132,11 @@ namespace regen {
 		// per (lod, layer) data flattened as lod * numLayers + layer
 		std::vector<uint32_t> tmp_binCounts_;   // size = numLODs * numLayers
 		std::vector<uint32_t> tmp_binBase_;     // size = numLODs * numLayers
-
-		// These vectors are filled up during traversal and sorted
-		// according to the instance distance to the camera.
-		std::vector<uint32_t> tmp_layerShapes_; // size = numLayers * numInstances
-		std::vector<uint32_t> tmp_layerInstances_; // size = numLayers * numInstances
-		std::vector<uint64_t> tmp_sortKeys_64_; // size = numLayers * numInstances
-		std::vector<uint32_t> tmp_sortKeys_32_; // size = numLayers * num
+		uint32_t tmp_totalCount_ = 0;
+		// The index of this shape in the camera's shape list.
+		// Here we limit to max 65536 shapes per camera for sorting key packing,
+		// however instances are not counted as individual shapes.
+		uint16_t shapeIdx_ = 0;
 
 		struct MappedData {
 			explicit MappedData(

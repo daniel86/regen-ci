@@ -162,6 +162,15 @@ namespace regen {
 			std::unordered_map<std::string_view, ref_ptr<IndexedShape>> nameToShape_;
 			// flattened list of shapes for faster access
 			std::vector<IndexedShape*> indexShapes_;
+			// These vectors are filled up during traversal and sorted
+			// according to the instance distance to the camera.
+			std::vector<uint32_t> tmp_layerInstances_; // size = sum_{shape} numLayers * numInstances_{shape}
+			std::vector<uint32_t> tmp_layerShapes_; // size = sum_{shape} numLayers * numInstances_{shape}
+			std::vector<uint64_t> tmp_sortKeys_; // size = sum_{shape} numLayers * numInstances_{shape}
+			// total number of keys = sum_{shape} numLayers * numInstances_{shape}
+			uint32_t numKeys = 0;
+			// mark camera as dirty when shapes are added/removed
+			bool isDirty = false;
 			// how to sort instances by distance to camera
 			SortMode sortMode = SortMode::FRONT_TO_BACK;
 			Vec4i lodShift = Vec4i(0);
@@ -194,13 +203,14 @@ namespace regen {
 		// used internally when handling intersections
 		struct TraversalData {
 			SpatialIndex *index;
+			IndexCamera *indexCamera;
 			const Vec3f *camPos;
 			uint32_t layerIdx;
 		};
 
 		static void handleIntersection(const BoundingShape &b_shape, void *userData);
 
-		static void updateLOD_Major(IndexCamera &indexCamera, IndexedShape *indexShape);
+		static void updateLOD_Major(IndexCamera &indexCamera, IndexedShape *indexShape, uint32_t shapeBase);
 	};
 } // namespace
 
