@@ -7,7 +7,7 @@
 #include "regen/math/simd.h"
 
 //#define QUAD_TREE_DEBUG_TESTS
-//#define QUAD_TREE_DEBUG_TIME
+#define QUAD_TREE_DEBUG_TIME
 #define QUAD_TREE_EVER_GROWING
 #define QUAD_TREE_SQUARED
 //#define QUAD_TREE_DISABLE_SIMD
@@ -863,10 +863,6 @@ void QuadTree::foreachIntersection(
 	td.userData = userData;
 	td.traversalBit = traversalBit;
 
-#ifdef QUAD_TREE_DEBUG_TIME
-	static ElapsedTimeDebugger elapsedTime("Quad-Tree Update", 1000);
-	elapsedTime.beginFrame();
-#endif
 #ifdef QUAD_TREE_DEBUG_TESTS
 	priv_->num2DTests_ = 0;
 	priv_->num3DTests_ = 0;
@@ -928,10 +924,6 @@ void QuadTree::foreachIntersection(
 		numTests_3d.clear();
 	}
 #endif
-#ifdef QUAD_TREE_DEBUG_TIME
-	elapsedTime.push("foreachIntersection");
-	elapsedTime.endFrame();
-#endif
 }
 
 void QuadTree::update(float dt) {
@@ -942,6 +934,14 @@ void QuadTree::update(float dt) {
 		return;
 	}
 	bool hasChanged;
+#ifdef QUAD_TREE_DEBUG_TIME
+	static ElapsedTimeDebugger elapsedTime("Quad-Tree Update",
+		1000, ElapsedTimeDebugger::CPU_ONLY);
+	elapsedTime.beginFrame();
+#endif
+#ifdef QUAD_TREE_DEBUG_TIME
+	elapsedTime.push("starting");
+#endif
 
 	changedItems_.clear();
 	newBounds_.min = minFloat;
@@ -990,6 +990,9 @@ void QuadTree::update(float dt) {
 	newBounds_.max.x = std::max(newBounds_.max.x, newBounds_.max.y);
 	newBounds_.max.y = newBounds_.max.x;
 #endif
+#ifdef QUAD_TREE_DEBUG_TIME
+	elapsedTime.push("bounds-update");
+#endif
 	auto reInit = (root_ == nullptr || newBounds_ != root_->bounds);
 	if (reInit) {
 		// if bounds have changed, re-initialize the tree
@@ -1011,6 +1014,9 @@ void QuadTree::update(float dt) {
 			reinsert(itemIdx, true);
 		}
 	}
+#ifdef QUAD_TREE_DEBUG_TIME
+	elapsedTime.push("re-insertions");
+#endif
 
 	// finally insert the new items
 	for (auto item: newItems_) {
@@ -1025,6 +1031,9 @@ void QuadTree::update(float dt) {
 		}
 	}
 	newItems_.clear();
+#ifdef QUAD_TREE_DEBUG_TIME
+	elapsedTime.push("new-insertions");
+#endif
 
 	// update buffer sizes for intersection tests.
 	// at max we will have num-leaves nodes in the queue.
@@ -1042,9 +1051,16 @@ void QuadTree::update(float dt) {
 		priv_->batchResults_.resize(nextBufferSize / regen::simd::RegisterWidth + 1);
 #endif
 	}
+#ifdef QUAD_TREE_DEBUG_TIME
+	elapsedTime.push("buffer-resize");
+#endif
 
 	// make the visibility computations
 	updateVisibility(traversalBit_);
+#ifdef QUAD_TREE_DEBUG_TIME
+	elapsedTime.push("updated-visibility");
+	elapsedTime.endFrame();
+#endif
 }
 
 inline Vec3f toVec3(const Vec2f &v, float y) {

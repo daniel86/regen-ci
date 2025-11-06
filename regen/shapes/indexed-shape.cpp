@@ -24,8 +24,8 @@ IndexedShape::IndexedShape(
 	tmp_layerVisibility_.resize(L, false);
 	tmp_layerShapes_.reserve(L * I);
 	tmp_layerInstances_.reserve(L * I);
-	tmp_layerIndices_.reserve(L * I);
-	tmp_layerDistances_.reserve(L * I);
+	tmp_sortKeys_32_.reserve(L * I);
+	tmp_sortKeys_64_.reserve(L * I);
 
 	visible_.resize(L, true);
 }

@@ -5,12 +5,15 @@
 #include "quad-tree.h"
 #include "cull-shape.h"
 #include "spatial-index-debug.h"
+#include "regen/utility/conversion.h"
 
 // NOTE: this piece of code is performance critical! For many execution paths:
 // - avoid the use of std::set, std::unordered_set, std::map, std::unordered_map, etc. here
 // 		- also iteration over these containers is expensive!
 // - avoid lambda functions
 // - avoid alloc/free
+
+#define REGEN_INDEX_USE_64BIT_KEYS
 
 using namespace regen;
 
@@ -184,11 +187,41 @@ static inline uint32_t getLODLevel(
 	return b_shape.baseMesh()->getLODLevel(lodDistance, i_shape->lodShift());
 }
 
+inline uint16_t floatToHalf(float distance, SortMode sortMode) {
+	uint32_t x = *((uint32_t*)&distance);
+	uint16_t q = ((x>>16)&0x8000) |                     // sign bit
+		   ((((x&0x7f800000)-0x38000000)>>13)&0x7c00) | // exponent bits
+		   	((x>>13)&0x03ff);                           // mantissa bits
+	// Flip if back-to-front sorting
+	if (sortMode == BACK_TO_FRONT) {
+		q = 0xFFFF - q;
+	}
+	return q;
+}
+
+inline uint64_t packKey_64bit(uint32_t layerIdx, float distance, SortMode sortMode) {
+	// Flip if back-to-front sorting
+	if (sortMode == BACK_TO_FRONT) { distance = -distance; }
+	uint32_t distance_ui = conversion::floatBitsToUint(distance);
+	uint64_t key = static_cast<uint64_t>(layerIdx) << 32 | static_cast<uint64_t>(distance_ui);
+	return key;
+}
+
+inline uint32_t packKey_32bit(uint32_t layerIdx, float distance, SortMode sortMode) {
+	// Clamp layerIdx to 16 bits
+	uint16_t layer16 = static_cast<uint16_t>(std::min(layerIdx, 0xFFFFu));
+	// Quantize distance
+	uint16_t distance16 = floatToHalf(distance, sortMode);
+	// Pack: upper 16 bits = layer, lower 16 bits = distance
+	return (static_cast<uint32_t>(layer16) << 16) | distance16;
+}
+
 void SpatialIndex::handleIntersection(const BoundingShape& b_shape, void* userData) {
     auto* data = (SpatialIndex::TraversalData*)(userData);
     auto* i_shape = (IndexedShape*) b_shape.spatialIndexData_;
     const uint32_t L = i_shape->camera()->numLayer();
 	const uint32_t l = data->layerIdx;
+	const SortMode sortMode = i_shape->instanceSortMode();
 
     // toggle visibility for this layer
     i_shape->tmp_layerVisibility_[l] = true;
@@ -203,8 +236,11 @@ void SpatialIndex::handleIntersection(const BoundingShape& b_shape, void* userDa
 	const uint32_t b = CullShape::binIdx(k, l, L);
 	i_shape->tmp_layerShapes_.push_back(i_shape->tmp_layerShapes_.size());
 	i_shape->tmp_layerInstances_.push_back(b_shape.instanceID());
-	i_shape->tmp_layerIndices_.push_back(l);
-	i_shape->tmp_layerDistances_.push_back(lodDistance);
+#ifdef REGEN_INDEX_USE_64BIT_KEYS
+	i_shape->tmp_sortKeys_64_.push_back(packKey_64bit(l, lodDistance, sortMode));
+#else
+	i_shape->tmp_sortKeys_32_.push_back(packKey_32bit(l, lodDistance, sortMode));
+#endif
 	i_shape->tmp_binCounts_[b] += 1;
 }
 
@@ -240,8 +276,11 @@ void SpatialIndex::updateVisibility(uint32_t traversalMask) {
 			// Clear the per-layer bins.
 			indexShape->tmp_layerShapes_.clear();
 			indexShape->tmp_layerInstances_.clear();
-			indexShape->tmp_layerIndices_.clear();
-			indexShape->tmp_layerDistances_.clear();
+#ifdef REGEN_INDEX_USE_64BIT_KEYS
+			indexShape->tmp_sortKeys_64_.clear();
+#else
+			indexShape->tmp_sortKeys_32_.clear();
+#endif
 			// Remember the index shape to bounding shape mapping such that we can
 			// obtain index shape from bounding shape directly (else a hash lookup would be required).
 			for (auto &bs: indexShape->boundingShapes_) {
@@ -254,28 +293,16 @@ void SpatialIndex::updateVisibility(uint32_t traversalMask) {
 			updateLayerVisibility(ic.second, layerIdx, frustumShapes[layerIdx], traversalMask);
 		}
 		for (auto &indexShape: ic.second.indexShapes_) {
-			// TODO: We could move tmp_layerShapes_ into indexCamera maybe, and only sort once all shapes?
-			auto& vec = indexShape->tmp_layerShapes_;
-			if (indexCamera.sortMode == SortMode::FRONT_TO_BACK) {
-				std::ranges::sort(vec, [&](uint32_t shapeIdx1, uint32_t shapeIdx2) {
-					// sort b two kes: (1) layerIdx, (2) distance
-					const uint32_t l1 = indexShape->tmp_layerIndices_[shapeIdx1];
-					const uint32_t l2 = indexShape->tmp_layerIndices_[shapeIdx2];
-					const float d1 = indexShape->tmp_layerDistances_[shapeIdx1];
-					const float d2 = indexShape->tmp_layerDistances_[shapeIdx2];
-					return l1 != l2 ? (l1 < l2) : (d1 < d2);
-				});
-			} else if (indexCamera.sortMode == SortMode::BACK_TO_FRONT) {
-				std::ranges::sort(vec, [&](uint32_t shapeIdx1, uint32_t shapeIdx2) {
-					// sort b two kes: (1) layerIdx, (2) distance
-					const uint32_t l1 = indexShape->tmp_layerIndices_[shapeIdx1];
-					const uint32_t l2 = indexShape->tmp_layerIndices_[shapeIdx2];
-					const float d1 = indexShape->tmp_layerDistances_[shapeIdx1];
-					const float d2 = indexShape->tmp_layerDistances_[shapeIdx2];
-					// sort b two kes: (1) layerIdx, (2) distance
-					return l1 != l2 ? (l1 < l2) :  (d1 > d2);
-				});
-			}
+			// TODO: Consider moving tmp_layerShapes_ into indexCamera, then one larger sort can be done
+			//       where more efficient sorting like radix sort can be used with advantage over standard sort.
+			std::vector<uint32_t>& vec = indexShape->tmp_layerShapes_;
+			std::ranges::sort(vec, [&](uint32_t shapeIdx1, uint32_t shapeIdx2) {
+#ifdef REGEN_INDEX_USE_64BIT_KEYS
+				return indexShape->tmp_sortKeys_64_[shapeIdx1] < indexShape->tmp_sortKeys_64_[shapeIdx2];
+#else
+				return indexShape->tmp_sortKeys_32_[shapeIdx1] < indexShape->tmp_sortKeys_32_[shapeIdx2];
+#endif
+			});
 			// Update LOD-major arrays
 			updateLOD_Major(indexCamera, indexShape);
 		}

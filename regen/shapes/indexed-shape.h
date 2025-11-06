@@ -137,8 +137,8 @@ namespace regen {
 		// according to the instance distance to the camera.
 		std::vector<uint32_t> tmp_layerShapes_; // size = numLayers * numInstances
 		std::vector<uint32_t> tmp_layerInstances_; // size = numLayers * numInstances
-		std::vector<uint32_t> tmp_layerIndices_; // size = numLayers * numInstances
-		std::vector<float> tmp_layerDistances_; // size = numLayers * numInstances
+		std::vector<uint64_t> tmp_sortKeys_64_; // size = numLayers * numInstances
+		std::vector<uint32_t> tmp_sortKeys_32_; // size = numLayers * num
 
 		struct MappedData {
 			explicit MappedData(
