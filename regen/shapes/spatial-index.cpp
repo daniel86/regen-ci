@@ -202,11 +202,13 @@ inline uint16_t floatToHalf(float distance, SortMode sortMode) {
 }
 
 inline uint64_t packKey_64bit(uint16_t shapeIdx, uint32_t layerIdx, float distance, SortMode sortMode) {
-	if (sortMode == BACK_TO_FRONT) { distance = -distance; }
 	// Clamp layerIdx to 16 bits
 	const uint16_t layer16 = static_cast<uint16_t>(std::min(layerIdx, 0xFFFFu));
-	// Convert distance to uint32_t
-	const uint32_t distance_ui = conversion::floatBitsToUint(distance);
+	// Convert distance to uint32_t. For FRONT_TO_BACK, `floatBitsToUint(distance)` is used.
+	// In case of BACK_TO_FRONT, we use `0xFFFFFFFFu - floatBitsToUint(distance)` to invert the order.
+	int backToFront = int(sortMode == BACK_TO_FRONT);
+	const uint32_t distance_ui = (0xFFFFFFFFu * backToFront) +
+		conversion::floatBitsToUint(distance) * (1 - 2*backToFront);
 	// Pack: upper 16 bits = shapeIdx, next 16 bits = layerIdx, lower 32 bits = distance
 	return static_cast<uint64_t>(shapeIdx) << 48 | static_cast<uint64_t>(layer16) << 32 | static_cast<uint64_t>(distance_ui);
 }
@@ -271,6 +273,7 @@ void SpatialIndex::updateVisibility(uint32_t traversalMask) {
 			indexCamera->tmp_layerInstances_.reserve(indexCamera->numKeys);
 			indexCamera->tmp_layerShapes_.reserve(indexCamera->numKeys);
 			indexCamera->tmp_sortKeys_.reserve(indexCamera->numKeys);
+			indexCamera->radixSort.resize(indexCamera->numKeys);
 			indexCamera->isDirty = false;
 		} else {
 			indexCamera->tmp_layerInstances_.clear();
@@ -300,9 +303,13 @@ void SpatialIndex::updateVisibility(uint32_t traversalMask) {
 		}
 
 		std::vector<uint32_t>& vec = indexCamera->tmp_layerShapes_;
-		std::ranges::sort(vec, [indexCamera](uint32_t shapeIdx1, uint32_t shapeIdx2) {
-			return indexCamera->tmp_sortKeys_[shapeIdx1] < indexCamera->tmp_sortKeys_[shapeIdx2];
-		});
+		if (vec.size() < SMALL_ARRAY_SIZE) {
+			std::ranges::sort(vec, [indexCamera](uint32_t shapeIdx1, uint32_t shapeIdx2) {
+				return indexCamera->tmp_sortKeys_[shapeIdx1] < indexCamera->tmp_sortKeys_[shapeIdx2];
+			});
+		} else {
+			indexCamera->radixSort.sort(vec, indexCamera->tmp_sortKeys_);
+		}
 
 		uint32_t shapeBase = 0;
 		for (auto &indexShape: ic.second.indexShapes_) {
