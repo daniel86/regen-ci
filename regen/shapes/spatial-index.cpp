@@ -210,7 +210,8 @@ void SpatialIndex::handleIntersection(const BoundingShape& b_shape, void* userDa
 
 void SpatialIndex::updateLayerVisibility(
 		IndexCamera &ic, uint32_t layerIdx,
-		const BoundingShape &camera_shape) {
+		const BoundingShape &camera_shape,
+		uint32_t traversalMask) {
 	// Collect all intersections for this layer into (lod,layer) bins
 	TraversalData traversalData{ this, nullptr, layerIdx };
 	if (ic.sortCamera->position().size()>1) {
@@ -218,14 +219,13 @@ void SpatialIndex::updateLayerVisibility(
 	} else {
 		traversalData.camPos = &ic.sortCamera->position(0);
 	}
-	// TODO: support another traversal bit here?
 	foreachIntersection(camera_shape,
 		handleIntersection,
 		&traversalData,
-		BoundingShape::TRAVERSAL_BIT_DRAW);
+		traversalMask);
 }
 
-void SpatialIndex::updateVisibility() {
+void SpatialIndex::updateVisibility(uint32_t traversalMask) {
 	for (auto &ic: cameras_) {
 		auto &indexCamera = ic.second;
 		const uint32_t L = indexCamera.cullCamera->numLayer();
@@ -251,7 +251,7 @@ void SpatialIndex::updateVisibility() {
 
 		auto &frustumShapes = ic.first->frustum();
 		for (uint32_t layerIdx = 0; layerIdx < frustumShapes.size(); ++layerIdx) {
-			updateLayerVisibility(ic.second, layerIdx, frustumShapes[layerIdx]);
+			updateLayerVisibility(ic.second, layerIdx, frustumShapes[layerIdx], traversalMask);
 		}
 		for (auto &indexShape: ic.second.indexShapes_) {
 			// TODO: We could move tmp_layerShapes_ into indexCamera maybe, and only sort once all shapes?
@@ -302,8 +302,9 @@ void SpatialIndex::updateLOD_Major(IndexCamera &indexCamera, IndexedShape *index
 	// Copy over the visibility flags from tmp_layerVisibility_ into visible_
     bool isVisible = false;
 	for (uint32_t layer = 0; layer < L; ++layer) {
-		indexShape->visible_[layer] = indexShape->tmp_layerVisibility_[layer];
-		if (indexShape->visible_[layer]) { isVisible = true; }
+		bool visibleInLayer = indexShape->tmp_layerVisibility_[layer];
+		indexShape->visible_[layer] = visibleInLayer;
+		if (!isVisible && visibleInLayer) { isVisible = true; }
 	}
 	indexShape->isVisibleInAnyLayer_ = isVisible;
 
