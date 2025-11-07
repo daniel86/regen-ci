@@ -7,7 +7,7 @@
 #include "regen/math/simd.h"
 
 //#define QUAD_TREE_DEBUG_TESTS
-#define QUAD_TREE_DEBUG_TIME
+//#define QUAD_TREE_DEBUG_TIME
 #define QUAD_TREE_EVER_GROWING
 #define QUAD_TREE_SQUARED
 //#define QUAD_TREE_DISABLE_SIMD
