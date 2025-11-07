@@ -190,7 +190,7 @@ static inline uint32_t getLODLevel(
 }
 
 inline uint16_t floatToHalf(float distance, SortMode sortMode) {
-	uint32_t x = *reinterpret_cast<uint32_t *>(&distance);
+	uint32_t x = std::bit_cast<uint32_t>(distance);
 	uint16_t q = ((x>>16)&0x8000) |                     // sign bit
 		   ((((x&0x7f800000)-0x38000000)>>13)&0x7c00) | // exponent bits
 		   	((x>>13)&0x03ff);                           // mantissa bits
