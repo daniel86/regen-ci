@@ -56,52 +56,6 @@ namespace regen {
 	};
 
 	/**
-	 * \brief A simple thread pool that uses spin-waiting.
-	 * This is a simple thread pool implementation that uses spin-waiting
-	 * for task assignment.
-	 */
-	class SpinThreadPool {
-	public:
-		/**
-		 * \brief A worker thread in the thread pool.
-		 */
-		struct Worker {
-			std::thread thread;
-			std::atomic<bool> has_work{false};
-			std::function<void()> job;
-		};
-
-		/**
-		 * \brief Constructor for the thread pool.
-		 * @param numThreads the number of threads in the pool.
-		 */
-		explicit SpinThreadPool(unsigned int numThreads);
-
-		unsigned int numThreads() const { return workers.size(); }
-
-		/**
-		 * Assign a job to a worker thread.
-		 * @param i the index of the worker thread.
-		 * @param f the job to be executed.
-		 */
-		void assignJob(int i, std::function<void()> f);
-
-		/**
-		 * Wait for all worker threads to finish their jobs.
-		 */
-		void waitAll();
-
-		/**
-		 * Shutdown the thread pool.
-		 */
-		void shutdownPool();
-
-	private:
-		std::vector<Worker> workers;
-		std::atomic<bool> shutdown;
-	};
-
-	/**
 	 * \brief A job structure representing a unit of work.
 	 */
 	struct Job {
@@ -115,12 +69,16 @@ namespace regen {
 	class JobQueue {
 		std::vector<Job> buffer;
 		// Producer position, padded to avoid false sharing
-		alignas(64) std::atomic<uint32_t> head{0};
+		/** alignas(64) **/ std::atomic<uint32_t> head{0};
 		// Consumer position, padded to avoid false sharing
-		alignas(64) std::atomic<uint32_t> tail{0};
+		/** alignas(64) **/ std::atomic<uint32_t> tail{0};
 	public:
 		JobQueue() : buffer(1024) {
-			assert((buffer.size() & (buffer.size() - 1)) == 0 && "JobQueue size must be power of two");
+			assert((buffer.size() & mask()) == 0 && "JobQueue size must be power of two");
+		}
+
+		inline uint32_t mask() const {
+			return static_cast<uint32_t>(buffer.size() - 1);
 		}
 
 		/**
@@ -129,12 +87,13 @@ namespace regen {
 		 * when no frame is active.
 		 */
 		void grow() {
-			size_t oldSize = buffer.size();
-			size_t newSize = oldSize * 2;
+			const size_t oldSize = buffer.size();
+			const size_t newSize = oldSize * 2;
+			const uint32_t t = tail.load(std::memory_order_acquire);
+			const uint32_t h = head.load(std::memory_order_acquire);
+			const uint32_t count = (h - t) & (oldSize - 1);
+
 			std::vector<Job> newBuffer(newSize);
-			uint32_t t = tail.load(std::memory_order_acquire);
-			uint32_t h = head.load(std::memory_order_acquire);
-			uint32_t count = (h - t) & (oldSize - 1);
 			for (uint32_t i = 0; i < count; ++i) {
 				newBuffer[i] = buffer[(t + i) & (oldSize - 1)];
 			}
@@ -149,14 +108,21 @@ namespace regen {
 		 * @return True if the job was pushed, false if the queue is full.
 		 */
 		bool push(const Job &j) {
-			uint32_t h = head.load(std::memory_order_relaxed);
-			uint32_t t = tail.load(std::memory_order_acquire);
-			if ((h - t) == buffer.size() - 1) {
-				return false; // full
+			const uint32_t mask = this->mask();
+			while (true) {
+				// Load current head and tail
+				uint32_t h = head.load(std::memory_order_relaxed);
+				const uint32_t t = tail.load(std::memory_order_acquire);
+				if ((h - t) == mask) return false; // full
+				// try to claim slot h by incrementing head -> h+1
+				// on success we "own" index h and can safely write to buffer[h & mask]
+				if (head.compare_exchange_weak(h, h+1,
+							std::memory_order_acq_rel,
+							std::memory_order_relaxed)) {
+					buffer[h & mask] = j;
+					return true;
+				}
 			}
-			buffer[h & (buffer.size() - 1)] = j;
-			head.store(h+1, std::memory_order_release);
-			return true;
 		}
 
 		/**
@@ -164,15 +130,22 @@ namespace regen {
 		 * @param out The job to pop.
 		 * @return True if a job was popped, false if the queue is empty.
 		 */
-		bool try_pop(Job& out) {
-			uint32_t t = tail.load(std::memory_order_relaxed);
-			uint32_t h = head.load(std::memory_order_acquire);
-			if (t == h) {
-				return false; // empty
+		bool try_pop(Job &out) {
+			const uint32_t mask = this->mask();
+			while (true) {
+				// Load current tail and head
+				const uint32_t h = head.load(std::memory_order_acquire);
+				uint32_t t = tail.load(std::memory_order_relaxed);
+				if (t == h) return false; // empty
+				// try to claim slot t by incrementing tail -> t+1
+				// on success we "own" index t and can safely read buffer[t & mask]
+				if (tail.compare_exchange_weak(t, t+1,
+							std::memory_order_acq_rel,
+							std::memory_order_relaxed)) {
+					out = buffer[t & mask];
+					return true;
+				}
 			}
-			out = buffer[t & (buffer.size() - 1)];
-			tail.store(t+1, std::memory_order_release);
-			return true;
 		}
 
 		/**
@@ -180,9 +153,9 @@ namespace regen {
 		 * @return True if there are unassigned jobs, false otherwise.
 		 */
 		bool hasUnassignedJobs() const {
-			uint32_t t = tail.load(std::memory_order_acquire);
-			uint32_t h = head.load(std::memory_order_acquire);
-			return (t & (buffer.size() - 1)) != (h & (buffer.size() - 1));
+			const uint32_t t = tail.load(std::memory_order_acquire);
+			const uint32_t h = head.load(std::memory_order_acquire);
+			return t != h;
 		}
 	};
 
@@ -258,8 +231,8 @@ namespace regen {
 		 * This should be called by the owner thread after all jobs for the frame have been added.
 		 * This is a non-blocking call, endFrame() must be called to ensure all jobs are completed.
 		 */
-		void beginFrame() {
-			numJobsRemaining_.store(numPushed_, std::memory_order_relaxed);
+		void beginFrame(uint32_t numLocalJobs) {
+			numJobsRemaining_.store(numPushed_+numLocalJobs, std::memory_order_relaxed);
 			workSem_.release(numPushed_);
 		}
 

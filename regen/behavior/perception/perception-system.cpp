@@ -84,6 +84,7 @@ void PerceptionSystem::updateCollisions() {
 	}
 	// Update the collision shape transform
 	collisionShape_->updateTransform(false);
+	collisionShape_->updateOrthogonalProjection();
 	spatialIndex_->foreachIntersection(
 		*collisionShape_.get(),
 		handleIntersectionStatic,

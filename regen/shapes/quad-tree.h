@@ -27,7 +27,6 @@ namespace regen {
 		 */
 		struct Item {
 			ref_ptr<BoundingShape> shape;
-			OrthogonalProjection projection;
 			Node *node = nullptr;
 			// the position in the shape array of the node if any
 			uint32_t idxInNode = 0;

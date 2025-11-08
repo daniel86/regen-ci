@@ -1,7 +1,6 @@
 #ifndef REGEN_SPATIAL_INDEX_H_
 #define REGEN_SPATIAL_INDEX_H_
 
-#include <map>
 #include <regen/shapes/bounding-shape.h>
 #include <regen/shapes/indexed-shape.h>
 #include <regen/camera/camera.h>
@@ -159,7 +158,14 @@ namespace regen {
 		void removeDebugShape(const ref_ptr<BoundingShape> &shape);
 
 	protected:
+		// pool for multithreaded jobs
+		std::unique_ptr<JobPool> jobPool_;
+		// max number of threads to use
+		uint32_t maxNumThreads_ = std::thread::hardware_concurrency();
+
+		// data for each camera
 		struct IndexCamera {
+			SpatialIndex *index;
 			ref_ptr<Camera> cullCamera;
 			ref_ptr<Camera> sortCamera;
 			std::unordered_map<std::string_view, ref_ptr<IndexedShape>> nameToShape_;
@@ -172,6 +178,10 @@ namespace regen {
 			std::vector<uint64_t> tmp_sortKeys_; // size = sum_{shape} numLayers * numInstances_{shape}
 			// total number of keys = sum_{shape} numLayers * numInstances_{shape}
 			uint32_t numKeys = 0;
+			// the bitmask to filter shapes during traversal
+			uint32_t traversalMask = 0;
+			// index of this camera in the index's camera list
+			uint32_t camIdx = 0;
 			// mark camera as dirty when shapes are added/removed
 			bool isDirty = false;
 			// how to sort instances by distance to camera
@@ -181,13 +191,16 @@ namespace regen {
 			Vec4i lodShift = Vec4i(0);
 		};
 		std::unordered_map<std::string_view, ref_ptr<std::vector<ref_ptr<BoundingShape>>>> nameToShape_;
-		std::unordered_map<const Camera *, IndexCamera> cameras_;
+		std::unordered_map<const Camera *, uint32_t> cameraToIndexCamera_;
+		std::vector<IndexCamera> indexCameras_;
 		// additional shapes for debugging only
 		std::vector<ref_ptr<BoundingShape>> debugShapes_;
 
 		void updateVisibility(uint32_t traversalMask);
 
-		void updateLayerVisibility(IndexCamera &camera, uint32_t layerIdx, const BoundingShape &shape, uint32_t traversalMask);
+		void updateVisibility(IndexCamera *indexCamera);
+
+		void updateLayerVisibility(IndexCamera &camera, uint32_t layerIdx, const BoundingShape &shape);
 
 		/**
 		 * @brief Add a shape to the index
@@ -213,9 +226,21 @@ namespace regen {
 			uint32_t layerIdx;
 		};
 
+		friend struct VisibilityJob;
+
 		static void handleIntersection(const BoundingShape &b_shape, void *userData);
 
-		static void updateLOD_Major(IndexCamera &indexCamera, IndexedShape *indexShape, uint32_t shapeBase);
+		static void resetCamera(IndexCamera *indexCamera, uint32_t traversalMask);
+	};
+
+	/**
+	 * @brief Job for updating visibility
+	 */
+	struct VisibilityJob {
+		static inline void run(void *arg) {
+			auto *ic = static_cast<SpatialIndex::IndexCamera *>(arg);
+			ic->index->updateVisibility(ic);
+		}
 	};
 } // namespace
 

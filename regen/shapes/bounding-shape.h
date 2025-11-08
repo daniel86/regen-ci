@@ -233,7 +233,22 @@ namespace regen {
 		 * If needed the projection is recomputed, ie. when the geometry or transform has changed.
 		 * @return The orthogonal projection
 		 */
-		const OrthogonalProjection& getOrthogonalProjection() const;
+		void updateOrthogonalProjection();
+
+		/**
+		 * @brief Get the orthogonal projection of this shape.
+		 * If needed the projection is recomputed, ie. when the geometry or transform has changed.
+		 * @return The orthogonal projection
+		 */
+		const OrthogonalProjection &orthoProjection() const { return *orthoProjection_.get(); }
+
+		/**
+		 * @brief Get the orthogonal projection of this shape.
+		 * If needed the projection is recomputed, ie. when the geometry or transform has changed.
+		 * @return The orthogonal projection
+		 */
+		OrthogonalProjection &orthoProjection() { return *orthoProjection_.get(); }
+
 
 		/**
 		 * Assign a world object to this shape.
@@ -273,7 +288,7 @@ namespace regen {
 
 		// Projection of the shape onto the xz-plane.
 		// This is computed in a lazy manner when requested.
-		mutable ref_ptr<OrthogonalProjection> orthoProjection_;
+		ref_ptr<OrthogonalProjection> orthoProjection_;
 		ref_ptr<ModelTransformation> transform_;
 		// only used in case no TF is set
 		Mat4f localTransform_ = Mat4f::identity();
@@ -293,7 +308,7 @@ namespace regen {
 		uint32_t instanceID_ = 0;
 		uint32_t traversalMask_ = (1 << TRAVERSAL_BIT_DRAW); // default: draw
 		// custom data pointer used for spatial index intersection tests
-		void *spatialIndexData_ = nullptr;
+		std::vector<void*> spatialIndexData_;
 
 		uint32_t getTransformStamp() const {
 			return transform_->stamp();
