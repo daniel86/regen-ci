@@ -9,6 +9,9 @@
 #include "regen/utility/aligned-array.h"
 
 namespace regen {
+	// forward declaration of QuadTreeTraversal
+	struct QuadTreeTraversal;
+
 	/**
 	 * A quad tree data structure for spatial indexing.
 	 * It fits the scene into a quad which it subdivides at places where
@@ -153,6 +156,9 @@ namespace regen {
 		struct Private;
 		Private *priv_;
 
+		std::stack<QuadTreeTraversal*> traversalData_;
+		SpinLock traversalDataLock_;
+
 		uint32_t subdivisionThreshold_ = 4;
 		uint32_t traversalBit_ = BoundingShape::TRAVERSAL_BIT_DRAW;
 
@@ -167,12 +173,17 @@ namespace regen {
 		float minNodeSize_ = 0.1f;
 		uint32_t numNodes_ = 0;
 		uint32_t numLeaves_ = 0;
+		uint32_t nextBufferSize_ = 0;
 
 		TestMode_3D testMode3D_ = QUAD_TREE_3D_TEST_CLOSEST;
 		float closeDistanceSquared_ = 20.0f * 20.0f; // heuristic threshold for distance to camera position
 
 		Bounds<Vec2f> newBounds_;
 		std::vector<uint32_t> changedItems_;
+
+		QuadTreeTraversal* createTraversalData();
+
+		void freeTraversalData(QuadTreeTraversal *td);
 
 		Node *createNode(const Vec2f &min, const Vec2f &max);
 

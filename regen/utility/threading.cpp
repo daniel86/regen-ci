@@ -1,5 +1,4 @@
-#include "spin-thread-pool.h"
-#include <regen/utility/logging.h>
+#include "threading.h"
 
 using namespace regen;
 
