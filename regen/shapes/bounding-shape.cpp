@@ -75,13 +75,12 @@ bool BoundingShape::updateGeometry() {
 	}
 }
 
-const OrthogonalProjection& BoundingShape::getOrthogonalProjection() const {
-	if (!orthoProjection_.get()) {
+void BoundingShape::updateOrthogonalProjection() {
+	if (!orthoProjection_) {
 		orthoProjection_ = ref_ptr<OrthogonalProjection>::alloc(*this);
 	} else {
 		orthoProjection_->update(*this);
 	}
-	return *orthoProjection_.get();
 }
 
 void BoundingShape::setBaseOffset(const Vec3f &offset) {

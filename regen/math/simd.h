@@ -31,11 +31,20 @@ namespace regen::simd {
 
 	inline __m256 set1_ps(float v) { return _mm256_set1_ps(v); }
 	inline __m256i set1_epi32(int32_t v) { return _mm256_set1_epi32(v); }
+	inline __m256i set1_epi16(uint16_t v) { return _mm256_set1_epi16(v); }
+	inline __m256i set1_epi64(int64_t v) { return _mm256_set1_epi64x(v); }
+	inline __m256i set1_epi64u(uint64_t v) { return _mm256_set1_epi64x(v); }
 
 	inline __m256 load_ps(const float *p) { return _mm256_load_ps(p); }
 	inline __m256 loadu_ps(const float *p) { return _mm256_loadu_ps(p); }
 
+	inline __m256i loadu_si256(const uint16_t *p) {
+		return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p));
+	}
 	inline __m256i loadu_si256(const uint32_t *p) {
+		return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p));
+	}
+	inline __m256i loadu_si256(const uint64_t *p) {
 		return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p));
 	}
 	inline __m256i loadu_si256(const int32_t *p) {

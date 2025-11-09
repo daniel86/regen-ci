@@ -1,7 +1,6 @@
 #ifndef REGEN_SPATIAL_INDEX_H_
 #define REGEN_SPATIAL_INDEX_H_
 
-#include <map>
 #include <regen/shapes/bounding-shape.h>
 #include <regen/shapes/indexed-shape.h>
 #include <regen/camera/camera.h>
@@ -18,12 +17,30 @@ namespace regen {
 		static constexpr const char *TYPE_NAME = "SpatialIndex";
 		// Threshold for using standard sort (small arrays) vs radix sort (large arrays)
 		static constexpr uint32_t SMALL_ARRAY_SIZE = 256;
+		// The bit sizes for distance in sort key
+		enum DistanceKeySize {
+			DISTANCE_KEY_16 = 16,
+			DISTANCE_KEY_24 = 24,
+			DISTANCE_KEY_32 = 32
+		};
 
 		SpatialIndex();
 
 		~SpatialIndex() override = default;
 
 		static ref_ptr<SpatialIndex> load(LoadingContext &ctx, scene::SceneInputNode &input);
+
+		/**
+		 * @brief Set the maximum number of threads to use
+		 * @param maxNumThreads The maximum number of threads
+		 */
+		void setMaxNumThreads(uint8_t maxNumThreads) { maxNumThreads_ = maxNumThreads; }
+
+		/**
+		 * @brief Set the number of bits to use for distance in sort key
+		 * @param distanceBits The number of bits
+		 */
+		void setDistanceBits(DistanceKeySize distanceBits) { distanceBits_ = distanceBits; }
 
 		/**
 		 * @brief Get the indexed shape for a camera
@@ -159,7 +176,23 @@ namespace regen {
 		void removeDebugShape(const ref_ptr<BoundingShape> &shape);
 
 	protected:
+		// pool for multithreaded jobs
+		std::unique_ptr<JobPool> jobPool_;
+		// max number of threads to use
+		uint32_t maxNumThreads_ = std::thread::hardware_concurrency();
+		// number of bits to use for distance in sort key
+		DistanceKeySize distanceBits_ = DISTANCE_KEY_24;
+
+		template <typename RadixType>
+		static std::unique_ptr<void, void(*)(void*)> createRadix(size_t numKeys) {
+			return std::unique_ptr<void, void(*)(void*)>(
+				new RadixType(numKeys),
+				[](void* ptr) { delete static_cast<RadixType*>(ptr); });
+		}
+
+		// data for each camera
 		struct IndexCamera {
+			SpatialIndex *index;
 			ref_ptr<Camera> cullCamera;
 			ref_ptr<Camera> sortCamera;
 			std::unordered_map<std::string_view, ref_ptr<IndexedShape>> nameToShape_;
@@ -169,25 +202,47 @@ namespace regen {
 			// according to the instance distance to the camera.
 			std::vector<uint32_t> tmp_layerInstances_; // size = sum_{shape} numLayers * numInstances_{shape}
 			std::vector<uint32_t> tmp_layerShapes_; // size = sum_{shape} numLayers * numInstances_{shape}
-			std::vector<uint64_t> tmp_sortKeys_; // size = sum_{shape} numLayers * numInstances_{shape}
+			std::vector<uint64_t> tmp_sortKeys64_; // size = sum_{shape} numLayers * numInstances_{shape}
+			std::vector<uint32_t> tmp_sortKeys32_; // size = sum_{shape} numLayers * numInstances_{shape}
 			// total number of keys = sum_{shape} numLayers * numInstances_{shape}
 			uint32_t numKeys = 0;
+			// the bitmask to filter shapes during traversal
+			uint32_t traversalMask = 0;
+			// index of this camera in the index's camera list
+			uint32_t camIdx = 0;
 			// mark camera as dirty when shapes are added/removed
 			bool isDirty = false;
 			// how to sort instances by distance to camera
 			SortMode sortMode = SortMode::FRONT_TO_BACK;
 			// radix sort for sorting the instances
-			RadixSort_CPU_seq<uint32_t, uint64_t, 8> radixSort;
+			std::unique_ptr<void, void(*)(void*)> radixSort =
+				createRadix<RadixSort_CPU_seq<uint32_t, uint32_t, 8, 32>>(10);
+			void *sortKeys; // erased type
+			void (*radixFun)(void*, void*, std::vector<uint32_t>&) = nullptr;
+			void (*smallSortFun)(void*, std::vector<uint32_t>&) = nullptr;
+			uint8_t layerBits = 0u;
+			uint8_t shapeBits = 0u;
+			uint8_t keyBits = 0u;
 			Vec4i lodShift = Vec4i(0);
+			// a function to push sort keys
+			void (*pushKeyFun)(IndexCamera*, uint16_t, uint32_t, float, SortMode) = nullptr;
+			static void pushKey32(IndexCamera*, uint16_t, uint32_t, float, SortMode);
+			static void pushKey64(IndexCamera*, uint16_t, uint32_t, float, SortMode);
+			// a function to create a distance key
+			uint32_t (*setDistance32)(float, SortMode) = nullptr;
+			uint64_t (*setDistance64)(float, SortMode) = nullptr;
 		};
 		std::unordered_map<std::string_view, ref_ptr<std::vector<ref_ptr<BoundingShape>>>> nameToShape_;
-		std::unordered_map<const Camera *, IndexCamera> cameras_;
+		std::unordered_map<const Camera *, uint32_t> cameraToIndexCamera_;
+		std::vector<IndexCamera> indexCameras_;
 		// additional shapes for debugging only
 		std::vector<ref_ptr<BoundingShape>> debugShapes_;
 
 		void updateVisibility(uint32_t traversalMask);
 
-		void updateLayerVisibility(IndexCamera &camera, uint32_t layerIdx, const BoundingShape &shape, uint32_t traversalMask);
+		void updateVisibility(IndexCamera *indexCamera);
+
+		void updateLayerVisibility(IndexCamera &camera, uint32_t layerIdx, const BoundingShape &shape);
 
 		/**
 		 * @brief Add a shape to the index
@@ -213,9 +268,21 @@ namespace regen {
 			uint32_t layerIdx;
 		};
 
+		friend struct VisibilityJob;
+
 		static void handleIntersection(const BoundingShape &b_shape, void *userData);
 
-		static void updateLOD_Major(IndexCamera &indexCamera, IndexedShape *indexShape, uint32_t shapeBase);
+		static void resetCamera(IndexCamera *indexCamera, DistanceKeySize distanceBits, uint32_t traversalMask);
+	};
+
+	/**
+	 * @brief Job for updating visibility
+	 */
+	struct VisibilityJob {
+		static inline void run(void *arg) {
+			auto *ic = static_cast<SpatialIndex::IndexCamera *>(arg);
+			ic->index->updateVisibility(ic);
+		}
 	};
 } // namespace
 
