@@ -199,28 +199,66 @@ static inline uint32_t getLODLevel(
 	return b_shape.baseMesh()->getLODLevel(lodDistance, i_shape->lodShift());
 }
 
-inline uint16_t floatToHalf(float distance, SortMode sortMode) {
-	uint32_t x = std::bit_cast<uint32_t>(distance);
+inline uint16_t floatTo16(float f, SortMode m) {
+	uint32_t x = std::bit_cast<uint32_t>(f);
 	uint16_t q = ((x>>16)&0x8000) |                     // sign bit
 		   ((((x&0x7f800000)-0x38000000)>>13)&0x7c00) | // exponent bits
 		   	((x>>13)&0x03ff);                           // mantissa bits
-	// Flip if back-to-front sorting
-	if (sortMode == BACK_TO_FRONT) {
-		q = 0xFFFF - q;
-	}
-	return q;
+	return m == BACK_TO_FRONT ? ~q : q;
 }
 
-inline uint64_t packKey_64bit(uint16_t shapeIdx, uint32_t layerIdx, float distance, SortMode sortMode) {
-	// Clamp layerIdx to 16 bits
-	const uint16_t layer16 = static_cast<uint16_t>(std::min(layerIdx, 0xFFFFu));
-	// Convert distance to uint32_t. For FRONT_TO_BACK, `floatBitsToUint(distance)` is used.
-	// In case of BACK_TO_FRONT, we use `0xFFFFFFFFu - floatBitsToUint(distance)` to invert the order.
-	int backToFront = int(sortMode == BACK_TO_FRONT);
-	const uint32_t distance_ui = (0xFFFFFFFFu * backToFront) +
-		conversion::floatBitsToUint(distance) * (1 - 2*backToFront);
-	// Pack: upper 16 bits = shapeIdx, next 16 bits = layerIdx, lower 32 bits = distance
-	return static_cast<uint64_t>(shapeIdx) << 48 | static_cast<uint64_t>(layer16) << 32 | static_cast<uint64_t>(distance_ui);
+inline uint32_t floatTo24(float f, SortMode m) {
+	uint32_t x = std::bit_cast<uint32_t>(f);
+	uint32_t q = ((x >> 8) & 0x800000)                         // sign bit
+		| ((((x & 0x7f800000) - 0x3f800000) >> 7) & 0x7f0000)  // exponent bits
+		| ((x >> 8) & 0x00ffff);                               // mantissa bits
+	return m == BACK_TO_FRONT ? ~q : q;
+}
+
+inline uint32_t floatTo32(float f, SortMode m) {
+	uint32_t q = std::bit_cast<uint32_t>(f);
+	return m == BACK_TO_FRONT ? ~q : q;
+}
+
+uint32_t SpatialIndex::IndexCamera::setDistance32_16(float d, SortMode m) { return floatTo16(d,m); }
+uint32_t SpatialIndex::IndexCamera::setDistance32_24(float d, SortMode m) { return floatTo24(d,m); }
+uint32_t SpatialIndex::IndexCamera::setDistance32_32(float d, SortMode m) { return floatTo32(d,m); }
+
+uint64_t SpatialIndex::IndexCamera::setDistance64_16(float d, SortMode m) { return floatTo16(d,m); }
+uint64_t SpatialIndex::IndexCamera::setDistance64_24(float d, SortMode m) { return floatTo24(d,m); }
+uint64_t SpatialIndex::IndexCamera::setDistance64_32(float d, SortMode m) { return floatTo32(d,m); }
+
+// Pack a value into a key at the given bit offset and number of bits
+template <typename KeyType, typename ValueType>
+void packKey(KeyType &key, ValueType value, uint8_t bitOffset, uint8_t numBits) {
+	const uint32_t mask = (1u << numBits) - 1u;
+	key |= (static_cast<KeyType>(value) & mask) << bitOffset;
+}
+
+void SpatialIndex::IndexCamera::pushKey64(IndexCamera *ic, uint16_t s, uint32_t l, float d, SortMode m) {
+	uint8_t bitOffset = ic->index->distanceBits_;
+	// lower distance bits
+	uint64_t key = ic->setDistance64(d, m);
+	// pack layer
+	packKey<uint64_t, uint32_t>(key, l, bitOffset, ic->layerBits);
+	bitOffset += ic->layerBits;
+	// pack shape (upper bits)
+	packKey<uint64_t, uint16_t>(key, s, bitOffset, ic->shapeBits);
+	// finally add the key
+	ic->tmp_sortKeys64_.push_back(key);
+}
+
+void SpatialIndex::IndexCamera::pushKey32(IndexCamera *ic, uint16_t s, uint32_t l, float d, SortMode m) {
+	uint8_t bitOffset = ic->index->distanceBits_;
+	// lower distance bits
+	uint32_t key = ic->setDistance32(d, m);
+	// pack layer
+	packKey<uint32_t, uint32_t>(key, l, bitOffset, ic->layerBits);
+	bitOffset += ic->layerBits;
+	// pack shape (upper bits)
+	packKey<uint32_t, uint16_t>(key, s, bitOffset, ic->shapeBits);
+	// finally add the key
+	ic->tmp_sortKeys32_.push_back(key);
 }
 
 void SpatialIndex::handleIntersection(const BoundingShape& b_shape, void* userData) {
@@ -247,7 +285,7 @@ void SpatialIndex::handleIntersection(const BoundingShape& b_shape, void* userDa
 	i_shape->tmp_totalCount_ += 1;
 	i_cam->tmp_layerInstances_.push_back(b_shape.instanceID());
 	i_cam->tmp_layerShapes_.push_back(i_cam->tmp_layerShapes_.size());
-	i_cam->tmp_sortKeys_.push_back(packKey_64bit(i_shape->shapeIdx_, l, lodDistance, sortMode));
+	i_cam->pushKeyFun(i_cam, i_shape->shapeIdx_, l, lodDistance, sortMode);
 }
 
 void SpatialIndex::updateLayerVisibility(
@@ -270,7 +308,13 @@ static void visibilityJobFunc(void *arg) {
 	VisibilityJob::run(arg);
 }
 
-void SpatialIndex::resetCamera(IndexCamera *indexCamera, uint32_t traversalMask) {
+static uint8_t getMinBits(uint32_t numValues) {
+	if (numValues <= 1) return 1;
+	// ceil(log2(numValues))
+	return 32 - __builtin_clz(numValues - 1);
+}
+
+void SpatialIndex::resetCamera(IndexCamera *indexCamera, DistanceKeySize distanceBits, uint32_t traversalMask) {
 	if (indexCamera->isDirty) {
 		// Compute the number of keys which is the sum of L * I for all shapes
 		// assigned to this camera.
@@ -281,13 +325,54 @@ void SpatialIndex::resetCamera(IndexCamera *indexCamera, uint32_t traversalMask)
 		}
 		indexCamera->tmp_layerInstances_.reserve(indexCamera->numKeys);
 		indexCamera->tmp_layerShapes_.reserve(indexCamera->numKeys);
-		indexCamera->tmp_sortKeys_.reserve(indexCamera->numKeys);
-		indexCamera->radixSort.resize(indexCamera->numKeys);
+
+		indexCamera->layerBits = getMinBits(numLayer);
+		indexCamera->shapeBits = getMinBits(indexCamera->indexShapes_.size());
+		indexCamera->keyBits = indexCamera->layerBits + indexCamera->shapeBits + static_cast<uint8_t>(distanceBits);
+		REGEN_INFO("Using " << static_cast<uint32_t>(indexCamera->keyBits) << " bits for sort keys (distance: "
+			<< static_cast<uint32_t>(distanceBits) << ", layer: "
+			<< static_cast<uint32_t>(indexCamera->layerBits) << ", shape: "
+			<< static_cast<uint32_t>(indexCamera->shapeBits) << ") for camera "
+			<< "with " << indexCamera->numKeys << " keys, "
+			<< indexCamera->indexShapes_.size() << " shapes and "
+			<< numLayer << " layers.");
+		if (distanceBits == DISTANCE_KEY_32) {
+			indexCamera->setDistance32 = &IndexCamera::setDistance32_32;
+			indexCamera->setDistance64 = &IndexCamera::setDistance64_32;
+		} else if (distanceBits == DISTANCE_KEY_24) {
+			indexCamera->setDistance32 = &IndexCamera::setDistance32_24;
+			indexCamera->setDistance64 = &IndexCamera::setDistance64_24;
+		} else {
+			indexCamera->setDistance32 = &IndexCamera::setDistance32_16;
+			indexCamera->setDistance64 = &IndexCamera::setDistance64_16;
+		}
+		if (indexCamera->keyBits <= 32) {
+			indexCamera->tmp_sortKeys32_.reserve(indexCamera->numKeys);
+			indexCamera->pushKeyFun = &IndexCamera::pushKey32;
+		} else {
+			indexCamera->tmp_sortKeys64_.reserve(indexCamera->numKeys);
+			indexCamera->pushKeyFun = &IndexCamera::pushKey64;
+		}
+		if (indexCamera->keyBits <= 24) {
+			// use 24-bit radix sort (uint32_t keys)
+			indexCamera->radixSort24.resize(indexCamera->numKeys);
+		} else if (indexCamera->keyBits <= 32) {
+			// use 32-bit radix sort (uint32_t keys)
+			indexCamera->radixSort32.resize(indexCamera->numKeys);
+		} else if (indexCamera->keyBits <= 40) {
+			// use 40-bit radix sort (uint64_t keys)
+			indexCamera->radixSort40.resize(indexCamera->numKeys);
+		} else {
+			// use 64-bit radix sort (uint64_t keys)
+			indexCamera->radixSort64.resize(indexCamera->numKeys);
+		}
+
 		indexCamera->isDirty = false;
 	}
 	indexCamera->tmp_layerInstances_.clear();
 	indexCamera->tmp_layerShapes_.clear();
-	indexCamera->tmp_sortKeys_.clear();
+	indexCamera->tmp_sortKeys64_.clear();
+	indexCamera->tmp_sortKeys32_.clear();
 	indexCamera->traversalMask = traversalMask;
 	auto &frustumShapes = indexCamera->cullCamera->frustum();
 	for (auto &shape: frustumShapes) {
@@ -306,10 +391,10 @@ void SpatialIndex::updateVisibility(uint32_t traversalMask) {
 
 	// Schedule jobs for all index cameras, but keep the one with the most keys for the local thread.
 	IndexCamera *localIndexCamera = &indexCameras_.front();
-	resetCamera(localIndexCamera, traversalMask);
+	resetCamera(localIndexCamera, distanceBits_, traversalMask);
 	for (uint32_t i = 1; i < numIndexedCameras; ++i) {
 		IndexCamera *nextIndexCamera = &indexCameras_[i];
-		resetCamera(nextIndexCamera, traversalMask);
+		resetCamera(nextIndexCamera, distanceBits_, traversalMask);
 		if (nextIndexCamera->numKeys > localIndexCamera->numKeys) {
 			std::swap(localIndexCamera, nextIndexCamera);
 		}
@@ -356,11 +441,26 @@ void SpatialIndex::updateVisibility(IndexCamera *indexCamera) {
 	//       Basically we need to store the keys in a way such that we can access them by instance ID.
 	std::vector<uint32_t>& vec = indexCamera->tmp_layerShapes_;
 	if (vec.size() < SMALL_ARRAY_SIZE) {
-		std::ranges::sort(vec, [indexCamera](uint32_t itemIdx1, uint32_t itemIdx2) {
-			return indexCamera->tmp_sortKeys_[itemIdx1] < indexCamera->tmp_sortKeys_[itemIdx2];
-		});
+		if (indexCamera->keyBits > 32) {
+			std::ranges::sort(vec, [indexCamera](uint32_t itemIdx1, uint32_t itemIdx2) {
+				return indexCamera->tmp_sortKeys64_[itemIdx1] < indexCamera->tmp_sortKeys64_[itemIdx2];
+			});
+		} else {
+			std::ranges::sort(vec, [indexCamera](uint32_t itemIdx1, uint32_t itemIdx2) {
+				return indexCamera->tmp_sortKeys32_[itemIdx1] < indexCamera->tmp_sortKeys32_[itemIdx2];
+			});
+		}
 	} else {
-		indexCamera->radixSort.sort(vec, indexCamera->tmp_sortKeys_);
+		const uint32_t keyBits = indexCamera->keyBits;
+		if (keyBits <= 24) {
+			indexCamera->radixSort24.sort(vec, indexCamera->tmp_sortKeys32_);
+		} else if (keyBits <= 32) {
+			indexCamera->radixSort32.sort(vec, indexCamera->tmp_sortKeys32_);
+		} else if (keyBits <= 40) {
+			indexCamera->radixSort40.sort(vec, indexCamera->tmp_sortKeys64_);
+		} else {
+			indexCamera->radixSort64.sort(vec, indexCamera->tmp_sortKeys64_);
+		}
 	}
 
 	uint32_t shapeBase = 0;
@@ -505,6 +605,25 @@ ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputN
 		}
 
 		index = quadTree;
+	}
+
+	if (input.hasAttribute("distance-bits")) {
+		auto distanceBits = input.getValue<int>("distance-bits", 24);
+		if (distanceBits == 16) {
+			index->setDistanceBits(DISTANCE_KEY_16);
+		} else if (distanceBits == 24) {
+			index->setDistanceBits(DISTANCE_KEY_24);
+		} else if (distanceBits == 32) {
+			index->setDistanceBits(DISTANCE_KEY_32);
+		} else {
+			REGEN_WARN("Invalid distance-bits value " << distanceBits << ", using default 24 bits.");
+			index->setDistanceBits(DISTANCE_KEY_24);
+		}
+	}
+	if (input.hasAttribute("max-threads")) {
+		auto maxThreads = input.getValue<int>("max-threads", 4);
+		maxThreads = std::max(1, maxThreads);
+		index->setMaxNumThreads(static_cast<uint8_t>(maxThreads));
 	}
 
 	return index;

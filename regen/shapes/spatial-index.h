@@ -17,12 +17,30 @@ namespace regen {
 		static constexpr const char *TYPE_NAME = "SpatialIndex";
 		// Threshold for using standard sort (small arrays) vs radix sort (large arrays)
 		static constexpr uint32_t SMALL_ARRAY_SIZE = 256;
+		// The bit sizes for distance in sort key
+		enum DistanceKeySize {
+			DISTANCE_KEY_16 = 16,
+			DISTANCE_KEY_24 = 24,
+			DISTANCE_KEY_32 = 32
+		};
 
 		SpatialIndex();
 
 		~SpatialIndex() override = default;
 
 		static ref_ptr<SpatialIndex> load(LoadingContext &ctx, scene::SceneInputNode &input);
+
+		/**
+		 * @brief Set the maximum number of threads to use
+		 * @param maxNumThreads The maximum number of threads
+		 */
+		void setMaxNumThreads(uint8_t maxNumThreads) { maxNumThreads_ = maxNumThreads; }
+
+		/**
+		 * @brief Set the number of bits to use for distance in sort key
+		 * @param distanceBits The number of bits
+		 */
+		void setDistanceBits(DistanceKeySize distanceBits) { distanceBits_ = distanceBits; }
 
 		/**
 		 * @brief Get the indexed shape for a camera
@@ -162,6 +180,8 @@ namespace regen {
 		std::unique_ptr<JobPool> jobPool_;
 		// max number of threads to use
 		uint32_t maxNumThreads_ = std::thread::hardware_concurrency();
+		// number of bits to use for distance in sort key
+		DistanceKeySize distanceBits_ = DISTANCE_KEY_24;
 
 		// data for each camera
 		struct IndexCamera {
@@ -175,7 +195,8 @@ namespace regen {
 			// according to the instance distance to the camera.
 			std::vector<uint32_t> tmp_layerInstances_; // size = sum_{shape} numLayers * numInstances_{shape}
 			std::vector<uint32_t> tmp_layerShapes_; // size = sum_{shape} numLayers * numInstances_{shape}
-			std::vector<uint64_t> tmp_sortKeys_; // size = sum_{shape} numLayers * numInstances_{shape}
+			std::vector<uint64_t> tmp_sortKeys64_; // size = sum_{shape} numLayers * numInstances_{shape}
+			std::vector<uint32_t> tmp_sortKeys32_; // size = sum_{shape} numLayers * numInstances_{shape}
 			// total number of keys = sum_{shape} numLayers * numInstances_{shape}
 			uint32_t numKeys = 0;
 			// the bitmask to filter shapes during traversal
@@ -187,8 +208,27 @@ namespace regen {
 			// how to sort instances by distance to camera
 			SortMode sortMode = SortMode::FRONT_TO_BACK;
 			// radix sort for sorting the instances
-			RadixSort_CPU_seq<uint32_t, uint64_t, 8> radixSort;
+			RadixSort_CPU_seq<uint32_t, uint64_t, 8, 64> radixSort64;
+			RadixSort_CPU_seq<uint32_t, uint64_t, 8, 40> radixSort40;
+			RadixSort_CPU_seq<uint32_t, uint32_t, 8, 32> radixSort32;
+			RadixSort_CPU_seq<uint32_t, uint32_t, 8, 24> radixSort24;
+			uint8_t layerBits = 0u;
+			uint8_t shapeBits = 0u;
+			uint8_t keyBits = 0u;
 			Vec4i lodShift = Vec4i(0);
+			// a function to push sort keys
+			void (*pushKeyFun)(IndexCamera*, uint16_t, uint32_t, float, SortMode) = nullptr;
+			static void pushKey32(IndexCamera*, uint16_t, uint32_t, float, SortMode);
+			static void pushKey64(IndexCamera*, uint16_t, uint32_t, float, SortMode);
+			// a function to create a distance key
+			uint32_t (*setDistance32)(float, SortMode) = nullptr;
+			uint64_t (*setDistance64)(float, SortMode) = nullptr;
+			static uint32_t setDistance32_16(float, SortMode);
+			static uint32_t setDistance32_24(float, SortMode);
+			static uint32_t setDistance32_32(float, SortMode);
+			static uint64_t setDistance64_16(float, SortMode);
+			static uint64_t setDistance64_24(float, SortMode);
+			static uint64_t setDistance64_32(float, SortMode);
 		};
 		std::unordered_map<std::string_view, ref_ptr<std::vector<ref_ptr<BoundingShape>>>> nameToShape_;
 		std::unordered_map<const Camera *, uint32_t> cameraToIndexCamera_;
@@ -230,7 +270,7 @@ namespace regen {
 
 		static void handleIntersection(const BoundingShape &b_shape, void *userData);
 
-		static void resetCamera(IndexCamera *indexCamera, uint32_t traversalMask);
+		static void resetCamera(IndexCamera *indexCamera, DistanceKeySize distanceBits, uint32_t traversalMask);
 	};
 
 	/**
