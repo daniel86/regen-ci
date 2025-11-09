@@ -36,14 +36,12 @@ namespace regen {
 		alignas(32) KeyType tmpBins_[KEYS_PER_SIMD_PASS] = {0};
 		alignas(32) int32_t tmpKeys32[8] = {0};
 
-		RadixSort_CPU_seq() : histogram_(BUCKETS) {}
-
 		/**
-		 * @brief Resize the internal buffers
-		 * @param numKeys The number of keys
+		 * @brief Constructor
+		 * @param maxNumKeys The maximum number of keys to sort, actual number can be smaller
 		 */
-		void resize(size_t numKeys) {
-			tmp_indices_.reserve(numKeys);
+		explicit RadixSort_CPU_seq(size_t maxNumKeys) : histogram_(BUCKETS) {
+			tmp_indices_.reserve(maxNumKeys);
 		}
 
 		/**
@@ -80,7 +78,6 @@ namespace regen {
 				// counting can benefit from it easily.
 				// However, for huge gain we would need to load the histogram into
 				// SIMD registers as well, which is only practical with small radix width.
-				// TODO: Implement dedicated paths for small radix bit width with full SIMD histogram counting.
 				constexpr int SHIFT = I * BITS_PER_PASS;
 				// Limit bit width for last pass.
 				constexpr int BITS_THIS_PASS = (I+1 == N &&

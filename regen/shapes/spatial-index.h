@@ -183,6 +183,13 @@ namespace regen {
 		// number of bits to use for distance in sort key
 		DistanceKeySize distanceBits_ = DISTANCE_KEY_24;
 
+		template <typename RadixType>
+		static std::unique_ptr<void, void(*)(void*)> createRadix(size_t numKeys) {
+			return std::unique_ptr<void, void(*)(void*)>(
+				new RadixType(numKeys),
+				[](void* ptr) { delete static_cast<RadixType*>(ptr); });
+		}
+
 		// data for each camera
 		struct IndexCamera {
 			SpatialIndex *index;
@@ -208,10 +215,11 @@ namespace regen {
 			// how to sort instances by distance to camera
 			SortMode sortMode = SortMode::FRONT_TO_BACK;
 			// radix sort for sorting the instances
-			RadixSort_CPU_seq<uint32_t, uint64_t, 8, 64> radixSort64;
-			RadixSort_CPU_seq<uint32_t, uint64_t, 8, 40> radixSort40;
-			RadixSort_CPU_seq<uint32_t, uint32_t, 8, 32> radixSort32;
-			RadixSort_CPU_seq<uint32_t, uint32_t, 8, 24> radixSort24;
+			std::unique_ptr<void, void(*)(void*)> radixSort =
+				createRadix<RadixSort_CPU_seq<uint32_t, uint32_t, 8, 32>>(10);
+			void *sortKeys; // erased type
+			void (*radixFun)(void*, void*, std::vector<uint32_t>&) = nullptr;
+			void (*smallSortFun)(void*, std::vector<uint32_t>&) = nullptr;
 			uint8_t layerBits = 0u;
 			uint8_t shapeBits = 0u;
 			uint8_t keyBits = 0u;
@@ -223,12 +231,6 @@ namespace regen {
 			// a function to create a distance key
 			uint32_t (*setDistance32)(float, SortMode) = nullptr;
 			uint64_t (*setDistance64)(float, SortMode) = nullptr;
-			static uint32_t setDistance32_16(float, SortMode);
-			static uint32_t setDistance32_24(float, SortMode);
-			static uint32_t setDistance32_32(float, SortMode);
-			static uint64_t setDistance64_16(float, SortMode);
-			static uint64_t setDistance64_24(float, SortMode);
-			static uint64_t setDistance64_32(float, SortMode);
 		};
 		std::unordered_map<std::string_view, ref_ptr<std::vector<ref_ptr<BoundingShape>>>> nameToShape_;
 		std::unordered_map<const Camera *, uint32_t> cameraToIndexCamera_;
