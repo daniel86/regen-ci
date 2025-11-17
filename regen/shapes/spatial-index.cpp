@@ -7,13 +7,13 @@
 #include "spatial-index-debug.h"
 #include "regen/utility/conversion.h"
 
-// NOTE: this piece of code is performance critical! For many execution paths:
-// - avoid the use of std::set, std::unordered_set, std::map, std::unordered_map, etc. here
-// 		- also iteration over these containers is expensive!
-// - avoid lambda functions
-// - avoid alloc/free
-
 using namespace regen;
+
+#define REGEN_FORCE_INLINE __attribute__((always_inline)) inline
+
+namespace regen {
+	static constexpr bool SPATIAL_INDEX_USE_MULTITHREADING = true;
+}
 
 SpatialIndex::SpatialIndex() {
 }
@@ -27,11 +27,9 @@ void SpatialIndex::addToIndex(const ref_ptr<BoundingShape> &shape) {
 	} else {
 		it->second->push_back(shape);
 	}
+	itemBoundingShapes_.push_back(shape);
 	for (auto &ic: indexCameras_) {
 		createIndexShape(ic, shape);
-	}
-	if (shape->spatialIndexData_.size() < indexCameras_.size()) {
-		shape->spatialIndexData_.resize(math::nextPow2(indexCameras_.size()));
 	}
 }
 
@@ -49,7 +47,7 @@ void SpatialIndex::addCamera(
 		const ref_ptr<Camera> &cullCamera,
 		const ref_ptr<Camera> &sortCamera,
 		SortMode sortMode,
-		Vec4i lodShift) {
+		const Vec4i &lodShift) {
 	cameraToIndexCamera_[cullCamera.get()] = indexCameras_.size();
 	auto &data = indexCameras_.emplace_back();
 	data.cullCamera = cullCamera;
@@ -58,13 +56,8 @@ void SpatialIndex::addCamera(
 	data.lodShift = lodShift;
 	data.index = this;
 	data.camIdx = static_cast<uint32_t>(indexCameras_.size() - 1);
-	for (auto &pair: nameToShape_) {
-		for (auto &shape: *pair.second.get()) {
-			createIndexShape(data, shape);
-			if (shape->spatialIndexData_.size() < indexCameras_.size()) {
-				shape->spatialIndexData_.resize(math::nextPow2(indexCameras_.size()));
-			}
-		}
+	for (auto &shape : itemBoundingShapes_) {
+		createIndexShape(data, shape);
 	}
 }
 
@@ -73,21 +66,23 @@ void SpatialIndex::createIndexShape(IndexCamera &ic, const ref_ptr<BoundingShape
 	if (needle != ic.nameToShape_.end()) {
 		// already created
 		needle->second->boundingShapes_.push_back(shape);
+		// Remember bounding-shape to indexed-shape mapping
+		// Note: important to insert this exactly in item-order
+		ic.itemToIndexedShape_.push_back(needle->second->shapeIdx_);
 		return;
 	}
 	const uint32_t numLayer = ic.cullCamera->numLayer();
 	const uint32_t numInstances = shape->numInstances();
 	const uint32_t numIndices = numInstances * numLayer;
 
-	auto is = ref_ptr<IndexedShape>::alloc(ic.cullCamera, ic.sortCamera, shape);
-	const uint32_t numLOD = is->numLODs();
+	auto is = ref_ptr<IndexedShape>::alloc(ic.cullCamera, ic.sortCamera, ic.lodShift, shape);
+	const uint32_t numLOD = std::max(1u, is->numLODs());
 	is->idVec_ = ref_ptr<ShaderInput1ui>::alloc("instanceIDs", 1);
 	is->idVec_->setInstanceData(numIndices, 1, nullptr);
 	is->countVec_ = ref_ptr<ShaderInput1ui>::alloc("instanceCounts", numLayer * numLOD);
 	is->countVec_->setInstanceData(1, 1, nullptr);
 	is->baseVec_ = ref_ptr<ShaderInput1ui>::alloc("baseInstances", numLayer * numLOD);
 	is->baseVec_->setInstanceData(1, 1, nullptr);
-	is->setLODShift(ic.lodShift);
 
 	auto mapped_ids = is->idVec_->mapClientData<uint32_t>(BUFFER_GPU_WRITE);
 	auto mapped_count = is->countVec_->mapClientData<uint32_t>(BUFFER_GPU_WRITE);
@@ -117,6 +112,7 @@ void SpatialIndex::createIndexShape(IndexCamera &ic, const ref_ptr<BoundingShape
 	is->shapeIdx_ = static_cast<uint16_t>(ic.indexShapes_.size());
 	ic.nameToShape_[shape->name()] = is;
 	ic.indexShapes_.push_back(is.get());
+	ic.itemToIndexedShape_.push_back(is->shapeIdx_);
 	is->boundingShapes_.push_back(shape);
 	// mark camera as dirty as the camera buffers must be resized.
 	// We do this lazy to avoid multiple resizes when adding many shapes.
@@ -164,7 +160,7 @@ bool SpatialIndex::isVisible(const Camera &camera, uint32_t layerIdx, std::strin
 	return it2->second->isVisibleInLayer(layerIdx);
 }
 
-GLuint SpatialIndex::numInstances(std::string_view shapeID) const {
+uint32_t SpatialIndex::numInstances(std::string_view shapeID) const {
 	auto shape = getShape(shapeID);
 	if (!shape.get()) {
 		return 0u;
@@ -192,123 +188,291 @@ ref_ptr<BoundingShape> SpatialIndex::getShape(std::string_view shapeID, uint32_t
 	return {};
 }
 
-inline uint32_t getLODLevel(
-			const BoundingShape &b_shape,
-			const IndexedShape *i_shape,
-			float lodDistance) {
-	return b_shape.baseMesh()->getLODLevel(lodDistance, i_shape->lodShift());
+namespace regen {
+	struct VisibleHitSOA {
+		VisibleHitSOA() = default;
+		~VisibleHitSOA() = default;
+		VisibleHitSOA(const VisibleHitSOA&) = delete;
+		VisibleHitSOA& operator=(const VisibleHitSOA&) = delete;
+
+		HitBuffer *hits = nullptr;
+		AlignedArray<float> ox, oy, oz;   // origins
+		AlignedArray<float> t0, t1, t2;   // lod thresholds
+		AlignedArray<uint32_t> globalID;
+		AlignedArray<uint32_t> shapeIdx;
+		// output arrays
+		AlignedArray<float> lodDistance;
+		AlignedArray<uint32_t> binIdx;
+
+		void resize(uint32_t size) {
+			if (ox.size() < size) {
+				uint32_t nextSize = size + (size / 2u) + 256u; // grow by 50% + 256
+				ox.resize(nextSize);
+				oy.resize(nextSize);
+				oz.resize(nextSize);
+				t0.resize(nextSize);
+				t1.resize(nextSize);
+				t2.resize(nextSize);
+				globalID.resize(nextSize);
+				shapeIdx.resize(nextSize);
+				lodDistance.resize(nextSize);
+				binIdx.resize(nextSize);
+			}
+		}
+	};
 }
 
-inline uint16_t floatTo16(float f, SortMode m) {
-	uint32_t x = std::bit_cast<uint32_t>(f);
-	uint16_t q = ((x>>16)&0x8000) |                     // sign bit
-		   ((((x&0x7f800000)-0x38000000)>>13)&0x7c00) | // exponent bits
-		   	((x>>13)&0x03ff);                           // mantissa bits
-	return m == BACK_TO_FRONT ? ~q : q;
+static void gatherVisibleHitSOA(
+			IndexCamera &ic,
+			VisibleHitSOA &hitSoA,
+			uint32_t layerIdx,
+			const ref_ptr<BoundingShape> *itemShapes) {
+	const std::vector<uint32_t> &globalInstanceIds = ic.globalInstanceIDs_[layerIdx];
+	const HitBuffer &hits = *hitSoA.hits;
+
+	for (uint32_t hitIdx=0; hitIdx < hits.count; ++hitIdx) {
+		// Gather data for this shape
+		const uint32_t itemIdx  = hits.data[hitIdx];
+		const uint32_t shapeIdx = ic.itemToIndexedShape_[itemIdx];
+		const Vec3f &shapeOrigin   = itemShapes[itemIdx]->tfOrigin();
+		const Vec3f &lodThresholds = ic.indexShapes_[shapeIdx]->lodThresholds();
+		// Store in SOA
+		hitSoA.ox[hitIdx] = shapeOrigin.x;
+		hitSoA.oy[hitIdx] = shapeOrigin.y;;
+		hitSoA.oz[hitIdx] = shapeOrigin.z;
+		hitSoA.t0[hitIdx] = lodThresholds.x;
+		hitSoA.t1[hitIdx] = lodThresholds.y;
+		hitSoA.t2[hitIdx] = lodThresholds.z;
+		hitSoA.globalID[hitIdx] = globalInstanceIds[itemIdx];
+		hitSoA.shapeIdx[hitIdx] = shapeIdx;
+	}
 }
 
-inline uint32_t floatTo24(float f, SortMode m) {
-	uint32_t x = std::bit_cast<uint32_t>(f);
-	uint32_t q = ((x >> 8) & 0x800000)                         // sign bit
-		| ((((x & 0x7f800000) - 0x3f800000) >> 7) & 0x7f0000)  // exponent bits
-		| ((x >> 8) & 0x00ffff);                               // mantissa bits
-	return m == BACK_TO_FRONT ? ~q : q;
+template<SpatialIndex::DistanceKeySize DistanceType>
+static uint32_t computeDistanceKey(float lodDistance, const uint32_t flip) {
+	//const uint32_t xf = conversion::floatBitsToUint(lodDistance);
+	const uint32_t xf = std::bit_cast<uint32_t>(lodDistance);
+	if constexpr (DistanceType == SpatialIndex::DISTANCE_KEY_16) {
+		const uint16_t q = ((xf>>16)&0x8000)               // sign bit
+			| ((((xf&0x7f800000)-0x38000000)>>13)&0x7c00)  // exponent bits
+			| ((xf>>13)&0x03ff);                           // mantissa bits
+		return (q ^ (flip & 0xFFFF));
+	} else if constexpr (DistanceType == SpatialIndex::DISTANCE_KEY_24) {
+		const uint32_t q = ((xf >> 8) & 0x800000)                   // sign bit
+			| ((((xf & 0x7f800000) - 0x3f800000) >> 7) & 0x7f0000)  // exponent bits
+			| ((xf >> 8) & 0x00ffff);                               // mantissa bits
+		return (q ^ (flip & 0xFFFFFF));
+	} else {
+		return (xf ^ flip);
+	}
 }
 
-inline uint32_t floatTo32(float f, SortMode m) {
-	uint32_t q = std::bit_cast<uint32_t>(f);
-	return m == BACK_TO_FRONT ? ~q : q;
-}
+template <typename KeyType, SpatialIndex::DistanceKeySize DistanceType, bool UseSoA>
+static void pushVisibleShapes(IndexCamera &ic, uint32_t layerIdx, HitBuffer &hitBuffer,
+		const ref_ptr<BoundingShape> *itemShapes) {
+	static constexpr int SortKeyBits = (sizeof(KeyType) * 8);
+	static constexpr uint8_t bitOffset_layer = static_cast<uint8_t>(DistanceType);
 
-static uint32_t setDistance32_16(float d, SortMode m) { return floatTo16(d,m); }
-static uint32_t setDistance32_24(float d, SortMode m) { return floatTo24(d,m); }
-static uint32_t setDistance32_32(float d, SortMode m) { return floatTo32(d,m); }
+	const uint32_t numLayer = ic.cullCamera->numLayer();
+	const uint32_t numHits = hitBuffer.count;
+	const uint32_t flip = -(ic.sortMode == BACK_TO_FRONT);
+	const uint8_t bitOffset_shape = bitOffset_layer + ic.layerBits;
 
-static uint64_t setDistance64_16(float d, SortMode m) { return floatTo16(d,m); }
-static uint64_t setDistance64_24(float d, SortMode m) { return floatTo24(d,m); }
-static uint64_t setDistance64_32(float d, SortMode m) { return floatTo32(d,m); }
+	const Vec3f *camPosPtr;
+	if (ic.sortCamera->position().size()>1) {
+		camPosPtr = &ic.sortCamera->position(layerIdx);
+	} else {
+		camPosPtr = &ic.sortCamera->position(0);
+	}
+	const Vec3f &camPos = *camPosPtr;
 
-// Pack a value into a key at the given bit offset and number of bits
-template <typename KeyType, typename ValueType>
-static void packKey(KeyType &key, ValueType value, uint8_t bitOffset, uint8_t numBits) {
-	const uint32_t mask = (1u << numBits) - 1u;
-	key |= (static_cast<KeyType>(value) & mask) << bitOffset;
-}
+	// Compute sort keys, a key is composed of:
+	//		[ shapeIdx | layerIdx | distance ]
+	// where the number of bits for each field is determined by:
+	//		shapeIdx: determined by number of shapes in the camera (shapeBits)
+	//		layerIdx: determined by number of layers in the camera (layerBits)
+	//		distance: remaining bits (distanceBits)
+	KeyType *sortKeys;
+	if constexpr (SortKeyBits == 32) {
+		sortKeys = ic.tmp_sortKeys32_.data();
+	} else {
+		sortKeys = ic.tmp_sortKeys64_.data();
+	}
 
-void SpatialIndex::IndexCamera::pushKey64(IndexCamera *ic, uint16_t s, uint32_t l, float d, SortMode m) {
-	uint8_t bitOffset = ic->index->distanceBits_;
-	// lower distance bits
-	uint64_t key = ic->setDistance64(d, m);
-	// pack layer
-	packKey<uint64_t, uint32_t>(key, l, bitOffset, ic->layerBits);
-	bitOffset += ic->layerBits;
-	// pack shape (upper bits)
-	packKey<uint64_t, uint16_t>(key, s, bitOffset, ic->shapeBits);
-	// finally add the key
-	ic->tmp_sortKeys64_.push_back(key);
-}
+	if constexpr (UseSoA) {
+		thread_local VisibleHitSOA hitSoA;
+		uint32_t hitIdx = 0;
+		hitSoA.hits = &hitBuffer;
+		hitSoA.resize(hitBuffer.count);
 
-void SpatialIndex::IndexCamera::pushKey32(IndexCamera *ic, uint16_t s, uint32_t l, float d, SortMode m) {
-	uint8_t bitOffset = ic->index->distanceBits_;
-	// lower distance bits
-	uint32_t key = ic->setDistance32(d, m);
-	// pack layer
-	packKey<uint32_t, uint32_t>(key, l, bitOffset, ic->layerBits);
-	bitOffset += ic->layerBits;
-	// pack shape (upper bits)
-	packKey<uint32_t, uint16_t>(key, s, bitOffset, ic->shapeBits);
-	// finally add the key
-	ic->tmp_sortKeys32_.push_back(key);
-}
+		const float *d_ox = hitSoA.ox.data();
+		const float *d_oy = hitSoA.oy.data();
+		const float *d_oz = hitSoA.oz.data();
+		const float *d_t0 = hitSoA.t0.data();
+		const float *d_t1 = hitSoA.t1.data();
+		const float *d_t2 = hitSoA.t2.data();
 
-void SpatialIndex::handleIntersection(const BoundingShape& b_shape, void* userData) {
-    auto* data = (SpatialIndex::TraversalData*)(userData);
-	auto* i_cam = data->indexCamera;
-    auto* i_shape = (IndexedShape*) b_shape.spatialIndexData_[i_cam->camIdx];
-    const uint32_t L = i_shape->camera()->numLayer();
-	const uint32_t l = data->layerIdx;
-	const SortMode sortMode = i_shape->instanceSortMode();
+		float *d_lodDistance = hitSoA.lodDistance.data();
+		uint32_t *d_binIdx = hitSoA.binIdx.data();
 
-    // toggle visibility for this layer
-    i_shape->tmp_layerVisibility_[l] = true;
+		// First pass: gather all data into SOA arrays
+		gatherVisibleHitSOA(ic, hitSoA, layerIdx, itemShapes);
 
-    // compute LOD level for this shape by distance to camera.
-    // each mesh may have its own thresholds for switching LOD levels, so we need
-    // to let the (base) mesh decide which LOD level to use.
-	const float lodDistance = (b_shape.tfOrigin() - *data->camPos).lengthSquared();
-	const uint32_t k = getLODLevel(b_shape, i_shape, lodDistance);
+		// Second pass: process all hits, write output: lodDistance & binIdx
+		{
+			const BatchOf_float cx = BatchOf_float::fromScalar(camPos.x);
+			const BatchOf_float cy = BatchOf_float::fromScalar(camPos.y);
+			const BatchOf_float cz = BatchOf_float::fromScalar(camPos.z);
+			const BatchOf_int32 nl = BatchOf_int32::fromScalar(static_cast<int32_t>(numLayer));
+			const BatchOf_int32 layer = BatchOf_int32::fromScalar(static_cast<int32_t>(layerIdx));
+			const BatchOf_int32 one = BatchOf_int32::fromScalar(1);
 
-	// Finally bin the shape into the (lod, layer) bin
-	const uint32_t b = CullShape::binIdx(k, l, L);
-	i_shape->tmp_binCounts_[b] += 1;
-	// Total visibility count of the shape across all layers
-	i_shape->tmp_totalCount_ += 1;
-	i_cam->tmp_layerInstances_.push_back(b_shape.instanceID());
-	i_cam->tmp_layerShapes_.push_back(i_cam->tmp_layerShapes_.size());
-	i_cam->pushKeyFun(i_cam, i_shape->shapeIdx_, l, lodDistance, sortMode);
+			for (; hitIdx + simd::RegisterWidth <= numHits; hitIdx += simd::RegisterWidth) {
+				// delta = shape-pos - cam-pos
+				const BatchOf_float dx = BatchOf_float::loadAligned(d_ox + hitIdx) - cx;
+				const BatchOf_float dy = BatchOf_float::loadAligned(d_oy + hitIdx) - cy;
+				const BatchOf_float dz = BatchOf_float::loadAligned(d_oz + hitIdx) - cz;
+				const BatchOf_float lodDistance = (dx*dx) + (dy*dy) + (dz*dz);
+
+				// comparisons -> mask (true -> 0xFFFFFFFF)
+				const BatchOf_float c0 = (lodDistance >= BatchOf_float::loadAligned(d_t0 + hitIdx));
+				const BatchOf_float c1 = (lodDistance >= BatchOf_float::loadAligned(d_t1 + hitIdx));
+				const BatchOf_float c2 = (lodDistance >= BatchOf_float::loadAligned(d_t2 + hitIdx));
+
+				// convert masks to integer 0/1 per lane, and sum to get LOD level
+				const BatchOf_int32 lodLevel =
+					(BatchOf_int32::castFloatBatch(c0) & one) +
+					(BatchOf_int32::castFloatBatch(c1) & one) +
+					(BatchOf_int32::castFloatBatch(c2) & one);
+
+				// compute binIdx = lodLevel * numLayer + layerIdx
+				const BatchOf_int32 binIdx = (lodLevel * nl) + layer;
+
+				// Finally store results
+				binIdx.storeAligned(d_binIdx + hitIdx);
+				lodDistance.storeAligned(d_lodDistance + hitIdx);
+			}
+
+			// process remaining hits scalar-wise
+			for (; hitIdx < numHits; ++hitIdx) {
+				const float dx = d_ox[hitIdx] - camPos.x;
+				const float dy = d_oy[hitIdx] - camPos.y;
+				const float dz = d_oz[hitIdx] - camPos.z;
+				// Compute squared distance from shape to camera
+				const float lodDistance = (dx * dx) + (dy * dy) + (dz * dz);
+				// Compute LOD level for this shape by distance to camera.
+				const uint32_t lodLevel =
+					(lodDistance >= d_t0[hitIdx]) +
+					(lodDistance >= d_t1[hitIdx]) +
+					(lodDistance >= d_t2[hitIdx]);
+				// compute bin and item indices
+				d_lodDistance[hitIdx] = lodDistance;
+				d_binIdx[hitIdx] = lodLevel * numLayer + layerIdx;
+			}
+		}
+
+		// Third pass: compute sort keys and scatter
+		for (hitIdx=0; hitIdx < numHits; ++hitIdx) {
+			const uint32_t globalID = hitSoA.globalID[hitIdx];
+			const uint32_t shapeIdx = hitSoA.shapeIdx[hitIdx];
+			const float lodDistance = d_lodDistance[hitIdx];
+			const uint32_t binIdx = d_binIdx[hitIdx];
+
+			// Compute sort key for this shape.
+			const KeyType sortKey =
+				// pack distance (lower bits)
+				computeDistanceKey<DistanceType>(lodDistance, flip) |
+				// pack layer
+				((static_cast<KeyType>(layerIdx) & ic.layerMask) << bitOffset_layer) |
+				// pack shape (upper bits)
+				((static_cast<KeyType>(shapeIdx) & ic.shapeMask) << bitOffset_shape);
+
+			// Add sort key for this instance
+			sortKeys[globalID] = sortKey;
+			// Store instance ID for this instance
+			ic.tmp_globalIDQueue_.push_back(globalID);
+			// Scatter into per indexed shape arrays
+			IndexedShape &is = *ic.indexShapes_[shapeIdx];
+			is.addVisibleInstance(layerIdx, binIdx);
+		}
+	} else {
+		const uint32_t* globalInstanceIDs = ic.globalInstanceIDs_[layerIdx].data();
+
+		for (uint32_t hitIdx=0; hitIdx < hitBuffer.count; ++hitIdx) {
+			// Gather shape data for this hit.
+			const uint32_t itemIdx = hitBuffer.data[hitIdx];
+			const uint32_t globalID = globalInstanceIDs[itemIdx];
+			const uint32_t shapeIdx = ic.itemToIndexedShape_[itemIdx];
+
+			BoundingShape &bs = *itemShapes[itemIdx].get();
+			IndexedShape &is = *ic.indexShapes_[shapeIdx];
+			const Vec3f &shapeOrigin = bs.tfOrigin();
+			const Vec3f &lodThresholds = is.lodThresholds();
+
+			// Compute squared distance from shape to camera
+			const float lodDistance = (shapeOrigin - camPos).lengthSquared();
+
+			// Compute LOD level for this shape by distance to camera.
+			const uint32_t lodLevel =
+				(lodDistance >= lodThresholds.x) +
+				(lodDistance >= lodThresholds.y) +
+				(lodDistance >= lodThresholds.z);
+			// compute bin and item indices
+			const uint32_t binIdx = lodLevel * numLayer + layerIdx;
+
+			// Compute sort key for this shape.
+			KeyType sortKey =
+				// pack distance (lower bits)
+				computeDistanceKey<DistanceType>(lodDistance, flip) |
+				// pack layer
+				((static_cast<KeyType>(layerIdx) & ic.layerMask) << bitOffset_layer) |
+				// pack shape (upper bits)
+				((static_cast<KeyType>(shapeIdx) & ic.shapeMask) << bitOffset_shape);
+
+			// Add sort key for this instance
+			sortKeys[globalID] = sortKey;
+			// Store instance ID for this instance
+			ic.tmp_globalIDQueue_.push_back(globalID);
+			// Scatter into per indexed shape arrays
+			is.addVisibleInstance(layerIdx, binIdx);
+		}
+	}
 }
 
 void SpatialIndex::updateLayerVisibility(
 		IndexCamera &ic, uint32_t layerIdx,
 		const BoundingShape &camera_shape) {
+	static constexpr bool UseSoA = true;
 	// Collect all intersections for this layer into (lod,layer) bins
-	TraversalData traversalData{ this, &ic, nullptr, layerIdx };
-	if (ic.sortCamera->position().size()>1) {
-		traversalData.camPos = &ic.sortCamera->position(layerIdx);
+	auto &hitBuffer = foreachIntersection(camera_shape, ic.traversalMask);
+
+	#define _push(KT,DT) pushVisibleShapes<KT,DT,UseSoA>(ic, layerIdx, hitBuffer, itemBoundingShapes_.data())
+	if (ic.keyBits <= 32) {
+		using KeyType = uint32_t;
+		if (ic.index->distanceBits_ == DISTANCE_KEY_16) {
+			_push(KeyType, DISTANCE_KEY_16);
+		} else {
+			// note: for 32-bit keys we can only have 24-bit distance
+			_push(KeyType, DISTANCE_KEY_24);
+		}
 	} else {
-		traversalData.camPos = &ic.sortCamera->position(0);
+		using KeyType = uint64_t;
+		if (ic.index->distanceBits_ == DISTANCE_KEY_16) {
+			_push(KeyType, DISTANCE_KEY_16);
+		} else if (ic.index->distanceBits_ == DISTANCE_KEY_24) {
+			_push(KeyType, DISTANCE_KEY_24);
+		} else {
+			_push(KeyType, DISTANCE_KEY_32);
+		}
 	}
-	foreachIntersection(camera_shape,
-		handleIntersection,
-		&traversalData,
-		ic.traversalMask);
+	#undef _push
 }
 
 static void visibilityJobFunc(void *arg) {
 	VisibilityJob::run(arg);
 }
 
-inline uint8_t getMinBits(uint32_t numValues) {
+REGEN_FORCE_INLINE uint8_t getMinBits(uint32_t numValues) {
 	if (numValues <= 1) return 1;
 	// ceil(log2(numValues))
 	return 32 - __builtin_clz(numValues - 1);
@@ -321,85 +485,98 @@ static void radixSortFun(void *radixSort, void *sortKeys, std::vector<uint32_t> 
 }
 
 template <typename KeyType>
-static void smallSortFun(void *sortKeys, std::vector<uint32_t> &values) {
+static void smallSortFun(void*, void *sortKeys, std::vector<uint32_t> &values) {
 	auto &keys = *static_cast<std::vector<KeyType>*>(sortKeys);
-	std::ranges::sort(values, [keys](uint32_t itemIdx1, uint32_t itemIdx2) {
-		return keys[itemIdx1] < keys[itemIdx2];
-	});
+	std::sort(values.begin(), values.end(),
+		[&keys](uint32_t a, uint32_t b) { return keys[a] < keys[b]; });
 }
 
 void SpatialIndex::resetCamera(IndexCamera *indexCamera, DistanceKeySize distanceBits, uint32_t traversalMask) {
+	const uint32_t numLayer = indexCamera->cullCamera->numLayer();
+
 	if (indexCamera->isDirty) {
 		// Compute the number of keys which is the sum of L * I for all shapes
 		// assigned to this camera.
-		const uint32_t numLayer = indexCamera->cullCamera->numLayer();
 		indexCamera->numKeys = 0;
+
+		uint32_t shapeBase = 0;
 		for (auto &indexShape: indexCamera->indexShapes_) {
-			indexCamera->numKeys += indexShape->shape()->numInstances() * numLayer;
+			const uint32_t numInstances = indexShape->shape().numInstances();
+			indexCamera->numKeys += numInstances * numLayer;
+			indexShape->globalBase_ = shapeBase;
+			shapeBase += indexShape->shape().numInstances() * numLayer;
 		}
-		indexCamera->tmp_layerInstances_.reserve(indexCamera->numKeys);
-		indexCamera->tmp_layerShapes_.reserve(indexCamera->numKeys);
+		indexCamera->tmp_globalIDQueue_.reserve(indexCamera->numKeys);
+		indexCamera->globalToInstanceIdx_.resize(indexCamera->numKeys, 0);
+
+		// resize indexCamera->globalInstanceIDs_ arrays
+		indexCamera->globalInstanceIDs_.resize(numLayer);
+		for (auto &layerVec: indexCamera->globalInstanceIDs_) {
+			layerVec.resize(indexCamera->numKeys, 0);
+		}
+
+		// Compute the global index for all shapes assigned to this camera.
+		for (uint32_t itemIdx=0; itemIdx<itemBoundingShapes_.size(); ++itemIdx) {
+			BoundingShape &bs = *itemBoundingShapes_[itemIdx].get();
+			IndexedShape &is = *indexCamera->indexShapes_[indexCamera->itemToIndexedShape_[itemIdx]];
+			const uint32_t numInstances = bs.numInstances();
+			const uint32_t instanceID = bs.instanceID();
+			for (uint32_t layerIdx = 0; layerIdx < numLayer; ++layerIdx) {
+				const uint32_t globalIdx = is.globalBase_ +
+					layerIdx * numInstances + // layer base
+					instanceID;
+				indexCamera->globalInstanceIDs_[layerIdx][itemIdx] = globalIdx;
+				indexCamera->globalToInstanceIdx_[globalIdx] = instanceID;
+			}
+		}
 
 		indexCamera->layerBits = getMinBits(numLayer);
+		indexCamera->layerMask = (1u << indexCamera->layerBits) - 1u;
 		indexCamera->shapeBits = getMinBits(indexCamera->indexShapes_.size());
+		indexCamera->shapeMask = (1u << indexCamera->shapeBits) - 1u;
 		indexCamera->keyBits = indexCamera->layerBits + indexCamera->shapeBits + static_cast<uint8_t>(distanceBits);
-		if (distanceBits == DISTANCE_KEY_32) {
-			indexCamera->setDistance32 = &setDistance32_32;
-			indexCamera->setDistance64 = &setDistance64_32;
-		} else if (distanceBits == DISTANCE_KEY_24) {
-			indexCamera->setDistance32 = &setDistance32_24;
-			indexCamera->setDistance64 = &setDistance64_24;
-		} else {
-			indexCamera->setDistance32 = &setDistance32_16;
-			indexCamera->setDistance64 = &setDistance64_16;
-		}
 
 		if (indexCamera->keyBits <= 32) {
 			using KeyType = uint32_t;
-			indexCamera->tmp_sortKeys32_.reserve(indexCamera->numKeys);
+			indexCamera->tmp_sortKeys32_.resize(indexCamera->numKeys);
 			indexCamera->sortKeys = static_cast<void*>(&indexCamera->tmp_sortKeys32_);
-			indexCamera->pushKeyFun = &IndexCamera::pushKey32;
-			indexCamera->smallSortFun = smallSortFun<KeyType>;
+			indexCamera->sortFun[IndexCamera::SORT_FUN_SMALL] = smallSortFun<KeyType>;
 			if (indexCamera->keyBits <= 24) {
 				// use 24-bit radix sort (uint32_t keys)
 				using RadixType = RadixSort_CPU_seq<uint32_t, KeyType, 8, 24>;
-				indexCamera->radixSort = createRadix<RadixType>(indexCamera->numKeys);
-				indexCamera->radixFun = radixSortFun<RadixType,KeyType>;
+				indexCamera->radixSort = IndexCamera::createRadix<RadixType>(indexCamera->numKeys);
+				indexCamera->sortFun[IndexCamera::SORT_FUN_LARGE] = radixSortFun<RadixType,KeyType>;
 			} else {
 				// use 32-bit radix sort (uint32_t keys)
 				using RadixType = RadixSort_CPU_seq<uint32_t, KeyType, 8, 32>;
-				indexCamera->radixSort = createRadix<RadixType>(indexCamera->numKeys);
-				indexCamera->radixFun = radixSortFun<RadixType,KeyType>;
+				indexCamera->radixSort = IndexCamera::createRadix<RadixType>(indexCamera->numKeys);
+				indexCamera->sortFun[IndexCamera::SORT_FUN_LARGE] = radixSortFun<RadixType,KeyType>;
 			}
 		} else {
 			using KeyType = uint64_t;
-			indexCamera->tmp_sortKeys64_.reserve(indexCamera->numKeys);
+			indexCamera->tmp_sortKeys64_.resize(indexCamera->numKeys);
 			indexCamera->sortKeys = static_cast<void*>(&indexCamera->tmp_sortKeys64_);
-			indexCamera->pushKeyFun = &IndexCamera::pushKey64;
-			indexCamera->smallSortFun = smallSortFun<KeyType>;
+			indexCamera->sortFun[IndexCamera::SORT_FUN_SMALL] = smallSortFun<KeyType>;
 			if (indexCamera->keyBits <= 40) {
 				// use 40-bit radix sort (uint64_t keys)
 				using RadixType = RadixSort_CPU_seq<uint32_t, KeyType, 8, 40>;
-				indexCamera->radixSort = createRadix<RadixType>(indexCamera->numKeys);
-				indexCamera->radixFun = radixSortFun<RadixType,KeyType>;
+				indexCamera->radixSort = IndexCamera::createRadix<RadixType>(indexCamera->numKeys);
+				indexCamera->sortFun[IndexCamera::SORT_FUN_LARGE] = radixSortFun<RadixType,KeyType>;
 			} else if (indexCamera->keyBits <= 48) {
 				// use 48-bit radix sort (uint64_t keys)
 				using RadixType = RadixSort_CPU_seq<uint32_t, KeyType, 8, 48>;
-				indexCamera->radixSort = createRadix<RadixType>(indexCamera->numKeys);
-				indexCamera->radixFun = radixSortFun<RadixType,KeyType>;
+				indexCamera->radixSort = IndexCamera::createRadix<RadixType>(indexCamera->numKeys);
+				indexCamera->sortFun[IndexCamera::SORT_FUN_LARGE] = radixSortFun<RadixType,KeyType>;
 			} else {
 				// use 64-bit radix sort (uint64_t keys)
 				using RadixType = RadixSort_CPU_seq<uint32_t, KeyType, 8, 64>;
-				indexCamera->radixSort = createRadix<RadixType>(indexCamera->numKeys);
-				indexCamera->radixFun = radixSortFun<RadixType,KeyType>;
+				indexCamera->radixSort = IndexCamera::createRadix<RadixType>(indexCamera->numKeys);
+				indexCamera->sortFun[IndexCamera::SORT_FUN_LARGE] = radixSortFun<RadixType,KeyType>;
 			}
 		}
 		indexCamera->isDirty = false;
 	}
-	indexCamera->tmp_layerInstances_.clear();
-	indexCamera->tmp_layerShapes_.clear();
-	indexCamera->tmp_sortKeys64_.clear();
-	indexCamera->tmp_sortKeys32_.clear();
+	indexCamera->tmp_globalIDQueue_.clear();
 	indexCamera->traversalMask = traversalMask;
 	auto &frustumShapes = indexCamera->cullCamera->frustum();
 	for (auto &shape: frustumShapes) {
@@ -408,54 +585,55 @@ void SpatialIndex::resetCamera(IndexCamera *indexCamera, DistanceKeySize distanc
 }
 
 void SpatialIndex::updateVisibility(uint32_t traversalMask) {
-	uint32_t numIndexedCameras = indexCameras_.size();
-	if (!jobPool_) {
-		uint32_t numThreads = numIndexedCameras - 1; // leave one for the local thread
-		numThreads = std::max(1u, std::min(numThreads, maxNumThreads_));
-		jobPool_ = std::make_unique<JobPool>(numThreads);
-		REGEN_DEBUG("Created job pool with " << numThreads << " threads.");
-	}
-
-	// Schedule jobs for all index cameras, but keep the one with the most keys for the local thread.
-	IndexCamera *localIndexCamera = &indexCameras_.front();
-	resetCamera(localIndexCamera, distanceBits_, traversalMask);
-	for (uint32_t i = 1; i < numIndexedCameras; ++i) {
-		IndexCamera *nextIndexCamera = &indexCameras_[i];
-		resetCamera(nextIndexCamera, distanceBits_, traversalMask);
-		if (nextIndexCamera->numKeys > localIndexCamera->numKeys) {
-			std::swap(localIndexCamera, nextIndexCamera);
+	if constexpr (SPATIAL_INDEX_USE_MULTITHREADING) {
+		uint32_t numIndexedCameras = indexCameras_.size();
+		if (!jobPool_) {
+			uint32_t numThreads = numIndexedCameras - 1; // leave one for the local thread
+			numThreads = std::max(1u, std::min(numThreads, maxNumThreads_));
+			jobPool_ = std::make_unique<JobPool>(numThreads);
 		}
-		jobPool_->addJobPreFrame(Job{ .fn = visibilityJobFunc, .arg = nextIndexCamera });
-	}
 
-	// Execute jobs
-	jobPool_->beginFrame(1u); // one local job
-	Job localJob { .fn = visibilityJobFunc, .arg = localIndexCamera };
-	do {
-		jobPool_->performJob(localJob);
-	} while (jobPool_->stealJob(localJob));
-	jobPool_->endFrame();
+		// Schedule jobs for all index cameras, but keep the one with the most keys for the local thread.
+		IndexCamera *localIndexCamera = &indexCameras_.front();
+		resetCamera(localIndexCamera, distanceBits_, traversalMask);
+		for (uint32_t i = 1; i < numIndexedCameras; ++i) {
+			IndexCamera *nextIndexCamera = &indexCameras_[i];
+			resetCamera(nextIndexCamera, distanceBits_, traversalMask);
+			if (nextIndexCamera->numKeys > localIndexCamera->numKeys) {
+				std::swap(localIndexCamera, nextIndexCamera);
+			}
+			jobPool_->addJobPreFrame(Job{ .fn = visibilityJobFunc, .arg = nextIndexCamera });
+		}
+
+		// Execute jobs
+		jobPool_->beginFrame(1u); // one local job
+		Job localJob { .fn = visibilityJobFunc, .arg = localIndexCamera };
+		do {
+			jobPool_->performJob(localJob);
+		} while (jobPool_->stealJob(localJob));
+		jobPool_->endFrame();
+	} else { // no multithreading
+		for (auto &indexCamera: indexCameras_) {
+			resetCamera(&indexCamera, distanceBits_, traversalMask);
+			updateVisibility(&indexCamera);
+		}
+	}
 }
 
 void SpatialIndex::updateVisibility(IndexCamera *indexCamera) {
 	const uint32_t L = indexCamera->cullCamera->numLayer();
 
 	for (auto &indexShape: indexCamera->indexShapes_) {
+		// Reset visibility + total count
 		indexShape->tmp_layerVisibility_.assign(L, false);
-		// Reset the per-bin counts, we accumulate them during traversal, so they
-		// need to be reset first.
-		std::memset(indexShape->tmp_binCounts_.data(), 0,
-			sizeof(uint32_t) * indexShape->tmp_binCounts_.size());
-		// Reset total count
 		indexShape->tmp_totalCount_ = 0;
-		// Remember the index shape to bounding shape mapping such that we can
-		// obtain index shape from bounding shape directly (else a hash lookup would be required).
-		for (auto &bs: indexShape->boundingShapes_) {
-			// FIXME: This would break in a multi-index scenario where multiple indices
-			//        are processed in parallel that contain the same bounding shape.
-			//        Would need something like thread_local member variable.
-			bs->spatialIndexData_[indexCamera->camIdx] = indexShape;
-		}
+		// Map instance data for this shape, and reset the bin counts
+		indexShape->mapInstanceData_internal();
+		indexShape->tmp_binBase_ = indexShape->mappedBaseInstance();
+		indexShape->tmp_binCounts_ = indexShape->mappedInstanceCounts();
+		// Reset the per-bin counts. We accumulate them during traversal, so they need to be reset first.
+		std::memset(indexShape->tmp_binCounts_, 0,
+			sizeof(uint32_t) * indexShape->numLODs() * L);
 	}
 
 	// Process each layer
@@ -464,14 +642,10 @@ void SpatialIndex::updateVisibility(IndexCamera *indexCamera) {
 		updateLayerVisibility(*indexCamera, layerIdx, frustumShapes[layerIdx]);
 	}
 
-	// TODO: With some changes it should be possible to sort instance IDs directly, and to remove tmp_layerShapes_.
-	//       Basically we need to store the keys in a way such that we can access them by instance ID.
-	std::vector<uint32_t>& vec = indexCamera->tmp_layerShapes_;
-	if (vec.size() < SMALL_ARRAY_SIZE) {
-		indexCamera->smallSortFun(indexCamera->sortKeys, vec);
-	} else {
-		indexCamera->radixFun(indexCamera->radixSort.get(), indexCamera->sortKeys, vec);
-	}
+	// Sort the visible instances according to their sort keys
+	std::vector<uint32_t>& queuedGlobalIDs = indexCamera->tmp_globalIDQueue_;
+	indexCamera->sortFun[static_cast<int>(queuedGlobalIDs.size()<SMALL_ARRAY_SIZE)]
+		(indexCamera->radixSort.get(), indexCamera->sortKeys, queuedGlobalIDs);
 
 	uint32_t shapeBase = 0;
 	for (auto &indexShape: indexCamera->indexShapes_) {
@@ -480,21 +654,17 @@ void SpatialIndex::updateVisibility(IndexCamera *indexCamera) {
 			// Mark all layers as invisible
 			indexShape->visible_.assign(L, false);
 			indexShape->isVisibleInAnyLayer_ = false;
+			indexShape->unmapInstanceData_internal();
 			continue;
 		}
-	    const uint32_t K = indexShape->numLODs();
 
 	    // Compute base offsets for all bins in LOD-major order
+		const uint32_t numBins = indexShape->numLODs() * L;
 	    uint32_t runningBase = 0;
-	    for (uint32_t b = 0; b < indexShape->tmp_binBase_.size(); ++b) {
+	    for (uint32_t b = 0; b < numBins; ++b) {
 			indexShape->tmp_binBase_[b] = runningBase;
 			runningBase += indexShape->tmp_binCounts_[b];
 		}
-
-		indexShape->mapInstanceData_internal();
-	    auto mapped_ids = indexShape->mappedInstanceIDs();
-	    auto mapped_counts = indexShape->mappedInstanceCounts();
-	    auto mapped_base = indexShape->mappedBaseInstance();
 
 		// Copy over the visibility flags from tmp_layerVisibility_ into visible_
 	    bool isVisible = false;
@@ -505,33 +675,20 @@ void SpatialIndex::updateVisibility(IndexCamera *indexCamera) {
 		}
 		indexShape->isVisibleInAnyLayer_ = isVisible;
 
-		// Copy over the counts and base offsets from tmp_ arrays into the mapped arrays
-		// TODO: Rather directly write into mapped arrays during traversal to avoid this copy.
-		//       With frame-locking and double buffer this should not be slower.
-		const uint32_t numBytes = sizeof(uint32_t) * indexShape->tmp_binCounts_.size();
-		std::memcpy(mapped_counts, indexShape->tmp_binCounts_.data(), numBytes);
-		std::memcpy(mapped_base, indexShape->tmp_binBase_.data(), numBytes);
-
 	    // Write IDs to mapped buffer
 		// Each shape has a fixed contiguous region in tmp_layerShapes_ starting at some offset.
-		runningBase = shapeBase;
-		for (uint32_t l = 0; l < L; ++l) {
-			for (uint32_t k = 0; k < K; ++k) {
-				const uint32_t b = CullShape::binIdx(k, l, L);
-				const uint32_t base = indexShape->tmp_binBase_[b];
-				const uint32_t cnt = indexShape->tmp_binCounts_[b];
-				if (cnt == 0) continue;
-
-    			std::transform(
-    				vec.begin() + runningBase,
-    				vec.begin() + runningBase + cnt,
-    				mapped_ids + base,
-    				[&](uint32_t shapeIdx) { return indexCamera->tmp_layerInstances_[shapeIdx]; });
-				runningBase += cnt;
-			}
-		}
+		auto mapped_ids = indexShape->mappedInstanceIDs();
+		std::vector<uint32_t>::iterator vecBegin = queuedGlobalIDs.begin() + shapeBase;
+		std::vector<uint32_t>::iterator vecEnd = vecBegin + indexShape->tmp_totalCount_;
+		const auto &globalToLocalID = indexCamera->globalToInstanceIdx_;
+		std::transform(vecBegin, vecEnd, mapped_ids,
+			[&globalToLocalID](uint32_t globalIdx) {
+				return globalToLocalID[globalIdx];
+			});
 
 		indexShape->unmapInstanceData_internal();
+		indexShape->tmp_binBase_ = nullptr;
+		indexShape->tmp_binCounts_ = nullptr;
 		shapeBase += indexShape->tmp_totalCount_;
 	}
 }
@@ -547,22 +704,30 @@ void SpatialIndex::removeDebugShape(const ref_ptr<BoundingShape> &shape) {
 	}
 }
 
-void SpatialIndex::debugBoundingShape(DebugInterface &debug, const BoundingShape &shape) const {
+void SpatialIndex::debugBoundingShape(DebugInterface &debug, const BoundingShape &shape) {
 	SpatialIndexDebug &sid = static_cast<SpatialIndexDebug &>(debug);
 	switch (shape.shapeType()) {
-		case BoundingShapeType::BOX: {
-			auto box = static_cast<const BoundingBox *>(&shape);
-			sid.drawBox(*box);
-			break;
-		}
 		case BoundingShapeType::SPHERE: {
 			auto sphere = static_cast<const BoundingSphere *>(&shape);
 			sid.drawSphere(*sphere);
 			break;
 		}
-		case BoundingShapeType::FRUSTUM:
+		case BoundingShapeType::AABB: {
+			auto box = static_cast<const AABB *>(&shape);
+			sid.drawBox(*box);
+			break;
+		}
+		case BoundingShapeType::OBB: {
+			auto box = static_cast<const OBB *>(&shape);
+			sid.drawBox(*box);
+			break;
+		}
+		case BoundingShapeType::FRUSTUM: {
 			auto frustum = static_cast<const Frustum *>(&shape);
 			sid.drawFrustum(*frustum);
+			break;
+		}
+		case BoundingShapeType::LAST:
 			break;
 	}
 }
@@ -604,6 +769,9 @@ ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputN
 			} else {
 				quadTree->setTestMode3D(QuadTree::QUAD_TREE_3D_TEST_NONE);
 			}
+		}
+		if (input.hasAttribute("batch-size-3d")) {
+			quadTree->setBatchSize3D(input.getValue<GLuint>("batch-size-3d", 2048u));
 		}
 		if (input.hasAttribute("close-distance")) {
 			auto dst = input.getValue<float>("close-distance", 20.0f);
