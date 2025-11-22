@@ -12,7 +12,7 @@
 
 namespace regen {
 	class Texture;
-	/** minification/magnifiction */
+	/** minification/magnification */
 	typedef Vec2i TextureFilter;
 	/** min/max LoD. */
 	typedef Vec2f TextureLoD;

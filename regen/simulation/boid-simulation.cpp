@@ -31,6 +31,7 @@ void BoidSimulation::initBoidSimulation0() {
 	avoidanceWeight_ = createUniform<ShaderInput1f,float>("avoidanceWeight", 1.0f);
 	avoidanceDistance_ = createUniform<ShaderInput1f,float>("avoidanceDistance", 0.1f);
 	visualRange_ = createUniform<ShaderInput1f,float>("visualRange", 1.6f);
+	attractionRange_ = createUniform<ShaderInput1f,float>("attractionRange", 160.0f);
 	lookAheadDistance_ = createUniform<ShaderInput1f,float>("lookAheadDistance", 0.1f);
 	repulsionFactor_ = createUniform<ShaderInput1f,float>("repulsionFactor", 20.0f);
 	maxNumNeighbors_ = createUniform<ShaderInput1ui,unsigned int>("maxNumNeighbors", 20);
@@ -45,6 +46,10 @@ void BoidSimulation::initBoidSimulation0() {
 void BoidSimulation::setVisualRange(float range) {
 	visualRange_->setVertex(0, range);
 	cellSize_->setVertex(0, range * 2.0f );
+}
+
+void BoidSimulation::setAttractionRange(float range) {
+	attractionRange_->setVertex(0, range);
 }
 
 void BoidSimulation::setSimulationBounds(const Bounds<Vec3f> &bounds) {
@@ -230,6 +235,9 @@ void BoidSimulation::loadSettings(LoadingContext &ctx, scene::SceneInputNode &in
 	}
 	if (input.hasAttribute("visual-range")) {
 		setVisualRange(input.getValue<float>("visual-range", 1.0f));
+	}
+	if (input.hasAttribute("attraction-range")) {
+		setAttractionRange(input.getValue<float>("attraction-range", 10.0f));
 	}
 	if (input.hasAttribute("coherence-weight")) {
 		setCoherenceWeight(input.getValue<float>("coherence-weight", 0.5f));

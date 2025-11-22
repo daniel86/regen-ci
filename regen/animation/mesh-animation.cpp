@@ -216,7 +216,7 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 	const auto &inputs = mesh_->inputs();
 
 	meshBufferOffset_ = (inputs.empty() ? 0 : (inputs.begin()->in_)->offset());
-	for (auto it = inputs.rbegin(); it != inputs.rend(); ++it) {
+	for (auto it = inputs.begin(); it != inputs.end(); ++it) {
 		const ref_ptr<ShaderInput> &in = it->in_;
 		if (!in->isVertexAttribute()) continue;
 		if (in->offset() < meshBufferOffset_) {

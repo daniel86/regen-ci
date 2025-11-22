@@ -17,8 +17,6 @@ bool STBLoader::canLoad(std::string_view fileExt) const {
 		|| fileExt == ".bmp"
 		|| fileExt == ".tga"
 		|| fileExt == ".gif"
-		// TODO: Support loading float textures, but need to use a different API.
-		// || fileExt == ".hdr"
 		|| fileExt == ".psd"
 		|| fileExt == ".pic") {
 		return true;

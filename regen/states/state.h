@@ -69,7 +69,7 @@ namespace regen {
 		/**
 		 * @return Previously added shader inputs.
 		 */
-		const std::vector<NamedShaderInput> &inputs() const;
+		const std::vector<NamedShaderInput> &inputs() const { return inputs_; }
 
 		/**
 		 * @param name the shader input name.
