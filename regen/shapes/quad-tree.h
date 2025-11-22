@@ -11,9 +11,6 @@
 #include "regen/utility/aligned-array.h"
 
 namespace regen {
-	// forward declaration of QuadTreeTraversal
-	struct QuadTreeTraversal;
-
 	/**
 	 * A quad tree data structure for spatial indexing.
 	 * It fits the scene into a quad which it subdivides at places where

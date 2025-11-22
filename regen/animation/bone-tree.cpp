@@ -5,72 +5,85 @@
 
 using namespace regen;
 
-#define INTERPOLATE_QUATERNION_LINEAR
-// assume identity as local root node transform.
-// not sure if this is safe.
-#define LOCAL_ROOT_IS_IDENTITY
 //#define BONE_TREE_DEBUG_TIME
-//#define BONE_TREE_DEBUG_CULLING
-//#define BONE_TREE_DEBUG_TREE_STRUCTURE
+#define REGEN_FORCE_INLINE __attribute__((always_inline)) inline
 
-static void countNodes(BoneNode *n, uint32_t &count) {
-	count++;
-	for (auto & it : n->children) {
-		countNodes(it.get(), count);
-	}
-}
+namespace regen {
+	static constexpr uint32_t BONE_ROOT_NODE_IDX = 0u;
+	static constexpr bool BONE_LOCAL_ROOT_IS_IDENTITY = true;
+	static constexpr bool BONE_INTERPOLATE_QUATERNION_LINEAR = true;
+	static constexpr bool BONE_DEBUG_TREE_STRUCTURE = false;
+	static constexpr bool BONE_DEBUG_CULLING = false;
 
-#ifdef BONE_TREE_DEBUG_TREE_STRUCTURE
-static void printTree(BoneNode *n, int level, std::stringstream &ss) {
-	for (int i = 0; i < level; i++) ss << "  ";
-	ss << n->name << "\n";
-	for (auto & it : n->children) {
-		printTree(it.get(), level + 1, ss);
-	}
-}
+	/**
+	 * Data structure for bone tree traversal.
+	 */
+	struct BoneTreeTraversal {
+		// per-node traversal data
+		std::vector<int8_t> localDirty;
+		std::vector<int8_t> globalDirty;
 
-static void printTree(BoneNode *n) {
-	std::stringstream boneTreeStr;
-	printTree(n, 0, boneTreeStr);
-	REGEN_INFO("Bone tree:\n" << boneTreeStr.str());
-}
-#endif
+		Quaternion accRot;
+		Vec3f accPos;
+		Vec3f accScale;
 
-static void loadNodes(BoneNode *n, std::vector<BoneNode*> &vec, uint32_t &count) {
-	// Build a map of node names as were loaded by the asset loader.
-	// This is usually something like "head", "Joint12", etc.
-	vec[count++] = n;
-	for (auto & it : n->children) {
-		loadNodes(it.get(), vec, count);
-	}
-}
+		Mat4f rootInverse = Mat4f::identity();
+		// Debugging data
+		uint32_t numTraversed = 0;
+		uint32_t numNodes = 0;
+	};
+} // namespace regen
 
-BoneTree::BoneTree(const ref_ptr<BoneNode> &rootNode, uint32_t numInstances)
+BoneTree::BoneTree(const std::vector<ref_ptr<BoneNode>> &nodes, uint32_t numInstances)
 		: Animation(false, true),
-		  rootNode_(rootNode),
+		  nodes_(nodes),
 		  numInstances_(numInstances) {
+	const auto numNodes = static_cast<uint32_t>(nodes.size());
+	if constexpr (BONE_DEBUG_TREE_STRUCTURE) {
+		for (uint32_t n = 0; n < numNodes; n++) {
+			REGEN_INFO("Bone node [" << n << "] name='" << nodes_[n]->name << "'");
+		}
+	}
+	if (numNodes == 0) {
+		REGEN_WARN("Created BoneTree with zero nodes.");
+		return;
+	}
+	rootNode_ = nodes_[BONE_ROOT_NODE_IDX];
+
+	// per-node data vectors
+	localTransform_.resize(numNodes, Mat4f::identity());
+	offsetMatrix_.resize(numNodes, Mat4f::identity());
+	nodeParent_.resize(numNodes, -1);
+	isBoneNode_.resize(numNodes, 0);
+
+	// per-instance data vectors
 	instanceData_.resize(numInstances_);
 
-	// Fill the node array
-	uint32_t numNodes = 0;
-	countNodes(rootNode_.get(), numNodes);
-	nodes_.resize(numNodes);
-	numNodes = 0;
-	loadNodes(rootNode_.get(), nodes_, numNodes);
-#ifdef BONE_TREE_DEBUG_TREE_STRUCTURE
-	printTree(rootNode_.get());
-#endif
+	// per-node+instance data vectors
+	numActive_.resize(numNodes * numInstances_, 0);
+	boneMatrix_.resize(numNodes * numInstances_, Mat4f::identity());
+	blendedTransforms_.resize(numNodes * numInstances_, Mat4f::identity());
 
 	// Also load the name-to-node map, and resize the per-instance matrix array.
 	for (uint32_t n = 0; n < numNodes; n++) {
-		nameToNode_[nodes_[n]->name] = n;
-		nodes_[n]->boneTransformationMatrix.resize(numInstances_, Mat4f::identity());
-		nodes_[n]->numActive.resize(numInstances_, 0);
-		nodes_[n]->nodeIdx = n;
+		auto &node = nodes_[n];
+		nameToNode_[node->name] = n;
+		node->nodeIdx = n;
 	}
+	// set parent indices
+	for (uint32_t n = 1; n < numNodes; n++) {
+		auto &node = nodes_[n];
+		nodeParent_[n] = static_cast<int32_t>(node->parent->nodeIdx);
+	}
+}
 
-	// Make sure data is allocated.
-	blendedTransforms_.resize(numInstances_ * nodes_.size(), Mat4f::identity());
+ref_ptr<BoneNode> BoneTree::findNode(const std::string &name) {
+	auto it = nameToNode_.find(name);
+	if (it != nameToNode_.end()) {
+		return nodes_[it->second];
+	} else {
+		return {};
+	}
 }
 
 int32_t BoneTree::addAnimationTrack(
@@ -78,18 +91,22 @@ int32_t BoneTree::addAnimationTrack(
 		ref_ptr<StaticAnimationData> &staticData,
 		double duration,
 		double ticksPerSecond) {
+	const auto numNodes = static_cast<uint32_t>(nodes_.size());
 	REGEN_INFO("Loaded animation '" << trackName << "' with "
 			<< staticData->channels.size() << " channels, duration " << duration
 			<< " ticks, " << ticksPerSecond << " ticks/sec.");
+
 	Track &data = animTracks_.emplace_back();
 	data.trackName_ = trackName;
 	data.ticksPerSecond_ = ticksPerSecond;
 	data.duration_ = duration;
+
 	const auto idx = static_cast<int32_t>(animTracks_.size()) - 1;
 	trackNameToIndex_[data.trackName_] = idx;
+
+	bool isMissingScaleKey = false;
 	// Set node IDs for each channel.
-	for (uint32_t a = 0; a < staticData->channels.size(); a++) {
-		auto &channel = staticData->channels.data()[a];
+	for (auto & channel : staticData->channels) {
 		auto it = nameToNode_.find(channel.nodeName_);
 		if (it != nameToNode_.end()) {
 			channel.nodeIndex_ = it->second;
@@ -97,18 +114,30 @@ int32_t BoneTree::addAnimationTrack(
 			REGEN_WARN("Unable to find node '" << channel.nodeName_
 					<< "' for animation track '" << trackName << "'.");
 		}
+		if (channel.scalingKeys_.empty()) {
+			isMissingScaleKey = true;
+		} else {
+			hasScalingKeys_ = true;
+		}
 	}
+	if (isMissingScaleKey && hasScalingKeys_) {
+		REGEN_WARN("Animation track '" << trackName
+				<< "' is missing scaling keys for some nodes.");
+		hasScalingKeys_ = false;
+	}
+
 	// sort channels by node index for better cache coherence
 	std::ranges::sort(staticData->channels,
 		[](const AnimationChannel &a, const AnimationChannel &b) {
 			// sort by node index: low to high
 			return a.nodeIndex_ < b.nodeIndex_;
 		});
+
 	// fill up with empty channels for nodes that are not animated
-	if (staticData->channels.size() != nodes_.size()) {
-		int32_t nextChannelIdx = staticData->channels.size() - 1;
-		staticData->channels.resize(nodes_.size());
-		for (int32_t nodeIdx = nodes_.size() - 1; nodeIdx != -1; nodeIdx--) {
+	if (staticData->channels.size() != numNodes) {
+		int32_t nextChannelIdx = static_cast<int>(staticData->channels.size()) - 1;
+		staticData->channels.resize(numNodes);
+		for (int32_t nodeIdx = static_cast<int>(numNodes) - 1; nodeIdx != -1; nodeIdx--) {
 			if (nextChannelIdx >= 0) {
 				auto &nextChannel = staticData->channels[nextChannelIdx];
 				if (nextChannel.nodeIndex_ == static_cast<uint32_t>(nodeIdx)) {
@@ -142,6 +171,7 @@ BoneTree::AnimationHandle BoneTree::startBoneAnimation(
 			int32_t trackIdx,
 			const Vec2d &forcedTickRange,
 			float *nodeWeights) {
+	const auto numNodes = static_cast<uint32_t>(nodes_.size());
 	auto &instance = instanceData_[instanceIdx];
 	AnimationHandle animHandle = -1;
 	for (uint32_t idx = 0; idx < instance.ranges_.size(); idx++) {
@@ -156,9 +186,13 @@ BoneTree::AnimationHandle BoneTree::startBoneAnimation(
 	// resize vectors if needed
 	if (animHandle==-1) {
 		instance.ranges_.resize(instance.numActiveRanges_ + 1);
+		instance.handleToActiveRange_.resize(instance.numActiveRanges_ + 1);
 		animHandle = static_cast<int32_t>(instance.numActiveRanges_);
 	}
 	instance.numActiveRanges_++;
+	// also push range index when enabling:
+	instance.handleToActiveRange_[animHandle] = instance.activeRanges_.size();
+	instance.activeRanges_.push_back(animHandle);
 
 	// Initialize the new range.
 	auto &range = instance.ranges_[animHandle];
@@ -171,10 +205,9 @@ BoneTree::AnimationHandle BoneTree::startBoneAnimation(
 
 	// Count number of animations affecting a node.
 	Track &anim = animTracks_[range.trackIdx_];
-	for (uint32_t a = 0; a < anim.staticData_->channels.size(); a++) {
-		auto &channel = anim.staticData_->channels.data()[a];
+	for (auto & channel : anim.staticData_->channels) {
 		if (channel.isAnimated) {
-			nodes_[channel.nodeIndex_]->numActive[instanceIdx]++;
+			numActive_[instanceIdx * numNodes + channel.nodeIndex_]++;
 		}
 	}
 
@@ -182,16 +215,16 @@ BoneTree::AnimationHandle BoneTree::startBoneAnimation(
 }
 
 void BoneTree::stopBoneAnimation(uint32_t instanceIdx, AnimationHandle animHandle) {
+	const auto numNodes = static_cast<uint32_t>(nodes_.size());
 	auto &instance = instanceData_[instanceIdx];
 	auto &ar = instance.ranges_[animHandle];
 	if (ar.trackIdx_ == -1) return;
 
 	// Count number of animations affecting a node.
 	Track &anim = animTracks_[ar.trackIdx_];
-	for (uint32_t a = 0; a < anim.staticData_->channels.size(); a++) {
-		auto &channel = anim.staticData_->channels.data()[a];
+	for (auto & channel : anim.staticData_->channels) {
 		if (channel.isAnimated) {
-			nodes_[channel.nodeIndex_]->numActive[instanceIdx]--;
+			numActive_[instanceIdx * numNodes + channel.nodeIndex_]--;
 		}
 	}
 
@@ -206,7 +239,19 @@ void BoneTree::stopBoneAnimation(uint32_t instanceIdx, AnimationHandle animHandl
 	if (ar.trackIdx_ == currTrack) {
 		// repeat, signal handler set animationIndex_=currIndex again
 	} else {
-		instanceData_[instanceIdx].numActiveRanges_--;
+		instance.numActiveRanges_--;
+		// also remove from active ranges, do this by swapping with last
+		uint32_t activeRangePos = instance.handleToActiveRange_[animHandle];
+		if (activeRangePos == instance.numActiveRanges_) {
+			// last element, just pop
+			instance.activeRanges_.pop_back();
+		} else {
+			// swap with last
+			int32_t lastHandle = instance.activeRanges_.back();
+			instance.activeRanges_[activeRangePos] = lastHandle;
+			instance.handleToActiveRange_[lastHandle] = activeRangePos;
+			instance.activeRanges_.pop_back();
+		}
 	}
 }
 
@@ -236,8 +281,9 @@ void BoneTree::setTickRange(uint32_t instanceIdx, AnimationHandle animHandle, co
 
 template<class T>
 static void findFrameAfterTick(double tick, uint32_t &frame, const std::vector<T> &keys) {
+	const uint32_t numKeys = keys.size();
 	double dt;
-	while (frame < keys.size() - 1) {
+	while (frame < numKeys - 1) {
 		dt = tick - keys[++frame].time;
 		if (dt < 0.00001) {
 			--frame;
@@ -248,15 +294,16 @@ static void findFrameAfterTick(double tick, uint32_t &frame, const std::vector<T
 
 template<class T>
 static void findFrameBeforeTick(double &tick, uint32_t &frame, const std::vector<T> &keys) {
-	if (keys.empty()) return;
+	const uint32_t numKeys = keys.size();
+	if (numKeys == 0) return;
 	double dt;
-	for (frame = keys.size() - 1; frame > 0;) {
+	for (frame = numKeys - 1; frame > 0;) {
 		dt = tick - keys[--frame].time;
 		if (dt > 0.000001) return;
 	}
 }
 
-void BoneTree::setTickRange(ActiveRange &ar, const Vec2d &forcedTickRange) {
+void BoneTree::setTickRange(ActiveBoneRange &ar, const Vec2d &forcedTickRange) {
 	if (ar.trackIdx_ == -1) {
 		REGEN_WARN("can not set tick range without animation track set.");
 		return;
@@ -268,7 +315,6 @@ void BoneTree::setTickRange(ActiveRange &ar, const Vec2d &forcedTickRange) {
 	if (ar.startFramePosition_.size() != numChannels) {
 		ar.startFramePosition_.resize(numChannels, Vec3ui::zero());
 		ar.lastFramePosition_.resize(numChannels, Vec3ui::zero());
-		ar.lastInterpolation_.resize(numChannels, Vec3f::zero());
 	}
 
 	// get first and last tick of animation
@@ -341,181 +387,31 @@ void BoneTree::animate(double dt_ms) {
 	static ElapsedTimeDebugger elapsedTime("NodeAnimation Update", 300);
 	elapsedTime.beginFrame();
 #endif
-	const auto numNodes = static_cast<uint32_t>(nodes_.size());
 
-	for (uint32_t instanceIdx = 0; instanceIdx < numInstances_; instanceIdx++) {
-		auto &instance = instanceData_[instanceIdx];
-		if (instance.numActiveRanges_ == 0) continue;
-
-		// Advance time in active ranges
-		for (AnimationHandle rangeIdx = 0;
-				rangeIdx < static_cast<AnimationHandle>(instance.ranges_.size());
-				rangeIdx++) {
-			ActiveRange &range = instance.ranges_[rangeIdx];
-			if (range.trackIdx_ == -1) continue;
-			Track &track = animTracks_[range.trackIdx_];
-			range.elapsedTime_ += dt_ms;
-			range.lastTime_ = range.timeInTicks_;
-			// map into anim's duration
-			range.timeInTicks_ = std::min(range.duration_,
-				range.elapsedTime_ * timeFactor_ * track.ticksPerSecond_);
-			// Time runs backwards when start tick is higher then stop tick
-			if (range.tickRange_.x > range.tickRange_.y) {
-				range.timeInTicks_ = -range.timeInTicks_;
-			}
-			range.timeInTicks_ += range.startTick_;
-		}
-
-		// Update transformation for each node
-		for (uint32_t nodeIdx = 0; nodeIdx < nodes_.size(); nodeIdx++) {
-			// Compute per-bone effective weights
-			float weightSum = 0.0f;
-			for (auto &range : instance.ranges_) {
-				if (range.trackIdx_ == -1) continue;
-				auto &track = animTracks_[range.trackIdx_];
-				if (track.staticData_->channels[nodeIdx].isAnimated == false) continue;
-				if (range.nodeWeights_) {
-					weightSum += range.weight_ * range.nodeWeights_[nodeIdx];
-				} else {
-					weightSum += range.weight_;
-				}
-			}
-			if (weightSum < 1e-5f) {
-				// fallback to local transform for this node (avoid stale data)
-				Mat4f &m = blendedTransforms_[instanceIdx * numNodes + nodeIdx];
-				m = nodes_[nodeIdx]->localTransform;
-				continue;
-			}
-
-			accRot_ = Quaternion(0, 0, 0, 0);
-			accPos_ = Vec3f::zero();
-			accScale_ = Vec3f::zero();
-
-			auto &nodeData = nodes_[nodeIdx];
-			bool hasWeightChanged = (abs(nodeData->lastWeightSum - weightSum) > 1e-6f);
-			nodeData->lastWeightSum = weightSum;
-			bool isDirty = (hasWeightChanged);
-
-			for (auto &range : instance.ranges_) {
-				if (range.trackIdx_ == -1) continue;
-				auto &track = animTracks_[range.trackIdx_];
-				auto &channel = track.staticData_->channels[nodeIdx];
-				// Compute normalized weight for this bone.
-				float weight = range.weight_;
-				if (range.nodeWeights_) {
-					weight *= range.nodeWeights_[nodeIdx];
-				}
-				weight /= weightSum;
-
-				if (channel.rotationKeys_.empty()) {
-					accRot_ += (Quaternion(1, 0, 0, 0) * weight);
-				} else if (channel.rotationKeys_.size() == 1) {
-					tmpRot_.value = (channel.rotationKeys_.data()[0].value) * weight;
-					if (accRot_.dot(tmpRot_.value) < 0.0f) {
-						tmpRot_.value = -tmpRot_.value;
-					}
-					accRot_ += tmpRot_.value;
-				} else {
-					tmpRot_.value = nodeRotation(range, channel, isDirty, nodeIdx) * weight;
-					if (accRot_.dot(tmpRot_.value) < 0.0f) {
-						tmpRot_.value = -tmpRot_.value;
-					}
-					accRot_ += tmpRot_.value;
-				}
-				if (channel.scalingKeys_.empty()) {
-					accScale_ += (Vec3f::one() * weight);
-				} else if (channel.scalingKeys_.size() == 1) {
-					accScale_ += (channel.scalingKeys_.data()[0].value * weight);
-				} else {
-					accScale_ += (nodeScaling(range, channel, isDirty, nodeIdx) * weight);
-				}
-				if (channel.positionKeys_.empty()) {
-				} else if (channel.positionKeys_.size() == 1) {
-					accPos_ += (channel.positionKeys_.data()[0].value * weight);
-				} else {
-					accPos_ += (nodePosition(range, channel, isDirty, nodeIdx) * weight);
-				}
-			}
-			if (isDirty) {
-				nodes_[nodeIdx]->localDirty = true;
-				if (instance.numActiveRanges_ > 1) {
-					accRot_.normalize();
-				}
-				Mat4f &m = blendedTransforms_[instanceIdx * numNodes + nodeIdx];
-				m = accRot_.calculateMatrix();
-				m.scale(accScale_);
-				m.x[3] = accPos_.x;
-				m.x[7] = accPos_.y;
-				m.x[11] = accPos_.z;
-			}
-		}
-
-		rootNode_->updateTransforms(instanceIdx,
-			blendedTransforms_.data() + instanceIdx * numNodes);
-
-		for (AnimationHandle rangeIdx = 0;
-				rangeIdx < static_cast<AnimationHandle>(instance.ranges_.size()); rangeIdx++) {
-			ActiveRange &range = instance.ranges_[rangeIdx];
-			if (range.trackIdx_ == -1) continue;
-			if ((range.timeInTicks_ - range.startTick_) >= range.duration_ - 1e-5) {
-				stopBoneAnimation(instanceIdx, rangeIdx);
-			}
-		}
+	if (hasScalingKeys_) [[unlikely]] {
+		updateBoneTree<true>(0, numInstances_, dt_ms);
+	} else [[likely]] {
+		updateBoneTree<false>(0, numInstances_, dt_ms);
 	}
 
 #ifdef BONE_TREE_DEBUG_TIME
-	elapsedTime.push("animate");
+	elapsedTime.push("bone-tree-update");
 	elapsedTime.endFrame();
 #endif
 }
 
-template<class T>
-static inline bool handleFrameLoop(T &dst,
-		const uint32_t &frame, const uint32_t &lastFrame,
-		const AnimationChannel &channel,
-		const T &key, const T &first) {
-	if (frame < lastFrame) {
-		if (channel.postState == AnimationChannelBehavior::DEFAULT) {
-			dst.value = first.value;
-			return true;
-		}
-		if (channel.postState == AnimationChannelBehavior::CONSTANT) {
-			dst.value = key.value;
-			return true;
-		}
-	}
-	return false;
-}
-
-template<typename T,int I>
-static inline bool computeInterpolation(
-		BoneTree::ActiveRange &ar, uint32_t i,
-		uint32_t frame, uint32_t lastFrame,
-		const Stamped<T> &key, const Stamped<T> &nextKey,
-		bool &isDirty,
-		double &facOut) {
+template<typename T> static REGEN_FORCE_INLINE
+float computeInterpolation(ActiveBoneRange &ar, const Stamped<T> &key, const Stamped<T> &nextKey) {
 	double timeDifference = nextKey.time - key.time;
-	if (timeDifference < 0.0) timeDifference += ar.duration_;
-	facOut = ((ar.timeInTicks_ - key.time) / timeDifference);
-	// TODO: I am not sure if it is worth doing the dirty flagging here.
-	//    Maybe it is better to ust mark all channels of an active animation track as dirty.
-	if (facOut <= 0) {
-		if (ar.lastInterpolation_[i][I] - 1e-6f > 0.0f) {
-			ar.lastInterpolation_[i][I] = 0.0f;
-			isDirty = true;
-		}
-		return false;
+	if (timeDifference < 0.0) {
+		timeDifference += ar.duration_;
 	}
-	// Only set dirty flag if interpolation factor or frame changed.
-	if (lastFrame != frame || std::abs(ar.lastInterpolation_[i][I] - facOut) > 1e-2f) {
-		isDirty = true;
-		ar.lastInterpolation_[i][I] = static_cast<float>(facOut);
-	}
-	return true;
+	float facOut = static_cast<float>((ar.timeInTicks_ - key.time) / timeDifference);
+	return facOut > 0.0 ? facOut : 0.0f;
 }
 
-template<typename T,int I>
-static inline void findFrame(BoneTree::ActiveRange &ar,
+template<typename T,int I> static REGEN_FORCE_INLINE
+void findFrame(ActiveBoneRange &ar,
 		uint32_t i,
 		uint32_t &frame,
 		uint32_t &lastFrame,
@@ -533,189 +429,276 @@ static inline void findFrame(BoneTree::ActiveRange &ar,
 	ar.lastFramePosition_[i][I] = frame;
 }
 
-Vec3f BoneTree::nodePosition(ActiveRange &ar, const AnimationChannel &channel, bool &isDirty, uint32_t i) {
+static REGEN_FORCE_INLINE
+Vec3f nodePosition(ActiveBoneRange &ar, const AnimationChannel &channel, uint32_t i) {
 	const uint32_t keyCount = channel.positionKeys_.size();
 	auto &keys = channel.positionKeys_;
 	// Find present frame number.
 	uint32_t frame, lastFrame;
 	findFrame<Vec3f,0>(ar, i, frame, lastFrame, keys);
-
-	// lookup nearest two keys
+	// Lookup nearest key
 	auto &key = keys[frame];
-	tmpPos_.value = Vec3f::zero();
-	// interpolate between this frame's value and next frame's value
-	if (!handleFrameLoop(tmpPos_, frame, lastFrame, channel, key, keys[0])) {
-		auto &nextKey = keys[(frame + 1) % keyCount];
-		double fac = 0.0;
-		if (computeInterpolation<Vec3f,0>(ar, i, frame, lastFrame, key, nextKey, isDirty, fac)) {
-			tmpPos_.value = key.value + (nextKey.value - key.value) * static_cast<float>(fac);
-		} else {
-			return key.value;
-		}
-	} else if (lastFrame != frame || (1.0f - ar.lastInterpolation_[i].x) > 1e-6f) {
-		ar.lastInterpolation_[i].x = 1.0f;
-		isDirty = true;
-	}
 
-	return tmpPos_.value;
+	// interpolate between this frame's value and next frame's value
+	if (frame < lastFrame && channel.postState == AnimationChannelBehavior::DEFAULT) {
+		return keys[0].value;
+	} else if (frame < lastFrame && channel.postState == AnimationChannelBehavior::CONSTANT) {
+		return key.value;
+	} else [[likely]] {
+		auto &nextKey = keys[(frame + 1) % keyCount];
+		const float fac = computeInterpolation<Vec3f>(ar, key, nextKey);
+		return key.value + (nextKey.value - key.value) * fac;
+	}
 }
 
-Quaternion BoneTree::nodeRotation(ActiveRange &ar, const AnimationChannel &channel, bool &isDirty, uint32_t i) {
+static REGEN_FORCE_INLINE
+Quaternion nodeRotation(ActiveBoneRange &ar, const AnimationChannel &channel, uint32_t i) {
 	const uint32_t keyCount = channel.rotationKeys_.size();
 	auto &keys = channel.rotationKeys_;
 	// Find present frame number.
 	uint32_t frame, lastFrame;
 	findFrame<Quaternion,1>(ar, i, frame, lastFrame, keys);
-
-	// lookup nearest two keys
+	// lookup nearest key
 	const Stamped<Quaternion> &key = keys[frame];
-	tmpRot_.value = Quaternion(1, 0, 0, 0);
-	// interpolate between this frame's value and next frame's value
-	if (!handleFrameLoop(tmpRot_, frame, lastFrame, channel, key, keys[0])) {
-		const Stamped<Quaternion> &nextKey = keys[(frame + 1) % keyCount];
-		double fac = 0.0;
-		if (computeInterpolation<Quaternion,1>(ar, i, frame, lastFrame, key, nextKey, isDirty, fac)) {
-#ifdef INTERPOLATE_QUATERNION_LINEAR
-			tmpRot_.value.interpolateLinear(key.value, nextKey.value, static_cast<float>(fac));
-#else
-			tmpRot_.value.interpolate(key.value, nextKey.value, fac);
-#endif
-		} else {
-			return key.value;
-		}
-	} else if (lastFrame != frame || (1.0f - ar.lastInterpolation_[i].y) > 1e-6f) {
-		ar.lastInterpolation_[i].y = 1.0f;
-		isDirty = true;
-	}
 
-	return tmpRot_.value;
+	// interpolate between this frame's value and next frame's value
+	if (frame < lastFrame && channel.postState == AnimationChannelBehavior::DEFAULT) {
+		return keys[0].value;
+	} else if (frame < lastFrame && channel.postState == AnimationChannelBehavior::CONSTANT) {
+		return key.value;
+	} else [[likely]] {
+		const Stamped<Quaternion> &nextKey = keys[(frame + 1) % keyCount];
+		float fac = computeInterpolation<Quaternion>(ar, key, nextKey);
+		Quaternion value;
+		if constexpr(BONE_INTERPOLATE_QUATERNION_LINEAR) {
+			value.interpolateLinear(key.value, nextKey.value, fac);
+		} else {
+			value.interpolate(key.value, nextKey.value, fac);
+		}
+		return value;
+	}
 }
 
-Vec3f BoneTree::nodeScaling(ActiveRange &ar, const AnimationChannel &channel, bool &isDirty, uint32_t i) {
+static REGEN_FORCE_INLINE
+Vec3f nodeScaling(ActiveBoneRange &ar, const AnimationChannel &channel, uint32_t i) {
 	auto &keys = channel.scalingKeys_;
 	// Find present frame number.
 	uint32_t frame, lastFrame;
 	findFrame<Vec3f,2>(ar, i, frame, lastFrame, keys);
-
 	// lookup nearest key
 	auto &key = keys[frame];
+
 	// set current value
-	if (!handleFrameLoop(tmpScale_, frame, lastFrame, channel, key, keys[0])) {
+	if (frame < lastFrame && channel.postState == AnimationChannelBehavior::DEFAULT) {
+		return keys[0].value;
+	} else if (frame < lastFrame && channel.postState == AnimationChannelBehavior::CONSTANT) {
+		return key.value;
+	} else [[likely]] {
 		const Stamped<Vec3f> &nextKey = keys[(frame + 1) % keys.size()];
-		double fac = 0.0;
-		if (computeInterpolation<Vec3f,2>(ar, i, frame, lastFrame, key, nextKey, isDirty, fac)) {
-			tmpScale_.value = key.value + (nextKey.value - key.value) * static_cast<float>(fac);
-		} else {
-			return key.value;
-		}
-	} else if (lastFrame != frame || (1.0f - ar.lastInterpolation_[i].z) > 1e-6f) {
-		ar.lastInterpolation_[i].z = 1.0f;
-		isDirty = true;
-	}
-
-	return tmpScale_.value;
-}
-
-ref_ptr<BoneNode> BoneTree::findNode(const std::string &name) {
-	return findNode(rootNode_, name);
-}
-
-ref_ptr<BoneNode> BoneTree::findNode(ref_ptr<BoneNode> &n, const std::string &name) {
-	if (n->name == name) { return n; }
-	for (auto & it : n->children) {
-		ref_ptr<BoneNode> n_ = findNode(it, name);
-		if (n_.get()) { return n_; }
-	}
-	return {};
-}
-
-BoneNode::BoneNode(const std::string &name, const ref_ptr<BoneNode> &parent)
-		: name(name),
-		  parent(parent),
-		  localTransform(Mat4f::identity()),
-		  globalTransform(Mat4f::identity()),
-		  offsetMatrix(Mat4f::identity()),
-		  isBoneNode(false) {
-	boneTransformationMatrix.resize(1, Mat4f::identity());
-	numActive.resize(1, 0);
-}
-
-void BoneNode::addChild(const ref_ptr<BoneNode> &child) {
-	children.push_back(child);
-}
-
-void BoneNode::calculateGlobalTransform() {
-	// concatenate all parent transforms to get the global transform for this node
-	globalTransform = localTransform;
-	for (BoneNode *p = parent.get(); p != nullptr; p = p->parent.get()) {
-		globalTransform.multiplyr(p->localTransform);
+		const float fac = computeInterpolation<Vec3f>(ar, key, nextKey);
+		return key.value + (nextKey.value - key.value) * fac;
 	}
 }
 
-void BoneNode::updateTransforms(uint32_t instanceIdx, Mat4f *transforms) {
-#ifndef LOCAL_ROOT_IS_IDENTITY
-	Mat4f rootInverse = localTransform.inverse();
-#endif
-	if (isBoneNode) {
-		boneTransformationMatrix[instanceIdx] = offsetMatrix;
-	}
-#ifdef BONE_TREE_DEBUG_CULLING
-	uint32_t numTraversed = 0;
-	uint32_t numNodes = 0;
-#endif
+template <bool HasScaleKeys>
+void BoneTree::updateLocalTransforms(BoneTreeTraversal &td, uint32_t itemBase, InstanceData &instance) {
+	const auto numNodes = static_cast<uint32_t>(nodes_.size());
+	const auto numRanges = instance.numActiveRanges_;
+	//const uint32_t* __restrict numActive = numActive_.data() + itemBase;
+	const Mat4f* __restrict localTF = localTransform_.data();
+	Mat4f* __restrict blendedTF = blendedTransforms_.data() + itemBase;
+	int8_t* __restrict localDirty = td.localDirty.data();
+	Track* animTracks = animTracks_.data();
 
-	for (auto &child : children) {
-		traversalStack.push(child.get());
-	}
-	while (!traversalStack.isEmpty()) {
-		BoneNode *n = traversalStack.top();
-		traversalStack.pop();
+	Quaternion &accRot = td.accRot;;
+	Vec3f &accPos = td.accPos;
+	Vec3f &accScale = td.accScale;
 
-#ifdef BONE_TREE_DEBUG_CULLING
-		numNodes++;
-#endif
-		// skip if both local and parent global unchanged
-		if (!n->localDirty && !n->parent->globalDirty) {
+	for (uint32_t nodeIdx = 0; nodeIdx < numNodes; nodeIdx++) {
+		// fast-check with numActive
+		/**
+		if (numActive[nodeIdx] == 0) {
+			blendedTF[nodeIdx] = localTF[nodeIdx];
 			continue;
 		}
-#ifdef BONE_TREE_DEBUG_CULLING
-		numTraversed++;
-#endif
+		**/
+
+		// Compute per-bone effective weights
+		float weightSum = 0.0f;
+		for (uint32_t rangeIdx : instance.activeRanges_) {
+			const ActiveBoneRange &range = instance.ranges_[rangeIdx];
+			auto &track = animTracks[range.trackIdx_];
+			if (track.staticData_->channels[nodeIdx].isAnimated == false) {
+				continue;
+			}
+			if (range.nodeWeights_) {
+				weightSum += range.weight_ * range.nodeWeights_[nodeIdx];
+			} else {
+				weightSum += range.weight_;
+			}
+		}
+		if (weightSum < 1e-5f) {
+			// fallback to local transform for this node (avoid stale data)
+			blendedTF[nodeIdx] = localTF[nodeIdx];
+			continue;
+		}
+		// Compute inverse of total weight
+		weightSum = 1.0f / weightSum;
+
+		accRot = Quaternion{0.0f, 0.0f, 0.0f, 0.0f};
+		accPos = Vec3f{0.0f, 0.0f, 0.0f};
+		if constexpr (HasScaleKeys) {
+			accScale = Vec3f{0.0f, 0.0f, 0.0f};
+		}
+
+		for (uint32_t rangeIdx : instance.activeRanges_) {
+			ActiveBoneRange &range = instance.ranges_[rangeIdx];
+			const Track &track = animTracks[range.trackIdx_];
+			const AnimationChannel &channel = track.staticData_->channels[nodeIdx];
+
+			// Compute normalized weight for this bone.
+			float weight = range.weight_;
+			if (range.nodeWeights_) {
+				weight *= range.nodeWeights_[nodeIdx];
+			}
+			weight *= weightSum;
+
+			// Accumulate position
+			accPos += nodePosition(range, channel, nodeIdx) * weight;
+			// Accumulate rotation
+			Quaternion rotation = nodeRotation(range, channel, nodeIdx);
+			if (accRot.dot(rotation) < 0.0f) { rotation = -rotation; }
+			accRot += rotation * weight;
+			// Accumulate scaling
+			if constexpr (HasScaleKeys) {
+				accScale += nodeScaling(range, channel, nodeIdx) * weight;
+			}
+		}
+
+		{
+			localDirty[nodeIdx] = true;
+			if (numRanges > 1) {
+				accRot.normalize();
+			}
+			Mat4f &m = blendedTF[nodeIdx];
+			m = accRot.calculateMatrix();
+			if constexpr (HasScaleKeys) {
+				m.scale(accScale);
+			}
+			m.x[3] = accPos.x;
+			m.x[7] = accPos.y;
+			m.x[11] = accPos.z;
+		}
+	}
+}
+
+void BoneTree::updateGlobalTransforms(BoneTreeTraversal &td, uint32_t itemBase) {
+	const auto numNodes = static_cast<uint32_t>(nodes_.size());
+	const Mat4f* __restrict offsetMatrix = offsetMatrix_.data();
+	Mat4f* __restrict blendedTF  = blendedTransforms_.data() + itemBase;
+	Mat4f* __restrict boneMatrix = boneMatrix_.data() + itemBase;
+	int32_t* __restrict nodeParent = nodeParent_.data();
+	int8_t* __restrict localDirty  = td.localDirty.data();
+	int8_t* __restrict globalDirty = td.globalDirty.data();
+	int8_t* __restrict isBoneNode = isBoneNode_.data();
+
+	if constexpr(!BONE_LOCAL_ROOT_IS_IDENTITY) {
+		td.rootInverse = localTransform_[BONE_ROOT_NODE_IDX].inverse();
+	}
+	if (isBoneNode[BONE_ROOT_NODE_IDX]) {
+		// for root bone, just use offset matrix
+		boneMatrix[BONE_ROOT_NODE_IDX] = offsetMatrix[BONE_ROOT_NODE_IDX];
+	}
+
+	for (uint32_t nodeIdx = 1; nodeIdx < numNodes; nodeIdx++) {
+		const int32_t parentIdx = nodeParent[nodeIdx];
+
+		if constexpr (BONE_DEBUG_CULLING) { td.numNodes++; }
+		// skip if both local and parent global unchanged
+		if (!localDirty[nodeIdx] && !globalDirty[parentIdx]) { continue; }
+		if constexpr (BONE_DEBUG_CULLING) { td.numTraversed++; }
 
 		// update node global transform
-		// note: An alternative to this conditional could be to store base transform into transforms
-		// array for nodes that have no active animation, but that would be more IO so might
-		// not be worth it.
-		n->globalTransform = n->numActive[instanceIdx] == 0 ?
-			n->localTransform : transforms[n->nodeIdx];
-		n->globalTransform.multiplyr(n->parent->globalTransform);
-		n->globalDirty = true;
-		n->localDirty = false;
+		blendedTF[nodeIdx].multiplyr(blendedTF[parentIdx]);
+		globalDirty[nodeIdx] = 1;
+		localDirty[nodeIdx] = 0;
 
-		if (n->isBoneNode) {
+		// TODO: move this into animate, should be done in animation thread?
+		//		loop over all bone nodes + all instances then
+		if (isBoneNode[nodeIdx]) {
 			// Bone matrices transform from mesh coordinates in bind pose
 			// to mesh coordinates in skinned pose
-#ifdef LOCAL_ROOT_IS_IDENTITY
-			n->boneTransformationMatrix[instanceIdx] = (n->globalTransform * n->offsetMatrix).transpose();
-#else
-			n->boneTransformationMatrix[instanceIdx] = (rootInverse * n->globalTransform * n->offsetMatrix).transpose();
-#endif
+			if constexpr(BONE_LOCAL_ROOT_IS_IDENTITY) {
+				boneMatrix[nodeIdx] = (blendedTF[nodeIdx] * offsetMatrix[nodeIdx]).transpose();
+			} else {
+				boneMatrix[nodeIdx] = (td.rootInverse * blendedTF[nodeIdx] * offsetMatrix[nodeIdx]).transpose();
+			}
 		}
 
-		// continue for all children
-		for (auto &child : n->children) {
-			traversalStack.push(child.get());
-		}
 		// after traversal, clear dirty flag
-		n->globalDirty = false;
+		globalDirty[nodeIdx] = 0;
 	}
+
 	// Also clear root dirty flag
-	globalDirty = false;
-#ifdef BONE_TREE_DEBUG_CULLING
-	if (numNodes > 0) {
-		REGEN_INFO("Traversal rate: " <<
-			(float)numTraversed / (float)numNodes * 100.0f << "%" <<
-			" (" << numTraversed << " / " << numNodes << ")");
+	globalDirty[BONE_ROOT_NODE_IDX] = 0;
+
+	if constexpr (BONE_DEBUG_CULLING) {
+		if (td.numNodes > 0) {
+			REGEN_INFO("Traversal rate: " <<
+				static_cast<float>(td.numTraversed) / static_cast<float>(td.numNodes) * 100.0f << "%" <<
+				" (" << td.numTraversed << " / " << td.numNodes << ")");
+		}
 	}
-#endif
+}
+
+template <bool HasScaleKeys>
+void BoneTree::updateBoneTree(uint32_t instanceBase, uint32_t numInstances, double dt_ms) {
+	const uint32_t instanceEnd = instanceBase + numInstances;
+	const auto numNodes = static_cast<uint32_t>(nodes_.size());
+
+	thread_local BoneTreeTraversal td;
+	// make sure traversal data arrays are large enough
+	if (td.localDirty.size() < numNodes) {
+		td.localDirty.resize(numNodes, false);
+		td.globalDirty.resize(numNodes, false);
+	}
+
+	for (uint32_t instanceIdx = instanceBase; instanceIdx < instanceEnd; instanceIdx++) {
+		const uint32_t itemBase = instanceIdx * numNodes;
+		auto &instance = instanceData_[instanceIdx];
+		const auto numRanges = instance.numActiveRanges_;
+
+		if (numRanges == 0) continue;
+
+		// Pass 1: Advance time in active ranges
+		for (uint32_t rangeIdx : instance.activeRanges_) {
+			ActiveBoneRange &range = instance.ranges_[rangeIdx];
+			const Track &track = animTracks_[range.trackIdx_];
+			range.elapsedTime_ += dt_ms;
+			range.lastTime_ = range.timeInTicks_;
+
+			// Map into anim's duration
+			range.timeInTicks_ = std::min(range.duration_,
+				range.elapsedTime_ * timeFactor_ * track.ticksPerSecond_);
+			// Time runs backwards when start tick is higher than stop tick
+			if (range.tickRange_.x > range.tickRange_.y) {
+				range.timeInTicks_ = -range.timeInTicks_;
+			}
+			range.timeInTicks_ += range.startTick_;
+		}
+
+		// Pass 2: Update local node transforms
+		updateLocalTransforms<HasScaleKeys>(td, itemBase, instance);
+
+		// Pass 3: Update global node transforms
+		updateGlobalTransforms(td, itemBase);
+
+		// Stop finished animations
+		for (uint32_t rangeIdx : instance.activeRanges_) {
+			const ActiveBoneRange &range = instance.ranges_[rangeIdx];
+			if ((range.timeInTicks_ - range.startTick_) >= range.duration_ - 1e-5) {
+				stopBoneAnimation(instanceIdx, static_cast<AnimationHandle>(rangeIdx));
+			}
+		}
+	}
 }

@@ -328,20 +328,18 @@ void MeshViewerWidget::loadResources_GL() {
 }
 
 void MeshViewerWidget::loadAnimation(const ref_ptr<Mesh> &mesh, uint32_t index) {
-	std::list<ref_ptr<BoneNode> > meshBones;
+	std::vector<ref_ptr<BoneNode> > meshBones;
 	uint32_t numBoneWeights = asset_->numBoneWeights(mesh.get());
 
 	// Find bones influencing this mesh
 	auto nodeAnim = asset_->getNodeAnimation();
 	auto boneNodes = asset_->loadMeshBones(mesh.get(), nodeAnim.get());
 	meshBones.insert(meshBones.end(), boneNodes.begin(), boneNodes.end());
-	uint32_t numBones = boneNodes.size();
 	nodeAnim->startAnimation();
 
 	// Create Bones state that is responsible for uploading animation data to GL.
 	if (!meshBones.empty()) {
-		ref_ptr<Bones> bonesState = ref_ptr<Bones>::alloc(numBoneWeights, numBones);
-		bonesState->setBones(meshBones);
+		ref_ptr<Bones> bonesState = ref_ptr<Bones>::alloc(nodeAnim, meshBones, numBoneWeights);
 		bonesState->setAnimationName(REGEN_STRING("bones-mesh-viewer-" << index));
 		bonesState->startAnimation();
 		mesh->joinStates(bonesState);

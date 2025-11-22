@@ -190,30 +190,6 @@ namespace regen {
 	std::istream &operator>>(std::istream &in, Light::Type &v);
 
 	/**
-	 * \brief Animates Light position using an AnimationNode.
-	 */
-	class LightNode : public State {
-	public:
-		/**
-		 * @param light a light.
-		 * @param n a animation node.
-		 */
-		LightNode(
-				const ref_ptr<Light> &light,
-				const ref_ptr<BoneNode> &n);
-
-		/**
-		 * @param dt update light position using the niamtion node.
-		 */
-		void update(GLdouble dt);
-
-	protected:
-		ref_ptr<Light> light_;
-		Vec3f lightPosition_; //!< the light position in local space
-		ref_ptr<BoneNode> animNode_;
-	};
-
-	/**
 	 * \brief Configures filtering.
 	 */
 	enum ShadowFilterMode {

@@ -70,12 +70,7 @@ ref_ptr<CompositeMesh> CompositeMesh::load(LoadingContext &ctx, scene::SceneInpu
 
 	std::vector<uint32_t> lodLevels;
 	if (input.hasAttribute("lod-levels")) {
-		auto lodVec = input.getValue<Vec4ui>("lod-levels", Vec4ui::zero());
-		lodLevels.resize(4);
-		lodLevels[0] = lodVec.x;
-		lodLevels[1] = lodVec.y;
-		lodLevels[2] = lodVec.z;
-		lodLevels[3] = lodVec.w;
+		lodLevels = input.getArray<uint32_t>("lod-levels");
 	} else {
 		lodLevels.push_back(input.getValue<uint32_t>("lod", 0));
 	}
@@ -525,22 +520,19 @@ ref_ptr<CompositeMesh> CompositeMesh::createCompositeMesh(
 		}
 
 		if (useAnimation) {
-			std::list<ref_ptr<BoneNode> > meshBones;
+			std::vector<ref_ptr<BoneNode>> meshBones;
 			uint32_t numBoneWeights = importer->numBoneWeights(mesh.get());
-			uint32_t numBones = 0u;
 
 			// Find bones influencing this mesh
 			if (nodeAnim.get()) {
 				auto ibonNodes = importer->loadMeshBones(mesh.get(), nodeAnim.get());
 				meshBones.insert(meshBones.end(), ibonNodes.begin(), ibonNodes.end());
-				numBones = ibonNodes.size();
 			}
 
 			// Create Bones state that is responsible for uploading
 			// animation data to GL.
 			if (!meshBones.empty()) {
-				ref_ptr<Bones> bonesState = ref_ptr<Bones>::alloc(numBoneWeights, numBones);
-				bonesState->setBones(meshBones);
+				ref_ptr<Bones> bonesState = ref_ptr<Bones>::alloc(nodeAnim, meshBones, numBoneWeights);
 				bonesState->setAnimationName(REGEN_STRING("bones-" << input.getName()));
 				bonesState->startAnimation();
 				mesh->joinStates(bonesState);
@@ -735,17 +727,7 @@ std::vector<uint32_t> CompositeMesh::loadIndexRange(scene::SceneInputNode &input
 	if (meshIndex >= 0) {
 		out.push_back(meshIndex);
 	} else if (input.hasAttribute(REGEN_STRING(prefix << "-indices"))) {
-		auto meshIndices = input.getValue(REGEN_STRING(prefix << "-indices"));
-		std::vector<std::string> indexStrings;
-		boost::split(indexStrings, meshIndices, boost::is_any_of(","));
-		for (auto &index: indexStrings) {
-			int i = std::stoi(index);
-			if (i >= 0) {
-				out.push_back(i);
-			} else {
-				REGEN_WARN("Ignoring " << input.getDescription() << ", invalid mesh index '" << index << "'.");
-			}
-		}
+		out = input.getArray<uint32_t>(REGEN_STRING(prefix << "-indices"));
 	} else if (input.hasAttribute(REGEN_STRING(prefix << "-index-range"))) {
 		auto meshIndexRange = input.getValue(REGEN_STRING(prefix << "-index-range"));
 		std::vector<std::string> range;

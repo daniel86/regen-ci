@@ -259,19 +259,3 @@ ref_ptr<Light> Light::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 
 	return light;
 }
-
-//////////
-//////////
-//////////
-
-LightNode::LightNode(
-		const ref_ptr<Light> &light,
-		const ref_ptr<BoneNode> &n)
-		: State(), light_(light), animNode_(n) {
-	lightPosition_ = light->positionStaged(0).r.xyz();
-}
-
-void LightNode::update(GLdouble /*dt*/) {
-	Vec3f v = animNode_->localTransform.transformVector(lightPosition_);
-	light_->setPosition(0, v);
-}

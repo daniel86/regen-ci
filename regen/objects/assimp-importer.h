@@ -178,11 +178,6 @@ namespace regen {
 		std::vector<ref_ptr<Material> > &materials() { return materials_; }
 
 		/**
-		 * @return a node that animates the light position.
-		 */
-		ref_ptr<LightNode> loadLightNode(const ref_ptr<Light> &light);
-
-		/**
 		 * Create Mesh instances from Asset file.
 		 * Import all meshes defined in Asset file.
 		 * @param transform Transformation applied during import.
@@ -230,7 +225,7 @@ namespace regen {
 
 		ref_ptr<BoneTree> nodeAnimation_;
 		// name to node map
-		std::map<std::string, struct aiNode *> nodes_;
+		std::map<std::string, struct aiNode *> aiBoneNodes_;
 		// root node of skeleton
 		ref_ptr<BoneNode> rootNode_;
 		// maps assimp bone nodes to Bone implementation
@@ -272,9 +267,10 @@ namespace regen {
 
 		void loadNodeAnimation(const AssimpAnimationConfig &animConfig);
 
-		ref_ptr<BoneNode> loadNodeTree();
+		ref_ptr<BoneNode> loadNodeTree(std::vector<ref_ptr<BoneNode>> &nodes);
 
-		ref_ptr<BoneNode> loadNodeTree(struct aiNode *assimpNode, const ref_ptr<BoneNode> &parent);
+		ref_ptr<BoneNode> loadNodeTree(std::vector<ref_ptr<BoneNode>> &nodes,
+			aiNode *assimpNode, const ref_ptr<BoneNode> &parent);
 	};
 } // namespace
 

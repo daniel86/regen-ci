@@ -15,16 +15,9 @@ namespace regen {
 	 */
 	class Bones : public State, public Animation {
 	public:
-		/**
-		 * @param numBoneWeights maximum number of bone weights.
-		 * @param numBones number of bones per mesh.
-		 */
-		Bones(uint32_t numBoneWeights, uint32_t numBones);
-
-		/**
-		 * @param bones  the bone list
-		 */
-		void setBones(const std::list<ref_ptr<BoneNode>> &bones);
+		Bones(const ref_ptr<BoneTree> &tree,
+			const std::vector<ref_ptr<BoneNode>> &boneNodes,
+			uint32_t numBoneWeights);
 
 		/**
 		 * @return maximum number of weights influencing a single bone.
@@ -35,7 +28,9 @@ namespace regen {
 		void animate(GLdouble dt) override;
 
 	protected:
-		std::list<ref_ptr<BoneNode>> bones_;
+		ref_ptr<BoneTree> boneTree_;
+		std::vector<ref_ptr<BoneNode>> boneNodes_;
+
 		ref_ptr<ShaderInput1i> numBoneWeights_;
 		uint32_t numInstances_;
 		uint32_t bufferSize_;
