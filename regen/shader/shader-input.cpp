@@ -168,8 +168,8 @@ void ShaderInput::set_buffer(uint32_t buffer, const ref_ptr<BufferReference> &it
 }
 
 void ShaderInput::enableAttribute(GLint loc) const {
-	// TODO: Handle VBO updates rather via staging system. Then remove this.
-	// TODO: Set mapClientStride from VertexBuffer class?
+	// TODO: Avoid writing server data here, this should be handled more centrally e.g. via the staging system.
+	//           - writeServerData can then be removed, it is only used here currently.
 	if (clientBuffer_->stampOfReadData() != bufferStamp_) {
 		// the client buffer has changed, so we need to re-upload the data.
 		writeServerData();
@@ -190,7 +190,6 @@ void ShaderInput::writeVertex(uint32_t index, const byte *data) {
 	//       different for uniform array data vs vertex data.
 	//       For vertex data, it is assumed that data is one vertex including all array elements.
 	//       For uniform array data, it is assumed that data is one array element.
-	// TODO: Support interleaved layouts here?
 	if (isVertexAttribute_) {
 		auto mapped = mapClientDataRaw(BUFFER_GPU_WRITE, index * elementSize_, elementSize_);
 		std::memcpy(mapped.w, data, elementSize_);
@@ -278,21 +277,6 @@ void ShaderInput::setVertexData(uint32_t numVertices, const byte *data) {
 	}
 }
 
-// TODO: remove?
-void ShaderInput::writeServerData(uint32_t index) const {
-	if (!hasClientData() || !hasServerData()) return;
-	auto mappedClientData = clientBuffer_->mapRange(BUFFER_GPU_READ, 0, inputSize_);
-	auto clientData = mappedClientData.r;
-	auto subDataStart = clientData + elementSize_ * index;
-	glNamedBufferSubData(
-			buffer_,
-			offset_ + stride_ * index,
-			elementSize_,
-			subDataStart);
-	clientBuffer_->unmapRange(BUFFER_GPU_READ, 0, inputSize_, mappedClientData.r_index);
-}
-
-// TODO: remove?
 void ShaderInput::writeServerData() const {
 	if (!hasClientData() || !hasServerData()) return;
 	if (bufferStamp_ == stampOfReadData()) return;

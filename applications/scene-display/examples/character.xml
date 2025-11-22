@@ -300,9 +300,6 @@
         <shape id="tree-shape" index="1" cull="1" type="aabb" mesh-id="tree-mesh" transform-id="tree-tf">
             <has-part mesh-id="tree-mesh" mesh-index="1"/>
         </shape>
-        <!-- FIXME: there is some hack around here, look at bullet shape it is not at correct height.
-                 probably because base of the mesh is at 0.0,0.0,0.0, and not its center.
-                 plus there is a scaling here too. -->
         <shape id="tree-mesh-physics" physics="1" shape="box" mass="0.0" size="0.6, 6.0, 0.6"
                mesh-id="tree-mesh" transform-id="tree-tf"/>
     </mesh>
@@ -807,8 +804,6 @@
         <input type="vec3" name="lightAmbient" value="0.3,0.3,0.3"/>
         <resource id="sky"/>
 
-        <!-- TODO: seems light-passes must be seperated into different nodes everywhere! I guess because states on
-             same level are joined when building a shader? -->
         <node id="Light-Shading">
             <node>
                 <light-pass type="DIRECTIONAL" ambient="1" shader="regen.shading.deferred.directional">
@@ -949,8 +944,7 @@
         <node import="Depth-of-Field">
             <fbo id="g-buffer" draw-buffers="1"/>
             <texture name="inputTexture" fbo="g-buffer" attachment="0"/>
-            <!-- TODO: shouldn't blurred scene be used? -->
-            <!-- <texture name="inputTexture" id="blurred-scene" /> -->
+            <texture name="blurTexture" id="blurred-scene"/>
             <input type="vec2" name="focalWidth" value="0.7,1.0" />
         </node>
         <view id="Depth of Field">
@@ -1004,7 +998,6 @@
 
     <node id="initialize">
         <node import="Collision-Initialize"/>
-        <!-- TODO: could render static shadow maps here. -->
     </node>
 
     <node id="root">

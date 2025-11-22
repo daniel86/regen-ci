@@ -55,7 +55,6 @@ GeomPicking::GeomPicking(const ref_ptr<Camera> &camera, const ref_ptr<ShaderInpu
 	feedbackRange_.size_ = bufferSize_;
 
 	// Create a double-buffered PBO for reading the feedback buffer
-	// TODO: check if it is better to use two buffers, one mapped and one that we copy to like we did before.
 	BufferFlags mappingFlags(
 			TRANSFORM_FEEDBACK_BUFFER,
 			BufferUpdateFlags::FULL_PER_FRAME);

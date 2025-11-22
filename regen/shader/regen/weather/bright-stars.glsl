@@ -108,7 +108,7 @@ void emitBrightStar(int layer) {
     
     vec3 u = cross(p, vec3(0, 0, 1));
     vec3 v = cross(p, u);
-    // TODO: Low LoD yields in artifacts for big stars and algorithms which require
+    // NOTE: Low LoD yields in artifacts for big stars and algorithms which require
     //       good tesselation such as paraboloid mapping.
     emitVertex(p - normalize(-u -v) * in_k[0], vec2(-1.0, -1.0), layer);
     emitVertex(p - normalize(-u +v) * in_k[0], vec2(-1.0,  1.0), layer);

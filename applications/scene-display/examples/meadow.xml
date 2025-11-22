@@ -651,6 +651,7 @@
         <node import="Depth-of-Field">
             <fbo id="g-buffer" draw-buffers="1"/>
             <texture name="inputTexture" fbo="g-buffer" attachment="0"/>
+            <texture name="blurTexture" id="blurred-scene"/>
             <input type="vec2" name="focalWidth" value="0.7,1.0" />
         </node>
         <view id="Depth of Field">

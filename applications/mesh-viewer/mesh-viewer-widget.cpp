@@ -462,7 +462,6 @@ void MeshViewerWidget::gl_loadScene() {
 	sceneRoot_->state()->joinStates(ref_ptr<ToggleState>::alloc(RenderState::SAMPLE_ALPHA_TO_COVERAGE, true));
 
 	// enable light, and use it in direct shading
-	// TODO: better use deferred shading, and also allow to display the normals
 	auto shadingState = ref_ptr<DirectShading>::alloc();
 	shadingState->ambientLight()->setVertex(0, Vec3f(0.3f));
 

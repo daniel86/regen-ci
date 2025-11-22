@@ -463,11 +463,6 @@ void main() {
 
     // Write back to SSBOs
 #ifdef HAS_boidData
-    // FIXME: for some reason it does not work well when writing into index gid.
-    //        But I think this would actually be better, as the model matrices would be sorted
-    //        (kind of), which could help with LOD computation and doing things next frame.
-    //        But it is significantly slower, also boid behavior does not seem right.
-    //uint writeIdx = gid;
     uint writeIdx = in_values[gid];
 #else
     uint writeIdx = gid;

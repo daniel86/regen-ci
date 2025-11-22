@@ -524,13 +524,6 @@ namespace regen {
 		void readServerData();
 
 		/**
-		 * Write a single vertex to the GL server.
-		 * @param rs The RenderState.
-		 * @param index The vertex index.
-		 */
-		void writeServerData(uint32_t index) const;
-
-		/**
 		 * Write this attribute to the GL server.
 		 * @param rs The RenderState.
 		 */

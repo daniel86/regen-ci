@@ -21,8 +21,6 @@ namespace regen {
 			desiredFrameRate_ = 30.0f;
 		}
 
-		// TODO: rather do the animate() in VideoRecorder, but currently unsynchronized threads seem to
-		//       have problems running together with synchronized GL animation call, maybe it is about the signals.
 		void animate(GLdouble dt) override {
 			encoder_->encodeNextFrame();
 		}
