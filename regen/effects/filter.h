@@ -161,10 +161,13 @@ namespace regen {
 		void enable(RenderState *state) override;
 
 	protected:
-		std::list<ref_ptr<Filter> > filterSequence_;
+		struct FilterData {
+			ref_ptr<Filter> filter;
+			ref_ptr<ShaderInput2f> viewport;
+			ref_ptr<ShaderInput2f> inverseViewport;
+		};
+		std::list<FilterData> filterSequence_;
 		ref_ptr<Texture> input_;
-		ref_ptr<ShaderInput2f> viewport_;
-		ref_ptr<ShaderInput2f> inverseViewport_;
 
 		bool clearFirstFilter_;
 		Vec4f clearColor_;
