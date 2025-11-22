@@ -51,6 +51,14 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<Screen> &screen)
 	R_->setUniformData(Mat4f::identity());
 	uniformBlock->addStagedInput(R_);
 
+	q_ = ref_ptr<ShaderInput1f>::alloc("q");
+	q_->setUniformData(0.0f);
+	uniformBlock->addStagedInput(q_);
+
+	sqrt_q_ = ref_ptr<ShaderInput1f>::alloc("sqrt_q");
+	sqrt_q_->setUniformData(0.0f);
+	uniformBlock->addStagedInput(sqrt_q_);
+
 	// directional light that approximates the sun
 	sun_ = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
 	sun_->set_isAttenuated(false);
@@ -58,14 +66,6 @@ Sky::Sky(const ref_ptr<Camera> &cam, const ref_ptr<Screen> &screen)
 	sun_->setDiffuse(0, Vec3f::zero());
 	sun_->setDirection(0, Vec3f::one());
 	state()->setInput(sun_->lightUBO(), "SunLight", "_Sun");
-
-	q_ = ref_ptr<ShaderInput1f>::alloc("q");
-	q_->setUniformData(0.0f);
-	state()->setInput(q_);
-
-	sqrt_q_ = ref_ptr<ShaderInput1f>::alloc("sqrt_q");
-	sqrt_q_->setUniformData(0.0f);
-	state()->setInput(sqrt_q_);
 
 	// directional light that approximates the moon
 	moon_ = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
