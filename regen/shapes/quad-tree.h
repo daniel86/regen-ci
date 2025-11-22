@@ -35,8 +35,8 @@ namespace regen {
 			int32_t parentIdx = -1;
 			int32_t childrenIdx[4];
 			uint32_t nodeIdx = 0;
-			std::vector<uint32_t> shapes;
-			std::vector<uint32_t> shapesTmp;
+			std::vector<uint32_t> items;
+			std::vector<uint32_t> itemsTmp;
 
 			Node(const Vec2f &min, const Vec2f &max);
 
@@ -195,8 +195,6 @@ namespace regen {
 		Node* collapse(Node *node);
 
 		void subdivide(Node *node);
-
-		unsigned int numShapes() const;
 
 		friend class QuadTreeTest;
 

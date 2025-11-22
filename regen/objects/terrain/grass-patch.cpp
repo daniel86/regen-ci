@@ -64,7 +64,7 @@ void GrassPatch::generateLODLevel(uint32_t lodLevel) {
 	auto mask_p = maskMesh_->pos()->mapClientData<Vec3f>(BUFFER_GPU_READ);
 	const uint32_t maskOffset = maskLOD.vertexOffset();
 
-	Vec2f grassQuadSize = Vec2f(1.0f);
+	Vec2f grassQuadSize = Vec2f::one();
 	if (lodLevel > 1) {
 		// HACK: increase quad size for higher LODs where we use less vertices.
 		//   That will make the grass look more dense.
@@ -91,10 +91,10 @@ void GrassPatch::generateLODLevel(uint32_t lodLevel) {
 			Vec3f p1(local0.x + localSize.x*0.5f, local0.y - localSize.y*0.5f + 0.5f, 0.0f);
 			Vec3f p2(local0.x + localSize.x*0.5f, local0.y + localSize.y*0.5f + 0.5f, 0.0f);
 			Vec3f p3(local0.x - localSize.x*0.5f, local0.y + localSize.y*0.5f + 0.5f, 0.0f);
-			p0.xy_() *= grassQuadSize;
-			p1.xy_() *= grassQuadSize;
-			p2.xy_() *= grassQuadSize;
-			p3.xy_() *= grassQuadSize;
+			p0.xy() *= grassQuadSize;
+			p1.xy() *= grassQuadSize;
+			p2.xy() *= grassQuadSize;
+			p3.xy() *= grassQuadSize;
 
 			// Start with the 4 vertices of the quad.
 			grass_p[vOffset + 0] = basePos + p0;
@@ -159,8 +159,8 @@ void GrassPatch::updateAttributes() {
 	pos_->setVertexData(numVertices);
 	basePos_->setVertexData(numVertices);
 	indices_ = createIndexInput(numIndices, numVertices);
-	minPosition_ = Vec3f(0.0);
-	maxPosition_ = Vec3f(0.0);
+	minPosition_ = Vec3f::zero();
+	maxPosition_ = Vec3f::zero();
 
 	for (auto lodIdx = 0u; lodIdx < maskMesh_->meshLODs().size(); ++lodIdx) {
 		generateLODLevel(lodIdx);
@@ -209,7 +209,7 @@ ref_ptr<GrassPatch> GrassPatch::load(
 		maskCfg.heightMap = scene->getResource<Texture2D>(input.getValue("height-map"));
 	}
 	maskCfg.height = input.getValue<float>("height", 0.0f);
-	maskCfg.meshSize = input.getValue<Vec2f>("ground-size", Vec2f(10.0f));
+	maskCfg.meshSize = input.getValue<Vec2f>("ground-size", Vec2f::create(10.0f));
 
 	SilhouetteMesh::Config silhouetteCfg;
 	if (input.hasAttribute("tile-counts")) {
@@ -233,7 +233,7 @@ ref_ptr<GrassPatch> GrassPatch::load(
 		silhouetteCfg.silhouette.padPixels = input.getValue<uint32_t>("silhouette-padding", 1u);
 	}
 	if (input.hasAttribute("texco-scale")) {
-		silhouetteCfg.texcoScale = input.getValue<Vec2f>("texco-scale", Vec2f(1.0f));
+		silhouetteCfg.texcoScale = input.getValue<Vec2f>("texco-scale", Vec2f::one());
 	}
 
 	ref_ptr<Texture2D> maskTexture;

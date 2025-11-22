@@ -9,7 +9,7 @@ namespace regen {
 
 Frustum::Frustum() :
 		BoundingShape(BoundingShapeType::FRUSTUM),
-		orthoBounds(Bounds<Vec2f>::create(Vec2f(0), Vec2f(0))) {
+		orthoBounds(Bounds<Vec2f>::create(Vec2f::zero(), Vec2f::zero())) {
 	direction_ = ref_ptr<ShaderInput3f>::alloc("frustumDirection");
 	direction_->setUniformData(Vec3f::front());
 }
@@ -448,7 +448,7 @@ void Frustum::batchTest_OBBs(BatchedIntersectionCase &td) {
 		bool isOutside = false;
 		for (unsigned int planeIdx = 0u; planeIdx < NUM_FRUSTUM_PLANES && !isOutside; ++planeIdx) {
 			const auto &plane = frustum->planes[planeIdx];
-			const Vec3f &n = plane.xyz_();
+			const Vec3f &n = plane.xyz();
 			// center-to-plane distance + projected radius
 			float dr = n.dot(obbCenter) - plane.w +
 				d_obbHalfSizeX[queuedIdx] * std::abs(n.dot(axis0X, axis0Y, axis0Z)) +

@@ -13,8 +13,8 @@ namespace regen {
 	class IndexedShape {
 	public:
 		IndexedShape(
-			const ref_ptr <Camera> &camera,
 			const ref_ptr <Camera> &sortCamera,
+			const ref_ptr <Camera> &lodCamera,
 			const Vec4i &lodShift,
 			const ref_ptr <BoundingShape> &shape);
 
@@ -32,39 +32,25 @@ namespace regen {
 		 * \brief Get the shape index
 		 * \return The shape index
 		 */
-		uint32_t shapeIdx() const { return shapeIdx_; }
+		uint32_t indexedShapeIdx() const { return indexedShapeIdx_; }
 
 		/**
 		 * \bried Get the global base instance index for this shape
 		 * @return The global base instance index
 		 */
-		uint32_t globalBase() const { return globalBase_; }
-
-		/**
-		 * \brief Check if the shape is visible
-		 * \return True if the shape is visible, false otherwise
-		 */
-		bool isVisibleInLayer(uint32_t layerIdx) const { return visible_[layerIdx]; }
+		uint32_t shapeBase() const { return shapeBase_; }
 
 		/**
 		 * \brief Check if the shape is visible in any layer
 		 * \return True if the shape is visible in any layer, false otherwise
 		 */
-		bool isVisibleInAnyLayer() const { return isVisibleInAnyLayer_; }
+		bool isVisibleInAnyLayer() const { return isVisibleInAnyLayer_.load(std::memory_order_relaxed); }
 
 		/**
-		 * \brief Add a visible instance for the shape
-		 * \param layerIdx The layer index
-		 * \param binIdx The bin index (lod * numLayers + layer)
+		 * \brief Get the instance IDs shader input
+		 * \return The instance IDs shader input
 		 */
-		void addVisibleInstance(uint32_t layerIdx, uint32_t binIdx) {
-			// Total visibility count of the shape across all layers
-			tmp_totalCount_ += 1;
-			// toggle visibility for this layer
-			tmp_layerVisibility_[layerIdx] = true;
-			// Finally bin the shape into the (lod, layer) bin
-			tmp_binCounts_[binIdx] += 1;
-		}
+		const ref_ptr<ShaderInput>& instanceIDs() const { return instanceIDs_; }
 
 		/**
 		 * \brief Map the instance IDs for the shape
@@ -88,31 +74,22 @@ namespace regen {
 		ClientData_rw<uint32_t> mapBaseInstances(int mapMode);
 
 		/**
-		 * \brief Get the camera
-		 * \return The camera
-		 */
-		auto &camera() const { return camera_; }
-
-		/**
-		 * \brief Get the sorting camera
-		 * \return The sorting camera
+		 * \brief Get the sort camera
+		 * \return The sort camera
 		 */
 		auto &sortCamera() const { return sortCamera_; }
+
+		/**
+		 * \brief Get the LOD camera
+		 * \return The LOD camera
+		 */
+		auto &lodCamera() const { return lodCamera_; }
 
 		/**
 		 * \brief Get the shape
 		 * \return The shape
 		 */
 		BoundingShape &shape() const { return *shape_.get(); }
-
-		/**
-		 * \brief Get the bounding shape for a given instance
-		 * \param instance The instance ID
-		 * \return The bounding shape
-		 */
-		const ref_ptr<BoundingShape> &boundingShape(uint32_t instance) const {
-			return boundingShapes_[instance];
-		}
 
 		/**
 		 * @param mode The sort mode to set
@@ -130,36 +107,48 @@ namespace regen {
 		const Vec3f &lodThresholds() const { return lodThresholds_; }
 
 	protected:
-		ref_ptr<Camera> camera_;
 		ref_ptr<Camera> sortCamera_;
+		ref_ptr<Camera> lodCamera_;
 		ref_ptr<BoundingShape> shape_;
-		std::vector<ref_ptr<BoundingShape>> boundingShapes_;
+
 		SortMode instanceSortMode_ = SortMode::FRONT_TO_BACK;
 		Vec4i lodShift_ = Vec4i::zero();
 		Vec3f lodThresholds_ = Vec3f(40.0f, 80.0f, 160.0f);
 		uint32_t numLODs_;
 
-		ref_ptr<ShaderInput> idVec_;
-		ref_ptr<ShaderInput> countVec_;
-		ref_ptr<ShaderInput> baseVec_;
-		// note: this flag is currently only used by LODState CPU path, and the spatial index traversal
-		//       both are currently bound to the same thread, so we do not need atomic updates here.
-		std::vector<bool> visible_;
-		bool isVisibleInAnyLayer_ = false;
-
-		// per-layer visibility flag, instance count, and base instance
-		// used during traversal only.
-		std::vector<bool> tmp_layerVisibility_;
-		// per (lod, layer) data flattened as lod * numLayers + layer
-		uint32_t *tmp_binCounts_ = nullptr;   // size = numLODs * numLayers
-		uint32_t *tmp_binBase_ = nullptr;;    // size = numLODs * numLayers
-		uint32_t tmp_totalCount_ = 0;
-		// The index of this shape in the camera's shape list.
+		// The index of this shape in the camera's indexed shape list.
+		// NOTE: The camera's indexed shape list does not contain instances, only unique shapes.
 		// Here we limit to max 65536 shapes per camera for sorting key packing,
 		// however instances are not counted as individual shapes.
-		uint16_t shapeIdx_ = 0;
+		uint16_t indexedShapeIdx_ = 0;
 		// The base index for this shape's instances in the camera's instance list.
-		uint32_t globalBase_ = 0;
+		// Larger arrays may be created to hold all instances of all shapes for a camera,
+		// this index points to the starting offset for this shape's instances.
+		uint32_t shapeBase_ = 0;
+
+		// The array of visible instances which is the main concern in LOD culling.
+		// This array holds the instance IDs for all instances of this shape,
+		// flattened as layer-major order, i.e. all instances for layer 0,
+		// followed by all instances for layer 1, etc.
+		// Size = numInstances * numLayers
+		ref_ptr<ShaderInput> instanceIDs_;
+
+		// Draw command data used to build indirect draw buffers.
+		// The number of draw command for a shape is numLODs * numLayers:
+		// Each bin represents a combination of LOD level and layer index, the counter
+		// indicates how many instances of this shape are visible in that bin.
+		ref_ptr<ShaderInput> drawBinCount_; // size = numLODs * numLayers
+		ref_ptr<ShaderInput> drawBinBase_;  // size = numLODs * numLayers
+		// Below are mapped data pointers that are only accessible during traversal,
+		// i.e. we do not hold the memory here and write directly into output buffers during traversal.
+		// binBase is the prefix sum of binCounts, i.e. the starting offset for each bin
+		// which is recomputed each frame. Each shape takes a contiguous region in the
+		// output instance buffer in the range [binBase, binBase + binCount).
+		uint32_t *mapped_drawBinCount_ = nullptr; // size = numLODs * numLayers
+		uint32_t *mapped_drawBinBase_ = nullptr;  // size = numLODs * numLayers
+
+		// True if the shape is visible in any layer.
+		std::atomic<uint8_t> isVisibleInAnyLayer_ = {0};
 
 		struct MappedData {
 			explicit MappedData(

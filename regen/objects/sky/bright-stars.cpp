@@ -114,7 +114,7 @@ void BrightStars::set_brightStarsFile(const std::string &brightStars) {
 		equ.right_ascension = _rightascd(stars[i].RA, 0, 0);
 		equ.declination = stars[i].DE;
 
-		pos_->setVertex(i, Vec4f(equ.toEuclidean(), static_cast<float>(i)));
+		pos_->setVertex(i, Vec4f::create(equ.toEuclidean(), static_cast<float>(i)));
 		col_->setVertex(i, Vec4f(
 				stars[i].sRGB_R,
 				stars[i].sRGB_G,
@@ -140,8 +140,8 @@ void BrightStars::updateNoiseTexture() {
 	noiseTex_->set_internalFormat(GL_R8);
 	noiseTex_->set_pixelType(GL_UNSIGNED_BYTE);
 	noiseTex_->allocTexture();
-	noiseTex_->set_filter(GL_LINEAR);
-	noiseTex_->set_wrapping(GL_REPEAT);
+	noiseTex_->set_filter(TextureFilter::create(GL_LINEAR));
+	noiseTex_->set_wrapping(TextureWrapping::create(GL_REPEAT));
 	noiseTex_->updateImage((GLubyte *) noiseMap);
 	delete[]noiseMap;
 

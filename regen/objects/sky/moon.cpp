@@ -26,11 +26,11 @@ Moon::Moon(const ref_ptr<Sky> &sky, std::string_view moonMapFile)
 	state()->setInput(moonOrientation_);
 
 	sunShine_ = ref_ptr<ShaderInput4f>::alloc("sunShine");
-	sunShine_->setUniformData(Vec4f(defaultSunShineColor(), defaultSunShineIntensity()));
+	sunShine_->setUniformData(Vec4f::create(defaultSunShineColor(), defaultSunShineIntensity()));
 	state()->setInput(sunShine_);
 
 	earthShine_ = ref_ptr<ShaderInput3f>::alloc("earthShine");
-	earthShine_->setUniformData(Vec3f(0.0));
+	earthShine_->setUniformData(Vec3f::zero());
 	state()->setInput(earthShine_);
 	earthShineColor_ = defaultEarthShineColor();
 	earthShineIntensity_ = defaultEarthShineIntensity();
@@ -275,12 +275,12 @@ float Moon::meanRadius() {
 
 void Moon::set_sunShineColor(const Vec3f &color) {
 	auto v_sunShine = sunShine_->mapClientVertex<Vec4f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
-	v_sunShine.w = Vec4f(color, v_sunShine.r.w);
+	v_sunShine.w = Vec4f::create(color, v_sunShine.r.w);
 }
 
 void Moon::set_sunShineIntensity(float intensity) {
 	auto v_color = sunShine_->mapClientVertex<Vec4f>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
-	v_color.w = Vec4f(v_color.r.xyz_(), intensity);
+	v_color.w = Vec4f::create(v_color.r.xyz(), intensity);
 }
 
 void Moon::updateSkyLayer(RenderState *rs, GLdouble dt) {

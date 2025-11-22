@@ -2,6 +2,8 @@
 
 using namespace regen;
 
+float Affordance::reachDistance = 1.0f;
+
 Affordance::Affordance(const ref_ptr<WorldObject> &owner) : owner(owner) {
 	// TODO: Also support dynamic world objects here, e.g. chairs that can be moved.
 	//         Then it makes sense to compute affordance slot in local space instead.
@@ -24,7 +26,7 @@ Vec3f Affordance::computeSlotPosition(int idx) const {
 		auto tf = owner->shape()->transform();
 		if (tf.get() && tf->hasModelMat()) {
 			auto mat = tf->modelMat()->getVertex(owner->shape()->instanceID());
-			pos = (mat.r ^ baseOffset).xyz_();
+			pos = (mat.r ^ baseOffset).xyz();
 			center = mat.r.position();
 		} else {
 			pos = center + baseOffset;

@@ -3,11 +3,13 @@
 using namespace regen;
 
 IndexedShape::IndexedShape(
-		const ref_ptr <Camera> &camera,
 		const ref_ptr <Camera> &sortCamera,
+		const ref_ptr <Camera> &lodCamera,
 		const Vec4i &lodShift,
-		const ref_ptr <BoundingShape> &shape) :
-		camera_(camera), sortCamera_(sortCamera), shape_(shape) {
+		const ref_ptr <BoundingShape> &shape)
+		: sortCamera_(sortCamera),
+		  lodCamera_(lodCamera),
+		  shape_(shape) {
 	numLODs_ = 1;
 	if (shape->mesh().get()) {
 		numLODs_ = std::max(numLODs_, shape->mesh()->numLODs());
@@ -15,9 +17,6 @@ IndexedShape::IndexedShape(
 	for (const auto &part : shape->parts()) {
 		numLODs_ = std::max(numLODs_, part->numLODs());
 	}
-	const uint32_t L = camera_->numLayer();
-	tmp_layerVisibility_.resize(L, false);
-	visible_.resize(L, true);
 	// remember LOD thresholds
 	const ref_ptr<Mesh> &mesh = shape->baseMesh();
 	const Vec3f &lodThresholds = mesh->lodThresholds();
@@ -36,18 +35,22 @@ IndexedShape::IndexedShape(
 			}
 		}
 	}
+	// set LOD thresholds for out-of-rand LOD levels to max
+	for (uint32_t unusedIdx = numLODs_; unusedIdx < 4; ++unusedIdx) {
+		lodThresholds_[unusedIdx-1] = std::numeric_limits<float>::max();
+	}
 }
 
 ClientData_rw<uint32_t> IndexedShape::mapInstanceIDs(int mapMode) {
-	return idVec_->mapClientData<uint32_t>(mapMode);
+	return instanceIDs_->mapClientData<uint32_t>(mapMode);
 }
 
 ClientData_rw<uint32_t> IndexedShape::mapInstanceCounts(int mapMode) {
-	return countVec_->mapClientData<uint32_t>(mapMode);
+	return drawBinCount_->mapClientData<uint32_t>(mapMode);
 }
 
 ClientData_rw<uint32_t> IndexedShape::mapBaseInstances(int mapMode) {
-	return baseVec_->mapClientData<uint32_t>(mapMode);
+	return drawBinBase_->mapClientData<uint32_t>(mapMode);
 }
 
 IndexedShape::MappedData::MappedData(
@@ -66,7 +69,7 @@ IndexedShape::MappedData::~MappedData() {
 }
 
 void IndexedShape::mapInstanceData_internal() {
-	mappedInstanceIDs_.emplace(idVec_, countVec_, baseVec_);
+	mappedInstanceIDs_.emplace(instanceIDs_, drawBinCount_, drawBinBase_);
 }
 
 void IndexedShape::unmapInstanceData_internal() {

@@ -18,7 +18,7 @@ static ref_ptr<Rectangle> getImpostorQuad() {
 		cfg.isTangentRequired = GL_FALSE;
 		cfg.isTexcoRequired = GL_FALSE;
 		cfg.levelOfDetails = {0};
-		cfg.posScale = Vec3f(1.0f);
+		cfg.posScale = Vec3f::one();
 		cfg.rotation = Vec3f(0.5 * M_PI, 0.0f, 0.0f);
 		cfg.texcoScale = Vec2f(1.0);
 		cfg.translation = Vec3f(-0.5f, -0.5f, 0.0f);
@@ -226,7 +226,7 @@ void ImpostorBillboard::createResources() {
 #else
 		snapshotAlbedo_->set_filter(TextureFilter(GL_LINEAR, GL_LINEAR));
 #endif
-		snapshotAlbedo_->set_wrapping(GL_CLAMP_TO_EDGE);
+		snapshotAlbedo_->set_wrapping(TextureWrapping::create(GL_CLAMP_TO_EDGE));
 		drawAttachments.push_back(GL_COLOR_ATTACHMENT0);
 
 		if (useNormalCorrection_) {
@@ -304,15 +304,15 @@ void ImpostorBillboard::addSnapshotView(uint32_t viewIdx, const Vec3f &dir, cons
 	snapshotCamera_->setView(viewIdx, Mat4f::lookAtMatrix(eye, dir, up));
 	auto &view = snapshotCamera_->view(viewIdx);
 	snapshotCamera_->setViewInverse(viewIdx, view.lookAtInverse());
-	Vec4f defaultNormal = view ^ Vec4f(up, 0.0f);
-	defaultNormals_[viewIdx] = defaultNormal.xyz_() * 0.5f + Vec3f(0.5f);
+	Vec4f defaultNormal = view ^ Vec4f::create(up, 0.0f);
+	defaultNormals_[viewIdx] = defaultNormal.xyz() * 0.5f + Vec3f::create(0.5f);
 
 	float minX = +FLT_MAX, maxX = -FLT_MAX;
 	float minY = +FLT_MAX, maxY = -FLT_MAX;
 	float minZ = +FLT_MAX, maxZ = -FLT_MAX;
 
 	for (const auto &corner: meshCornerPoints_) {
-		auto viewSpace = view ^ Vec4f(corner, 1.0f);
+		auto viewSpace = view ^ Vec4f::create(corner, 1.0f);
 		minX = std::min(minX, viewSpace.x);
 		maxX = std::max(maxX, viewSpace.x);
 		minY = std::min(minY, viewSpace.y);
@@ -324,7 +324,7 @@ void ImpostorBillboard::addSnapshotView(uint32_t viewIdx, const Vec3f &dir, cons
 	minZ -= zPadding;
 	maxZ += zPadding;
 
-	m_viewDir_[viewIdx].xyz_() = -dir;
+	m_viewDir_[viewIdx].xyz() = -dir;
 	m_viewDir_[viewIdx].w = 0.0f; // no w-component, this is a direction vector
 	m_viewBounds_[viewIdx] = Vec4f(minX, maxX, minY, maxY);
 	m_viewDepth_[viewIdx] = Vec2f(minZ, maxZ);
