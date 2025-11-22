@@ -12,7 +12,7 @@
 
 using namespace regen;
 
-AudioVideoStream::AudioVideoStream(AVStream *stream, GLint index, GLuint cachedBytesLimit)
+AudioVideoStream::AudioVideoStream(AVStream *stream, GLint index, uint32_t cachedBytesLimit)
 		: stream_(nullptr),
 		  codecCtx_(nullptr),
 		  codec_(nullptr),
@@ -23,7 +23,7 @@ AudioVideoStream::AudioVideoStream(AVStream *stream, GLint index, GLuint cachedB
 	open(stream, index, GL_TRUE);
 }
 
-AudioVideoStream::AudioVideoStream(GLuint cachedBytesLimit)
+AudioVideoStream::AudioVideoStream(uint32_t cachedBytesLimit)
 		: stream_(nullptr),
 		  codecCtx_(nullptr),
 		  codec_(nullptr),
@@ -69,17 +69,17 @@ void AudioVideoStream::open(AVStream *stream, GLint index, GLboolean initial) {
 	isActive_ = GL_TRUE;
 }
 
-GLuint AudioVideoStream::numFrames() {
+uint32_t AudioVideoStream::numFrames() {
 	boost::lock_guard<boost::mutex> lock(decodingLock_);
 	return decodedFrames_.size();
 }
 
-void AudioVideoStream::pushFrame(AVFrame *frame, GLuint frameSize) {
+void AudioVideoStream::pushFrame(AVFrame *frame, uint32_t frameSize) {
 	{
 		boost::lock_guard<boost::mutex> lock(decodingLock_);
 		cachedBytes_ += frameSize;
 	}
-	GLuint cachedBytes, numCachedFrames;
+	uint32_t cachedBytes, numCachedFrames;
 	if (cachedBytesLimit_ > 0u) {
 		while (isActive_) {
 			cachedBytes = cachedBytes_;

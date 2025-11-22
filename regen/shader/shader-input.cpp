@@ -161,7 +161,7 @@ void ShaderInput::set_isVertexAttribute(bool isVertexAttribute) {
 	}
 }
 
-void ShaderInput::set_buffer(GLuint buffer, const ref_ptr<BufferReference> &it) {
+void ShaderInput::set_buffer(uint32_t buffer, const ref_ptr<BufferReference> &it) {
 	buffer_ = buffer;
 	bufferIterator_ = it;
 	bufferStamp_ = stampOfReadData();
@@ -185,7 +185,7 @@ void ShaderInput::enableUniform(GLint loc) const {
 /////////////
 ////////////
 
-void ShaderInput::writeVertex(GLuint index, const byte *data) {
+void ShaderInput::writeVertex(uint32_t index, const byte *data) {
 	// NOTE: it is maybe a bit confusing, but the semantics of writeVertex is currently
 	//       different for uniform array data vs vertex data.
 	//       For vertex data, it is assumed that data is one vertex including all array elements.
@@ -230,7 +230,7 @@ void ShaderInput::updateAlignedSize() {
 	}
 }
 
-void ShaderInput::setInstanceData(GLuint numInstances, GLuint divisor, const byte *data) {
+void ShaderInput::setInstanceData(uint32_t numInstances, uint32_t divisor, const byte *data) {
 	auto dataSize_bytes = elementSize_ * numInstances / divisor;
 
 	if (dataSize_bytes != unalignedSize_ || isVertexAttribute_ || !hasClientData()) {
@@ -254,7 +254,7 @@ void ShaderInput::setInstanceData(GLuint numInstances, GLuint divisor, const byt
 	}
 }
 
-void ShaderInput::setVertexData(GLuint numVertices, const byte *data) {
+void ShaderInput::setVertexData(uint32_t numVertices, const byte *data) {
 	auto dataSize_bytes = elementSize_ * numVertices;
 
 	if (dataSize_bytes != unalignedSize_ || !isVertexAttribute_ || !hasClientData()) {
@@ -279,7 +279,7 @@ void ShaderInput::setVertexData(GLuint numVertices, const byte *data) {
 }
 
 // TODO: remove?
-void ShaderInput::writeServerData(GLuint index) const {
+void ShaderInput::writeServerData(uint32_t index) const {
 	if (!hasClientData() || !hasServerData()) return;
 	auto mappedClientData = clientBuffer_->mapRange(BUFFER_GPU_READ, 0, inputSize_);
 	auto clientData = mappedClientData.r;
@@ -303,8 +303,8 @@ void ShaderInput::writeServerData() const {
 	if (static_cast<uint32_t>(stride_) == elementSize_) {
 		glNamedBufferSubData(buffer_, offset_, inputSize_, clientData);
 	} else {
-		GLuint offset = offset_;
-		for (GLuint i = 0; i < count; ++i) {
+		uint32_t offset = offset_;
+		for (uint32_t i = 0; i < count; ++i) {
 			glNamedBufferSubData(buffer_, offset, elementSize_, clientData);
 			offset += stride_;
 			clientData += elementSize_;
@@ -329,7 +329,7 @@ void ShaderInput::readServerData() {
 	if (static_cast<uint32_t>(stride_) == elementSize_) {
 		std::memcpy(clientData, serverData, inputSize_);
 	} else {
-		for (GLuint i = 0; i < numVertices_; ++i) {
+		for (uint32_t i = 0; i < numVertices_; ++i) {
 			std::memcpy(clientData, serverData, elementSize_);
 			serverData += stride_;
 			clientData += elementSize_;
@@ -365,7 +365,7 @@ ref_ptr<ShaderInput> ShaderInput::create(const ref_ptr<ShaderInput> &in) {
 
 	const std::string &name = in->name();
 	GLenum baseType = in->baseType();
-	GLuint valsPerElement = in->valsPerElement();
+	uint32_t valsPerElement = in->valsPerElement();
 
 	switch (baseType) {
 		case GL_FLOAT:

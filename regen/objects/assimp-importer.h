@@ -202,7 +202,7 @@ namespace regen {
 		std::vector<ref_ptr<Mesh> > loadMeshes(
 				const Mat4f &transform,
 				const BufferFlags &bufferFlags,
-				const std::vector<GLuint> &meshIndices);
+				const std::vector<uint32_t> &meshIndices);
 
 		/**
 		 * @return the material associated to a previously loaded meshes.
@@ -217,7 +217,7 @@ namespace regen {
 		/**
 		 * @return number of weights used for bone animation.
 		 */
-		GLuint numBoneWeights(Mesh *meshState);
+		uint32_t numBoneWeights(Mesh *meshState);
 
 		static ref_ptr<AssetImporter> load(LoadingContext &ctx, scene::SceneInputNode &input);
 
@@ -261,8 +261,8 @@ namespace regen {
 				const struct aiNode &node,
 				const Mat4f &transform,
 				const BufferFlags &bufferFlags,
-				const std::vector<GLuint> &meshIndices,
-				GLuint &currentIndex,
+				const std::vector<uint32_t> &meshIndices,
+				uint32_t &currentIndex,
 				std::vector<ref_ptr<Mesh> > &out);
 
 		ref_ptr<Mesh> loadMesh(

@@ -269,7 +269,7 @@ ref_ptr<GroundPath> GroundPath::load(LoadingContext &ctx, scene::SceneInputNode 
 		cfg.levelOfDetails[2] = lodVec.z;
 		cfg.levelOfDetails[3] = lodVec.w;
 	} else {
-		cfg.levelOfDetails.push_back(input.getValue<GLuint>("lod-level", 0));
+		cfg.levelOfDetails.push_back(input.getValue<uint32_t>("lod-level", 0));
 	}
 	cfg.isTexCoordRequired = input.getValue<bool>("use-texco", false);
 	cfg.isNormalRequired = input.getValue<bool>("use-normal", false);

@@ -106,7 +106,7 @@ namespace regen {
 		 * @param levelOfDetails lod levels for each patch.
 		 */
 		void setLODConfig(uint32_t numPatchesPerRow,
-				const std::vector<GLuint> &levelOfDetails);
+				const std::vector<uint32_t> &levelOfDetails);
 
 		/**
 		 * Set the geometry of the ground.

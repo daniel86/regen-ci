@@ -213,7 +213,7 @@ ref_ptr<Light> Light::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 			}
 			auto setTarget = target_opt.value().in;
 			auto numInstances = std::max(
-					child->getValue<GLuint>("num-instances", 1u),
+					child->getValue<uint32_t>("num-instances", 1u),
 					setTarget->numInstances());
 			// allocate memory for the shader input
 			setTarget->setInstanceData(numInstances, 1, nullptr);

@@ -26,9 +26,9 @@ ConeOpened::ConeOpened(const Config &cfg)
 }
 
 void ConeOpened::generateLODLevel(const Config &cfg,
-								  GLuint lodLevel,
-								  GLuint vertexOffset,
-								  GLuint indexOffset) {
+								  uint32_t lodLevel,
+								  uint32_t vertexOffset,
+								  uint32_t indexOffset) {
 	// map client data for writing
 	auto v_pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
 	auto v_nor = (cfg.isNormalRequired ?
@@ -38,7 +38,7 @@ void ConeOpened::generateLODLevel(const Config &cfg,
 	GLfloat radius = tan(phi) * cfg.height;
 	GLfloat angle = 0.0f;
 	GLfloat angleStep = 2.0f * M_PI / (GLfloat) lodLevel;
-	GLuint i = vertexOffset;
+	uint32_t i = vertexOffset;
 
 	v_pos[i] = Vec3f::zero();
 	if (cfg.isNormalRequired) {
@@ -62,17 +62,17 @@ void ConeOpened::generateLODLevel(const Config &cfg,
 }
 
 void ConeOpened::updateAttributes(const Config &cfg) {
-	std::vector<GLuint> LODs;
-	GLuint vertexOffset = 0;
+	std::vector<uint32_t> LODs;
+	uint32_t vertexOffset = 0;
 	for (auto &lod: cfg.levelOfDetails) {
-		GLuint lodLevel = 4u * pow(lod, 2);
+		uint32_t lodLevel = 4u * pow(lod, 2);
 		LODs.push_back(lodLevel);
 		auto &x = meshLODs_.emplace_back();
 		x.d->numVertices = lodLevel + 2;
 		x.d->vertexOffset = vertexOffset;
 		vertexOffset += x.d->numVertices;
 	}
-	GLuint numVertices = vertexOffset;
+	uint32_t numVertices = vertexOffset;
 
 	minPosition_ = Vec3f::zero();
 	maxPosition_ = Vec3f::zero();
@@ -133,7 +133,7 @@ static void loadConeData(
 		Vec3f &min,
 		Vec3f &max,
 		GLboolean useBase,
-		GLuint subdivisions,
+		uint32_t subdivisions,
 		GLfloat radius,
 		GLfloat height) {
 	GLfloat angle = 0.0f;
@@ -170,9 +170,9 @@ static void loadConeData(
 
 void ConeClosed::generateLODLevel(
 		const Config &cfg,
-		GLuint lodLevel,
-		GLuint vertexOffset,
-		GLuint indexOffset) {
+		uint32_t lodLevel,
+		uint32_t vertexOffset,
+		uint32_t indexOffset) {
 	// map client data for writing
 	auto v_pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
 	auto v_nor = (cfg.isNormalRequired ?
@@ -189,19 +189,19 @@ void ConeClosed::generateLODLevel(
 			cfg.radius, cfg.height);
 
 	// create cone index data
-	const GLuint apexIndex = vertexOffset;
-	const GLuint baseCenterIndex = vertexOffset + 1;
-	GLuint faceIndex = indexOffset;
+	const uint32_t apexIndex = vertexOffset;
+	const uint32_t baseCenterIndex = vertexOffset + 1;
+	uint32_t faceIndex = indexOffset;
 	GLint vIndex = vertexOffset + cfg.isBaseRequired ? 2 : 1;
 	// cone
-	for (GLuint i = 0; i < lodLevel; ++i) {
+	for (uint32_t i = 0; i < lodLevel; ++i) {
 		setIndexValue(indices, indexType, faceIndex++, apexIndex);
 		setIndexValue(indices, indexType, faceIndex++, (i + 1 == lodLevel ? vIndex : vIndex + i + 1));
 		setIndexValue(indices, indexType, faceIndex++, vIndex + i);
 	}
 	// base
 	if (cfg.isBaseRequired) {
-		for (GLuint i = 0; i < lodLevel; ++i) {
+		for (uint32_t i = 0; i < lodLevel; ++i) {
 			setIndexValue(indices, indexType, faceIndex++, baseCenterIndex);
 			setIndexValue(indices, indexType, faceIndex++, vIndex + i);
 			setIndexValue(indices, indexType, faceIndex++, (i + 1 == lodLevel ? vIndex : vIndex + i + 1));
@@ -210,11 +210,11 @@ void ConeClosed::generateLODLevel(
 }
 
 void ConeClosed::updateAttributes(const Config &cfg) {
-	std::vector<GLuint> LODs;
-	GLuint vertexOffset = 0;
-	GLuint indexOffset = 0;
+	std::vector<uint32_t> LODs;
+	uint32_t vertexOffset = 0;
+	uint32_t indexOffset = 0;
 	for (auto &lod: cfg.levelOfDetails) {
-		GLuint lodLevel = 4u * pow(lod, 2);
+		uint32_t lodLevel = 4u * pow(lod, 2);
 		LODs.push_back(lodLevel);
 		auto &x = meshLODs_.emplace_back();
 		x.d->numVertices = lodLevel + 1;
@@ -222,14 +222,14 @@ void ConeClosed::updateAttributes(const Config &cfg) {
 		x.d->vertexOffset = vertexOffset;
 		vertexOffset += x.d->numVertices;
 
-		GLuint numFaces = lodLevel;
+		uint32_t numFaces = lodLevel;
 		if (cfg.isBaseRequired) { numFaces *= 2; }
 		x.d->numIndices = numFaces * 3;
 		x.d->indexOffset = indexOffset;
 		indexOffset += x.d->numIndices;
 	}
-	GLuint numVertices = vertexOffset;
-	GLuint numIndices = indexOffset;
+	uint32_t numVertices = vertexOffset;
+	uint32_t numIndices = indexOffset;
 
 	minPosition_ = Vec3f::zero();
 	maxPosition_ = Vec3f::zero();

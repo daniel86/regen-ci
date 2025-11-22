@@ -18,11 +18,11 @@ namespace regen {
 		/**
 		 * The animation state switched to active.
 		 */
-		static GLuint ANIMATION_STARTED;
+		static uint32_t ANIMATION_STARTED;
 		/**
 		 * The animation state switched to inactive.
 		 */
-		static GLuint ANIMATION_STOPPED;
+		static uint32_t ANIMATION_STOPPED;
 
 		/**
 		 * Create an animation.
@@ -126,7 +126,7 @@ namespace regen {
 		 * Waits for a while.
 		 * @param milliseconds number of ms to wait
 		 */
-		void wait(GLuint milliseconds);
+		void wait(uint32_t milliseconds);
 
 		/**
 		 * @return true if the animation implements glAnimate().

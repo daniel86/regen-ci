@@ -102,7 +102,7 @@ void Demuxer::set_file(std::string_view file) {
 	// Find the first video/audio stream
 	videoStreamIndex_ = -1;
 	audioStreamIndex_ = -1;
-	for (GLuint i = 0u; i < formatCtx_->nb_streams; ++i) {
+	for (uint32_t i = 0u; i < formatCtx_->nb_streams; ++i) {
 		auto stream = formatCtx_->streams[i];
 		auto codec_type = stream->codecpar->codec_type;
 		if (videoStreamIndex_ == -1 && codec_type == AVMEDIA_TYPE_VIDEO) { videoStreamIndex_ = i; }

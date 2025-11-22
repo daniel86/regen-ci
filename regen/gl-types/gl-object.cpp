@@ -5,8 +5,8 @@ using namespace regen;
 GLObject::GLObject(
 		CreateObjectFunc createObjects,
 		ReleaseObjectFunc releaseObjects,
-		GLuint numObjects)
-		: ids_(new GLuint[numObjects]),
+		uint32_t numObjects)
+		: ids_(new uint32_t[numObjects]),
 		  copyCounter_(ref_ptr<std::atomic<uint32_t>>::alloc(1)),
 		  numObjects_(numObjects),
 		  objectIndex_(0),
@@ -20,8 +20,8 @@ GLObject::GLObject(
 		CreateObjectFunc2 createObjects,
 		ReleaseObjectFunc releaseObjects,
 		GLenum objectTarget,
-		GLuint numObjects)
-		: ids_(new GLuint[numObjects]),
+		uint32_t numObjects)
+		: ids_(new uint32_t[numObjects]),
 		  copyCounter_(ref_ptr<std::atomic<uint32_t>>::alloc(1)),
 		  numObjects_(numObjects),
 		  objectIndex_(0),

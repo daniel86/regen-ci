@@ -11,7 +11,7 @@
 #include "tessellation.h"
 
 struct Edge {
-    GLuint v1, v2;
+    uint32_t v1, v2;
     bool operator==(const Edge &other) const {
         return (v1 == other.v1 && v2 == other.v2) || (v1 == other.v2 && v2 == other.v1);
     }
@@ -21,7 +21,7 @@ namespace std {
     template <>
     struct hash<Edge> {
         std::size_t operator()(const Edge &e) const {
-            return std::hash<GLuint>()(e.v1) ^ std::hash<GLuint>()(e.v2);
+            return std::hash<uint32_t>()(e.v1) ^ std::hash<uint32_t>()(e.v2);
         }
     };
 }

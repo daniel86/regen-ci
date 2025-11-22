@@ -93,7 +93,7 @@ namespace regen::scene {
 		 * @param eventID The Application event id.
 		 * @param eventHandler The EventHandler.
 		 */
-		void addEventHandler(GLuint eventID, const ref_ptr<EventHandler> &eventHandler);
+		void addEventHandler(uint32_t eventID, const ref_ptr<EventHandler> &eventHandler);
 
 		/**
 		 * Note: Event handlers are not automatically removed.

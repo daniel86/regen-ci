@@ -22,7 +22,7 @@ namespace regen {
 		 * @param index the stream index.
 		 * @param cachedBytesLimit size limit for pre loading.
 		 */
-		VideoStream(AVStream *stream, GLint index, GLuint cachedBytesLimit);
+		VideoStream(AVStream *stream, GLint index, uint32_t cachedBytesLimit);
 
 		~VideoStream() override;
 

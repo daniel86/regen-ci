@@ -6,7 +6,7 @@
 namespace regen {
 	class Point : public Mesh {
 	public:
-		explicit Point(GLuint numVertices=1);
+		explicit Point(uint32_t numVertices=1);
 	protected:
 		ref_ptr<ShaderInput3f> pos_;
 	};

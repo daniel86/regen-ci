@@ -38,7 +38,7 @@ namespace regen {
 
 	protected:
 		ref_ptr<Camera> camera_;
-		GLuint maxPickedObjects_;
+		uint32_t maxPickedObjects_;
 
 		GLboolean hasPickedObject_;
 		PickData pickedObject_;
@@ -57,7 +57,7 @@ namespace regen {
 		ref_ptr<BufferReference> vboRef_;
 		ref_ptr<StagingStructBuffer<PickData>> pickMapping_;
 		BufferRange feedbackRange_;
-		GLuint bufferSize_;
+		uint32_t bufferSize_;
 
 		void updateMouse();
 	};

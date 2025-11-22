@@ -34,13 +34,13 @@ void TextureBuffer::attach(const ref_ptr<BufferReference> &ref) {
 	GL_ERROR_LOG();
 }
 
-void TextureBuffer::attach(GLuint storage) {
+void TextureBuffer::attach(uint32_t storage) {
 	attachedVBORef_ = {};
 	glTextureBuffer(id(), texelFormat_, storage);
 	GL_ERROR_LOG();
 }
 
-void TextureBuffer::attach(GLuint storage, GLuint offset, GLuint size) {
+void TextureBuffer::attach(uint32_t storage, uint32_t offset, uint32_t size) {
 	attachedVBORef_ = {};
 #ifdef GL_ARB_texture_buffer_range
 	glTextureBufferRange(id(), texelFormat_, storage, offset, size);

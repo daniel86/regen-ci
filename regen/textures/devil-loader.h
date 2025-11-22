@@ -27,7 +27,7 @@ namespace regen {
 		 * Scale the currently bound image to the given size.
 		 * If w or h is 0, the image will not be scaled in that dimension.
 		 */
-		static void scaleImage(GLuint w, GLuint h, GLuint d);
+		static void scaleImage(uint32_t w, uint32_t h, uint32_t d);
 
 		/**
 		 * Convert the currently bound image to the given format and type.

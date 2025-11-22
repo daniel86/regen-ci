@@ -2,7 +2,7 @@
 
 using namespace regen;
 
-AttributeLessMesh::AttributeLessMesh(GLuint numVertices)
+AttributeLessMesh::AttributeLessMesh(uint32_t numVertices)
 		: Mesh(GL_POINTS, BufferUpdateFlags::NEVER) {
 	set_numVertices(numVertices);
 }

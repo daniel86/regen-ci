@@ -9,7 +9,7 @@
 namespace regen {
 	class CloudLayer : public SkyLayer {
 	public:
-		explicit CloudLayer(const ref_ptr<Sky> &sky, GLuint textureSize = 2048);
+		explicit CloudLayer(const ref_ptr<Sky> &sky, uint32_t textureSize = 2048);
 
 		void set_altitude(float altitude) { altitude_->setVertex(0, altitude); }
 

@@ -48,7 +48,7 @@ Ground::Ground() : SkirtQuad() {
 }
 
 void Ground::setLODConfig(uint32_t numPatchesPerRow,
-		const std::vector<GLuint> &levelOfDetails) {
+		const std::vector<uint32_t> &levelOfDetails) {
 	rectangleConfig_.levelOfDetails = levelOfDetails;
 	numPatchesPerRow_ = numPatchesPerRow;
 	updatePatchSize();

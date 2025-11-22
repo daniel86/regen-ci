@@ -128,7 +128,7 @@ namespace regen {
 		 * @param height the height of the texture.
 		 * @param isSeamless true if the texture should be seamless.
 		 */
-		NoiseTexture2D(GLuint width, GLuint height, GLboolean isSeamless = GL_FALSE);
+		NoiseTexture2D(uint32_t width, uint32_t height, GLboolean isSeamless = GL_FALSE);
 
 		~NoiseTexture2D() override = default;
 
@@ -146,7 +146,7 @@ namespace regen {
 		 * @param depth the depth of the texture.
 		 * @param isSeamless true if the texture should be seamless.
 		 */
-		NoiseTexture3D(GLuint width, GLuint height, GLuint depth, GLboolean isSeamless = GL_FALSE);
+		NoiseTexture3D(uint32_t width, uint32_t height, uint32_t depth, GLboolean isSeamless = GL_FALSE);
 
 		~NoiseTexture3D() override = default;
 

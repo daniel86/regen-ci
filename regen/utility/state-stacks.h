@@ -177,7 +177,7 @@ namespace regen {
 	}
 
 	template<typename StackType, typename ValueType>
-	static void applyFilledStampedi(StackType *s, GLuint i, const ValueType &v) {
+	static void applyFilledStampedi(StackType *s, uint32_t i, const ValueType &v) {
 		if (v != s->headi_[i]->v) { s->applyi_(i, v); }
 	}
 
@@ -188,13 +188,13 @@ namespace regen {
 	}
 
 	template<typename StackType, typename ValueType>
-	static void applyInitStampedi(StackType *s, GLuint i, const ValueType &v) {
+	static void applyInitStampedi(StackType *s, uint32_t i, const ValueType &v) {
 		s->applyi_(i, v);
 		s->doApplyi_[i] = &applyFilledStampedi;
 	}
 
 	template<typename T>
-	void regen_lockedIndexed(GLuint i, const T &v) {}
+	void regen_lockedIndexed(uint32_t i, const T &v) {}
 
 	/**
 	 * \brief State stack with indexed apply function.
@@ -213,14 +213,14 @@ namespace regen {
 		/**
 		 * Function to apply the value to a single index.
 		 */
-		typedef void (*ApplyValueIndexed)(GLuint i, const ValueType &v);
+		typedef void (*ApplyValueIndexed)(uint32_t i, const ValueType &v);
 
 		/**
 		 * @param numIndices number of indices
 		 * @param apply apply a stack value to all indices.
 		 * @param applyi apply a stack value to a single index.
 		 */
-		IndexedStateStack(GLuint numIndices, ApplyValue apply, ApplyValueIndexed applyi)
+		IndexedStateStack(uint32_t numIndices, ApplyValue apply, ApplyValueIndexed applyi)
 				: numIndices_(numIndices),
 				  head_(new Node(zeroValue_)),
 				  apply_(apply),
@@ -236,7 +236,7 @@ namespace regen {
 			headi_ = new Node *[numIndices];
 			doApplyi_ = new DoApplyValueIndexed[numIndices];
 			isEmptyi_ = new GLboolean[numIndices];
-			for (GLuint i = 0; i < numIndices_; ++i) {
+			for (uint32_t i = 0; i < numIndices_; ++i) {
 				doApplyi_[i] = &applyInitStampedi;
 				headi_[i] = new Node(zeroValue_);
 				isEmptyi_[i] = GL_TRUE;
@@ -252,7 +252,7 @@ namespace regen {
 				isEmptyi_ = nullptr;
 			}
 			if (headi_) {
-				for (GLuint i = 0; i < numIndices_; ++i) { deleteNodes(headi_[i]); }
+				for (uint32_t i = 0; i < numIndices_; ++i) { deleteNodes(headi_[i]); }
 				delete[]headi_;
 				headi_ = nullptr;
 			}
@@ -270,7 +270,7 @@ namespace regen {
 		/**
 		 * @return the current state value or the value created by default constructor.
 		 */
-		const auto& value(GLuint index) const {
+		const auto& value(uint32_t index) const {
 			return headi_[index]->v;
 		}
 
@@ -318,7 +318,7 @@ namespace regen {
 		 * @param index the index.
 		 * @param v the value.
 		 */
-		void push(GLuint index, const ValueType &v) {
+		void push(uint32_t index, const ValueType &v) {
 			Node *headi = headi_[index];
 
 			if (counter_.x > counter_.y) {
@@ -373,7 +373,7 @@ namespace regen {
 		 * @param index the value index.
 		 * @param v the value.
 		 */
-		void apply(GLuint index, const ValueType &v) {
+		void apply(uint32_t index, const ValueType &v) {
 			if (headi_[index]->v != v) {
 				applyi_(index, v);
 				headi_[index]->v = v;
@@ -399,7 +399,7 @@ namespace regen {
 			if (counter_.y > 0) {
 				// Indexed states only applied with stamp>lastEqStamp
 				// Loop over all indexed stacks and compare stamps of top element.
-				for (GLuint i = 0; i < numIndices_; ++i) {
+				for (uint32_t i = 0; i < numIndices_; ++i) {
 					if (isEmptyi_[i]) { continue; }
 					Node *headi = headi_[i];
 
@@ -415,7 +415,7 @@ namespace regen {
 		 * Pop out last value at given index.
 		 * @param index the value index.
 		 */
-		void pop(GLuint index) {
+		void pop(uint32_t index) {
 			Node *headi = headi_[index];
 			GLboolean valueChanged;
 
@@ -501,7 +501,7 @@ namespace regen {
 		}
 
 		// Number of indices.
-		GLuint numIndices_;
+		uint32_t numIndices_;
 		// A stack containing stamped values applied to all indices.
 		Node *head_;
 		// A stack array containing stamped values applied to individual indices.
@@ -530,7 +530,7 @@ namespace regen {
 
 		typedef void (*DoApplyValue)(IndexedStateStack *, const ValueType &);
 
-		typedef void (*DoApplyValueIndexed)(IndexedStateStack *, GLuint, const ValueType &);
+		typedef void (*DoApplyValueIndexed)(IndexedStateStack *, uint32_t, const ValueType &);
 
 		// use function pointer to avoid some if statements
 		DoApplyValue doApply_;
@@ -543,10 +543,10 @@ namespace regen {
 				(IndexedStateStack *, const ValueType &);
 
 		friend void applyInitStampedi<IndexedStateStack, ValueType>
-				(IndexedStateStack *, GLuint, const ValueType &);
+				(IndexedStateStack *, uint32_t, const ValueType &);
 
 		friend void applyFilledStampedi<IndexedStateStack, ValueType>
-				(IndexedStateStack *, GLuint, const ValueType &);
+				(IndexedStateStack *, uint32_t, const ValueType &);
 	};
 } // namespace
 

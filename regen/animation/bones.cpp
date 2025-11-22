@@ -6,7 +6,7 @@ using namespace regen;
 
 #define USE_BONE_TBO
 
-Bones::Bones(GLuint numBoneWeights, GLuint numBones)
+Bones::Bones(uint32_t numBoneWeights, uint32_t numBones)
 		: State(),
 		  Animation(false, true) {
 	bufferSize_ = 0u;

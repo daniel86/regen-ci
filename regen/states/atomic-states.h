@@ -308,7 +308,7 @@ namespace regen {
 		 * @param numPatchVertices Specifies the number of vertices that
 		 * will be used to make up a single patch primitive.
 		 */
-		explicit PatchVerticesState(GLuint numPatchVertices)
+		explicit PatchVerticesState(uint32_t numPatchVertices)
 				: ServerSideState(), numPatchVertices_(numPatchVertices) {}
 
 		void enable(RenderState *rs) override { rs->patchVertices().push(numPatchVertices_); }
@@ -316,7 +316,7 @@ namespace regen {
 		void disable(RenderState *rs) override { rs->patchVertices().pop(); }
 
 	protected:
-		GLuint numPatchVertices_;
+		uint32_t numPatchVertices_;
 	};
 
 	/**
@@ -499,7 +499,7 @@ namespace regen {
 	protected:
 		ref_ptr<FBO> fbo_;
 		/** Current index. */
-		GLuint index_;
+		uint32_t index_;
 	};
 
 	/**

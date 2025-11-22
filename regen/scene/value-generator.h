@@ -26,7 +26,7 @@ namespace regen {
 			 * @param defaultValue The default value.
 			 */
 			ValueGenerator(SceneInputNode *n,
-						   const GLuint numValues,
+						   const uint32_t numValues,
 						   const T &defaultValue = T(0))
 					: n_(n),
 					  numValues_(numValues),
@@ -52,7 +52,7 @@ namespace regen {
 
 		protected:
 			SceneInputNode *n_;
-			GLuint numValues_;
+			uint32_t numValues_;
 			Vec4ui counter_;
 			T value_;
 			std::string mode_;
@@ -75,8 +75,8 @@ namespace regen {
 					stepY * (counter_.y + math::random<float>()*varianceY) +
 					stepZ * (counter_.z + math::random<float>()*varianceZ);
 
-				auto xCount = n_->getValue<GLuint>("x-count", numValues_);
-				auto yCount = n_->getValue<GLuint>("y-count", 1);
+				auto xCount = n_->getValue<uint32_t>("x-count", numValues_);
+				auto yCount = n_->getValue<uint32_t>("y-count", 1);
 				counter_.x += 1;
 				if (counter_.x >= xCount) {
 					counter_.x = 0;

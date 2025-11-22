@@ -110,7 +110,7 @@ namespace regen {
 		 * @param val the type string.
 		 * @return 1, 2, 3 or 4.
 		 */
-		inline GLuint pixelComponents(GLenum format) {
+		inline uint32_t pixelComponents(GLenum format) {
 			switch (format) {
 				case GL_RED:
 				case GL_GREEN:
@@ -142,7 +142,7 @@ namespace regen {
 		 * @param numComponents Number of components per texel.
 		 * @return On of the GL_R,GL_RG,GL_RGB,GL_RGBA constants.
 		 */
-		inline GLenum textureFormat(GLuint numComponents) {
+		inline GLenum textureFormat(uint32_t numComponents) {
 			switch (numComponents) {
 				case 1:
 					return GL_RED;
@@ -188,13 +188,13 @@ namespace regen {
 		 * @param bytesPerComponent bytes per component.
 		 * @return On of the GL_R,GL_RG,GL_RGB,GL_RGBA constants.
 		 */
-		inline GLenum textureInternalFormat(GLenum pixelType, GLuint numComponents, GLuint bytesPerComponent) {
-			GLuint i = 1;
+		inline GLenum textureInternalFormat(GLenum pixelType, uint32_t numComponents, uint32_t bytesPerComponent) {
+			uint32_t i = 1;
 			if (bytesPerComponent <= 8) i = 0;
 			else if (bytesPerComponent <= 16) i = 1;
 			else if (bytesPerComponent <= 32) i = 2;
 
-			GLuint j = numComponents - 1;
+			uint32_t j = numComponents - 1;
 
 			if (pixelType == GL_FLOAT || pixelType == GL_DOUBLE || pixelType == GL_HALF_FLOAT) {
 				static GLenum values[3][4] = {
@@ -258,7 +258,7 @@ namespace regen {
 		/**
 		 * Maps [0,5] to cube map layer enum.
 		 */
-		inline GLenum cubeMapLayer(GLuint layer) {
+		inline GLenum cubeMapLayer(uint32_t layer) {
 			const GLenum cubeMapLayer[] = {
 					GL_TEXTURE_CUBE_MAP_POSITIVE_Z,
 					GL_TEXTURE_CUBE_MAP_NEGATIVE_Z,
@@ -293,14 +293,14 @@ namespace regen {
 		/**
 		 * Maps pixel type and values per element to the GLSL data type.
 		 */
-		std::string glslDataType(GLenum pixelType, GLuint valsPerElement);
+		std::string glslDataType(GLenum pixelType, uint32_t valsPerElement);
 
 		/**
 		 * @param baseType the base type of the data, e.g. GL_FLOAT
 		 * @param valsPerElement the number of values per element, e.g. 4
 		 * @return the data type for the shader, e.g. GL_RGBA32F
 		 */
-		GLenum dataType(GLenum baseType, GLuint valsPerElement);
+		GLenum dataType(GLenum baseType, uint32_t valsPerElement);
 
 		/**
 		 * True if the data type is a signed integer type.

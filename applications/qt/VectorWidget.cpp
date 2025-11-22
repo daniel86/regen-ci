@@ -2,7 +2,7 @@
 
 using namespace regen;
 
-static GLfloat readInputValue(const ref_ptr<ShaderInput> &input, const byte *value, GLuint i) {
+static GLfloat readInputValue(const ref_ptr<ShaderInput> &input, const byte *value, uint32_t i) {
 	switch (input->baseType()) {
 		case GL_FLOAT: {
 			return ((GLfloat *) value)[i];
@@ -11,7 +11,7 @@ static GLfloat readInputValue(const ref_ptr<ShaderInput> &input, const byte *val
 			return static_cast<GLfloat>((((GLint *) value)[i]));
 		}
 		case GL_UNSIGNED_INT: {
-			return static_cast<GLfloat>((((GLuint *) value)[i]));
+			return static_cast<GLfloat>((((uint32_t *) value)[i]));
 		}
 		default:
 			REGEN_WARN("Unknown data type " << input->baseType());
@@ -22,8 +22,8 @@ static GLfloat readInputValue(const ref_ptr<ShaderInput> &input, const byte *val
 
 VectorWidget::VectorWidget(const RegenWidgetData &data, QWidget *parent)
 		: RegenWidget(data, parent) {
-	GLuint count = input_->valsPerElement();
-	GLuint i;
+	uint32_t count = input_->valsPerElement();
+	uint32_t i;
 	if (count > 4) {
 		throw std::runtime_error("More than 4 components unsupported.");
 	}
@@ -107,9 +107,9 @@ byte *createData(
 		const ref_ptr<ShaderInput> &in,
 		QSlider **valueWidgets,
 		QLineEdit **valueTexts,
-		GLuint count) {
+		uint32_t count) {
 	T *typedData = new T[count];
-	for (GLuint i = 0u; i < count; ++i) {
+	for (uint32_t i = 0u; i < count; ++i) {
 		QSlider *widget = valueWidgets[i];
 		std::stringstream ss;
 		ss << static_cast<float>(widget->value()) / 1000.0f;
@@ -128,7 +128,7 @@ void VectorWidget::valueUpdated() {
 	QLineEdit *valueTexts[4] =
 			{ui_.xValueText, ui_.yValueText, ui_.zValueText, ui_.wValueText};
 
-	GLuint count = input_->valsPerElement();
+	uint32_t count = input_->valsPerElement();
 	if (count > 4) {
 		REGEN_WARN("More then 4 components unsupported.");
 		return;
@@ -143,7 +143,7 @@ void VectorWidget::valueUpdated() {
 			changedData = createData<GLint>(input_, valueWidgets, valueTexts, count);
 			break;
 		case GL_UNSIGNED_INT:
-			changedData = createData<GLuint>(input_, valueWidgets, valueTexts, count);
+			changedData = createData<uint32_t>(input_, valueWidgets, valueTexts, count);
 			break;
 		default:
 			REGEN_WARN("Unknown data type " << input_->baseType());
@@ -154,7 +154,7 @@ void VectorWidget::valueUpdated() {
 	delete[] changedData;
 
 	// set value of external sliders
-	for (GLuint i = 0; i < count; ++i) {
+	for (uint32_t i = 0; i < count; ++i) {
 		for (auto *slider: externalSlider_[i]) {
 			slider->setValue(valueWidgets[i]->value());
 		}

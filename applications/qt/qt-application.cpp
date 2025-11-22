@@ -29,7 +29,7 @@ static int appArgCount = 1;
 QtApplication::QtApplication(
 		const int &argc, const char **argv,
 		const QSurfaceFormat &glFormat,
-		GLuint width, GLuint height,
+		uint32_t width, uint32_t height,
 		QWidget *parent)
 		: Scene(argc, argv), isMainloopRunning_(GL_FALSE), exitCode_(0) {
 	QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);

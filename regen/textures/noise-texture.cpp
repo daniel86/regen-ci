@@ -51,7 +51,7 @@ void NoiseTexture::setNoiseGenerator(const ref_ptr<NoiseGenerator> &generator) {
 	updateNoise();
 }
 
-NoiseTexture2D::NoiseTexture2D(GLuint width, GLuint height, GLboolean isSeamless)
+NoiseTexture2D::NoiseTexture2D(uint32_t width, uint32_t height, GLboolean isSeamless)
 		: Texture2D(), NoiseTexture(isSeamless) {
 	set_rectangleSize(width, height);
 	set_pixelType(GL_UNSIGNED_BYTE);
@@ -65,8 +65,8 @@ void NoiseTexture2D::updateNoise() {
 
 	auto *data = new GLubyte[width() * height()];
 	GLubyte *dataPtr = data;
-	for (GLuint x = 0u; x < width(); ++x) {
-		for (GLuint y = 0u; y < height(); ++y) {
+	for (uint32_t x = 0u; x < width(); ++x) {
+		for (uint32_t y = 0u; y < height(); ++y) {
 			float fx = noiseScale_ * float(x) / float(width());
 			float fy = noiseScale_ * float(y) / float(height());
 			GLfloat val = sampleNoise(gen, fx, fy, 0.0, isSeamless_, false);
@@ -84,7 +84,7 @@ void NoiseTexture2D::updateNoise() {
 	set_wrapping(TextureWrapping::create(GL_MIRRORED_REPEAT));
 }
 
-NoiseTexture3D::NoiseTexture3D(GLuint width, GLuint height, GLuint depth, GLboolean isSeamless)
+NoiseTexture3D::NoiseTexture3D(uint32_t width, uint32_t height, uint32_t depth, GLboolean isSeamless)
 		: Texture3D(), NoiseTexture(isSeamless) {
 	set_rectangleSize(width, height);
 	set_depth(depth);
@@ -100,9 +100,9 @@ void NoiseTexture3D::updateNoise() {
 
 	auto *data = new GLubyte[width() * height() * depth()];
 	GLubyte *dataPtr = data;
-	for (GLuint x = 0u; x < width(); ++x) {
-		for (GLuint y = 0u; y < height(); ++y) {
-			for (GLuint z = 0u; z < depth(); ++z) {
+	for (uint32_t x = 0u; x < width(); ++x) {
+		for (uint32_t y = 0u; y < height(); ++y) {
+			for (uint32_t z = 0u; z < depth(); ++z) {
 				float fx = noiseScale_ * float(x) / float(width());
 				float fy = noiseScale_ * float(y) / float(height());
 				float fz = noiseScale_ * float(z) / float(depth());

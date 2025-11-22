@@ -46,12 +46,12 @@ namespace regen {
 		/**
 		 * @param version the GLSL version.
 		 */
-		void setVersion(GLuint version) { if (version > version_) version_ = version; }
+		void setVersion(uint32_t version) { if (version > version_) version_ = version; }
 
 		/**
 		 * @return the GLSL version.
 		 */
-		GLuint version() const { return version_; }
+		uint32_t version() const { return version_; }
 
 		/**
 		 * Macro key-value map. Macros are prepended to loaded shaders.
@@ -106,7 +106,7 @@ namespace regen {
 		}
 
 	protected:
-		GLuint version_;
+		uint32_t version_;
 	};
 } // namespace
 

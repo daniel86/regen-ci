@@ -93,7 +93,7 @@ namespace regen::scene {
 			}
 			if (input.hasAttribute("sort")) {
 				// Sort node children by model view matrix.
-				auto sortMode = input.getValue<GLuint>("sort", 0);
+				auto sortMode = input.getValue<uint32_t>("sort", 0);
 				ref_ptr<Camera> sortCam =
 						scene->getResource<Camera>(input.getValue<std::string>("sort-camera", ""));
 				if (sortCam.get() == nullptr) {
@@ -133,9 +133,9 @@ namespace regen::scene {
 				scene::SceneLoader *scene,
 				SceneInputNode &input,
 				const ref_ptr<StateNode> &parent) {
-			GLuint numIterations = 1;
+			uint32_t numIterations = 1;
 			if (input.hasAttribute("num-iterations")) {
-				numIterations = input.getValue<GLuint>("num-iterations", 1u);
+				numIterations = input.getValue<uint32_t>("num-iterations", 1u);
 			}
 
 			ref_ptr<State> state = ref_ptr<State>::alloc();

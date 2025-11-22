@@ -16,7 +16,7 @@
 
 using namespace regen;
 
-static Box::Config cubeCfg(GLuint levelOfDetail) {
+static Box::Config cubeCfg(uint32_t levelOfDetail) {
 	Box::Config cfg;
 	cfg.isNormalRequired = GL_FALSE;
 	cfg.isTangentRequired = GL_FALSE;
@@ -29,7 +29,7 @@ static Box::Config cubeCfg(GLuint levelOfDetail) {
 	return cfg;
 }
 
-SkyBox::SkyBox(GLuint levelOfDetail, const std::string &shaderKey)
+SkyBox::SkyBox(uint32_t levelOfDetail, const std::string &shaderKey)
 		: Box(cubeCfg(levelOfDetail)), HasShader(shaderKey) {
 	joinStates(ref_ptr<CullFaceState>::alloc(GL_FRONT));
 

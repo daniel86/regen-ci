@@ -18,7 +18,7 @@ namespace regen {
 		GLRectangle(
 				CreateObjectFunc createObjects,
 				ReleaseObjectFunc releaseObjects,
-				GLuint numObjects = 1);
+				uint32_t numObjects = 1);
 
 		/**
 		 * @param createObjects allocate buffers.
@@ -29,7 +29,7 @@ namespace regen {
 				CreateObjectFunc2 createObjects,
 				ReleaseObjectFunc releaseObjects,
 				GLenum objectTarget,
-				GLuint numObjects = 1);
+				uint32_t numObjects = 1);
 
 		/**
 		 * Copy constructor.

@@ -70,7 +70,7 @@ void GLUTApplication::specialKeyDownStatic(int key, int x, int y)
 
 GLUTApplication::GLUTApplication(
     int &argc, char** argv,
-    GLuint width, GLuint height)
+    uint32_t width, uint32_t height)
 : Application(argc,argv),
   windowTitle_("OpenGL Engine"),
   glutHeight_(width),
@@ -96,15 +96,15 @@ void GLUTApplication::set_windowTitle(const string &windowTitle)
 {
   windowTitle_ = windowTitle;
 }
-void GLUTApplication::set_height(GLuint height)
+void GLUTApplication::set_height(uint32_t height)
 {
   glutHeight_ = height;
 }
-void GLUTApplication::set_width(GLuint width)
+void GLUTApplication::set_width(uint32_t width)
 {
   glutWidth_ = width;
 }
-void GLUTApplication::set_displayMode(GLuint displayMode)
+void GLUTApplication::set_displayMode(uint32_t displayMode)
 {
   displayMode_ = displayMode;
 }

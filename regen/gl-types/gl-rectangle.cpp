@@ -5,7 +5,7 @@ using namespace regen;
 GLRectangle::GLRectangle(
 		CreateObjectFunc createObjects,
 		ReleaseObjectFunc releaseObjects,
-		GLuint numObjects)
+		uint32_t numObjects)
 		: GLObject(createObjects, releaseObjects, numObjects) {
 	set_rectangleSize(2, 2);
 }
@@ -14,7 +14,7 @@ GLRectangle::GLRectangle(
 		CreateObjectFunc2 createObjects,
 		ReleaseObjectFunc releaseObjects,
 		GLenum objectTarget,
-		GLuint numObjects)
+		uint32_t numObjects)
 		: GLObject(createObjects, releaseObjects, objectTarget, numObjects) {
 	set_rectangleSize(2, 2);
 }

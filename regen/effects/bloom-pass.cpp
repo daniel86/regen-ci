@@ -162,7 +162,7 @@ ref_ptr<BloomPass> BloomPass::load(LoadingContext &ctx, scene::SceneInputNode &i
 			REGEN_WARN("Unable to find FBO for " << input.getDescription() << ".");
 			return {};
 		}
-		auto attachment = input.getValue<GLuint>("attachment", 0);
+		auto attachment = input.getValue<uint32_t>("attachment", 0);
 		std::vector<ref_ptr<Texture> > textures = fbo->colorTextures();
 		if (attachment >= textures.size()) {
 			REGEN_WARN("FBO " << input.getValue("fbo") <<

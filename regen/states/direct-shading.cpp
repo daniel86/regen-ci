@@ -29,7 +29,7 @@ static std::string shadowFilterMode(ShadowFilterMode f) {
 	return "Single";
 }
 
-void DirectShading::updateDefine(DirectLight &l, GLuint lightIndex) {
+void DirectShading::updateDefine(DirectLight &l, uint32_t lightIndex) {
 	shaderDefine(
 			REGEN_STRING("LIGHT" << lightIndex << "_ID"),
 			REGEN_STRING(l.id_));
@@ -88,8 +88,8 @@ void DirectShading::addLight(
 		const ref_ptr<Texture> &shadow,
 		const ref_ptr<Texture> &shadowColor,
 		ShadowFilterMode shadowFilter) {
-	GLuint lightID = ++idCounter_;
-	GLuint lightIndex = lights_.size();
+	uint32_t lightID = ++idCounter_;
+	uint32_t lightIndex = lights_.size();
 
 	{
 		DirectLight dl;
@@ -190,7 +190,7 @@ void DirectShading::removeLight(const ref_ptr<Light> &l) {
 	}
 	lights_.erase(it);
 
-	GLuint numLights = lights_.size(), lightIndex = 0;
+	uint32_t numLights = lights_.size(), lightIndex = 0;
 	// update shader defines
 	shaderDefine("NUM_LIGHTS", REGEN_STRING(numLights));
 	for (auto &light: lights_) {

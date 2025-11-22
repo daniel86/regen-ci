@@ -40,7 +40,7 @@ namespace regen {
 		/**
 		 * @param version the minimum GLSL version.
 		 */
-		void setVersion(GLuint version);
+		void setVersion(uint32_t version);
 
 		/**
 		 * Load shader configuration based on a given node (and parent nodes).
@@ -94,7 +94,7 @@ namespace regen {
 		StateConfig cfg_;
 		std::map<std::string, ShaderInputList::iterator> inputNames_;
 		std::set<const TextureState*> textureStates_;
-		GLuint numLights_;
+		uint32_t numLights_;
 		bool hasFBO_ = false;
 
 		void preAddState(const State *s);

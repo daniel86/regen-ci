@@ -778,7 +778,7 @@ ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputN
 
 	if (indexType == "quadtree") {
 		auto quadTree = ref_ptr<QuadTree>::alloc();
-		//quadTree->setMaxObjectsPerNode(input.getValue<GLuint>("max-objects-per-node", 4u));
+		//quadTree->setMaxObjectsPerNode(input.getValue<uint32_t>("max-objects-per-node", 4u));
 		quadTree->setMinNodeSize(input.getValue<float>("min-node-size", 0.1f));
 
 		if (input.hasAttribute("test-mode-3d")) {
@@ -792,7 +792,7 @@ ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputN
 			}
 		}
 		if (input.hasAttribute("batch-size-3d")) {
-			quadTree->setBatchSize3D(input.getValue<GLuint>("batch-size-3d", 2048u));
+			quadTree->setBatchSize3D(input.getValue<uint32_t>("batch-size-3d", 2048u));
 		}
 		if (input.hasAttribute("close-distance")) {
 			auto dst = input.getValue<float>("close-distance", 20.0f);
@@ -800,7 +800,7 @@ ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputN
 			quadTree->setCloseDistanceSquared(dst * dst);
 		}
 		if (input.hasAttribute("subdivision-threshold")) {
-			quadTree->setSubdivisionThreshold(input.getValue<GLuint>("subdivision-threshold", 4u));
+			quadTree->setSubdivisionThreshold(input.getValue<uint32_t>("subdivision-threshold", 4u));
 		}
 
 		index = quadTree;

@@ -7,17 +7,17 @@ namespace regen {
 	/**
 	 * This is used to unify the following two structures:
 	 *     struct IndirectIndexedData {
-	 *        GLuint count;           // index count
-	 *        GLuint instanceCount;
-	 *        GLuint firstIndex;
+	 *        uint32_t count;           // index count
+	 *        uint32_t instanceCount;
+	 *        uint32_t firstIndex;
 	 *        GLint baseVertex;
-	 *        GLuint baseInstance;
+	 *        uint32_t baseInstance;
 	 *    };
 	 *    struct IndirectArrayData {
-	 *        GLuint count;           // vertex count
-	 *        GLuint instanceCount;
-	 *        GLuint firstVertex;
-	 *        GLuint baseInstance;
+	 *        uint32_t count;           // vertex count
+	 *        uint32_t instanceCount;
+	 *        uint32_t firstVertex;
+	 *        uint32_t baseInstance;
 	 *    };
 	 **/
 	struct DrawCommand {

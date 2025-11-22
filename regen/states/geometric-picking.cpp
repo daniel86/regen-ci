@@ -96,7 +96,7 @@ void GeomPicking::traverse(RenderState *rs) {
 	state_->enable(rs);
 
 	int feedbackCount = 0;
-	GLuint feedbackQuery = 0;
+	uint32_t feedbackQuery = 0;
 	glGenQueries(1, &feedbackQuery);
 	for (auto &pickableNode: childs()) {
 		auto pickableMesh = pickableNode->findStateWithType<Mesh>();

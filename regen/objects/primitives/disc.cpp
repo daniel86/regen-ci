@@ -76,9 +76,9 @@ Disc::Config::Config()
 }
 
 void Disc::generateLODLevel(const Config &cfg,
-							GLuint lodLevel,
-							GLuint vertexOffset,
-							GLuint indexOffset) {
+							uint32_t lodLevel,
+							uint32_t vertexOffset,
+							uint32_t indexOffset) {
 	const float angleStep = 2.0f * M_PI / lodLevel;
 
 	auto v_pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
@@ -91,8 +91,8 @@ void Disc::generateLODLevel(const Config &cfg,
 	auto indices = (byte*)indices_->clientBuffer()->clientData(0);
 	auto indexType = indices_->baseType();
 
-	GLuint vertexIndex = vertexOffset;
-	for (GLuint i = 0; i <= lodLevel; ++i) {
+	uint32_t vertexIndex = vertexOffset;
+	for (uint32_t i = 0; i <= lodLevel; ++i) {
 		float angle = i * angleStep;
 		float cosAngle = cos(angle);
 		float sinAngle = sin(angle);
@@ -118,8 +118,8 @@ void Disc::generateLODLevel(const Config &cfg,
 	}
 
 	// Generate indices
-	GLuint index = indexOffset;
-	for (GLuint i = 0; i < lodLevel; ++i) {
+	uint32_t index = indexOffset;
+	for (uint32_t i = 0; i < lodLevel; ++i) {
 		setIndexValue(indices, indexType, index++, vertexOffset + lodLevel);
 		setIndexValue(indices, indexType, index++, vertexOffset + i + 1);
 		setIndexValue(indices, indexType, index++, vertexOffset + i);
@@ -127,11 +127,11 @@ void Disc::generateLODLevel(const Config &cfg,
 }
 
 void Disc::updateAttributes(const Config &cfg) {
-	std::vector<GLuint> LODs;
-	GLuint vertexOffset = 0;
-	GLuint indexOffset = 0;
+	std::vector<uint32_t> LODs;
+	uint32_t vertexOffset = 0;
+	uint32_t indexOffset = 0;
 	for (auto &lod: cfg.levelOfDetails) {
-		GLuint lodLevel = 4u * pow(2u, lod);
+		uint32_t lodLevel = 4u * pow(2u, lod);
 		LODs.push_back(lodLevel);
 		auto &x = meshLODs_.emplace_back();
 		x.d->numVertices = lodLevel + 1;
@@ -141,8 +141,8 @@ void Disc::updateAttributes(const Config &cfg) {
 		vertexOffset += x.d->numVertices;
 		indexOffset += x.d->numIndices;
 	}
-	GLuint numVertices = vertexOffset;
-	GLuint numIndices = indexOffset;
+	uint32_t numVertices = vertexOffset;
+	uint32_t numIndices = indexOffset;
 
 	pos_->setVertexData(numVertices);
 	if (cfg.isNormalRequired) {

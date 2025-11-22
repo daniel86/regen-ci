@@ -9,8 +9,8 @@ bool DevilLoader::canLoad(std::string_view fileExt) const {
 	return true; // all formats supported by DevIL
 }
 
-void DevilLoader::scaleImage(GLuint w, GLuint h, GLuint d) {
-	GLuint width_ = ilGetInteger(IL_IMAGE_WIDTH);
+void DevilLoader::scaleImage(uint32_t w, uint32_t h, uint32_t d) {
+	uint32_t width_ = ilGetInteger(IL_IMAGE_WIDTH);
 	// scale image to desired size
 	if (w > 0 && h > 0) {
 		if (width_ > w) {
@@ -74,7 +74,7 @@ void DevilLoader::save(const ref_ptr<ImageData> &img, std::string_view file) {
 	if (boost::filesystem::exists(file)) {
 		boost::filesystem::remove(file);
 	}
-	GLuint ilID;
+	uint32_t ilID;
 	ilGenImages(1, &ilID);
 	ilBindImage(ilID);
 	REGEN_INFO("Saving image to '" << file << "'"
@@ -110,7 +110,7 @@ ImageDataArray DevilLoader::load(std::string_view file, const TextureConfig &cfg
 		throw textures::Error(REGEN_STRING("Unable to open image file at '" << file << "'."));
 	}
 
-	GLuint ilID;
+	uint32_t ilID;
 	ilGenImages(1, &ilID);
 	ilBindImage(ilID);
 	if (ilLoadImage(file.data()) == IL_FALSE) {

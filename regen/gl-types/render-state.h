@@ -37,7 +37,7 @@ namespace regen {
 		/** specifies a mask that is ANDed with both the reference value
 		 * and the stored stencil value when the test is done.
 		 * The initial value is all 1's. */
-		GLuint mask_;
+		uint32_t mask_;
 
 		/**
 		 * @param b another value.
@@ -85,7 +85,7 @@ namespace regen {
 		 * @param target Specifies the target to which the texture is bound.
 		 * @param id Specifies the name of a texture.
 		 */
-		TextureBind(GLenum target, GLuint id)
+		TextureBind(GLenum target, uint32_t id)
 				: target_(target), id_(id) {}
 
 		TextureBind()
@@ -94,7 +94,7 @@ namespace regen {
 		/** Specifies the target to which the texture is bound. */
 		GLenum target_;
 		/** Specifies the name of a texture. */
-		GLuint id_;
+		uint32_t id_;
 
 		/**
 		 * @param b another value.
@@ -112,14 +112,14 @@ namespace regen {
 		 * @param offset The starting offset in basic machine units into the buffer object buffer.
 		 * @param size The amount of data in machine units that can be read from the buffet object while used as an indexed target.
 		 */
-		BufferRange(GLuint buffer, GLintptr offset, GLsizeiptr size)
+		BufferRange(uint32_t buffer, GLintptr offset, GLsizeiptr size)
 				: buffer_(buffer), offset_(offset), size_(size) {}
 
 		BufferRange()
 				: buffer_(0), offset_(0), size_(0) {}
 
 		/** The name of a buffer object to bind to the specified binding point. */
-		GLuint buffer_;
+		uint32_t buffer_;
 		/** The starting offset in basic machine units into the buffer object buffer. */
 		GLintptr offset_;
 		/** The amount of data in machine units that can be read from the buffet object while used as an indexed target. */
@@ -363,83 +363,83 @@ namespace regen {
 		/**
 		 * bind a buffer to given target.
 		 */
-		KeyedStateStack<GLuint>& buffer(GLenum target);
+		KeyedStateStack<uint32_t>& buffer(GLenum target);
 
 		/**
 		 * bind a named buffer object to GL_ARRAY_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &arrayBuffer() { return arrayBuffer_; }
+		inline KeyedStateStack<uint32_t> &arrayBuffer() { return arrayBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_TRANSFORM_FEEDBACK_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &feedbackBuffer() { return feedbackBuffer_; }
+		inline KeyedStateStack<uint32_t> &feedbackBuffer() { return feedbackBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_SHADER_STORAGE_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &shaderStorageBuffer() { return shaderStorageBuffer_; }
+		inline KeyedStateStack<uint32_t> &shaderStorageBuffer() { return shaderStorageBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_UNIFORM_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &uniformBuffer() { return uniformBuffer_; }
+		inline KeyedStateStack<uint32_t> &uniformBuffer() { return uniformBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_PIXEL_PACK_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &pixelPackBuffer() { return pixelPackBuffer_; }
+		inline KeyedStateStack<uint32_t> &pixelPackBuffer() { return pixelPackBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_PIXEL_UNPACK_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &pixelUnpackBuffer() { return pixelUnpackBuffer_; }
+		inline KeyedStateStack<uint32_t> &pixelUnpackBuffer() { return pixelUnpackBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_DISPATCH_INDIRECT_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &dispatchIndirectBuffer() { return dispatchIndirectBuffer_; }
+		inline KeyedStateStack<uint32_t> &dispatchIndirectBuffer() { return dispatchIndirectBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_DRAW_INDIRECT_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &drawIndirectBuffer() { return drawIndirectBuffer_; }
+		inline KeyedStateStack<uint32_t> &drawIndirectBuffer() { return drawIndirectBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_TEXTURE_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &textureBuffer() { return textureBuffer_; }
+		inline KeyedStateStack<uint32_t> &textureBuffer() { return textureBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_COPY_READ_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &copyReadBuffer() { return copyReadBuffer_; }
+		inline KeyedStateStack<uint32_t> &copyReadBuffer() { return copyReadBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_COPY_WRITE_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &copyWriteBuffer() { return copyWriteBuffer_; }
+		inline KeyedStateStack<uint32_t> &copyWriteBuffer() { return copyWriteBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_RENDERBUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &renderBuffer() { return renderBuffer_; }
+		inline KeyedStateStack<uint32_t> &renderBuffer() { return renderBuffer_; }
 
 		/**
 		 * bind a named buffer object to GL_ATOMIC_COUNTER_BUFFER target.
 		 */
-		inline KeyedStateStack<GLuint> &atomicCounterBuffer() { return atomicCounterBuffer_; }
+		inline KeyedStateStack<uint32_t> &atomicCounterBuffer() { return atomicCounterBuffer_; }
 
 		/**
 		 * bind a buffer object to a target.
 		 */
-		void bindBufferBase(GLenum target, GLuint index, GLuint buffer);
+		void bindBufferBase(GLenum target, uint32_t index, uint32_t buffer);
 
 		/**
 		 * Vertex Array Objects (VAO) are OpenGL Objects that store the
 		 * set of bindings between Vertex Attributes and the user's source vertex data.
 		 */
-		inline ByValueStateStack<GLuint> &vao() { return vao_; }
+		inline ByValueStateStack<uint32_t> &vao() { return vao_; }
 
 		/**
 		 * bind a named buffer object to GL_UNIFORM_BUFFER target.
@@ -469,12 +469,12 @@ namespace regen {
 		/**
 		 * Bind a framebuffer to the framebuffer read target.
 		 */
-		inline KeyedStateStack<GLuint> &readFrameBuffer() { return readFrameBuffer_; }
+		inline KeyedStateStack<uint32_t> &readFrameBuffer() { return readFrameBuffer_; }
 
 		/**
 		 * Bind a framebuffer to the framebuffer draw target.
 		 */
-		inline KeyedStateStack<GLuint> &drawFrameBuffer() { return drawFrameBuffer_; }
+		inline KeyedStateStack<uint32_t> &drawFrameBuffer() { return drawFrameBuffer_; }
 
 		/**
 		 * Set the framebuffer viewport.
@@ -489,7 +489,7 @@ namespace regen {
 		/**
 		 * Installs a program object as part of current rendering state.
 		 */
-		inline ByValueStateStack<GLuint> &shader() { return shader_; }
+		inline ByValueStateStack<uint32_t> &shader() { return shader_; }
 
 		/**
 		 * Define the scissor box for a specific viewport.
@@ -588,7 +588,7 @@ namespace regen {
 		 * Specifies a bit mask to enable and disable writing of individual bits
 		 * in the stencil planes. Initially, the mask is all 1's.
 		 */
-		inline ByValueStateStack<GLuint> &stencilMask() { return stencilMask_; }
+		inline ByValueStateStack<uint32_t> &stencilMask() { return stencilMask_; }
 
 		/**
 		 * Set front and back stencil test actions.
@@ -690,32 +690,32 @@ namespace regen {
 
 		IndexedStateStack<GLboolean> toggles_;
 
-		std::map<GLuint,GLuint> bufferBaseBindings_[4];
-		KeyedStateStack<GLuint> arrayBuffer_;
-		KeyedStateStack<GLuint> feedbackBuffer_;
-		KeyedStateStack<GLuint> uniformBuffer_;
-		KeyedStateStack<GLuint> shaderStorageBuffer_;
-		KeyedStateStack<GLuint> pixelPackBuffer_;
-		KeyedStateStack<GLuint> pixelUnpackBuffer_;
-		KeyedStateStack<GLuint> dispatchIndirectBuffer_;
-		KeyedStateStack<GLuint> drawIndirectBuffer_;
-		KeyedStateStack<GLuint> textureBuffer_;
-		KeyedStateStack<GLuint> copyReadBuffer_;
-		KeyedStateStack<GLuint> copyWriteBuffer_;
-		KeyedStateStack<GLuint> renderBuffer_;
-		KeyedStateStack<GLuint> atomicCounterBuffer_;
-		ByValueStateStack<GLuint> vao_;
+		std::map<uint32_t,uint32_t> bufferBaseBindings_[4];
+		KeyedStateStack<uint32_t> arrayBuffer_;
+		KeyedStateStack<uint32_t> feedbackBuffer_;
+		KeyedStateStack<uint32_t> uniformBuffer_;
+		KeyedStateStack<uint32_t> shaderStorageBuffer_;
+		KeyedStateStack<uint32_t> pixelPackBuffer_;
+		KeyedStateStack<uint32_t> pixelUnpackBuffer_;
+		KeyedStateStack<uint32_t> dispatchIndirectBuffer_;
+		KeyedStateStack<uint32_t> drawIndirectBuffer_;
+		KeyedStateStack<uint32_t> textureBuffer_;
+		KeyedStateStack<uint32_t> copyReadBuffer_;
+		KeyedStateStack<uint32_t> copyWriteBuffer_;
+		KeyedStateStack<uint32_t> renderBuffer_;
+		KeyedStateStack<uint32_t> atomicCounterBuffer_;
+		ByValueStateStack<uint32_t> vao_;
 
 		IndexedStateStack<BufferRange> uniformBufferRange_;
 		IndexedStateStack<BufferRange> feedbackBufferRange_;
 		IndexedStateStack<BufferRange> atomicCounterBufferRange_;
 		IndexedStateStack<BufferRange> ssboRange_;
 
-		KeyedStateStack<GLuint> readFrameBuffer_;
-		KeyedStateStack<GLuint> drawFrameBuffer_;
+		KeyedStateStack<uint32_t> readFrameBuffer_;
+		KeyedStateStack<uint32_t> drawFrameBuffer_;
 		ByReferenceStateStack<Viewport> viewport_;
 
-		ByValueStateStack<GLuint> shader_;
+		ByValueStateStack<uint32_t> shader_;
 
 		IndexedStateStack<TextureBind> textures_;
 
@@ -730,7 +730,7 @@ namespace regen {
 		IndexedStateStack<BlendEquation> blendEquation_;
 		IndexedStateStack<BlendFunction> blendFunc_;
 
-		ByValueStateStack<GLuint> stencilMask_;
+		ByValueStateStack<uint32_t> stencilMask_;
 		ByReferenceStateStack<StencilFunc> stencilFunc_;
 		ByReferenceStateStack<StencilOp> stencilOp_;
 

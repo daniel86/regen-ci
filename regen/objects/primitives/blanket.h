@@ -32,7 +32,7 @@ namespace regen {
 			// zero means infinite
 			float blanketLifetime = 0.0f;
 			// tessellation LOD levels
-			std::vector<GLuint> levelOfDetails = { 1 };
+			std::vector<uint32_t> levelOfDetails = { 1 };
 			// buffer update configuration
 			ClientAccessMode accessMode = BUFFER_CPU_WRITE;
 			BufferUpdateFlags updateHint = BufferUpdateFlags::NEVER;

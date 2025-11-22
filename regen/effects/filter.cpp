@@ -47,12 +47,12 @@ ref_ptr<Texture> Filter::createTexture() {
 void Filter::setInput(const ref_ptr<Texture> &input) {
 	set_input(input);
 
-	//GLuint inputSize = min(input_->width(), input_->height());
-	//GLuint bufferSize  = scaleFactor_*inputSize;
-	GLuint bufferW = scaleFactor_ * input_->width();
-	GLuint bufferH = scaleFactor_ * input_->height();
+	//uint32_t inputSize = min(input_->width(), input_->height());
+	//uint32_t bufferSize  = scaleFactor_*inputSize;
+	uint32_t bufferW = scaleFactor_ * input_->width();
+	uint32_t bufferH = scaleFactor_ * input_->height();
 
-	GLuint inputDepth = 1;
+	uint32_t inputDepth = 1;
 	if (dynamic_cast<Texture3D *>(input_.get())) {
 		inputDepth = (dynamic_cast<Texture3D *>(input_.get()))->depth();
 	}
@@ -165,7 +165,7 @@ ref_ptr<FilterSequence> FilterSequence::load(LoadingContext &ctx, scene::SceneIn
 			REGEN_WARN("Unable to find FBO for " << input.getDescription() << ".");
 			return {};
 		}
-		auto attachment = input.getValue<GLuint>("attachment", 0);
+		auto attachment = input.getValue<uint32_t>("attachment", 0);
 		std::vector<ref_ptr<Texture> > textures = fbo->colorTextures();
 		if (attachment >= textures.size()) {
 			REGEN_WARN("FBO " << input.getValue("fbo") <<
@@ -271,9 +271,9 @@ void FilterSequence::createShader(StateConfig &cfg) {
 }
 
 void FilterSequence::resize() {
-	//GLuint size = min(input_->width(), input_->height());
-	GLuint width = input_->width();
-	GLuint height = input_->height();
+	//uint32_t size = min(input_->width(), input_->height());
+	uint32_t width = input_->width();
+	uint32_t height = input_->height();
 	if (width == lastWidth_ && height == lastHeight_) return;
 	lastWidth_ = width;
 	lastHeight_ = height;

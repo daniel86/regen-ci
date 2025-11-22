@@ -11,7 +11,7 @@ namespace regen {
 
 	protected:
 		float readQueryResult() const override {
-			GLuint64 elapsedNano;
+			uint64_t elapsedNano;
 			glGetQueryObjectui64v(id(), GL_QUERY_RESULT, &elapsedNano);
 			return elapsedNano * 1e-6f; // Convert nanoseconds to milliseconds
 		}

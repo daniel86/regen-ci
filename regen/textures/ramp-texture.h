@@ -17,7 +17,7 @@ namespace regen {
 		 * @param internalFormat the texture internal format.
 		 * @param width the texture width.
 		 */
-		RampTexture(GLenum format, GLenum internalFormat, GLuint width);
+		RampTexture(GLenum format, GLenum internalFormat, uint32_t width);
 
 		/**
 		 * Creates a ramp texture with the given format and data.

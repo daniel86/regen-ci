@@ -43,7 +43,7 @@ void ModelMatrixUpdater::animate(GLdouble dt) {
 }
 
 
-Mat4fMotion::Mat4fMotion(const ref_ptr<ModelMatrixUpdater> &modelMatrix, GLuint index)
+Mat4fMotion::Mat4fMotion(const ref_ptr<ModelMatrixUpdater> &modelMatrix, uint32_t index)
 		: modelMatrix_(modelMatrix),
 		  glModelMatrix_(modelMatrix->backBuffer() + index),
 		  tfIndex_(index) {

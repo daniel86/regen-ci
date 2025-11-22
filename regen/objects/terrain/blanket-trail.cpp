@@ -56,7 +56,7 @@ void BlanketTrail::setModelTransform(const ref_ptr<ModelTransformation> &tf) {
 
 		Mat4f *mat0 = (Mat4f*) modelMat->clientData(0);
 		Mat4f *mat1 = (Mat4f*) modelMat->clientData(1);
-		for (GLuint j = 0; j < numBlankets_; j += 1) {
+		for (uint32_t j = 0; j < numBlankets_; j += 1) {
 			mat0[j] = Mat4f::identity();
 			if(mat1) mat1[j] = Mat4f::identity();
 		}
@@ -99,7 +99,7 @@ void BlanketTrail::insertBlanket(const Vec3f &pos, const Vec3f &dir, uint32_t ma
 
 ref_ptr<BlanketTrail> BlanketTrail::load(LoadingContext &ctx,
 			scene::SceneInputNode &input,
-			const std::vector<GLuint> &lodLevels) {
+			const std::vector<uint32_t> &lodLevels) {
 	auto scene = ctx.scene();
 	ref_ptr<ModelTransformation> tf;
 	ref_ptr<State> dummy = ref_ptr<State>::alloc();
@@ -127,7 +127,7 @@ ref_ptr<BlanketTrail> BlanketTrail::load(LoadingContext &ctx,
 	meshCfg.updateHint = updateFlags;
 	meshCfg.mapMode = input.getValue<BufferMapMode>("map-mode", BUFFER_MAP_DISABLED);
 	meshCfg.accessMode = input.getValue<ClientAccessMode>("access-mode", BUFFER_CPU_WRITE);
-	meshCfg.numTrails = input.getValue<GLuint>("blanket-trails", 1u);
+	meshCfg.numTrails = input.getValue<uint32_t>("blanket-trails", 1u);
 	meshCfg.blanketFrequency = input.getValue<GLfloat>("blanket-frequency", 0.5f);
 	auto blanket = ref_ptr<BlanketTrail>::alloc(groundMesh, meshCfg);
 

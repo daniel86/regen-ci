@@ -16,7 +16,7 @@ namespace regen {
 		/**
 		 * @param numObjects number of GL buffers.
 		 */
-		explicit RenderBuffer(GLuint numObjects = 1);
+		explicit RenderBuffer(uint32_t numObjects = 1);
 
 		/**
 		 * Binds this RenderBuffer.
@@ -40,7 +40,7 @@ namespace regen {
 		 * Establish data storage, format and dimensions
 		 * of a renderbuffer object's image using multisampling.
 		 */
-		void storageMS(GLuint numMultisamples) const;
+		void storageMS(uint32_t numMultisamples) const;
 
 		/**
 		 * Establish data storage, format and dimensions of a

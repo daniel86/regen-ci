@@ -2,7 +2,7 @@
 
 using namespace regen;
 
-BloomTexture::BloomTexture(GLuint numMips) : TextureMips2D(numMips) {
+BloomTexture::BloomTexture(uint32_t numMips) : TextureMips2D(numMips) {
 	mips_.resize(numMips);
 	mips_[0].texture = this;
 	for (auto i = 0u; i < numMips; ++i) {
@@ -14,7 +14,7 @@ BloomTexture::BloomTexture(GLuint numMips) : TextureMips2D(numMips) {
 	}
 }
 
-void BloomTexture::resize(GLuint width, GLuint height) {
+void BloomTexture::resize(uint32_t width, uint32_t height) {
 	auto i_mipSize = Vec2ui(width, height);
 	auto f_mipSize = Vec2f(
 		static_cast<float>(i_mipSize.x),

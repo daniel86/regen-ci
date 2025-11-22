@@ -59,7 +59,7 @@ namespace regen {
 		GLint idCounter_;
 
 		struct DirectLight {
-			GLuint id_;
+			uint32_t id_;
 			ref_ptr<Light> light_;
 			ref_ptr<LightCamera> camera_;
 			ref_ptr<Texture> shadow_;
@@ -73,7 +73,7 @@ namespace regen {
 		std::list<DirectLight> lights_;
 		ref_ptr<ShaderInput3f> ambientLight_;
 
-		void updateDefine(DirectLight &l, GLuint lightIndex);
+		void updateDefine(DirectLight &l, uint32_t lightIndex);
 	};
 } // namespace
 

@@ -83,7 +83,7 @@ void Shader::preProcess(
 /////////////
 
 void Shader::printLog(
-		GLuint shader,
+		uint32_t shader,
 		GLenum shaderType,
 		const char *shaderCode,
 		GLboolean success) {
@@ -111,7 +111,7 @@ void Shader::printLog(
 	if (!success && shaderCode != nullptr) {
 		std::vector<std::string> codeLines;
 		boost::split(codeLines, shaderCode, boost::is_any_of("\n"));
-		for (GLuint i = 0; i < codeLines.size(); ++i) {
+		for (uint32_t i = 0; i < codeLines.size(); ++i) {
 			REGEN_LOG(logLevel,
 					  std::setw(3) << i << std::setw(0) << " " << codeLines[i]);
 		}
@@ -162,7 +162,7 @@ Shader::Shader(const std::map<GLenum, std::string> &shaderCodes)
 
 Shader::Shader(
 		const std::map<GLenum, std::string> &shaderNames,
-		const std::map<GLenum, ref_ptr<GLuint> > &shaderStages)
+		const std::map<GLenum, ref_ptr<uint32_t> > &shaderStages)
 		: shaderCodes_(shaderNames),
 		  shaders_(shaderStages),
 		  feedbackLayout_(GL_SEPARATE_ATTRIBS),
@@ -203,7 +203,7 @@ const std::string &Shader::stageCode(GLenum stage) const {
 	}
 }
 
-ref_ptr<GLuint> Shader::stage(GLenum s) const {
+ref_ptr<uint32_t> Shader::stage(GLenum s) const {
 	auto it = shaders_.find(s);
 	if (it != shaders_.end()) {
 		return it->second;

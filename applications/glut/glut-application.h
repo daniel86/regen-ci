@@ -25,12 +25,12 @@ public:
   GLUTApplication(
       const ref_ptr<RootNode> &tree,
       int &argc, char** argv,
-      GLuint width=800, GLuint height=600);
+      uint32_t width=800, uint32_t height=600);
 
   void set_windowTitle(const std::string &windowTitle);
-  void set_height(GLuint height);
-  void set_width(GLuint width);
-  void set_displayMode(GLuint displayMode);
+  void set_height(uint32_t height);
+  void set_width(uint32_t width);
+  void set_displayMode(uint32_t displayMode);
 
   virtual void show();
   virtual int mainLoop();
@@ -40,9 +40,9 @@ protected:
   static GLUTApplication *singleton_;
 
   string windowTitle_;
-  GLuint glutHeight_;
-  GLuint glutWidth_;
-  GLuint displayMode_;
+  uint32_t glutHeight_;
+  uint32_t glutWidth_;
+  uint32_t displayMode_;
 
   GLboolean applicationRunning_;
 

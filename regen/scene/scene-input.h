@@ -206,7 +206,7 @@ namespace regen::scene {
 		 * @param maxIndex Maximal index in output list.
 		 * @return The list of indices.
 		 */
-		std::list<IndexRange> getIndexSequence(GLuint maxIndex);
+		std::list<IndexRange> getIndexSequence(uint32_t maxIndex);
 
 	protected:
 		SceneInputNode *parent_;

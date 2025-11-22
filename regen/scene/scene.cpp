@@ -202,7 +202,7 @@ void Scene::resizeGL(const Vec2i &size) {
 void GLAPIENTRY openglDebugCallback(
     GLenum source,
     GLenum type,
-    GLuint id,
+    uint32_t id,
     GLenum severity,
     GLsizei length,
     const GLchar *message,

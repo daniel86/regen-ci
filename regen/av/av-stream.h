@@ -44,12 +44,12 @@ namespace regen {
 		 * @param index index in stream.
 		 * @param cachedBytesLimit limit for pre-loading.
 		 */
-		AudioVideoStream(AVStream *stream, GLint index, GLuint cachedBytesLimit);
+		AudioVideoStream(AVStream *stream, GLint index, uint32_t cachedBytesLimit);
 
 		/**
 		 * @param cachedBytesLimit limit for pre-loading.
 		 */
-		explicit AudioVideoStream(GLuint cachedBytesLimit);
+		explicit AudioVideoStream(uint32_t cachedBytesLimit);
 
 		virtual ~AudioVideoStream();
 
@@ -67,7 +67,7 @@ namespace regen {
 		 * Push a decoded frame onto queue of frames.
 		 * The frames may get processed in a seperate thread.
 		 */
-		void pushFrame(AVFrame *frame, GLuint frameSize);
+		void pushFrame(AVFrame *frame, uint32_t frameSize);
 
 		/**
 		 * Front element of the queue.
@@ -82,7 +82,7 @@ namespace regen {
 		/**
 		 * Number of frames in queue.
 		 */
-		GLuint numFrames();
+		uint32_t numFrames();
 
 		/**
 		 * The stream may block in decode() waiting to be able
@@ -113,8 +113,8 @@ namespace regen {
 		std::queue<AVFrame *> decodedFrames_;
 		std::queue<GLint> frameSizes_;
 
-		GLuint cachedBytes_;
-		GLuint cachedBytesLimit_;
+		uint32_t cachedBytes_;
+		uint32_t cachedBytesLimit_;
 		GLboolean isActive_;
 
 		void open(AVStream *stream, GLint index, GLboolean initial = GL_FALSE);

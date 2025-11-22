@@ -34,7 +34,7 @@ namespace regen {
 		Bounds<Vec3f> &bounds() { return bounds_; }
 
 	protected:
-		GLuint initialData_[6];
+		uint32_t initialData_[6];
 		Bounds<Vec3f> bounds_;
 		ref_ptr<BufferReference> ref_;
 	};

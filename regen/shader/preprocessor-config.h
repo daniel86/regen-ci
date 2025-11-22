@@ -12,7 +12,7 @@ namespace regen {
 		 * Default constructor.
 		 */
 		PreProcessorConfig(
-				GLuint _version,
+				uint32_t _version,
 				const std::map<GLenum, std::string> &_unprocessed,
 				const std::map<std::string, std::string> &_defines = std::map<std::string, std::string>(),
 				const std::map<std::string, std::string> &_externalFunctions = std::map<std::string, std::string>(),
@@ -26,7 +26,7 @@ namespace regen {
 				  includes(_includes) {}
 
 		/** GLSL version. */
-		GLuint version;
+		uint32_t version;
 		/** Input GLSL code. */
 		const std::map<GLenum, std::string> &unprocessed;
 		/** Shader configuration using macros. */

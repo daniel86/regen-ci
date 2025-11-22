@@ -40,7 +40,7 @@ namespace regen {
 			/** generate normal attribute ? */
 			GLboolean isNormalRequired;
 			/** subdivisions = 4*levelOfDetail^2 */
-			std::vector<GLuint> levelOfDetails;
+			std::vector<uint32_t> levelOfDetails;
 			/** Buffer usage hints. */
 			ClientAccessMode accessMode = BUFFER_CPU_WRITE;
 			BufferUpdateFlags updateHint = BufferUpdateFlags::NEVER;
@@ -62,9 +62,9 @@ namespace regen {
 
 	protected:
 		void generateLODLevel(const Config &cfg,
-				GLuint lodLevel,
-				GLuint vertexOffset,
-				GLuint indexOffset);
+				uint32_t lodLevel,
+				uint32_t vertexOffset,
+				uint32_t indexOffset);
 	};
 
 	/**
@@ -97,7 +97,7 @@ namespace regen {
 			/** generate cone base geometry */
 			GLboolean isBaseRequired;
 			/** level of detail for base circle */
-			std::vector<GLuint> levelOfDetails;
+			std::vector<uint32_t> levelOfDetails;
 			/** Buffer usage hints. */
 			ClientAccessMode accessMode = BUFFER_CPU_WRITE;
 			BufferUpdateFlags updateHint = BufferUpdateFlags::NEVER;
@@ -121,9 +121,9 @@ namespace regen {
 		ref_ptr<ShaderInput> indices_;
 
 		void generateLODLevel(const Config &cfg,
-				GLuint lodLevel,
-				GLuint vertexOffset,
-				GLuint indexOffset);
+				uint32_t lodLevel,
+				uint32_t vertexOffset,
+				uint32_t indexOffset);
 	};
 } // namespace
 

@@ -59,7 +59,7 @@ namespace regen {
 		if (it != store.params_.end()) {
 			return it->second;
 		} else {
-			GLuint value;
+			uint32_t value;
 			glGetIntegerv(param, (GLint *) &value);
 			store.params_[param] = value;
 			return value;

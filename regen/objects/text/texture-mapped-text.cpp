@@ -61,7 +61,7 @@ void TextureMappedText::set_value(
 
 void TextureMappedText::updateAttributes(Alignment alignment, GLfloat maxLineWidth) {
 	Vec3f translation, glyphTranslation;
-	GLuint vertexCounter = 0u;
+	uint32_t vertexCounter = 0u;
 
 	GLfloat actualMaxLineWidth = 0.0;
 
@@ -89,7 +89,7 @@ void TextureMappedText::updateAttributes(Alignment alignment, GLfloat maxLineWid
 
 		// get line width and split the line
 		// where it exceeds the width limit
-		for (GLuint i = 0; i < it->size(); ++i) {
+		for (uint32_t i = 0; i < it->size(); ++i) {
 			const wchar_t &ch = (*it)[i];
 			buf = lineWidth + font_->faceData(ch).advanceX * height_;
 			if (maxLineWidth > 0.0 && buf > maxLineWidth && lastSpaceIndex != 0) {
@@ -134,7 +134,7 @@ void TextureMappedText::updateAttributes(Alignment alignment, GLfloat maxLineWid
 
 		// create the geometry with appropriate
 		// translation and size for each glyph
-		for (GLuint i = 0; i < it->size(); ++i) {
+		for (uint32_t i = 0; i < it->size(); ++i) {
 			const wchar_t &ch = (*it)[i];
 			const Font::FaceData &data = font_->faceData(ch);
 
@@ -157,7 +157,7 @@ void TextureMappedText::updateAttributes(Alignment alignment, GLfloat maxLineWid
 	// apply offset to each vertex
 	if (centerAtOrigin_) {
 		GLfloat centerOffset = actualMaxLineWidth * 0.5f;
-		for (GLuint i = 0; i < vertexCounter; ++i) {
+		for (uint32_t i = 0; i < vertexCounter; ++i) {
 			v_pos.w[i].x -= centerOffset;
 		}
 	}
@@ -175,7 +175,7 @@ void TextureMappedText::updateAttributes(Alignment alignment, GLfloat maxLineWid
 	// set center and extends for bounding box
 	minPosition_ = v_pos.w[0];
 	maxPosition_ = v_pos.w[0];
-	for (GLuint i = 1; i < vertexCounter; ++i) {
+	for (uint32_t i = 1; i < vertexCounter; ++i) {
 		minPosition_.setMin(v_pos.w[i]);
 		maxPosition_.setMax(v_pos.w[i]);
 	}
@@ -188,8 +188,8 @@ void TextureMappedText::makeGlyphGeometry(
 		ClientData_rw<Vec3f> &posAttribute,
 		ClientData_rw<Vec3f> &norAttribute,
 		ClientData_rw<Vec3f> &texcoAttribute,
-		GLuint *vertexCounter) {
-	GLuint &i = *vertexCounter;
+		uint32_t *vertexCounter) {
+	uint32_t &i = *vertexCounter;
 	Vec3f p0 = translation + Vec3f(0.0, data.height * height_, 0.0);
 	Vec3f p1 = translation + Vec3f(0.0, 0.0, 0.0);
 	Vec3f p2 = translation + Vec3f(data.width * height_, 0.0, 0.0);

@@ -16,7 +16,7 @@ namespace regen {
 		/**
 		 * @param numVertices number of vertices used.
 		 */
-		explicit AttributeLessMesh(GLuint numVertices);
+		explicit AttributeLessMesh(uint32_t numVertices);
 	};
 } // namespace
 

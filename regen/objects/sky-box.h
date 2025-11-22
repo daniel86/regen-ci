@@ -17,7 +17,7 @@ namespace regen {
 		/**
 		 * @param levelOfDetail LoD for Box mesh.
 		 */
-		explicit SkyBox(GLuint levelOfDetail = 0, const std::string &shaderKey = "regen.models.sky-box");
+		explicit SkyBox(uint32_t levelOfDetail = 0, const std::string &shaderKey = "regen.models.sky-box");
 
 		/**
 		 * @return the cube map texture.

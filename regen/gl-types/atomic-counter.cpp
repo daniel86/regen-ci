@@ -26,10 +26,10 @@ BoundingBoxCounter::BoundingBoxCounter() :
 }
 
 Bounds<Vec3f> &BoundingBoxCounter::updateBounds() {
-	auto *ptr = (GLuint *) glMapNamedBufferRange(
+	auto *ptr = (uint32_t *) glMapNamedBufferRange(
 			ref_->bufferID(),
 			ref_->address(),
-			sizeof(GLuint) * 6,
+			sizeof(uint32_t) * 6,
 			GL_MAP_READ_BIT | GL_MAP_WRITE_BIT);
 
 	auto localData = &bounds_.min.x;

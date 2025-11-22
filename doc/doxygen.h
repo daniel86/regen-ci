@@ -190,7 +190,7 @@ class MyEventObject : public EventObject
 public:
   // This is the event identifier. We have to call EventObject::registerEvent
   // to set the value.
-  static GLuint MY_EVENT;
+  static uint32_t MY_EVENT;
   // Each time MY_EVENT is emitted a MyEvent instance is generated
   // and passed to connected handlers.
   class MyEvent : public EventData
@@ -214,7 +214,7 @@ public:
   }
 }
 // statically register the event
-GLuint MyEventObject::MY_EVENT = EventObject::registerEvent("my-event");
+uint32_t MyEventObject::MY_EVENT = EventObject::registerEvent("my-event");
 
 // EventHandler is the interface used to connect to events.
 class MyEventHandler : public EventHandler

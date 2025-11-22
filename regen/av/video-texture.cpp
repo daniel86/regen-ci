@@ -137,7 +137,7 @@ void VideoTexture::animate(GLdouble animateDT) {
 	dt_ += animateDT;
 	if (interval_ > 0.0) { return; }
 
-	GLuint numFrames = vs_->numFrames();
+	uint32_t numFrames = vs_->numFrames();
 	GLboolean isIdle = (numFrames == 0);
 
 	if (isIdle) {

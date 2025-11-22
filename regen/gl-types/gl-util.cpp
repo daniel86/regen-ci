@@ -76,8 +76,8 @@ namespace regen {
 
 #endif
 
-	GLuint getGLQueryResult(GLuint query) {
-		GLuint v = 0;
+	uint32_t getGLQueryResult(uint32_t query) {
+		uint32_t v = 0;
 		glGetQueryObjectuiv(query, GL_QUERY_RESULT, &v);
 		return v;
 	}

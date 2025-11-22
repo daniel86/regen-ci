@@ -41,7 +41,7 @@ namespace regen {
 			/** scaling vector for TEXCO_MODE_UV */
 			Vec2f texcoScale;
 			/** number of surface divisions */
-			std::vector<GLuint> levelOfDetails;
+			std::vector<uint32_t> levelOfDetails;
 			/** texture coordinate mode */
 			TexcoMode texcoMode;
 			/** generate normal attribute */
@@ -83,9 +83,9 @@ namespace regen {
 		GLfloat radius_;
 
 		void generateLODLevel(const Config &cfg,
-				GLuint lodLevel,
-				GLuint vertexOffset,
-				GLuint indexOffset);
+				uint32_t lodLevel,
+				uint32_t vertexOffset,
+				uint32_t indexOffset);
 	};
 
 	std::ostream &operator<<(std::ostream &out, const Sphere::TexcoMode &mode);
@@ -113,7 +113,7 @@ namespace regen {
 			/** one position for each sphere. */
 			Vec3f *position;
 			/** number of spheres. */
-			GLuint sphereCount;
+			uint32_t sphereCount;
 			/** Buffer usage hints. */
 			ClientAccessMode accessMode = BUFFER_CPU_WRITE;
 			BufferUpdateFlags updateHint = BufferUpdateFlags::NEVER;
