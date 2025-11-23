@@ -213,7 +213,7 @@ ref_ptr<Light> Light::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 			}
 			auto setTarget = target_opt.value().in;
 			auto numInstances = std::max(
-					child->getValue<GLuint>("num-instances", 1u),
+					child->getValue<uint32_t>("num-instances", 1u),
 					setTarget->numInstances());
 			// allocate memory for the shader input
 			setTarget->setInstanceData(numInstances, 1, nullptr);
@@ -258,20 +258,4 @@ ref_ptr<Light> Light::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 	}
 
 	return light;
-}
-
-//////////
-//////////
-//////////
-
-LightNode::LightNode(
-		const ref_ptr<Light> &light,
-		const ref_ptr<BoneNode> &n)
-		: State(), light_(light), animNode_(n) {
-	lightPosition_ = light->positionStaged(0).r.xyz();
-}
-
-void LightNode::update(GLdouble /*dt*/) {
-	Vec3f v = animNode_->localTransform.transformVector(lightPosition_);
-	light_->setPosition(0, v);
 }

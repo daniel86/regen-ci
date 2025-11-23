@@ -444,7 +444,7 @@ void ShapeProcessor::processInput(
 		numInstances = transform->numInstances();
 	}
 	if (input.hasAttribute("num-instances")) {
-		numInstances = input.getValue<GLuint>("num-instances", numInstances);
+		numInstances = input.getValue<uint32_t>("num-instances", numInstances);
 	}
 
 	if (isPhysicalShape) {
@@ -457,7 +457,7 @@ void ShapeProcessor::processInput(
 			scene->getPhysics()->addObject(physicalObject);
 		} else {
 			auto motionAnim = ref_ptr<ModelMatrixUpdater>::alloc(transform);
-			for (GLuint i = 0; i < numInstances; ++i) {
+			for (uint32_t i = 0; i < numInstances; ++i) {
 				auto motion = ref_ptr<Mat4fMotion>::alloc(motionAnim, i);
 				auto physicalProps = createPhysicalProps(input, mesh, motion);
 				auto physicalObject = ref_ptr<PhysicalObject>::alloc(physicalProps);
@@ -473,7 +473,7 @@ void ShapeProcessor::processInput(
 		// add shape to spatial index
 		auto spatialIndex = getSpatialIndex(scene, input);
 		if (spatialIndex.get()) {
-			for (GLuint i = 0; i < numInstances; ++i) {
+			for (uint32_t i = 0; i < numInstances; ++i) {
 				auto shape = createShape(input, mesh, parts);
 				if (!shape.get()) {
 					REGEN_WARN("Skipping shape node " << input.getDescription() << " without shape.");

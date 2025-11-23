@@ -63,7 +63,7 @@ namespace regen {
 		 * @brief Set the instance ID of this shape
 		 * @param instanceID The instance ID
 		 */
-		void setInstanceID(GLuint instanceID) { instanceID_ = instanceID; }
+		void setInstanceID(uint32_t instanceID) { instanceID_ = instanceID; }
 
 		/**
 		 * @brief Get the instance ID of this shape

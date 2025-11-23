@@ -178,11 +178,6 @@ namespace regen {
 		std::vector<ref_ptr<Material> > &materials() { return materials_; }
 
 		/**
-		 * @return a node that animates the light position.
-		 */
-		ref_ptr<LightNode> loadLightNode(const ref_ptr<Light> &light);
-
-		/**
 		 * Create Mesh instances from Asset file.
 		 * Import all meshes defined in Asset file.
 		 * @param transform Transformation applied during import.
@@ -202,7 +197,7 @@ namespace regen {
 		std::vector<ref_ptr<Mesh> > loadMeshes(
 				const Mat4f &transform,
 				const BufferFlags &bufferFlags,
-				const std::vector<GLuint> &meshIndices);
+				const std::vector<uint32_t> &meshIndices);
 
 		/**
 		 * @return the material associated to a previously loaded meshes.
@@ -217,7 +212,7 @@ namespace regen {
 		/**
 		 * @return number of weights used for bone animation.
 		 */
-		GLuint numBoneWeights(Mesh *meshState);
+		uint32_t numBoneWeights(Mesh *meshState);
 
 		static ref_ptr<AssetImporter> load(LoadingContext &ctx, scene::SceneInputNode &input);
 
@@ -230,7 +225,7 @@ namespace regen {
 
 		ref_ptr<BoneTree> nodeAnimation_;
 		// name to node map
-		std::map<std::string, struct aiNode *> nodes_;
+		std::map<std::string, struct aiNode *> aiBoneNodes_;
 		// root node of skeleton
 		ref_ptr<BoneNode> rootNode_;
 		// maps assimp bone nodes to Bone implementation
@@ -261,8 +256,8 @@ namespace regen {
 				const struct aiNode &node,
 				const Mat4f &transform,
 				const BufferFlags &bufferFlags,
-				const std::vector<GLuint> &meshIndices,
-				GLuint &currentIndex,
+				const std::vector<uint32_t> &meshIndices,
+				uint32_t &currentIndex,
 				std::vector<ref_ptr<Mesh> > &out);
 
 		ref_ptr<Mesh> loadMesh(
@@ -272,9 +267,10 @@ namespace regen {
 
 		void loadNodeAnimation(const AssimpAnimationConfig &animConfig);
 
-		ref_ptr<BoneNode> loadNodeTree();
+		ref_ptr<BoneNode> loadNodeTree(std::vector<ref_ptr<BoneNode>> &nodes);
 
-		ref_ptr<BoneNode> loadNodeTree(struct aiNode *assimpNode, const ref_ptr<BoneNode> &parent);
+		ref_ptr<BoneNode> loadNodeTree(std::vector<ref_ptr<BoneNode>> &nodes,
+			aiNode *assimpNode, const ref_ptr<BoneNode> &parent);
 	};
 } // namespace
 

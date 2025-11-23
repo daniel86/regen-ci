@@ -1,7 +1,10 @@
 include(Utility)
 
-# FIXME: on mac it's include/OpenAL/*.h
-find_include_path(OPENAL NAMES AL/al.h)
+if (APPLE)
+    find_include_path(OPENAL NAMES OpenAL/al.h)
+else()
+    find_include_path(OPENAL NAMES AL/al.h)
+endif()
 
 find_library_path(OPENAL NAMES libopenal.a OpenAL al openal soft_oal OpenAL32)
 

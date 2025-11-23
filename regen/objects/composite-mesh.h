@@ -71,7 +71,7 @@ namespace regen {
 		                                                  const ref_ptr<AssetImporter> &importer);
 
 		static ref_ptr<Particles> createParticleMesh(LoadingContext &ctx, scene::SceneInputNode &input,
-		                                             const GLuint numParticles);
+		                                             const uint32_t numParticles);
 
 		static ref_ptr<TextureMappedText> createTextMesh(LoadingContext &ctx, scene::SceneInputNode &input);
 	};

@@ -39,10 +39,6 @@ State::~State() {
 	attached_.clear();
 }
 
-const std::vector<NamedShaderInput> &State::inputs() const {
-	return inputs_;
-}
-
 int32_t State::numVertices() const {
 	return shared_->numVertices_;
 }
@@ -150,9 +146,8 @@ void State::setInput(const ref_ptr<ShaderInput> &in, const std::string &name, co
 		inputMap_.insert(inputName);
 	}
 
-	// TODO: Rather push back here. But it seems some code relies on the order of inputs.
-	//       This should be fixed in the future.
-	inputs_.insert(inputs_.begin(), NamedShaderInput{in, inputName, "", memberSuffix});
+	inputs_.emplace_back(NamedShaderInput{
+		in, inputName, "", memberSuffix});
 }
 
 void State::removeInput(const ref_ptr<ShaderInput> &in) {
@@ -171,9 +166,10 @@ void State::removeInput(const std::string &name) {
 }
 
 void State::collectShaderInput(ShaderInputList &out) {
-	out.insert(out.end(), inputs_.begin(), inputs_.end());
-	auto local = joined_;
-	for (auto &buddy: *local.get()) { buddy->collectShaderInput(out); }
+	out.insert(out.end(), inputs_.rbegin(), inputs_.rend());
+	for (auto &buddy: *joined_.get()) {
+		buddy->collectShaderInput(out);
+	}
 }
 
 std::optional<StateInput> State::findShaderInput(const std::string &name) {

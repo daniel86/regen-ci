@@ -38,7 +38,7 @@ void FBO::Screen::applyDrawBuffer(GLenum attachment) {
 	}
 }
 
-FBO::FBO(GLuint width, GLuint height, GLuint depth)
+FBO::FBO(uint32_t width, uint32_t height, uint32_t depth)
 		: GLRectangle(glCreateFramebuffers, glDeleteFramebuffers),
 		  depthAttachmentTarget_(GL_NONE),
 		  depthAttachmentFormat_(GL_NONE),
@@ -189,15 +189,15 @@ GLenum FBO::addTexture(const ref_ptr<Texture> &tex) {
 }
 
 ref_ptr<Texture> FBO::createTexture(
-		GLuint width,
-		GLuint height,
-		GLuint depth,
-		GLuint count,
+		uint32_t width,
+		uint32_t height,
+		uint32_t depth,
+		uint32_t count,
 		GLenum targetType,
 		GLenum format,
 		GLint internalFormat,
 		GLenum pixelType,
-		GLuint numSamples) {
+		uint32_t numSamples) {
 	ref_ptr<Texture> tex;
 	ref_ptr<Texture3D> tex3d;
 
@@ -253,7 +253,7 @@ ref_ptr<Texture> FBO::createTexture(
 	tex->set_pixelType(pixelType);
 	tex->allocTexture();
 
-	for (GLuint j = 0; j < count; ++j) {
+	for (uint32_t j = 0; j < count; ++j) {
 		if (numSamples == 1) {
 			tex->set_wrapping(TextureWrapping::create(GL_CLAMP_TO_EDGE));
 			tex->set_filter(TextureFilter::create(GL_LINEAR));
@@ -265,16 +265,16 @@ ref_ptr<Texture> FBO::createTexture(
 }
 
 ref_ptr<Texture> FBO::addTexture(
-		GLuint count,
+		uint32_t count,
 		GLenum targetType,
 		GLenum format,
 		GLint internalFormat,
 		GLenum pixelType,
-		GLuint numSamples) {
+		uint32_t numSamples) {
 	ref_ptr<Texture> tex = createTexture(width(), height(), depth_,
 										 count, targetType, format, internalFormat, pixelType, numSamples);
 
-	for (GLuint j = 0; j < tex->numObjects(); ++j) {
+	for (uint32_t j = 0; j < tex->numObjects(); ++j) {
 		addTexture(tex);
 		tex->nextObject();
 	}
@@ -290,12 +290,12 @@ GLenum FBO::addRenderBuffer(const ref_ptr<RenderBuffer> &rbo) {
 	return attachment;
 }
 
-ref_ptr<RenderBuffer> FBO::addRenderBuffer(GLuint count) {
+ref_ptr<RenderBuffer> FBO::addRenderBuffer(uint32_t count) {
 	RenderState *rs = RenderState::get();
 	ref_ptr<RenderBuffer> rbo = ref_ptr<RenderBuffer>::alloc(count);
 
 	rbo->set_rectangleSize(width(), height());
-	for (GLuint j = 0; j < count; ++j) {
+	for (uint32_t j = 0; j < count; ++j) {
 		rbo->begin(rs);
 		rbo->storage();
 		rbo->end(rs);
@@ -358,8 +358,8 @@ void FBO::blitCopy(
 }
 
 void FBO::blitCopyToScreen(
-		GLuint screenWidth,
-		GLuint screenHeight,
+		uint32_t screenWidth,
+		uint32_t screenHeight,
 		GLenum readAttachment,
 		GLbitfield mask,
 		GLenum filter,
@@ -438,7 +438,7 @@ void FBO::clearStencilAttachment(GLint stencil) {
 			&stencil);
 }
 
-void FBO::resize(GLuint w, GLuint h, GLuint depth) {
+void FBO::resize(uint32_t w, uint32_t h, uint32_t depth) {
 	RenderState *rs = RenderState::get();
 	if (w == width() && h == height() && depth == depth_) {
 		return; // no resize needed
@@ -481,14 +481,14 @@ void FBO::resize(GLuint w, GLuint h, GLuint depth) {
 
 	uint32_t attachmentIdx = 0;
 	// resize color attachments
-	for (GLuint colorIdx = 0; colorIdx < colorTextures_.size(); ++colorIdx) {
+	for (uint32_t colorIdx = 0; colorIdx < colorTextures_.size(); ++colorIdx) {
 		auto &tex = colorTextures_[colorIdx];
 		tex->set_rectangleSize(w, h);
 		auto *tex3D = dynamic_cast<Texture3D *>(tex.get());
 		if (tex3D != nullptr) { tex3D->set_depth(depth); }
 		tex->allocTexture();
 
-		for (GLuint i = 0; i < tex->numObjects(); ++i) {
+		for (uint32_t i = 0; i < tex->numObjects(); ++i) {
 			attachTexture(tex, colorAttachments_.buffers_[attachmentIdx++]);
 			tex->nextObject();
 		}
@@ -500,7 +500,7 @@ void FBO::resize(GLuint w, GLuint h, GLuint depth) {
 		//  - use attachmentIdx to avoid conflicts with color attachments
 		REGEN_WARN("RBO attachment resizing not implemented. ");
 		rbo->set_rectangleSize(w, h);
-		for (GLuint i = 0; i < rbo->numObjects(); ++i) {
+		for (uint32_t i = 0; i < rbo->numObjects(); ++i) {
 			rbo->begin(rs);
 			rbo->storage();
 			rbo->end(rs);
@@ -576,7 +576,7 @@ ref_ptr<FBO> FBO::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 		if (n->getCategory() == "texture") {
 			LoadingContext texCfg(ctx.scene(), ctx.parent());
 			ref_ptr<Texture> tex = Texture::load(texCfg, *n.get());
-			for (GLuint j = 0; j < tex->numObjects(); ++j) {
+			for (uint32_t j = 0; j < tex->numObjects(); ++j) {
 				fbo->addTexture(tex);
 				tex->nextObject();
 			}
@@ -594,7 +594,7 @@ ref_ptr<FBO> FBO::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 						n->getValue<std::string>("pixel-type", "UNSIGNED_BYTE"));
 				GLenum textureTarget = glenum::textureTarget(
 						n->getValue<std::string>("target", "TEXTURE_2D"));
-				auto numSamples = n->getValue<GLuint>("num-samples", 1);
+				auto numSamples = n->getValue<uint32_t>("num-samples", 1);
 
 				GLenum depthFormat;
 				if (depthSize <= 16) depthFormat = GL_DEPTH_COMPONENT16;

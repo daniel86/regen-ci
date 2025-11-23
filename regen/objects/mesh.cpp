@@ -176,7 +176,7 @@ void Mesh::set_indexOffset(uint32_t v) {
 	if (shared_->indices_.get()) { shared_->indices_->set_offset(v); }
 }
 
-GLuint Mesh::indexBuffer() const {
+uint32_t Mesh::indexBuffer() const {
 	return elementBuffer_.get() ? elementBuffer_->bufferID() : 0;
 }
 

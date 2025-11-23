@@ -77,6 +77,9 @@ Scene::Scene(const int& /*argc*/, const char** /*argv*/)
 	TextureLoaderRegistry::registerLoader(std::make_unique<STBLoader>());
 #endif
 	TextureLoaderRegistry::registerLoader(std::make_unique<DevilLoader>());
+
+	// Create worker threads in the job pool
+	getJobPool();
 }
 
 void Scene::addShaderPath(const std::string &path) {
@@ -202,7 +205,7 @@ void Scene::resizeGL(const Vec2i &size) {
 void GLAPIENTRY openglDebugCallback(
     GLenum source,
     GLenum type,
-    GLuint id,
+    uint32_t id,
     GLenum severity,
     GLsizei length,
     const GLchar *message,

@@ -137,10 +137,10 @@ namespace regen {
 		ref_ptr<State> meshAnimState_;
 
 		ref_ptr<Mesh> mesh_;
-		GLuint meshBufferOffset_;
+		uint32_t meshBufferOffset_;
 
 		GLint lastFrame_, nextFrame_;
-		GLuint bufferSize_;
+		uint32_t bufferSize_;
 
 		ref_ptr<VBO> feedbackBuffer_;
 		ref_ptr<BufferReference> feedbackRef_;
@@ -157,14 +157,14 @@ namespace regen {
 		GLdouble ticksPerSecond_;
 		GLdouble lastTime_;
 		Vec2d tickRange_;
-		GLuint lastFramePosition_;
-		GLuint startFramePosition_;
+		uint32_t lastFramePosition_;
+		uint32_t startFramePosition_;
 
-		GLuint mapOffset_, mapSize_;
+		uint32_t mapOffset_, mapSize_;
 
 		bool hasMeshInterleavedAttributes_;
 
-		void loadFrame(GLuint frameIndex, GLboolean isPongFrame);
+		void loadFrame(uint32_t frameIndex, GLboolean isPongFrame);
 
 		ref_ptr<ShaderInput> findLastAttribute(const std::string &name);
 
@@ -172,7 +172,7 @@ namespace regen {
 				GLdouble tick, GLint &frame, std::vector<KeyFrame> &keys);
 
 		static void findFrameBeforeTick(
-				GLdouble &tick, GLuint &frame, std::vector<KeyFrame> &keys);
+				GLdouble &tick, uint32_t &frame, std::vector<KeyFrame> &keys);
 	};
 } // namespace
 

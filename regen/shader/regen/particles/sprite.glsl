@@ -172,9 +172,9 @@ void main() {
     out_color.rgb *= diffuseColor;
     #endif
     // apply the brightness of the particle
-    // TODO: this is not super useful with ADD blending, low values make the particle disappear
-    //        so this is actually more of a density threshold than a brightness.
-    //        not sure what the best strategy is here....
+    // NOTE: This is not super useful with ADD blending, low values make the particle disappear
+    //   so this is actually more of a density threshold than a brightness.
+    //   not sure what the best strategy is here....
     out_color.rgb *= in_particleBrightness;
     out_color.a *= opacity;
     #ifdef OPACITY_WEIGHTED_COLOR

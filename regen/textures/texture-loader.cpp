@@ -119,11 +119,11 @@ ref_ptr<Texture> textures::load(std::string_view file, const TextureConfig &texC
 }
 
 ref_ptr<Texture> textures::load(
-		GLuint textureType,
-		GLuint numBytes,
+		uint32_t textureType,
+		uint32_t numBytes,
 		const void *rawData,
 		const TextureConfig &texCfg) {
-	GLuint ilID;
+	uint32_t ilID;
 	ilGenImages(1, &ilID);
 	ilBindImage(ilID);
 	if (ilLoadL(textureType, rawData, numBytes) == IL_FALSE) {
@@ -234,7 +234,7 @@ ref_ptr<Texture2DArray> textures::loadArray(
 		const std::vector<TextureDescription> &textureFiles,
 		const TextureConfig &texCfg_) {
 	TextureConfig arrayTexCfg = texCfg_;
-	GLuint numTextures = textureFiles.size();
+	uint32_t numTextures = textureFiles.size();
 	ref_ptr<Texture2DArray> tex = ref_ptr<Texture2DArray>::alloc();
 	tex->set_depth(numTextures);
 
@@ -382,8 +382,8 @@ ref_ptr<TextureCube> textures::loadCube(
 ref_ptr<Texture> textures::loadRAW(
 		const std::string &path,
 		const Vec3ui &size,
-		GLuint numComponents,
-		GLuint bytesPerComponent) {
+		uint32_t numComponents,
+		uint32_t bytesPerComponent) {
 	std::ifstream f(path.c_str(),
 					std::ios::in
 					| std::ios::binary

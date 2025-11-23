@@ -37,7 +37,7 @@ namespace regen {
 		 * @param numPatchVertices Specifies the number of vertices that
 		 * will be used to make up a single patch primitive.
 		 */
-		explicit TesselationState(GLuint numPatchVertices);
+		explicit TesselationState(uint32_t numPatchVertices);
 
 		static ref_ptr<TesselationState> load(LoadingContext &ctx, scene::SceneInputNode &input);
 
@@ -71,7 +71,7 @@ namespace regen {
 
 	protected:
 		LoDMetric lodMetric_;
-		GLuint numPatchVertices_;
+		uint32_t numPatchVertices_;
 
 		ref_ptr<ShaderInput1f> lodFactor_;
 		ref_ptr<ShaderInput4f> outerLevel_;

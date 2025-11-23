@@ -2,7 +2,7 @@
 
 using namespace regen;
 
-FeedbackSpecification::FeedbackSpecification(GLuint feedbackCount)
+FeedbackSpecification::FeedbackSpecification(uint32_t feedbackCount)
 		: State(),
 		  feedbackCount_(feedbackCount),
 		  feedbackMode_(GL_SEPARATE_ATTRIBS),
@@ -14,7 +14,7 @@ ref_ptr<ShaderInput> FeedbackSpecification::addFeedback(const ref_ptr<ShaderInpu
 	// remove if already added
 	if (feedbackAttributeMap_.count(in->name()) > 0) { removeFeedback(in.get()); }
 
-	GLuint feedbackCount = (feedbackCount_ == 0 ? in->numVertices() : feedbackCount_);
+	uint32_t feedbackCount = (feedbackCount_ == 0 ? in->numVertices() : feedbackCount_);
 	feedbackCount_ = feedbackCount;
 
 	// create feedback attribute
@@ -55,7 +55,7 @@ GLboolean FeedbackSpecification::hasFeedback(const std::string &name) const {
 
 FeedbackState::FeedbackState(
 			GLenum feedbackPrimitive,
-			GLuint feedbackCount,
+			uint32_t feedbackCount,
 			VertexLayout vertexLayout)
 		: FeedbackSpecification(feedbackCount),
 		  feedbackPrimitive_(feedbackPrimitive) {
@@ -116,14 +116,14 @@ void FeedbackState::disable(RenderState *rs) {
 	else {
 		rs->endTransformFeedback();
 		if (!rs->isTransformFeedbackAcive()) {
-			for (GLuint bufferIndex = 0u; bufferIndex < feedbackAttributes_.size(); ++bufferIndex) {
+			for (uint32_t bufferIndex = 0u; bufferIndex < feedbackAttributes_.size(); ++bufferIndex) {
 				rs->feedbackBufferRange().pop(bufferIndex);
 			}
 		}
 	}
 }
 
-void FeedbackState::draw(GLuint numInstances) {
+void FeedbackState::draw(uint32_t numInstances) {
 	glDrawArraysInstancedEXT(
 			feedbackPrimitive_,
 			0,

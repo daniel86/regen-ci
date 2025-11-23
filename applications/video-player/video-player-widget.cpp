@@ -39,8 +39,8 @@ extern "C" {
 using namespace std;
 
 static QString formatTime(GLfloat elapsedSeconds) {
-	GLuint seconds = (GLuint) elapsedSeconds;
-	GLuint minutes = seconds / 60;
+	uint32_t seconds = (uint32_t) elapsedSeconds;
+	uint32_t minutes = seconds / 60;
 	seconds = seconds % 60;
 	string label = REGEN_STRING(
 			(minutes < 10 ? "0" : "") << minutes <<

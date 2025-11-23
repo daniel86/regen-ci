@@ -120,7 +120,7 @@ namespace regen {
 		 * for all attached textured and formats of
 		 * all attached draw buffer must be equal.
 		 */
-		FBO(GLuint width, GLuint height, GLuint depth = 1);
+		FBO(uint32_t width, uint32_t height, uint32_t depth = 1);
 
 		FBO(const FBO &) = delete;
 
@@ -152,7 +152,7 @@ namespace regen {
 		/**
 		 * Resizes all textures attached to this FBO.
 		 */
-		void resize(GLuint width, GLuint height, GLuint depth);
+		void resize(uint32_t width, uint32_t height, uint32_t depth);
 
 		/**
 		 * @return the FBO viewport.
@@ -172,7 +172,7 @@ namespace regen {
 		/**
 		 * @return depth of attachment textures.
 		 */
-		GLuint depth() const { return depth_; }
+		uint32_t depth() const { return depth_; }
 
 		/**
 		 * Creates depth attachment.
@@ -234,7 +234,7 @@ namespace regen {
 		/**
 		 * Add n RenderBuffer's to the FBO.
 		 */
-		ref_ptr<RenderBuffer> addRenderBuffer(GLuint count);
+		ref_ptr<RenderBuffer> addRenderBuffer(uint32_t count);
 
 		/**
 		 * Add a RenderBuffer to the FBO.
@@ -255,26 +255,26 @@ namespace regen {
 		 * @return the texture created.
 		 */
 		static ref_ptr<Texture> createTexture(
-				GLuint width,
-				GLuint height,
-				GLuint depth,
-				GLuint count,
+				uint32_t width,
+				uint32_t height,
+				uint32_t depth,
+				uint32_t count,
 				GLenum targetType,
 				GLenum format,
 				GLint internalFormat,
 				GLenum pixelType,
-				GLuint numSamples=1);
+				uint32_t numSamples=1);
 
 		/**
 		 * Add n Texture's to the FBO.
 		 */
 		ref_ptr<Texture> addTexture(
-				GLuint count,
+				uint32_t count,
 				GLenum targetType,
 				GLenum format,
 				GLint internalFormat,
 				GLenum pixelType,
-				GLuint numSamples=1);
+				uint32_t numSamples=1);
 
 		/**
 		 * Add a Texture to the FBO.
@@ -330,7 +330,7 @@ namespace regen {
 		 * Blit fbo attachment into screen back buffer.
 		 */
 		void blitCopyToScreen(
-				GLuint screenWidth, GLuint screenHeight,
+				uint32_t screenWidth, uint32_t screenHeight,
 				GLenum readAttachment,
 				GLbitfield mask = GL_COLOR_BUFFER_BIT,
 				GLenum filter = GL_NEAREST,
@@ -371,7 +371,7 @@ namespace regen {
 		GLenum readBuffer_ = GL_NONE;
 
 		DrawBuffers colorAttachments_;
-		GLuint depth_;
+		uint32_t depth_;
 
 		GLenum depthAttachmentTarget_;
 		GLenum depthAttachmentFormat_;

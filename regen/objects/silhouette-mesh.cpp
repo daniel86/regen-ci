@@ -198,7 +198,7 @@ ref_ptr<SilhouetteMesh> SilhouetteMesh::load(LoadingContext &ctx, scene::SceneIn
 		cfg.silhouette.tileCounts[2] = lodVec.z;
 		cfg.silhouette.tileCounts[3] = lodVec.w;
 	} else {
-		cfg.silhouette.tileCounts.push_back(input.getValue<GLuint>("lod", 8));
+		cfg.silhouette.tileCounts.push_back(input.getValue<uint32_t>("lod", 8));
 	}
 	if (input.hasAttribute("alpha-cut")) {
 		cfg.silhouette.alphaCut = input.getValue<float>("alpha-cut", 0.01f);

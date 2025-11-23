@@ -217,7 +217,7 @@ using namespace regen;
 
 #define REGEN_TEX_NAME(x) REGEN_STRING(x << stateID_)
 
-GLuint TextureState::idCounter_ = 0;
+uint32_t TextureState::idCounter_ = 0;
 
 TextureState::TextureState(const ref_ptr<Texture> &texture, const std::string &name)
 		: State(),
@@ -272,7 +272,7 @@ void TextureState::set_name(const std::string &name) {
 	shaderDefine("HAS_" + name_, "TRUE");
 }
 
-void TextureState::set_texcoChannel(GLuint texcoChannel) {
+void TextureState::set_texcoChannel(uint32_t texcoChannel) {
 	texcoChannel_ = texcoChannel;
 	shaderDefine(REGEN_TEX_NAME("TEX_TEXCO"), REGEN_STRING("texco" << texcoChannel_));
 }
@@ -568,7 +568,7 @@ ref_ptr<State> TextureIndexState::load(LoadingContext &ctx, scene::SceneInputNod
 	}
 
 	if (input.hasAttribute("value")) {
-		auto index = input.getValue<GLuint>("index", 0u);
+		auto index = input.getValue<uint32_t>("index", 0u);
 		return ref_ptr<TextureSetIndex>::alloc(tex, index);
 	} else if (input.getValue<bool>("set-next-index", true)) {
 		return ref_ptr<TextureNextIndex>::alloc(tex);

@@ -171,6 +171,37 @@ namespace regen::scene {
 
 		/**
 		 * @param key the attribute key.
+		 * @param delimiter Delimiter for array items.
+		 * @return Get the typed attribute value as array or empty array if attribute
+		 *          not found.
+		 */
+		template<typename T>
+		std::vector<T> getArray(const std::string &key, const char delimiter = ',') {
+			std::vector<T> out;
+			if (hasAttribute(key)) {
+				std::string attValue = getValue(key);
+				std::stringstream ss1(attValue);
+				std::string item;
+				while (std::getline(ss1, item, delimiter)) {
+					std::stringstream itemStream(item);
+					T value;
+					if ((itemStream >> value).fail()) {
+						REGEN_WARN("Failed to parse array item '" << item <<
+																 "' for node " << getDescription() << ".");
+					} else {
+						out.push_back(value);
+					}
+				}
+			} else {
+				if (parent_ != nullptr) {
+					return parent_->getArray<T>(key, delimiter);
+				}
+			}
+			return out;
+		}
+
+		/**
+		 * @param key the attribute key.
 		 * @return Get the typed attribute value or std::nullopt if attribute
 		 *          not found.
 		 */
@@ -206,7 +237,7 @@ namespace regen::scene {
 		 * @param maxIndex Maximal index in output list.
 		 * @return The list of indices.
 		 */
-		std::list<IndexRange> getIndexSequence(GLuint maxIndex);
+		std::list<IndexRange> getIndexSequence(uint32_t maxIndex);
 
 	protected:
 		SceneInputNode *parent_;

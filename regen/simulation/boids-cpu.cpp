@@ -41,6 +41,7 @@ struct BoidsCPU::Private {
 
 	// Configuration parameters
 	float visualRange_ = 1.6f;
+	float attractionRange_ = 160.0f;
 	float visualRangeSq_ = 0.0f;
 	float avoidanceDistance_ = 0.0f;
 	float avoidanceDistanceHalf_ = 0.0f;
@@ -232,6 +233,7 @@ void BoidsCPU::animate(double dt) {
 	priv_->repulsionTimesSeparation_ = repulsionFactor_->getVertex(0).r * separationWeight_->getVertex(0).r;
 	priv_->visualRange_ = visualRange_->getVertex(0).r;
 	priv_->visualRangeSq_ = priv_->visualRange_ * priv_->visualRange_;
+	priv_->attractionRange_ = attractionRange_->getVertex(0).r;
 	priv_->separationWeight_ = separationWeight_->getVertex(0).r;
 	priv_->alignmentWeight_ = alignmentWeight_->getVertex(0).r;
 	priv_->coherenceWeight_ = coherenceWeight_->getVertex(0).r;
@@ -387,7 +389,6 @@ void zeroAligned(AlignedArray<int32_t> &vec) {
     int* data = vec.data();
     size_t i = 0;
     // Use AVX2 to set 8 ints (32 bytes) at a time
-    // TODO: use simd abstraction API
     __m256i zero = _mm256_setzero_si256();
     for (; i + 8 <= size; i += 8) {
         _mm256_store_si256(reinterpret_cast<__m256i*>(data + i), zero);
@@ -824,7 +825,7 @@ bool BoidsCPU::avoidDanger(const Vec3f &boidPos, Vec3f &boidForce) {
 }
 
 void BoidsCPU::attract(const Vec3f &boidPos, Vec3f &boidForce) {
-	auto maxDistance = priv_->visualRange_ * 100; // TODO: parameter
+	auto maxDistance = priv_->attractionRange_;
 	Vec3f dir;
 	for (auto &attractor: attractors_) {
 		dir = Vec3f::zero();

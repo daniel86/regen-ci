@@ -69,7 +69,7 @@ namespace regen {
 		/**
 		 * @return Previously added shader inputs.
 		 */
-		const std::vector<NamedShaderInput> &inputs() const;
+		const std::vector<NamedShaderInput> &inputs() const { return inputs_; }
 
 		/**
 		 * @param name the shader input name.
@@ -226,7 +226,7 @@ namespace regen {
 		std::map<std::string, std::string> shaderDefines_;
 		std::vector<std::string> shaderIncludes_;
 		std::map<std::string, std::string> shaderFunctions_;
-		GLuint shaderVersion_ = 330;
+		uint32_t shaderVersion_ = 330;
 
 		template<typename F> void updateVector(F &&fn) {
 			// Make a copy, modify, then atomically swap

@@ -5,17 +5,17 @@
 
 using namespace regen;
 
-static GLfloat *createNoiseSlice(GLuint texSize, GLuint octave) {
-	GLuint size2 = texSize * texSize;
+static GLfloat *createNoiseSlice(uint32_t texSize, uint32_t octave) {
+	uint32_t size2 = texSize * texSize;
 	GLfloat oneOverTexSize = 1.f / static_cast<float>(texSize);
 	osgHimmel::Noise n(1 << (octave + 2),
 					   math::random<float>(0.f, 1.f),
 					   math::random<float>(0.f, 1.f));
 
 	auto *noise = new float[size2];
-	GLuint o;
-	for (GLuint s = 0; s < texSize; ++s)
-		for (GLuint t = 0; t < texSize; ++t) {
+	uint32_t o;
+	for (uint32_t s = 0; s < texSize; ++s)
+		for (uint32_t t = 0; t < texSize; ++t) {
 			o = t * texSize + s;
 			noise[o] = n.noise2(
 					static_cast<float>(s) * oneOverTexSize,
@@ -25,7 +25,7 @@ static GLfloat *createNoiseSlice(GLuint texSize, GLuint octave) {
 	return noise;
 }
 
-static ref_ptr<Texture3D> createNoiseArray(GLuint texSize, GLuint octave, GLuint slices) {
+static ref_ptr<Texture3D> createNoiseArray(uint32_t texSize, uint32_t octave, uint32_t slices) {
 	ref_ptr<Texture3D> tex = ref_ptr<Texture3D>::alloc();
 	//ref_ptr<Texture2DArray> tex = ref_ptr<Texture2DArray>::alloc();
 	tex->set_rectangleSize(texSize, texSize);
@@ -46,7 +46,7 @@ static ref_ptr<Texture3D> createNoiseArray(GLuint texSize, GLuint octave, GLuint
 }
 
 
-CloudLayer::CloudLayer(const ref_ptr<Sky> &sky, GLuint textureSize)
+CloudLayer::CloudLayer(const ref_ptr<Sky> &sky, uint32_t textureSize)
 		: SkyLayer(sky) {
 	state()->joinStates(ref_ptr<BlendFuncState>::alloc(
 			GL_SRC_ALPHA, GL_ONE,

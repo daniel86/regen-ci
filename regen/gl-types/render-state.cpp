@@ -40,19 +40,19 @@ using namespace regen;
 
 static inline void Regen_BlendEquation(const BlendEquation &v) { glBlendEquationSeparate(v.x, v.y); }
 
-static inline void Regen_BlendEquationi(GLuint i, const BlendEquation &v) { glBlendEquationSeparatei(i, v.x, v.y); }
+static inline void Regen_BlendEquationi(uint32_t i, const BlendEquation &v) { glBlendEquationSeparatei(i, v.x, v.y); }
 
 static inline void Regen_BlendFunc(const BlendFunction &v) { glBlendFuncSeparate(v.x, v.y, v.z, v.w); }
 
-static inline void Regen_BlendFunci(GLuint i, const BlendFunction &v) { glBlendFuncSeparatei(i, v.x, v.y, v.z, v.w); }
+static inline void Regen_BlendFunci(uint32_t i, const BlendFunction &v) { glBlendFuncSeparatei(i, v.x, v.y, v.z, v.w); }
 
 static inline void Regen_ColorMask(const ColorMask &v) { glColorMask(v.x, v.y, v.z, v.w); }
 
-static inline void Regen_ColorMaski(GLuint i, const ColorMask &v) { glColorMaski(i, v.x, v.y, v.z, v.w); }
+static inline void Regen_ColorMaski(uint32_t i, const ColorMask &v) { glColorMaski(i, v.x, v.y, v.z, v.w); }
 
 static inline void Regen_DepthRange(const DepthRange &v) { glDepthRange(v.x, v.y); }
 
-static inline void Regen_DepthRangei(GLuint i, const DepthRange &v) { glDepthRangeIndexed(i, v.x, v.y); }
+static inline void Regen_DepthRangei(uint32_t i, const DepthRange &v) { glDepthRangeIndexed(i, v.x, v.y); }
 
 static inline void Regen_StencilOp(const StencilOp &v) { glStencilOp(v.x, v.y, v.z); }
 
@@ -64,25 +64,25 @@ static inline void Regen_BlendColor(const Vec4f &v) { glBlendColor(v.x, v.y, v.z
 
 static inline void Regen_Scissor(const Scissor &v) { glScissor(v.x, v.y, v.z, v.w); }
 
-static inline void Regen_Scissori(GLuint i, const Scissor &v) { glScissorIndexed(i, v.x, v.y, v.z, v.w); }
+static inline void Regen_Scissori(uint32_t i, const Scissor &v) { glScissorIndexed(i, v.x, v.y, v.z, v.w); }
 
 static inline void Regen_Viewport(const Viewport &v) { glViewport(v.x, v.y, v.z, v.w); }
 
-static inline void Regen_Texture(GLuint i, const TextureBind &v) { glBindTextureUnit(i, v.id_); }
+static inline void Regen_Texture(uint32_t i, const TextureBind &v) { glBindTextureUnit(i, v.id_); }
 
-static inline void Regen_UniformBufferRange(GLuint i, const BufferRange &v) {
+static inline void Regen_UniformBufferRange(uint32_t i, const BufferRange &v) {
 	// NOTE: When buffer `i` is bound to another target, e.g. GL_SHADER_STORAGE_BUFFER or so,
 	//       then binding it to GL_UNIFORM_BUFFER causes undefined behaviour on some drivers.
 	//       Here, it is considered as an application error, to avoid extra bookkeeping.
 	glBindBufferRange(GL_UNIFORM_BUFFER, i, v.buffer_, v.offset_, v.size_);
 }
-static inline void Regen_FeedbackBufferRange(GLuint i, const BufferRange &v) {
+static inline void Regen_FeedbackBufferRange(uint32_t i, const BufferRange &v) {
 	glBindBufferRange(GL_TRANSFORM_FEEDBACK_BUFFER, i, v.buffer_, v.offset_, v.size_);
 }
-static inline void Regen_AtomicCounterBufferRange(GLuint i, const BufferRange &v) {
+static inline void Regen_AtomicCounterBufferRange(uint32_t i, const BufferRange &v) {
 	glBindBufferRange(GL_ATOMIC_COUNTER_BUFFER, i, v.buffer_, v.offset_, v.size_);
 }
-static inline void Regen_ShaderStorageBufferRange(GLuint i, const BufferRange &v) {
+static inline void Regen_ShaderStorageBufferRange(uint32_t i, const BufferRange &v) {
 	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, i, v.buffer_, v.offset_, v.size_);
 }
 
@@ -93,7 +93,7 @@ static inline void Regen_PatchLevel(const PatchLevels &l) {
 
 typedef void (GLAPIENTRY *ToggleFunc)(GLenum);
 
-inline void Regen_Toggle(GLuint index, const GLboolean &v) {
+inline void Regen_Toggle(uint32_t index, const GLboolean &v) {
 	GLenum toggleID = RenderState::toggleToID((RenderState::Toggle) index);
 	static ToggleFunc toggleFunctions[2] = {glDisable, glEnable};
 	toggleFunctions[v](toggleID);
@@ -260,7 +260,7 @@ RenderState::RenderState()
 		if (e == GL_NONE) continue;
 
 		GLboolean enabled = GL_FALSE;
-		for (GLuint j = 0; j < sizeof(enabledToggles) / sizeof(GLenum); ++j) {
+		for (uint32_t j = 0; j < sizeof(enabledToggles) / sizeof(GLenum); ++j) {
 			if (enabledToggles[j] == e) {
 				enabled = GL_TRUE;
 				break;
@@ -295,7 +295,7 @@ RenderState::RenderState()
 	GL_ERROR_LOG();
 }
 
-KeyedStateStack<GLuint>& RenderState::buffer(GLenum target) {
+KeyedStateStack<uint32_t>& RenderState::buffer(GLenum target) {
 	switch (target) {
 		case GL_UNIFORM_BUFFER:
 			return uniformBuffer_;
@@ -364,7 +364,7 @@ static inline int bufferBaseIndex(GLenum target) {
 	}
 }
 
-void RenderState::bindBufferBase(GLenum target, GLuint index, GLuint buffer) {
+void RenderState::bindBufferBase(GLenum target, uint32_t index, uint32_t buffer) {
 	auto arrayIndex = bufferBaseIndex(target);
 	auto &bindings = bufferBaseBindings_[arrayIndex];
 	auto needle = bindings.find(index);

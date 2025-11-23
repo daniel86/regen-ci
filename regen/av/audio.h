@@ -110,14 +110,14 @@ namespace regen {
 		/**
 		 * @param chachedBytesLimit limit for pre-loading.
 		 */
-		explicit AudioSource(GLuint chachedBytesLimit);
+		explicit AudioSource(uint32_t chachedBytesLimit);
 
 		/**
 		 * @param stream a av stream handle.
 		 * @param index index in stream.
 		 * @param chachedBytesLimit limit for pre-loading.
 		 */
-		AudioSource(AVStream *stream, GLint index, GLuint chachedBytesLimit);
+		AudioSource(AVStream *stream, GLint index, uint32_t chachedBytesLimit);
 
 		~AudioSource() override;
 

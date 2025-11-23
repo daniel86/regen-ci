@@ -78,8 +78,8 @@ Box::Config::Config()
 
 void Box::generateLODLevel(
 		const Config &cfg,
-		GLuint sideIndex,
-		GLuint lodLevel,
+		uint32_t sideIndex,
+		uint32_t lodLevel,
 		const std::vector<Tessellation> &tessellations) {
 	static const Vec3f cubeNormals[] = {
 			Vec3f(0.0f, 0.0f, 1.0f), // Front
@@ -103,7 +103,7 @@ void Box::generateLODLevel(
 	auto indexOffset = meshLODs_[lodLevel].d->indexOffset + sideIndex * tessellation.outputFaces.size() * 3;
 	const Vec3f &normal = cubeNormals[sideIndex];
 	const Mat4f &faceRotMat = faceRotations[sideIndex];
-	GLuint nextIndex = indexOffset;
+	uint32_t nextIndex = indexOffset;
 
 	// map client data for writing
 	auto pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
@@ -120,13 +120,13 @@ void Box::generateLODLevel(
 		setIndexValue(indices, indexType, nextIndex++, vertexOffset + tessFace.v3);
 	}
 
-	GLuint triIndices[3];
+	uint32_t triIndices[3];
 	Vec3f triVertices[3];
 	Vec2f triTexco[3];
 
-	for (GLuint faceIndex = 0; faceIndex < tessellation.outputFaces.size(); ++faceIndex) {
+	for (uint32_t faceIndex = 0; faceIndex < tessellation.outputFaces.size(); ++faceIndex) {
 		const auto &face = tessellation.outputFaces[faceIndex];
-		GLuint faceVertIndex = 0;
+		uint32_t faceVertIndex = 0;
 
 		for (const auto &tessIndex: {face.v1, face.v2, face.v3}) {
 			const auto &vertex = tessellation.vertices[tessIndex];
@@ -196,7 +196,7 @@ void Box::generateLODLevel(
 
 		if (cfg.isTangentRequired) {
 			Vec4f tangent = calculateTangent(triVertices, triTexco, normal);
-			for (GLuint i = 0; i < 3; ++i) {
+			for (uint32_t i = 0; i < 3; ++i) {
 				tan[triIndices[i]] = tangent;
 			}
 		}
@@ -205,8 +205,8 @@ void Box::generateLODLevel(
 
 void Box::updateAttributes(const Config &cfg) {
 	std::vector<Tessellation> tessellations;
-	GLuint numVertices = 0;
-	GLuint numIndices = 0;
+	uint32_t numVertices = 0;
+	uint32_t numIndices = 0;
 
 	// Generate base tessellation for a single face (front face)
 	Tessellation baseTess;
@@ -220,7 +220,7 @@ void Box::updateAttributes(const Config &cfg) {
 	baseTess.inputFaces[1] = TessellationFace(1, 2, 3);
 
 	// Generate tessellations for each LOD level
-	for (GLuint lodLevel: cfg.levelOfDetails) {
+	for (uint32_t lodLevel: cfg.levelOfDetails) {
 		auto &lodTess = tessellations.emplace_back();
 		lodTess.vertices = baseTess.vertices;
 		lodTess.inputFaces = baseTess.inputFaces;
@@ -261,7 +261,7 @@ void Box::updateAttributes(const Config &cfg) {
 	minPosition_ = Vec3f::create(999999.9);
 	maxPosition_ = Vec3f::create(-999999.9);
 	for (auto lodLevel = 0u; lodLevel < tessellations.size(); ++lodLevel) {
-		for (GLuint sideIndex = 0; sideIndex < 6; ++sideIndex) {
+		for (uint32_t sideIndex = 0; sideIndex < 6; ++sideIndex) {
 			generateLODLevel(cfg, sideIndex, lodLevel, tessellations);
 		}
 	}

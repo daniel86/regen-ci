@@ -47,12 +47,12 @@ ref_ptr<Texture> Filter::createTexture() {
 void Filter::setInput(const ref_ptr<Texture> &input) {
 	set_input(input);
 
-	//GLuint inputSize = min(input_->width(), input_->height());
-	//GLuint bufferSize  = scaleFactor_*inputSize;
-	GLuint bufferW = scaleFactor_ * input_->width();
-	GLuint bufferH = scaleFactor_ * input_->height();
+	//uint32_t inputSize = min(input_->width(), input_->height());
+	//uint32_t bufferSize  = scaleFactor_*inputSize;
+	uint32_t bufferW = scaleFactor_ * input_->width();
+	uint32_t bufferH = scaleFactor_ * input_->height();
 
-	GLuint inputDepth = 1;
+	uint32_t inputDepth = 1;
 	if (dynamic_cast<Texture3D *>(input_.get())) {
 		inputDepth = (dynamic_cast<Texture3D *>(input_.get()))->depth();
 	}
@@ -116,19 +116,6 @@ FilterSequence::FilterSequence(const ref_ptr<Texture> &input, GLboolean bindInpu
 	internalFormat_ = GL_NONE;
 	pixelType_ = GL_NONE;
 
-	viewport_ = ref_ptr<ShaderInput2f>::alloc("viewport");
-	viewport_->setEditable(false);
-	viewport_->setUniformData(Vec2f(
-			(GLfloat) input->width(), (GLfloat) input->height()));
-
-	inverseViewport_ = ref_ptr<ShaderInput2f>::alloc("inverseViewport");
-	inverseViewport_->setEditable(false);
-	inverseViewport_->setUniformData(Vec2f(
-			1.0f / (GLfloat) input->width(), 1.0f / (GLfloat) input->height()));
-
-	setInput(viewport_);
-	setInput(inverseViewport_);
-
 	ref_ptr<ShaderInput2f> inverseViewport;
 
 	// use layered geometry shader for 3d textures
@@ -165,7 +152,7 @@ ref_ptr<FilterSequence> FilterSequence::load(LoadingContext &ctx, scene::SceneIn
 			REGEN_WARN("Unable to find FBO for " << input.getDescription() << ".");
 			return {};
 		}
-		auto attachment = input.getValue<GLuint>("attachment", 0);
+		auto attachment = input.getValue<uint32_t>("attachment", 0);
 		std::vector<ref_ptr<Texture> > textures = fbo->colorTextures();
 		if (attachment >= textures.size()) {
 			REGEN_WARN("FBO " << input.getValue("fbo") <<
@@ -223,12 +210,12 @@ const ref_ptr<Texture> &FilterSequence::output() const {
 		// no filter added yet, return identity
 		return input_;
 	}
-	ref_ptr<Filter> lastFilter = *filterSequence_.rbegin();
-	GLenum last = lastFilter->outputAttachment();
+	const FilterData &lastFilter = *filterSequence_.rbegin();
+	GLenum last = lastFilter.filter->outputAttachment();
 	if (last == GL_COLOR_ATTACHMENT0) {
-		return lastFilter->output()->tex0_;
+		return lastFilter.filter->output()->tex0_;
 	} else {
-		return lastFilter->output()->tex1_;
+		return lastFilter.filter->output()->tex1_;
 	}
 }
 
@@ -241,46 +228,54 @@ void FilterSequence::addFilter(const ref_ptr<Filter> &f) {
 		// no filter was added before, create a new framebuffer
 		f->setInput(input_);
 	} else {
-		ref_ptr<Filter> lastFilter = *filterSequence_.rbegin();
+		const FilterData &lastFilter = *filterSequence_.rbegin();
 		// another filter was added before
 		if (math::isApprox(f->scaleFactor(), 1.0)) {
 			// filter does not apply scaling. We gonna ping pong render
 			// to the framebuffer provided by previous filter.
-			f->setInput(lastFilter->output(), lastFilter->outputAttachment());
+			f->setInput(
+				lastFilter.filter->output(),
+				lastFilter.filter->outputAttachment());
 		} else {
 			// create a new framebuffer for this filter
-			GLenum last = lastFilter->outputAttachment();
+			GLenum last = lastFilter.filter->outputAttachment();
 			if (last == GL_COLOR_ATTACHMENT0) {
-				f->setInput(lastFilter->output()->tex0_);
+				f->setInput(lastFilter.filter->output()->tex0_);
 			} else {
-				f->setInput(lastFilter->output()->tex1_);
+				f->setInput(lastFilter.filter->output()->tex1_);
 			}
 		}
 	}
 
-	filterSequence_.push_back(f);
+	auto &data = filterSequence_.emplace_back();
+	data.filter = f;
+	data.viewport = ref_ptr<ShaderInput2f>::alloc("viewport");
+	data.viewport->setUniformData(Vec2f::zero());
+	data.inverseViewport = ref_ptr<ShaderInput2f>::alloc("inverseViewport");
+	data.inverseViewport->setUniformData(Vec2f::zero());
 }
 
 void FilterSequence::createShader(StateConfig &cfg) {
 	for (auto &it: filterSequence_) {
-		auto *f = (Filter *) it.get();
 		StateConfigurer _cfg(cfg);
-		_cfg.addState(f);
-		f->createShader(_cfg.cfg());
+		_cfg.addState(it.filter.get());
+		_cfg.addInput(it.viewport->name(), it.viewport);
+		_cfg.addInput(it.inverseViewport->name(), it.inverseViewport);
+		it.filter->createShader(_cfg.cfg());
 	}
 }
 
 void FilterSequence::resize() {
-	//GLuint size = min(input_->width(), input_->height());
-	GLuint width = input_->width();
-	GLuint height = input_->height();
+	//uint32_t size = min(input_->width(), input_->height());
+	uint32_t width = input_->width();
+	uint32_t height = input_->height();
 	if (width == lastWidth_ && height == lastHeight_) return;
 	lastWidth_ = width;
 	lastHeight_ = height;
 
 	FBO *last = nullptr;
 	for (auto &it: filterSequence_) {
-		auto *f = (Filter *) it.get();
+		auto *f = it.filter.get();
 		FBO *fbo = f->output()->fbo_.get();
 
 		if (last != fbo) {
@@ -288,6 +283,11 @@ void FilterSequence::resize() {
 			height *= f->scaleFactor();
 			fbo->resize(width, height, fbo->depth());
 		}
+
+		it.viewport->setVertex(0,
+			fbo->viewport()->getVertex(0).r);
+		it.inverseViewport->setVertex(0,
+			fbo->inverseViewport()->getVertex(0).r);
 
 		last = fbo;
 	}
@@ -301,20 +301,18 @@ void FilterSequence::enable(RenderState *rs) {
 	resize();
 
 	if (clearFirstFilter_) {
-		Filter *firstFilter = (Filter *) (*filterSequence_.begin()).get();
+		Filter *firstFilter = (*filterSequence_.begin()).filter.get();
 		firstFilter->output()->fbo_->clearAllColorAttachments(clearColor_);
 	}
 	auto oldViewport = rs->viewport().current();
 	auto oldDrawFBO = rs->drawFrameBuffer().current();
 
 	for (auto &it: filterSequence_) {
-		auto *f = (Filter *) it.get();
+		auto *f = it.filter.get();
 
 		FBO *fbo = f->output()->fbo_.get();
 		rs->drawFrameBuffer().apply(fbo->id());
 		rs->viewport().apply(fbo->glViewport());
-		viewport_->setVertex(0, fbo->viewport()->getVertex(0).r);
-		inverseViewport_->setVertex(0, fbo->inverseViewport()->getVertex(0).r);
 
 		f->enable(rs);
 		f->disable(rs);

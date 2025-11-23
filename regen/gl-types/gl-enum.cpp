@@ -85,7 +85,7 @@ std::string glenum::glslStagePrefix(GLenum stage) {
 	}
 }
 
-GLenum glenum::dataType(GLenum pixelType, GLuint valsPerElement) {
+GLenum glenum::dataType(GLenum pixelType, uint32_t valsPerElement) {
 	// compose complex data type from base type and number of components
 	switch (pixelType) {
 		case GL_FLOAT:
@@ -171,7 +171,7 @@ GLenum glenum::dataType(GLenum pixelType, GLuint valsPerElement) {
 	return GL_RGBA32F;
 }
 
-std::string glenum::glslDataType(GLenum pixelType, GLuint valsPerElement) {
+std::string glenum::glslDataType(GLenum pixelType, uint32_t valsPerElement) {
 	switch (pixelType) {
 		case GL_BYTE:
 		case GL_UNSIGNED_BYTE:

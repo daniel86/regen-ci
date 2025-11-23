@@ -111,7 +111,7 @@ ref_ptr<BlitState> BlitState::load(LoadingContext &ctx, scene::SceneInputNode &i
 			return {};
 		}
 	}
-	bool keepAspect = input.getValue<GLuint>("keep-aspect", false);
+	bool keepAspect = input.getValue<uint32_t>("keep-aspect", false);
 	if (src.get() != nullptr && dst.get() != nullptr) {
 		if (input.getValue("src-attachment") == "depth" || input.getValue("dst-attachment") == "depth") {
 			auto blit = ref_ptr<BlitToFBO>::alloc(
@@ -123,8 +123,8 @@ ref_ptr<BlitState> BlitState::load(LoadingContext &ctx, scene::SceneInputNode &i
 			blit->set_filterMode(GL_NEAREST);
 			return blit;
 		} else {
-			auto srcAttachment = input.getValue<GLuint>("src-attachment", 0u);
-			auto dstAttachment = input.getValue<GLuint>("dst-attachment", 0u);
+			auto srcAttachment = input.getValue<uint32_t>("src-attachment", 0u);
+			auto dstAttachment = input.getValue<uint32_t>("dst-attachment", 0u);
 			auto state = ref_ptr<BlitToFBO>::alloc(
 					src, dst,
 					GL_COLOR_ATTACHMENT0 + srcAttachment,
@@ -142,7 +142,7 @@ ref_ptr<BlitState> BlitState::load(LoadingContext &ctx, scene::SceneInputNode &i
 		}
 	} else if (src.get() != nullptr) {
 		// Blit Texture to Screen
-		auto srcAttachment = input.getValue<GLuint>("src-attachment", 0u);
+		auto srcAttachment = input.getValue<uint32_t>("src-attachment", 0u);
 		return ref_ptr<BlitToScreen>::alloc(src,
 											scene->screen(),
 											GL_COLOR_ATTACHMENT0 + srcAttachment,

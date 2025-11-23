@@ -69,7 +69,7 @@ ProcTree::ProcTree(scene::SceneInputNode &input) : ProcTree() {
 		silhouetteCfg_.silhouette.tileCounts[3] = lodVec.w;
 		useSilhouetteMesh_ = true;
 	} else {
-		silhouetteCfg_.silhouette.tileCounts.push_back(input.getValue<GLuint>("lod", 8));
+		silhouetteCfg_.silhouette.tileCounts.push_back(input.getValue<uint32_t>("lod", 8));
 	}
 	if (input.hasAttribute("alpha-cut")) {
 		silhouetteCfg_.silhouette.alphaCut = input.getValue<float>("alpha-cut", 0.01f);

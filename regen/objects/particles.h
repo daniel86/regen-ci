@@ -68,7 +68,7 @@ namespace regen {
 		 * @param numParticles particle count.
 		 * @param updateShaderKey shader for updating particles.
 		 */
-		explicit Particles(GLuint numParticles,
+		explicit Particles(uint32_t numParticles,
 			const std::string &updateShaderKey="regen.particles.emitter");
 
 		/**
@@ -76,7 +76,7 @@ namespace regen {
 		 * This has only an effect initially.
 		 * @param maxEmits maximum number of particles to emit.
 		 */
-		void setMaxEmits(GLuint maxEmits) { maxEmits_ = maxEmits; }
+		void setMaxEmits(uint32_t maxEmits) { maxEmits_ = maxEmits; }
 
 		/**
 		 * Set the default value for a particle attribute when it is emitted.
@@ -174,8 +174,8 @@ namespace regen {
 		ref_ptr<ShaderState> updateState_;
 		VAO particleVAO_;
 
-		GLuint numParticles_;
-		GLuint maxEmits_;
+		uint32_t numParticles_;
+		uint32_t maxEmits_;
 
 		std::map<std::string, AdvanceMode> advanceModes_;
 		std::map<std::string, std::string> advanceFunctions_;
@@ -189,7 +189,7 @@ namespace regen {
 
 		void createUpdateShader();
 
-		void configureAdvancing(const ref_ptr<ShaderInput> &in, GLuint counter, AdvanceMode mode);
+		void configureAdvancing(const ref_ptr<ShaderInput> &in, uint32_t counter, AdvanceMode mode);
 	};
 
 	std::ostream &operator<<(std::ostream &out, const Particles::AdvanceMode &v);

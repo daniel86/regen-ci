@@ -23,7 +23,7 @@ ColorWidget::ColorWidget(const RegenWidgetData &data, QWidget *parent)
 QColor ColorWidget::initializeColor() {
 	auto mapped = input_->mapClientDataRaw(BUFFER_GPU_READ);
 	const byte *value = mapped.r;
-	GLuint count = input_->valsPerElement();
+	uint32_t count = input_->valsPerElement();
 	QColor color;
 	if (input_->baseType() == GL_FLOAT) {
 		GLfloat r = ((GLfloat *) value)[0];
@@ -53,7 +53,7 @@ QColor ColorWidget::initializeColor() {
 
 void ColorWidget::updateColor(const QColor &color) {
 	// Update the shader input
-	GLuint count = input_->valsPerElement();
+	uint32_t count = input_->valsPerElement();
 	byte *changedData = new byte[input_->elementSize()];
 	if (input_->baseType() == GL_FLOAT) {
 		((GLfloat *) changedData)[0] = color.redF();
@@ -71,7 +71,7 @@ void ColorWidget::updateColor(const QColor &color) {
 
 void ColorWidget::pickColor() {
 	// Ensure the selected shader input is a color (3 or 4 components)
-	GLuint count = input_->valsPerElement();
+	uint32_t count = input_->valsPerElement();
 	if (count < 3 || count > 4) {
 		REGEN_WARN("pickColor() called but selected input is not a color.");
 		return;
@@ -114,7 +114,7 @@ void ColorWidget::pickColor() {
 
 void ColorWidget::alphaChanged() {
 	// Ensure the selected shader input is a color (4 components)
-	GLuint count = input_->valsPerElement();
+	uint32_t count = input_->valsPerElement();
 	if (count != 4) {
 		REGEN_WARN("alphaChanged() called but selected input is not a color with alpha.");
 		return;
@@ -172,6 +172,6 @@ void ColorWidget::rgbChanged() {
 
 void ColorWidget::scaleChanged() {
 	// Ensure the selected shader input is a color (3 or 4 components)
-	//GLuint count = input_->valsPerElement();
+	//uint32_t count = input_->valsPerElement();
 	//auto sliderValue = ui_.scaleValue->value();
 }

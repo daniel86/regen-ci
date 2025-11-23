@@ -84,7 +84,6 @@ void AssetImporter::importAsset() {
 		throw Error(REGEN_STRING("Can not import assimp file '" <<
 																assetFile_ << "'. " << aiGetErrorString()));
 	}
-	rootNode_ = loadNodeTree();
 	lights_ = loadLights();
 	materials_ = loadMaterials();
 	loadNodeAnimation(animationCfg_);
@@ -136,7 +135,7 @@ vector<ref_ptr<Light> > AssetImporter::loadLights() {
 	for (uint32_t i = 0; i < scene_->mNumLights; ++i) {
 		aiLight *assimpLight = scene_->mLights[i];
 		// node could be animated, but for now it is ignored
-		aiNode *node = nodes_[string(assimpLight->mName.data)];
+		aiNode *node = aiBoneNodes_[string(assimpLight->mName.data)];
 		if (node == nullptr) {
 			REGEN_WARN("Light '" << assimpLight->mName.data << "' has no corresponding node.");
 			continue;
@@ -185,19 +184,6 @@ vector<ref_ptr<Light> > AssetImporter::loadLights() {
 	}
 
 	return ret;
-}
-
-ref_ptr<LightNode> AssetImporter::loadLightNode(const ref_ptr<Light> &light) {
-	aiLight *assimpLight = lightToAiLight_[light.get()];
-	if (assimpLight == nullptr) { return {}; }
-
-	aiNode *node = nodes_[string(assimpLight->mName.data)];
-	if (node == nullptr) { return {}; }
-
-	ref_ptr<BoneNode> &animNode = aiNodeToNode_[node];
-	if (animNode.get() == nullptr) { return {}; }
-
-	return ref_ptr<LightNode>::alloc(light, animNode);
 }
 
 ///////////// TEXTURES
@@ -979,12 +965,8 @@ list<ref_ptr<BoneNode>> AssetImporter::loadMeshBones(
 		aiBone *assimpBone = mesh->mBones[boneIndex];
 		string nodeName = string(assimpBone->mName.data);
 		ref_ptr<BoneNode> animNode = anim->findNode(nodeName);
-		// hoping that meshes do not share bones here....
-		// is there a usecase for bone sharing between meshes ?
-		// if so the offset matrix can only be used in BonesState class
-		// and not in the bone class.
-		animNode->offsetMatrix = *((Mat4f *) &assimpBone->mOffsetMatrix.a1);
-		animNode->isBoneNode = true;
+		anim->setOffsetMatrix(animNode->nodeIdx, *((Mat4f *) &assimpBone->mOffsetMatrix.a1));
+		anim->setIsBoneNode(animNode->nodeIdx, true);
 		boneNodes.push_back(animNode);
 	}
 	return boneNodes;
@@ -1030,7 +1012,23 @@ static AnimationChannelBehavior animState(aiAnimBehaviour b) {
 	}
 }
 
-ref_ptr<BoneNode> AssetImporter::loadNodeTree() {
+ref_ptr<BoneNode> AssetImporter::loadNodeTree(std::vector<ref_ptr<BoneNode>> &nodes,
+			aiNode *assimpNode, const ref_ptr<BoneNode> &parent) {
+	auto node = ref_ptr<BoneNode>::alloc(string(assimpNode->mName.data), parent);
+	aiNodeToNode_[assimpNode] = node;
+	aiBoneNodes_[string(assimpNode->mName.data)] = assimpNode;
+	nodes.push_back(node);
+
+	// continue for all child nodes and assign the created internal nodes as our children
+	for (uint32_t i = 0; i < assimpNode->mNumChildren; ++i) {
+		ref_ptr<BoneNode> subTree = loadNodeTree(nodes, assimpNode->mChildren[i], node);
+		node->addChild(subTree);
+	}
+
+	return node;
+}
+
+ref_ptr<BoneNode> AssetImporter::loadNodeTree(std::vector<ref_ptr<BoneNode>> &nodes) {
 	if (scene_->HasAnimations()) {
 		bool hasAnimations = false;
 		for (uint32_t i = 0; i < scene_->mNumAnimations; ++i) {
@@ -1040,35 +1038,27 @@ ref_ptr<BoneNode> AssetImporter::loadNodeTree() {
 			}
 		}
 		if (hasAnimations) {
-			return loadNodeTree(scene_->mRootNode, ref_ptr<BoneNode>());
+			return loadNodeTree(nodes, scene_->mRootNode, ref_ptr<BoneNode>());
 		}
 	}
 	return {};
 }
 
-ref_ptr<BoneNode> AssetImporter::loadNodeTree(aiNode *assimpNode, const ref_ptr<BoneNode> &parent) {
-	auto node = ref_ptr<BoneNode>::alloc(string(assimpNode->mName.data), parent);
-	aiNodeToNode_[assimpNode] = node;
-	nodes_[string(assimpNode->mName.data)] = assimpNode;
-
-	node->localTransform = (*((Mat4f *) &assimpNode->mTransformation.a1));
-	node->calculateGlobalTransform();
-
-	// continue for all child nodes and assign the created internal nodes as our children
-	for (uint32_t i = 0; i < assimpNode->mNumChildren; ++i) {
-		ref_ptr<BoneNode> subTree = loadNodeTree(assimpNode->mChildren[i], node);
-		node->addChild(subTree);
-	}
-
-	return node;
-}
-
 void AssetImporter::loadNodeAnimation(const AssimpAnimationConfig &animConfig) {
-	if (!animConfig.useAnimation || !rootNode_.get()) {
-		return;
-	}
+	if (!animConfig.useAnimation) { return; }
 
-	ref_ptr<BoneTree> anim = ref_ptr<BoneTree>::alloc(rootNode_, animConfig.numInstances);
+	std::vector<ref_ptr<BoneNode>> nodes;
+	loadNodeTree(nodes);
+	if (nodes.empty()) { return; }
+
+	rootNode_ = nodes[0];
+	ref_ptr<BoneTree> anim = ref_ptr<BoneTree>::alloc(nodes, animConfig.numInstances);
+
+	for (auto &node : nodes) {
+		auto &aiNode = aiBoneNodes_[node->name];
+		anim->setLocalTransform(node->nodeIdx,
+			*((Mat4f *) &aiNode->mTransformation.a1));
+	}
 
 	for (uint32_t i = 0; i < scene_->mNumAnimations; ++i) {
 		aiAnimation *assimpAnim = scene_->mAnimations[i];

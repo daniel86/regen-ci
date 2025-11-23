@@ -43,8 +43,8 @@ namespace regen {
 		void debugFrustum(const Frustum &frustum, const Vec3f &color = Vec3f(0.0f, 1.0f, 0.0f));
 
 		ref_ptr<VAO> vao_;
-		GLuint vbo_{};
-		GLuint bufferSize_;
+		uint32_t vbo_{};
+		uint32_t bufferSize_;
 
 		friend class SpatialIndex;
 	};

@@ -95,7 +95,7 @@ std::vector<ref_ptr<AnimalController>> AnimalController::load(
 	ref_ptr<Mesh> mesh;
 	auto compositeMesh = scene->getResources()->getMesh(scene, node.getValue("mesh"));
 	if (compositeMesh.get() != nullptr && !compositeMesh->meshes().empty()) {
-		auto meshIndex = node.getValue<GLuint>("mesh-index", 0u);
+		auto meshIndex = node.getValue<uint32_t>("mesh-index", 0u);
 		if (meshIndex >= compositeMesh->meshes().size()) {
 			REGEN_WARN("Invalid mesh index for '" << node.getDescription() << "'.");
 			meshIndex = 0;

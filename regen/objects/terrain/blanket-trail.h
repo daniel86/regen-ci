@@ -68,7 +68,7 @@ namespace regen {
 
 		static ref_ptr<BlanketTrail> load(LoadingContext &ctx,
 			scene::SceneInputNode &input,
-			const std::vector<GLuint> &lodLevels);
+			const std::vector<uint32_t> &lodLevels);
 
 	protected:
 		ref_ptr<Ground> groundMesh_;

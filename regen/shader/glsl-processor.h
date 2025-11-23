@@ -71,7 +71,7 @@ namespace regen {
 		/** The currently pre-processed shader stage. */
 		GLenum currStage;
 		/** The minimum GLSL version */
-		GLuint version;
+		uint32_t version;
 		/** Input stream providing unprocessed GLSL code. */
 		std::stringstream inStream;
 	};

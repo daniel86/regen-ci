@@ -18,7 +18,7 @@ namespace regen {
 		 * Generate buffer object name and
 		 * create and initialize the buffer object's data store to the named size.
 		 */
-		static ClientBufferRef createAllocator(GLuint poolIndex, GLuint size);
+		static ClientBufferRef createAllocator(uint32_t poolIndex, uint32_t size);
 
 		/**
 		 * Map the buffer object to the CPU memory.
@@ -28,7 +28,7 @@ namespace regen {
 		 * @param ref the reference to the buffer object.
 		 * @return pointer to mapped memory, or nullptr if mapping is not possible.
 		 */
-		static void* mapAllocator(GLuint poolIndex, GLuint size, ClientBufferRef ref);
+		static void* mapAllocator(uint32_t poolIndex, uint32_t size, ClientBufferRef ref);
 
 		/**
 		 * Unmap the buffer object from the CPU memory.
@@ -36,14 +36,14 @@ namespace regen {
 		 * @param poolIndex the index of the pool.
 		 * @param ref the reference to the buffer object.
 		 */
-		static void unmapAllocator(GLuint poolIndex, ClientBufferRef ref);
+		static void unmapAllocator(uint32_t poolIndex, ClientBufferRef ref);
 
 		/**
 		 * Delete named buffer object.
 		 * After a buffer object is deleted, it has no contents,
 		 * and its name is free for reuse.
 		 */
-		static void deleteAllocator(GLuint poolIndex, ClientBufferRef ref);
+		static void deleteAllocator(uint32_t poolIndex, ClientBufferRef ref);
 
 		/**
 		 * Invalidate a buffer range.
@@ -51,7 +51,7 @@ namespace regen {
 		 * @param offset the offset in the buffer object.
 		 * @param size the size of the data to invalidate.
 		 */
-		static void orphanAllocatorRange(ClientBufferRef ref, GLuint offset, GLuint size);
+		static void orphanAllocatorRange(ClientBufferRef ref, uint32_t offset, uint32_t size);
 	};
 
 	/**
@@ -61,7 +61,7 @@ namespace regen {
 			ClientBufferAllocator,
 			ClientBufferRef,   // actual allocator and reference type
 			BuddyAllocator,
-			GLuint     // virtual allocator and reference type
+			uint32_t     // virtual allocator and reference type
 	> ClientBufferPool;
 } // namespace
 

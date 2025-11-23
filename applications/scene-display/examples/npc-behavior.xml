@@ -1638,10 +1638,11 @@
             <fbo id="g-buffer" draw-buffers="0"/>
         </node>
 
-        <node import="G-Buffer-Blur0"/> <!-- TODO: remove? -->
+        <node import="G-Buffer-Blur0"/>
         <node import="Depth-of-Field">
             <fbo id="g-buffer" draw-buffers="1"/>
             <texture name="inputTexture" fbo="g-buffer" attachment="0"/>
+            <texture name="blurTexture" id="blurred-scene"/>
             <input type="vec2" name="focalWidth" value="0.2,0.5"/>
         </node>
         <view id="DoF">

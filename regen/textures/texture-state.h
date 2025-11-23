@@ -183,7 +183,7 @@ namespace regen {
 		/**
 		 * @param channel  the texture coordinate channel.
 		 */
-		void set_texcoChannel(GLuint channel);
+		void set_texcoChannel(uint32_t channel);
 
 		/**
 		 * @return the texture coordinate channel.
@@ -301,7 +301,7 @@ namespace regen {
 				const std::string &attachmentKey = "attachment");
 
 	protected:
-		static GLuint idCounter_;
+		static uint32_t idCounter_;
 
 		uint32_t stateID_;
 
@@ -359,7 +359,7 @@ namespace regen {
 		 * @param tex texture reference.
 		 * @param objectIndex the buffer index that should be activated.
 		 */
-		TextureSetIndex(const ref_ptr<Texture> &tex, GLuint objectIndex)
+		TextureSetIndex(const ref_ptr<Texture> &tex, uint32_t objectIndex)
 				: tex_(tex), objectIndex_(objectIndex) {}
 
 		// override
@@ -367,7 +367,7 @@ namespace regen {
 
 	protected:
 		ref_ptr<Texture> tex_;
-		GLuint objectIndex_;
+		uint32_t objectIndex_;
 	};
 
 	/**

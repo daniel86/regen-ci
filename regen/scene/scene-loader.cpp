@@ -111,7 +111,7 @@ void SceneLoader::loadShapes() {
 	}
 }
 
-void SceneLoader::addEventHandler(GLuint eventID,
+void SceneLoader::addEventHandler(uint32_t eventID,
                                   const ref_ptr<EventHandler> &eventHandler) {
 	application_->connect(eventID, eventHandler);
 }
@@ -317,7 +317,7 @@ ref_ptr<BoneAnimationItem> SceneLoader::getAnimationRanges(const std::string &as
 		range.name = rangeNode->getValue("name");
 		range.range = rangeNode->getValue<Vec2d>("range", Vec2d::zero());
 		range.trackName = rangeNode->getValue("track");
-		range.trackIndex = rangeNode->getValue<GLuint>("track-index", 0u);
+		range.trackIndex = rangeNode->getValue<uint32_t>("track-index", 0u);
 		rangeNameMap[range.name] = &range;
 		if (rangeNode->hasAttribute("motion")) {
 			auto &newClip = item->clips.emplace_back();

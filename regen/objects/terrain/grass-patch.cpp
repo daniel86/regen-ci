@@ -221,7 +221,7 @@ ref_ptr<GrassPatch> GrassPatch::load(
 		silhouetteCfg.silhouette.tileCounts[2] = lodVec.z;
 		silhouetteCfg.silhouette.tileCounts[3] = lodVec.w;
 	} else {
-		silhouetteCfg.silhouette.tileCounts.push_back(input.getValue<GLuint>("lod", 8));
+		silhouetteCfg.silhouette.tileCounts.push_back(input.getValue<uint32_t>("lod", 8));
 	}
 	if (input.hasAttribute("alpha-cut")) {
 		silhouetteCfg.silhouette.alphaCut = input.getValue<float>("alpha-cut", 0.01f);

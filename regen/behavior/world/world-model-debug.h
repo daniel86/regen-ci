@@ -37,8 +37,8 @@ namespace regen {
 		GLint lineLocation_;
 
 		ref_ptr<VAO> vao_;
-		GLuint vbo_{};
-		GLuint bufferSize_;
+		uint32_t vbo_{};
+		uint32_t bufferSize_;
 	};
 }
 

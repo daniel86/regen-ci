@@ -21,7 +21,7 @@ using namespace regen;
 #include "fbo.h"
 #include "texture-binder.h"
 
-Texture::Texture(GLenum textureTarget, GLuint numTextures)
+Texture::Texture(GLenum textureTarget, uint32_t numTextures)
 		: GLRectangle(
 				glCreateTextures,
 				glDeleteTextures,
@@ -317,7 +317,7 @@ void Texture::allocTexture() {
 	}
 	texBind_.id_ = ids_[0];
 	objectIndex_ = 0;
-	for (GLuint j = 0; j < numObjects_; ++j) {
+	for (uint32_t j = 0; j < numObjects_; ++j) {
 		(this->*(this->allocTexture_))();
 		if (isReAlloc) {
 			set_wrapping(wrappingMode_);
@@ -440,7 +440,7 @@ static std::vector<GLubyte> readTextureData_cfg(LoadingContext&, scene::SceneInp
 		int texelWidth = child->getValue<int>("width", 1);
 		for (int i = 0; i < texelWidth; ++i) {
 			if (numPixelComponents == 1) {
-				data.push_back(child->getValue<GLuint>("v", 0u));
+				data.push_back(child->getValue<uint32_t>("v", 0u));
 			} else if (numPixelComponents == 2) {
 				auto v = child->getValue<Vec2ui>("v", Vec2ui::zero());
 				data.push_back(v.x);
@@ -547,8 +547,8 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 				tex = textures::loadRAW(
 						filePath,
 						input.getValue<Vec3ui>("raw-size", Vec3ui::create(256u)),
-						input.getValue<GLuint>("raw-components", 3u),
-						input.getValue<GLuint>("raw-bytes", 4u));
+						input.getValue<uint32_t>("raw-components", 3u),
+						input.getValue<uint32_t>("raw-bytes", 4u));
 			} else {
 				tex = textures::load(filePath, texConfig);
 			}
@@ -626,7 +626,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 		auto numTexels = input.getValue<GLint>("num-texels", 256u);
 		tex = regen::textures::loadSpectrum(spectrum.x, spectrum.y, numTexels);
 	} else if (typeName == "bloom") {
-		auto numMips = input.getValue<GLuint>("num-mips", 5u);
+		auto numMips = input.getValue<uint32_t>("num-mips", 5u);
 		auto bloomTexture = ref_ptr<BloomTexture>::alloc(numMips);
 		auto inputFBO = ctx.scene()->getResource<FBO>(input.getValue("input-fbo"));
 		if (inputFBO.get() == nullptr) {
@@ -643,20 +643,20 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 		auto sizeRel = input.getValue<Vec3f>("size", Vec3f(256.0, 256.0, 1.0));
 		Vec3i sizeAbs = getSize(screen->viewport().r, sizeMode, sizeRel);
 
-		auto texCount = input.getValue<GLuint>("count", 1);
-		auto pixelComponents = input.getValue<GLuint>("pixel-components", 4);
+		auto texCount = input.getValue<uint32_t>("count", 1);
+		auto pixelComponents = input.getValue<uint32_t>("pixel-components", 4);
 		auto pixelType = glenum::pixelType(
 				input.getValue<std::string>("pixel-type", "UNSIGNED_BYTE"));
 		auto textureTarget = glenum::textureTarget(
 				input.getValue<std::string>("target", sizeAbs.z > 1 ? "TEXTURE_3D" : "TEXTURE_2D"));
-		auto numSamples = input.getValue<GLuint>("num-samples", 1);
+		auto numSamples = input.getValue<uint32_t>("num-samples", 1);
 
 		GLenum internalFormat;
 		if (input.hasAttribute("internal-format")) {
 			internalFormat = glenum::textureInternalFormat(
 					input.getValue<std::string>("internal-format", "RGBA8"));
 		} else {
-			auto pixelSize = input.getValue<GLuint>("pixel-size", 16);
+			auto pixelSize = input.getValue<uint32_t>("pixel-size", 16);
 			internalFormat = glenum::textureInternalFormat(pixelType,
 														   pixelComponents, pixelSize);
 		}
@@ -769,7 +769,7 @@ void Texture::configure(ref_ptr<Texture> &tex, scene::SceneInputNode &input) {
 	GL_ERROR_LOG();
 }
 
-Texture1D::Texture1D(GLuint numTextures)
+Texture1D::Texture1D(uint32_t numTextures)
 		: Texture(GL_TEXTURE_1D, numTextures) {
 	dim_ = 1;
 	samplerType_ = "sampler1D";
@@ -778,7 +778,7 @@ Texture1D::Texture1D(GLuint numTextures)
 	updateSubImage_ = &Texture1D::updateSubImage1D;
 }
 
-Texture2D::Texture2D(GLenum textureTarget, GLuint numTextures)
+Texture2D::Texture2D(GLenum textureTarget, uint32_t numTextures)
 		: Texture(textureTarget, numTextures) {
 	dim_ = 2;
 	samplerType_ = "sampler2D";
@@ -787,7 +787,7 @@ Texture2D::Texture2D(GLenum textureTarget, GLuint numTextures)
 	updateSubImage_ = &Texture2D::updateSubImage2D;
 }
 
-TextureMips2D::TextureMips2D(GLuint numMips)
+TextureMips2D::TextureMips2D(uint32_t numMips)
 		: Texture2D(GL_TEXTURE_2D, 1) {
 	numMips_ = 1; // we do not use the built-in mipmap generation
 	mipTextures_.resize(numMips);
@@ -800,12 +800,12 @@ TextureMips2D::TextureMips2D(GLuint numMips)
 	}
 }
 
-TextureRectangle::TextureRectangle(GLuint numTextures)
+TextureRectangle::TextureRectangle(uint32_t numTextures)
 		: Texture2D(GL_TEXTURE_RECTANGLE, numTextures) {
 	samplerType_ = "sampler2DRect";
 }
 
-Texture2DDepth::Texture2DDepth(GLenum textureTarget, GLuint numTextures)
+Texture2DDepth::Texture2DDepth(GLenum textureTarget, uint32_t numTextures)
 		: Texture2D(textureTarget, numTextures) {
 	format_ = GL_DEPTH_COMPONENT;
 	internalFormat_ = GL_DEPTH_COMPONENT24;
@@ -814,7 +814,7 @@ Texture2DDepth::Texture2DDepth(GLenum textureTarget, GLuint numTextures)
 
 Texture2DMultisample::Texture2DMultisample(
 		GLsizei numSamples,
-		GLuint numTextures,
+		uint32_t numTextures,
 		GLboolean fixedSampleLocations)
 		: Texture2D(GL_TEXTURE_2D_MULTISAMPLE, numTextures) {
 	fixedSampleLocations_ = fixedSampleLocations;
@@ -839,7 +839,7 @@ Texture2DMultisampleDepth::Texture2DMultisampleDepth(
 	updateSubImage_ = &Texture2DMultisampleDepth::updateSubImage_noop;
 }
 
-Texture3D::Texture3D(GLenum textureTarget, GLuint numTextures)
+Texture3D::Texture3D(GLenum textureTarget, uint32_t numTextures)
 		: Texture(textureTarget, numTextures) {
 	dim_ = 3;
 	samplerType_ = "sampler3D";
@@ -848,22 +848,22 @@ Texture3D::Texture3D(GLenum textureTarget, GLuint numTextures)
 	updateSubImage_ = &Texture3D::updateSubImage3D;
 }
 
-void Texture3D::set_depth(GLuint numTextures) {
+void Texture3D::set_depth(uint32_t numTextures) {
 	imageDepth_ = numTextures;
 }
 
-Texture3DDepth::Texture3DDepth(GLuint numTextures)
+Texture3DDepth::Texture3DDepth(uint32_t numTextures)
 		: Texture3D(GL_TEXTURE_3D, numTextures) {
 	format_ = GL_DEPTH_COMPONENT;
 	internalFormat_ = GL_DEPTH_COMPONENT24;
 }
 
-Texture2DArray::Texture2DArray(GLenum textureTarget, GLuint numTextures)
+Texture2DArray::Texture2DArray(GLenum textureTarget, uint32_t numTextures)
 		: Texture3D(textureTarget, numTextures) {
 	samplerType_ = "sampler2DArray";
 }
 
-Texture2DArrayDepth::Texture2DArrayDepth(GLuint numTextures)
+Texture2DArrayDepth::Texture2DArrayDepth(uint32_t numTextures)
 		: Texture2DArray(GL_TEXTURE_2D_ARRAY, numTextures) {
 	format_ = GL_DEPTH_COMPONENT;
 	internalFormat_ = GL_DEPTH_COMPONENT24;
@@ -872,7 +872,7 @@ Texture2DArrayDepth::Texture2DArrayDepth(GLuint numTextures)
 
 Texture2DArrayMultisample::Texture2DArrayMultisample(
 		GLsizei numSamples,
-		GLuint numTextures,
+		uint32_t numTextures,
 		GLboolean fixedSampleLocations)
 		: Texture2DArray(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, numTextures) {
 	samplerType_ = "sampler2DMSArray";
@@ -882,7 +882,7 @@ Texture2DArrayMultisample::Texture2DArrayMultisample(
 
 Texture2DArrayMultisampleDepth::Texture2DArrayMultisampleDepth(
 		GLsizei numSamples,
-		GLuint numTextures,
+		uint32_t numTextures,
 		GLboolean fixedSampleLocations)
 		: Texture2DArray(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, numTextures) {
 	samplerType_ = "sampler2DMSArray";
@@ -890,7 +890,7 @@ Texture2DArrayMultisampleDepth::Texture2DArrayMultisampleDepth(
 	fixedSampleLocations_ = fixedSampleLocations;
 }
 
-TextureCube::TextureCube(GLuint numTextures)
+TextureCube::TextureCube(uint32_t numTextures)
 		: Texture2D(GL_TEXTURE_CUBE_MAP, numTextures) {
 	samplerType_ = "samplerCube";
 	dim_ = 3;
@@ -899,7 +899,7 @@ TextureCube::TextureCube(GLuint numTextures)
 	updateSubImage_ = &TextureCube::updateSubImage3D;
 }
 
-TextureCubeDepth::TextureCubeDepth(GLuint numTextures)
+TextureCubeDepth::TextureCubeDepth(uint32_t numTextures)
 		: TextureCube(numTextures) {
 	format_ = GL_DEPTH_COMPONENT;
 	internalFormat_ = GL_DEPTH_COMPONENT24;

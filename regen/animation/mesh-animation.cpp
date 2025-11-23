@@ -20,7 +20,7 @@ void MeshAnimation::findFrameAfterTick(
 
 void MeshAnimation::findFrameBeforeTick(
 		GLdouble &tick,
-		GLuint &frame,
+		uint32_t &frame,
 		std::vector<KeyFrame> &keys) {
 	for (frame = keys.size() - 1; frame > 0;) {
 		if (tick >= keys[frame].startTick) {
@@ -57,7 +57,7 @@ MeshAnimation::MeshAnimation(
 
 	// find buffer size
 	bufferSize_ = 0u;
-	GLuint i = 0u;
+	uint32_t i = 0u;
 	for (auto it = mesh->inputs().begin(); it != mesh->inputs().end(); ++it) {
 		const ref_ptr<ShaderInput> &in = it->in_;
 		if (!in->isVertexAttribute()) continue;
@@ -169,7 +169,7 @@ void MeshAnimation::setTickRange(const Vec2d &forcedTickRange) {
 	if (tickRange_.x < 0.00001) {
 		startFramePosition_ = 0u;
 	} else {
-		GLuint framePos;
+		uint32_t framePos;
 		findFrameBeforeTick(tickRange_.x, framePos, frames_);
 		startFramePosition_ = framePos;
 	}
@@ -181,7 +181,7 @@ void MeshAnimation::setTickRange(const Vec2d &forcedTickRange) {
 	elapsedTime_ = 0.0;
 }
 
-void MeshAnimation::loadFrame(GLuint frameIndex, GLboolean isPongFrame) {
+void MeshAnimation::loadFrame(uint32_t frameIndex, GLboolean isPongFrame) {
 	MeshAnimation::KeyFrame &frame = frames_[frameIndex];
 
 	std::list<ref_ptr<ShaderInput> > atts;
@@ -216,7 +216,7 @@ void MeshAnimation::glAnimate(RenderState *rs, GLdouble dt) {
 	const auto &inputs = mesh_->inputs();
 
 	meshBufferOffset_ = (inputs.empty() ? 0 : (inputs.begin()->in_)->offset());
-	for (auto it = inputs.rbegin(); it != inputs.rend(); ++it) {
+	for (auto it = inputs.begin(); it != inputs.end(); ++it) {
 		const ref_ptr<ShaderInput> &in = it->in_;
 		if (!in->isVertexAttribute()) continue;
 		if (in->offset() < meshBufferOffset_) {
@@ -440,7 +440,7 @@ void MeshAnimation::addSphereAttributes(
 	// find the centroid of the mesh
 	Vec3f minPos = posAtt->getVertex(0).r;
 	Vec3f maxPos = posAtt->getVertex(0).r;
-	for (GLuint i = 1; i < posAtt->numVertices(); ++i) {
+	for (uint32_t i = 1; i < posAtt->numVertices(); ++i) {
 		auto v = posAtt->getVertex(i);
 		if(minPos.x > v.r.x) minPos.x = v.r.x;
 		if(minPos.y > v.r.y) minPos.y = v.r.y;
@@ -456,7 +456,7 @@ void MeshAnimation::addSphereAttributes(
 	//       There might be artifacts caused by faces that are flipped.
 	//       Also make sure to use polygon offset to avoid shadow map fighting.
 	// TODO: it should be possible to do this with less artifacts by taking the faces into account.
-	for (GLuint i = 0; i < spherePos->numVertices(); ++i) {
+	for (uint32_t i = 0; i < spherePos->numVertices(); ++i) {
 		Vec3f v = posAtt->getVertex(i).r;
 		Vec3f direction = v - centroid;
 		Vec3f n;
@@ -623,7 +623,7 @@ void MeshAnimation::addBoxAttributes(
 			ShaderInput::copy(norAtt, GL_FALSE));
 
 	// set cube vertex data
-	for (GLuint i = 0; i < boxPos->numVertices(); ++i) {
+	for (uint32_t i = 0; i < boxPos->numVertices(); ++i) {
 		Vec3f v = posAtt->getVertex(i).r;
 		Vec3f n;
 		GLdouble l = v.length();

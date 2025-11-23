@@ -207,7 +207,7 @@ namespace regen {
 						REGEN_WARN("No Mesh found for '" << input.getDescription() << "'.");
 						return {};
 					}
-					auto meshIndex = input.getValue<GLuint>("mesh-index", 0);
+					auto meshIndex = input.getValue<uint32_t>("mesh-index", 0);
 					ref_ptr<Mesh> mesh = compositeMesh->meshes().front();
 					if (compositeMesh->meshes().size() > meshIndex) {
 						mesh = compositeMesh->meshes().at(meshIndex);
@@ -367,11 +367,11 @@ namespace regen {
 				ref_ptr<U> v = ref_ptr<U>::alloc(input.getValue("name"));
 				v->set_isConstant(input.getValue<bool>("is-constant", false));
 
-				auto numInstances = input.getValue<GLuint>("num-instances", 1u);
-				auto numVertices = input.getValue<GLuint>("num-vertices", 1u);
+				auto numInstances = input.getValue<uint32_t>("num-instances", 1u);
+				auto numVertices = input.getValue<uint32_t>("num-vertices", 1u);
 				bool isInstanced = input.getValue<bool>("is-instanced", false);
 				bool isAttribute = input.getValue<bool>("is-attribute", false);
-				GLuint count = 1;
+				uint32_t count = 1;
 				// read the gpu-usage flag
 				if (input.getValue<std::string>("gpu-usage", "READ") == "WRITE") {
 					v->setServerAccessMode(BUFFER_GPU_WRITE);
@@ -393,7 +393,7 @@ namespace regen {
 				if (isInstanced || isAttribute) {
 					auto values = v->mapClientDataRaw(BUFFER_GPU_WRITE);
 					auto typedValues = (T *) values.w;
-					for (GLuint i = 0; i < count; i += 1) typedValues[i] = defaultValue;
+					for (uint32_t i = 0; i < count; i += 1) typedValues[i] = defaultValue;
 					values.unmap();
 					setInput(input, v.get(), count);
 				}

@@ -620,12 +620,8 @@ void SpatialIndex::resetCamera(IndexCamera *indexCamera, DistanceKeySize distanc
 
 void SpatialIndex::updateVisibility(uint32_t traversalMask) {
 	if constexpr (SPATIAL_INDEX_USE_MULTITHREADING) {
+		JobPool& pool = Scene::getJobPool();
 		uint32_t numIndexedCameras = indexCameras_.size();
-		if (!jobPool_) {
-			uint32_t numThreads = numIndexedCameras - 1; // leave one for the local thread
-			numThreads = std::max(1u, std::min(numThreads, maxNumThreads_));
-			jobPool_ = std::make_unique<JobPool>(numThreads);
-		}
 
 		// Schedule jobs for all index cameras, but keep the one with the most keys for the local thread.
 		IndexCamera *localIndexCamera = &indexCameras_.front();
@@ -636,16 +632,16 @@ void SpatialIndex::updateVisibility(uint32_t traversalMask) {
 			if (nextIndexCamera->numKeys > localIndexCamera->numKeys) {
 				std::swap(localIndexCamera, nextIndexCamera);
 			}
-			jobPool_->addJobPreFrame(Job{ .fn = visibilityJobFunc, .arg = nextIndexCamera });
+			pool.addJobPreFrame(Job{ .fn = visibilityJobFunc, .arg = nextIndexCamera });
 		}
 
 		// Execute jobs
-		jobPool_->beginFrame(1u); // one local job
+		pool.beginFrame(1u); // one local job
 		Job localJob { .fn = visibilityJobFunc, .arg = localIndexCamera };
 		do {
-			jobPool_->performJob(localJob);
-		} while (jobPool_->stealJob(localJob));
-		jobPool_->endFrame();
+			pool.performJob(localJob);
+		} while (pool.stealJob(localJob));
+		pool.endFrame();
 	} else { // no multithreading
 		for (auto &indexCamera: indexCameras_) {
 			resetCamera(&indexCamera, distanceBits_, traversalMask);
@@ -778,7 +774,7 @@ ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputN
 
 	if (indexType == "quadtree") {
 		auto quadTree = ref_ptr<QuadTree>::alloc();
-		//quadTree->setMaxObjectsPerNode(input.getValue<GLuint>("max-objects-per-node", 4u));
+		//quadTree->setMaxObjectsPerNode(input.getValue<uint32_t>("max-objects-per-node", 4u));
 		quadTree->setMinNodeSize(input.getValue<float>("min-node-size", 0.1f));
 
 		if (input.hasAttribute("test-mode-3d")) {
@@ -792,7 +788,7 @@ ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputN
 			}
 		}
 		if (input.hasAttribute("batch-size-3d")) {
-			quadTree->setBatchSize3D(input.getValue<GLuint>("batch-size-3d", 2048u));
+			quadTree->setBatchSize3D(input.getValue<uint32_t>("batch-size-3d", 2048u));
 		}
 		if (input.hasAttribute("close-distance")) {
 			auto dst = input.getValue<float>("close-distance", 20.0f);
@@ -800,7 +796,7 @@ ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputN
 			quadTree->setCloseDistanceSquared(dst * dst);
 		}
 		if (input.hasAttribute("subdivision-threshold")) {
-			quadTree->setSubdivisionThreshold(input.getValue<GLuint>("subdivision-threshold", 4u));
+			quadTree->setSubdivisionThreshold(input.getValue<uint32_t>("subdivision-threshold", 4u));
 		}
 
 		index = quadTree;
@@ -818,11 +814,6 @@ ref_ptr<SpatialIndex> SpatialIndex::load(LoadingContext &ctx, scene::SceneInputN
 			REGEN_WARN("Invalid distance-bits value " << distanceBits << ", using default 24 bits.");
 			index->setDistanceBits(DISTANCE_KEY_24);
 		}
-	}
-	if (input.hasAttribute("max-threads")) {
-		auto maxThreads = input.getValue<int>("max-threads", 4);
-		maxThreads = std::max(1, maxThreads);
-		index->setMaxNumThreads(static_cast<uint8_t>(maxThreads));
 	}
 
 	return index;

@@ -4,7 +4,7 @@ using namespace regen;
 
 ///////////
 
-Point::Point(GLuint numVertices)
+Point::Point(uint32_t numVertices)
 		: Mesh(GL_POINTS, BufferUpdateFlags::NEVER) {
 	set_numVertices(numVertices);
 

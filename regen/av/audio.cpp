@@ -219,7 +219,7 @@ AudioSource::AudioBuffer::~AudioBuffer() {
 	alDeleteBuffers(1, &id_);
 }
 
-AudioSource::AudioSource(GLuint cachedBytesLimit)
+AudioSource::AudioSource(uint32_t cachedBytesLimit)
 		: AudioVideoStream(cachedBytesLimit),
 		  id_(0),
 		  alType_(AL_NONE),
@@ -235,7 +235,7 @@ AudioSource::AudioSource(GLuint cachedBytesLimit)
 	alGenSources(1, &id_);
 }
 
-AudioSource::AudioSource(AVStream *stream, GLint index, GLuint cachedBytesLimit)
+AudioSource::AudioSource(AVStream *stream, GLint index, uint32_t cachedBytesLimit)
 		: AudioVideoStream(cachedBytesLimit),
 		  id_(0),
 		  alType_(AL_NONE),

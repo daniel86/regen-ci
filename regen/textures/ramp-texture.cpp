@@ -5,7 +5,7 @@ using namespace regen;
 RampTexture::RampTexture(
 			GLenum format,
 			GLenum internalFormat,
-			GLuint width)
+			uint32_t width)
 		: Texture1D() {
 	set_rectangleSize(width, 1);
 	set_pixelType(GL_UNSIGNED_BYTE);

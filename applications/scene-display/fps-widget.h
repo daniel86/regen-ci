@@ -36,7 +36,7 @@ public:
 
 private:
 	ref_ptr<TextureMappedText> widget_{};
-	GLuint frameCounter_{};
+	uint32_t frameCounter_{};
 	GLint fps_{};
 	GLdouble sumDtMiliseconds_;
 };

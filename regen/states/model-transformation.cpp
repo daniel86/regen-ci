@@ -367,11 +367,11 @@ static void makeInstances(InstancePlaneGenerator &generator, unsigned int i, uns
 	makeInstances(generator, cell, weights);
 }
 
-static GLuint transformMatrixPlane(
+static uint32_t transformMatrixPlane(
 		scene::SceneLoader *scene,
 		scene::SceneInputNode &input,
 		const ref_ptr<ModelTransformation> &tf,
-		GLuint numInstances) {
+		uint32_t numInstances) {
 	auto areaSize = input.getValue<Vec2f>("area-size", Vec2f::create(10.0f));
 	auto areaHalfSize = areaSize * 0.5f;
 

@@ -23,8 +23,8 @@ namespace regen {
 				const Rectangle::Config &cfg,
 				const Tessellation &tessellation,
 				const Mat4f &rotMat,
-				GLuint vertexOffset,
-				GLuint indexOffset);
+				uint32_t vertexOffset,
+				uint32_t indexOffset);
 	};
 }
 
@@ -63,8 +63,8 @@ SkirtMesh::SkirtMesh(const BufferUpdateFlags &updateHint)
 }
 
 void SkirtMesh::updateAttributes(const Rectangle::Config &rectangleConfig) {
-	GLuint numVertices = 0;
-	GLuint numIndices = 0;
+	uint32_t numVertices = 0;
+	uint32_t numIndices = 0;
 	for (auto &lodTess : skirtTess_) {
 		auto &x = meshLODs_.emplace_back();
 		x.d->numVertices = lodTess.vertices.size();
@@ -180,14 +180,14 @@ void SkirtMesh::addSkirtLOD(
 void SkirtMesh::generateLODLevel(const Rectangle::Config &cfg,
 								 const Tessellation &skirtTess,
 								 const Mat4f &rotMat,
-								 GLuint vertexOffset,
-								 GLuint indexOffset) {
+								 uint32_t vertexOffset,
+								 uint32_t indexOffset) {
 	// map client data for writing
 	auto v_pos = (Vec3f*) pos_->clientBuffer()->clientData(0);
 	auto indices = (byte*)indices_->clientBuffer()->clientData(0);
 	auto indexType = indices_->baseType();
 
-	GLuint nextIndex = indexOffset;
+	uint32_t nextIndex = indexOffset;
 	for (auto &tessFace: skirtTess.outputFaces) {
 		setIndexValue(indices, indexType, nextIndex++, vertexOffset + tessFace.v1);
 		setIndexValue(indices, indexType, nextIndex++, vertexOffset + tessFace.v2);
@@ -201,7 +201,7 @@ void SkirtMesh::generateLODLevel(const Rectangle::Config &cfg,
 		startPos = Vec3f(0.0f, 0.0f, 0.0f);
 	}
 
-	for (GLuint faceIndex = 0; faceIndex < skirtTess.outputFaces.size(); ++faceIndex) {
+	for (uint32_t faceIndex = 0; faceIndex < skirtTess.outputFaces.size(); ++faceIndex) {
 		auto &face = skirtTess.outputFaces[faceIndex];
 
 		for (auto &tessIndex: {face.v1, face.v2, face.v3}) {

@@ -50,7 +50,7 @@ namespace regen {
 		 * @param success compiling/linking success ?
 		 */
 		static void printLog(
-				GLuint shader,
+				uint32_t shader,
 				GLenum shaderType,
 				const char *shaderCode,
 				GLboolean success);
@@ -71,7 +71,7 @@ namespace regen {
 		 */
 		Shader(
 				const std::map<GLenum, std::string> &shaderCode,
-				const std::map<GLenum, ref_ptr<GLuint> > &shaderObjects);
+				const std::map<GLenum, ref_ptr<uint32_t> > &shaderObjects);
 
 		/**
 		 * Create a new shader with given stage map.
@@ -193,7 +193,7 @@ namespace regen {
 		 * GL_GEOMETRY_SHADER, ...
 		 * Returns a NULL reference if no such shader stage is used.
 		 */
-		ref_ptr<GLuint> stage(GLenum stage) const;
+		ref_ptr<uint32_t> stage(GLenum stage) const;
 
 		/**
 		 * Returns shader stage GLSL code from enumeration.

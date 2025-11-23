@@ -254,7 +254,7 @@ namespace regen {
 		/**
 		 * @param numVertices the vertex count.
 		 */
-		void set_numVertices(GLuint numVertices) { numVertices_ = numVertices; }
+		void set_numVertices(uint32_t numVertices) { numVertices_ = numVertices; }
 
 		/**
 		 * Attribute size for all vertices.
@@ -264,13 +264,13 @@ namespace regen {
 		/**
 		 * Attribute size for all vertices.
 		 */
-		void set_inputSize(GLuint size) { inputSize_ = size; }
+		void set_inputSize(uint32_t size) { inputSize_ = size; }
 
 		/**
 		 * VBO that contains this vertex data.
 		 * Iterator should be exclusively owned by this instance.
 		 */
-		void set_buffer(GLuint buffer, const ref_ptr<BufferReference> &ref);
+		void set_buffer(uint32_t buffer, const ref_ptr<BufferReference> &ref);
 
 		/**
 		 * VBO that contains this vertex data.
@@ -291,7 +291,7 @@ namespace regen {
 		 * Offset in the VBO to the first
 		 * attribute element.
 		 */
-		void set_offset(GLuint offset) { offset_ = offset; }
+		void set_offset(uint32_t offset) { offset_ = offset; }
 
 		/**
 		 * Offset in the VBO to the first
@@ -387,14 +387,14 @@ namespace regen {
 		 * if the data pointer is not null.
 		 * numVertices*elementSize bytes will be allocated.
 		 */
-		void setVertexData(GLuint numVertices, const byte *vertexData = nullptr);
+		void setVertexData(uint32_t numVertices, const byte *vertexData = nullptr);
 
 		/**
 		 * Allocates RAM for the attribute and does a memcpy
 		 * if the data pointer is not null.
 		 * numInstances*elementSize/divisor bytes will be allocated.
 		 */
-		void setInstanceData(GLuint numInstances, GLuint divisor, const byte *instanceData = nullptr);
+		void setInstanceData(uint32_t numInstances, uint32_t divisor, const byte *instanceData = nullptr);
 
 		/**
 		 * @param data the input data.
@@ -508,7 +508,7 @@ namespace regen {
 		 * @param index vertex index.
 		 * @param data the data, will be copied into the internal data buffer.
 		 */
-		void writeVertex(GLuint index, const byte *data);
+		void writeVertex(uint32_t index, const byte *data);
 
 		/**
 		 * Deallocates data pointer owned by this instance.
@@ -522,13 +522,6 @@ namespace regen {
 		 * If not server-side data is available, nothing is done.
 		 */
 		void readServerData();
-
-		/**
-		 * Write a single vertex to the GL server.
-		 * @param rs The RenderState.
-		 * @param index The vertex index.
-		 */
-		void writeServerData(GLuint index) const;
 
 		/**
 		 * Write this attribute to the GL server.
@@ -731,8 +724,8 @@ namespace regen {
 		ShaderStructBase(
 				const std::string &structTypeName,
 				const std::string &name,
-				GLuint structSize,
-				GLuint numArrayElements,
+				uint32_t structSize,
+				uint32_t numArrayElements,
 				GLboolean normalize)
 				: ShaderInput(name, GL_NONE, structSize, 1, numArrayElements, normalize),
 				  structTypeName_(structTypeName) {
@@ -763,7 +756,7 @@ namespace regen {
 		ShaderInputStruct(
 				const std::string &typeName,
 				const std::string &name,
-				GLuint numArrayElements,
+				uint32_t numArrayElements,
 				GLboolean normalize = GL_FALSE)
 				: ShaderStructBase(typeName, name, sizeof(StructType), numArrayElements, normalize) {}
 
@@ -784,7 +777,7 @@ namespace regen {
 		 * @param vertexIndex index in data array.
 		 * @param val the new value.
 		 */
-		void setVertex(GLuint i, const StructType &val) {
+		void setVertex(uint32_t i, const StructType &val) {
 			mapClientVertex<StructType>(BUFFER_GPU_WRITE, i).w = val;
 		}
 
@@ -792,7 +785,7 @@ namespace regen {
 		 * @param vertexIndex index in data array.
 		 * @return data value at given index.
 		 */
-		ClientVertex_ro<StructType> getVertex(GLuint i) const {
+		ClientVertex_ro<StructType> getVertex(uint32_t i) const {
 			return mapClientVertex<StructType>(BUFFER_GPU_READ, i);
 		}
 
@@ -821,7 +814,7 @@ namespace regen {
 		 */
 		ShaderInputTyped(
 				const std::string &name,
-				GLuint numArrayElements,
+				uint32_t numArrayElements,
 				GLboolean normalize)
 				: ShaderInput(name,
 							  TypeValue,
@@ -854,7 +847,7 @@ namespace regen {
 		 * @param vertexIndex index in data array.
 		 * @param val the new value.
 		 */
-		void setVertex(GLuint i, const ValueType &val) {
+		void setVertex(uint32_t i, const ValueType &val) {
 			mapClientVertex<ValueType>(BUFFER_GPU_WRITE, i).w = val;
 		}
 
@@ -862,7 +855,7 @@ namespace regen {
 		 * @param vertexIndex index in data array.
 		 * @return data value at given index.
 		 */
-		ClientVertex_ro<ValueType> getVertex(GLuint i) const {
+		ClientVertex_ro<ValueType> getVertex(uint32_t i) const {
 			return mapClientVertex<ValueType>(BUFFER_GPU_READ, i);
 		}
 
@@ -871,14 +864,14 @@ namespace regen {
 		 * @param vertexIndex index in data array.
 		 * @param val the new value.
 		 */
-		void setVertexClamped(GLuint i, const ValueType &val) { setVertex(numElements_ui_ > i ? i : 0, val); }
+		void setVertexClamped(uint32_t i, const ValueType &val) { setVertex(numElements_ui_ > i ? i : 0, val); }
 
 		/**
 		 * Get vertex at index or the first vertex if index is out of bounds.
 		 * @param vertexIndex index in data array.
 		 * @return data value at given index.
 		 */
-		auto getVertexClamped(GLuint i) const { return getVertex(numElements_ui_ > i ? i : 0); }
+		auto getVertexClamped(uint32_t i) const { return getVertex(numElements_ui_ > i ? i : 0); }
 
 		/**
 		 * Write ShaderInput.
@@ -965,7 +958,7 @@ namespace regen {
 				uint32_t numArrayElements = 1,
 				bool normalize = false);
 
-		void setVertex3(GLuint i, const Vec3f &val) {
+		void setVertex3(uint32_t i, const Vec3f &val) {
 			auto mapped = mapClientVertex<Vec4f>(BUFFER_GPU_WRITE, i);
 			mapped.w.xyz() = val;
 		}

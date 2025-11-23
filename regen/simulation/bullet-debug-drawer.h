@@ -42,8 +42,8 @@ namespace regen {
 		ref_ptr<ShaderInput3f> lineVertices_;
 
 		ref_ptr<VAO> vao_;
-		GLuint vbo_{};
-		GLuint bufferSize_;
+		uint32_t vbo_{};
+		uint32_t bufferSize_;
 		int m_debugMode;
 
 		regen::RenderState *renderState_{};

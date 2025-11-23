@@ -37,7 +37,7 @@ ShaderInputWidget::~ShaderInputWidget() {
 }
 
 void ShaderInputWidget::updateInitialValue(ShaderInput *x) {
-	GLuint stamp = x->stampOfReadData();
+	uint32_t stamp = x->stampOfReadData();
 	if (stamp != valueStamp_[x] &&
 		stamp != initialValueStamp_[x]) {
 		// last time value was not changed from widget
@@ -136,7 +136,7 @@ bool ShaderInputWidget::handleNode(
 	}
 
 	QTreeWidgetItem *x = parent;
-	GLuint level = 0u;
+	uint32_t level = 0u;
 	while (x != nullptr) {
 		level += 1u;
 		x = x->parent();

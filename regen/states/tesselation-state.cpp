@@ -44,7 +44,7 @@ namespace regen {
 	}
 }
 
-TesselationState::TesselationState(GLuint numPatchVertices)
+TesselationState::TesselationState(uint32_t numPatchVertices)
 		: State(),
 		  lodMetric_(CAMERA_DISTANCE),
 		  numPatchVertices_(numPatchVertices) {
@@ -107,7 +107,7 @@ const ref_ptr<ShaderInput1f> &TesselationState::lodFactor() const { return lodFa
 
 ref_ptr<TesselationState> TesselationState::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 	ref_ptr<TesselationState> tess = ref_ptr<TesselationState>::alloc(
-			input.getValue<GLuint>("num-patch-vertices", 3u));
+			input.getValue<uint32_t>("num-patch-vertices", 3u));
 
 	tess->innerLevel()->setVertex(0,
 								  input.getValue<Vec4f>("inner-level", Vec4f::create(8.0f)));

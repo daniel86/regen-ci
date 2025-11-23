@@ -14,7 +14,7 @@ using namespace std;
 #include <regen/utility/string-util.h>
 
 static void pushIndexToSequence(
-		GLuint numIndices, list<IndexRange> &indices, const IndexRange &indexRange) {
+		uint32_t numIndices, list<IndexRange> &indices, const IndexRange &indexRange) {
 	if (indexRange.from >= numIndices || indexRange.to >= numIndices) {
 		REGEN_WARN("Invalid index range " << indexRange.from << "-" << indexRange.to
 				<< " for numIndices=" << numIndices << ".");
@@ -54,7 +54,7 @@ string SceneInputNode::getDescription() {
 	return ss.str();
 }
 
-list<IndexRange> SceneInputNode::getIndexSequence(GLuint numIndices) {
+list<IndexRange> SceneInputNode::getIndexSequence(uint32_t numIndices) {
 	list<IndexRange> indices;
 	if (hasAttribute("index")) {
 		pushIndexToSequence(numIndices, indices,
@@ -63,15 +63,15 @@ list<IndexRange> SceneInputNode::getIndexSequence(GLuint numIndices) {
 		pushIndexToSequence(numIndices, indices,
 			IndexRange(getValue<GLint>("instance", 0u)));
 	} else if (hasAttribute("from-index") || hasAttribute("to-index")) {
-		auto from = getValue<GLuint>("from-index", 0u);
-		auto to = getValue<GLuint>("to-index", numIndices - 1);
-		auto step = getValue<GLuint>("index-step", 1u);
+		auto from = getValue<uint32_t>("from-index", 0u);
+		auto to = getValue<uint32_t>("to-index", numIndices - 1);
+		auto step = getValue<uint32_t>("index-step", 1u);
 		pushIndexToSequence(numIndices, indices,
 			IndexRange(from, to, step));
 	} else if (hasAttribute("from-instance") || hasAttribute("to-instance")) {
-		auto from = getValue<GLuint>("from-instance", 0u);
-		auto to = getValue<GLuint>("to-instance", numIndices - 1);
-		auto step = getValue<GLuint>("instance-step", 1u);
+		auto from = getValue<uint32_t>("from-instance", 0u);
+		auto to = getValue<uint32_t>("to-instance", numIndices - 1);
+		auto step = getValue<uint32_t>("instance-step", 1u);
 		pushIndexToSequence(numIndices, indices,
 			IndexRange(from, to, step));
 	} else if (hasAttribute("indices")) {
@@ -87,7 +87,7 @@ list<IndexRange> SceneInputNode::getIndexSequence(GLuint numIndices) {
 		for (auto & it : indicesStr)
 			pushIndexToSequence(numIndices, indices, IndexRange(atoi(it.c_str())));
 	} else if (hasAttribute("random-indices")) {
-		auto indexCount = getValue<GLuint>("random-indices", numIndices);
+		auto indexCount = getValue<uint32_t>("random-indices", numIndices);
 		while (indexCount > 0) {
 			--indexCount;
 			pushIndexToSequence(numIndices, indices, IndexRange(rand() % numIndices));

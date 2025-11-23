@@ -17,7 +17,7 @@ FT_Library Font::ftlib_ = FT_Library();
 Font::FontMap Font::fonts_ = FontMap();
 GLboolean Font::isFreetypeInitialized_ = GL_FALSE;
 
-ref_ptr<Font> Font::get(const std::string &f, GLuint size, GLuint dpi) {
+ref_ptr<Font> Font::get(const std::string &f, uint32_t size, uint32_t dpi) {
 	if (!isFreetypeInitialized_) {
 		if (FT_Init_FreeType(&ftlib_)) { throw Font::Error("FT_Init_FreeType failed."); }
 		isFreetypeInitialized_ = GL_TRUE;
@@ -42,8 +42,8 @@ ref_ptr<Font> Font::load(LoadingContext &ctx, scene::SceneInputNode &input) {
 	}
 	return regen::Font::get(
 			resourcePath(input.getValue("file")),
-			input.getValue<GLuint>("size", 16u),
-			input.getValue<GLuint>("dpi", 96u));
+			input.getValue<uint32_t>("size", 16u),
+			input.getValue<uint32_t>("dpi", 96u));
 }
 
 void Font::closeLibrary() {
@@ -51,7 +51,7 @@ void Font::closeLibrary() {
 	isFreetypeInitialized_ = GL_FALSE;
 }
 
-Font::Font(const std::string &fontPath, GLuint size, GLuint dpi)
+Font::Font(const std::string &fontPath, uint32_t size, uint32_t dpi)
 		: fontPath_(fontPath),
 		  size_(size),
 		  dpi_(dpi),
@@ -84,8 +84,8 @@ Font::Font(const std::string &fontPath, GLuint size, GLuint dpi)
 	// for Texture2DArray.
 	int pixels_x = ::FT_MulFix((face->bbox.xMax - face->bbox.xMin), face->size->metrics.x_scale);
 	int pixels_y = ::FT_MulFix((face->bbox.yMax - face->bbox.yMin), face->size->metrics.y_scale);
-	auto textureWidth = (GLuint) (pixels_x / 64);
-	auto textureHeight = (GLuint) (pixels_y / 64);
+	auto textureWidth = (uint32_t) (pixels_x / 64);
+	auto textureHeight = (uint32_t) (pixels_y / 64);
 	// make sure texture dimensions are multiple of 2
 	if (textureWidth % 2 != 0) textureWidth += 1;
 	if (textureHeight % 2 != 0) textureHeight += 1;
@@ -127,7 +127,7 @@ Font::~Font() {
 const Font::FaceData &Font::faceData(GLushort ch) const { return faceData_[ch]; }
 
 GLubyte *Font::invertPixmapWithAlpha(
-		const FT_Bitmap &bitmap, GLuint width, GLuint height) {
+		const FT_Bitmap &bitmap, uint32_t width, uint32_t height) {
 	const unsigned int arraySize = width * height;
 	auto *inverse = new GLubyte[arraySize];
 	auto *inverse_ptr = inverse;
@@ -145,7 +145,7 @@ GLubyte *Font::invertPixmapWithAlpha(
 	return inverse;
 }
 
-void Font::initGlyph(FT_Face face, GLushort ch, GLuint textureWidth, GLuint textureHeight) {
+void Font::initGlyph(FT_Face face, GLushort ch, uint32_t textureWidth, uint32_t textureHeight) {
 	FaceData &glyphData = faceData_[ch];
 	FT_Glyph glyph;
 	GLubyte *inverted;

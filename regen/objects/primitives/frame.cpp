@@ -120,10 +120,10 @@ void FrameMesh::updateAttributes(const Config &cfg) {
 			TriangleVertex(Vec3f(-1.0, 1.0, -1.0), 3)
 	};
 
-	const GLuint numBoxes = 4;
-	const GLuint numFaces = 6;
+	const uint32_t numBoxes = 4;
+	const uint32_t numFaces = 6;
 	// -4 because we can skip left/right face of two border boxes
-	GLuint numVertices = pow(4.0, cfg.levelOfDetail) * (numBoxes * numFaces - 4) * 2 * 3;
+	uint32_t numVertices = pow(4.0, cfg.levelOfDetail) * (numBoxes * numFaces - 4) * 2 * 3;
 
 	pos_->setVertexData(numVertices);
 	if (cfg.isNormalRequired) {
@@ -188,9 +188,9 @@ void FrameMesh::updateAttributes(const Config &cfg) {
 	minPosition_ = Vec3f::create(999999.0f);
 	maxPosition_ = Vec3f::create(-999999.0f);
 
-	GLuint vertexBase = 0;
-	for (GLuint boxIndex = 0; boxIndex < numBoxes; ++boxIndex) {
-		for (GLuint sideIndex = 0; sideIndex < numFaces; ++sideIndex) {
+	uint32_t vertexBase = 0;
+	for (uint32_t boxIndex = 0; boxIndex < numBoxes; ++boxIndex) {
+		for (uint32_t sideIndex = 0; sideIndex < numFaces; ++sideIndex) {
 			if (boxIndex == 2 || boxIndex == 3) {
 				if (sideIndex == 4 || sideIndex == 5) {
 					continue;
@@ -206,12 +206,12 @@ void FrameMesh::updateAttributes(const Config &cfg) {
 			facesLevel0[1] = TriangleFace(level0[1], level0[2], level0[3]);
 			auto faces = tessellate(cfg.levelOfDetail, facesLevel0);
 
-			for (GLuint faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
-				GLuint vertexIndex = faceIndex * 3 + vertexBase;
+			for (uint32_t faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
+				uint32_t vertexIndex = faceIndex * 3 + vertexBase;
 				TriangleFace &face = faces[faceIndex];
 				auto *f = (TriangleVertex *) &face;
 
-				for (GLuint i = 0; i < 3; ++i) {
+				for (uint32_t i = 0; i < 3; ++i) {
 					auto transformedVertex = (transformations[boxIndex] * (initialBoxScale * f[i].p));
 					minPosition_.setMin(transformedVertex.xyz());
 					maxPosition_.setMax(transformedVertex.xyz());
@@ -219,13 +219,13 @@ void FrameMesh::updateAttributes(const Config &cfg) {
 				}
 				if (cfg.isNormalRequired) {
 					auto nor = transformations[boxIndex].rotateVector(normal);
-					for (GLuint i = 0; i < 3; ++i) {
+					for (uint32_t i = 0; i < 3; ++i) {
 						v_nor[vertexIndex + i] = nor;
 					}
 				}
 
 				if (texcoMode == TEXCO_MODE_UV) {
-					for (GLuint i = 0; i < 3; ++i) {
+					for (uint32_t i = 0; i < 3; ++i) {
 						// Directly assign UV coordinates based on vertex positions
 						Vec3f pos = f[i].p;
 						// Normalize the vertex position to [0, 1]
@@ -254,7 +254,7 @@ void FrameMesh::updateAttributes(const Config &cfg) {
 					Vec3f *vertices = v_pos + vertexIndex;
 					Vec2f *texcos = v_texco + vertexIndex;
 					Vec4f tangent = calculateTangent(vertices, texcos, normal);
-					for (GLuint i = 0; i < 3; ++i) {
+					for (uint32_t i = 0; i < 3; ++i) {
 						v_tan[vertexIndex + i] = tangent;
 					}
 				}

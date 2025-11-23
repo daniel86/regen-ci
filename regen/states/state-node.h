@@ -220,13 +220,13 @@ namespace regen {
 		/**
 		 * @param numIterations The number of iterations.
 		 */
-		explicit LoopNode(GLuint numIterations);
+		explicit LoopNode(uint32_t numIterations);
 
 		/**
 		 * @param state Associated state.
 		 * @param numIterations The number of iterations.
 		 */
-		LoopNode(const ref_ptr<State> &state, GLuint numIterations);
+		LoopNode(const ref_ptr<State> &state, uint32_t numIterations);
 
 		/**
 		 * @return The number of iterations.
@@ -236,7 +236,7 @@ namespace regen {
 		/**
 		 * @param numIterations The number of iterations.
 		 */
-		void set_numIterations(GLuint numIterations);
+		void set_numIterations(uint32_t numIterations);
 
 		// Override
 		void traverse(RenderState *rs) override;

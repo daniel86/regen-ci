@@ -7,7 +7,7 @@
 namespace regen {
 	class FeedbackSpecification : public State {
 	public:
-		explicit FeedbackSpecification(GLuint feedbackCount);
+		explicit FeedbackSpecification(uint32_t feedbackCount);
 
 		/**
 		 * @return number of captured vertices.
@@ -67,10 +67,10 @@ namespace regen {
 	protected:
 		typedef std::list<ref_ptr<ShaderInput> > FeedbackList;
 
-		GLuint feedbackCount_;
+		uint32_t feedbackCount_;
 		GLenum feedbackMode_;
 		GLenum feedbackStage_;
-		GLuint requiredBufferSize_;
+		uint32_t requiredBufferSize_;
 
 		FeedbackList feedbackAttributes_;
 		std::map<std::string, FeedbackList::iterator> feedbackAttributeMap_;
@@ -92,7 +92,7 @@ namespace regen {
 		 */
 		FeedbackState(
 				GLenum feedbackPrimitive,
-				GLuint feedbackCount,
+				uint32_t feedbackCount,
 				VertexLayout vertexLayout = VERTEX_LAYOUT_INTERLEAVED);
 
 		/**
@@ -113,7 +113,7 @@ namespace regen {
 		/**
 		 * Render primitives from transform feedback array data.
 		 */
-		void draw(GLuint numInstances);
+		void draw(uint32_t numInstances);
 
 		// override
 		void enable(RenderState *rs) override;
@@ -123,7 +123,7 @@ namespace regen {
 	protected:
 		GLenum feedbackPrimitive_;
 
-		GLuint allocatedBufferSize_;
+		uint32_t allocatedBufferSize_;
 		ref_ptr<VBO> feedbackBuffer_;
 		BufferRange bufferRange_;
 		ref_ptr<BufferReference> feedbackRef_;

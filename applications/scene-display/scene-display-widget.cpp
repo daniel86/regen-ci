@@ -679,11 +679,6 @@ void SceneDisplayWidget::handleControllerConfiguration(
 				anchors_.emplace_back(anchor);
 			}
 		}
-
-		// make sure camera transforms are updated in first few frames
-		// TODO: HACK really needed?
-		userController_->animate(0.0);
-		userController_->glAnimate(RenderState::get(), 0.0);
 		userController_->startAnimation();
 	}
 	else if (controllerType == "animal") {

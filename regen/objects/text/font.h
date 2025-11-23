@@ -73,7 +73,7 @@ namespace regen {
 		 * @param size font size, as usual
 		 * @param dpi dots per inch for font
 		 */
-		static ref_ptr<Font> get(const std::string &filename, GLuint size, GLuint dpi = 96);
+		static ref_ptr<Font> get(const std::string &filename, uint32_t size, uint32_t dpi = 96);
 
 		/**
 		 * Load a font.
@@ -92,7 +92,7 @@ namespace regen {
 		 * @param size font size, as usual
 		 * @param dpi dots per inch for font
 		 */
-		Font(const std::string &filename, GLuint size, GLuint dpi = 96);
+		Font(const std::string &filename, uint32_t size, uint32_t dpi = 96);
 
 		~Font() override;
 
@@ -124,8 +124,8 @@ namespace regen {
 		static GLboolean isFreetypeInitialized_;
 
 		const std::string fontPath_;
-		const GLuint size_;
-		const GLuint dpi_;
+		const uint32_t size_;
+		const uint32_t dpi_;
 		ref_ptr<Texture2DArray> arrayTexture_;
 		FaceData *faceData_;
 		GLfloat lineHeight_;
@@ -139,9 +139,9 @@ namespace regen {
 
 		Font &operator=(const Font &) { return *this; }
 
-		static GLubyte *invertPixmapWithAlpha(const FT_Bitmap &bitmap, GLuint width, GLuint height);
+		static GLubyte *invertPixmapWithAlpha(const FT_Bitmap &bitmap, uint32_t width, uint32_t height);
 
-		void initGlyph(FT_Face face, GLushort ch, GLuint textureWidth, GLuint textureHeight);
+		void initGlyph(FT_Face face, GLushort ch, uint32_t textureWidth, uint32_t textureHeight);
 	};
 } // namespace
 

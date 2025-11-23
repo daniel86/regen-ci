@@ -68,9 +68,7 @@ void particleUpdateVelocity(float dt)
     out_velocity += velocityChange * dt;
 }
 
-void particleUpdate(float dt, inout uint seed)
-{
-    // TODO: why scale time?
+void particleUpdate(float dt, inout uint seed) {
     float dt_ms = dt*0.001;
 
     out_lifetime -= dt_ms;

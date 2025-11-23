@@ -29,12 +29,12 @@ namespace regen {
 		/**
 		 * Attach the storage for a buffer object to the active buffer texture.
 		 */
-		void attach(GLuint storage);
+		void attach(uint32_t storage);
 
 		/**
 		 * Attach the storage for a buffer object to the active buffer texture.
 		 */
-		void attach(GLuint storage, GLuint offset, GLuint size);
+		void attach(uint32_t storage, uint32_t offset, uint32_t size);
 
 
 	private:

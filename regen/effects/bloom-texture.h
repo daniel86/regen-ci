@@ -15,11 +15,11 @@ namespace regen {
 			Vec2f sizeInverse;
 		};
 
-		explicit BloomTexture(GLuint numMips = 5);
+		explicit BloomTexture(uint32_t numMips = 5);
 
 		auto &mips() { return mips_; }
 
-		void resize(GLuint width, GLuint height);
+		void resize(uint32_t width, uint32_t height);
 
 	protected:
 		std::vector<Mip> mips_;

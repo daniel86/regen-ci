@@ -476,7 +476,7 @@ ref_ptr<Material> Material::load(LoadingContext &ctx, scene::SceneInputNode &inp
 			REGEN_WARN("Skipping unknown Asset for '" << input.getDescription() << "'.");
 		} else {
 			const std::vector<ref_ptr<Material> > materials = assetLoader->materials();
-			auto materialIndex = input.getValue<GLuint>("asset-index", 0u);
+			auto materialIndex = input.getValue<uint32_t>("asset-index", 0u);
 			if (materialIndex >= materials.size()) {
 				REGEN_WARN("Invalid Material index '" << materialIndex <<
 													  "' for Asset '" << input.getValue("asset") << "'.");

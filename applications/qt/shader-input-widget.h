@@ -37,8 +37,8 @@ namespace regen {
 		GLboolean ignoreValueChanges_;
 
 		std::map<ShaderInput *, byte *> initialValue_;
-		std::map<ShaderInput *, GLuint> initialValueStamp_;
-		std::map<ShaderInput *, GLuint> valueStamp_;
+		std::map<ShaderInput *, uint32_t> initialValueStamp_;
+		std::map<ShaderInput *, uint32_t> valueStamp_;
 
 		ref_ptr<StateNode> rootNode_;
 		std::map<QTreeWidgetItem *, ref_ptr<StateNode>> nodes_;

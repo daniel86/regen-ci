@@ -10,7 +10,7 @@ using namespace regen;
 
 ///////////
 
-Particles::Particles(GLuint numParticles, const std::string &updateShaderKey)
+Particles::Particles(uint32_t numParticles, const std::string &updateShaderKey)
 		: Mesh(GL_POINTS, BufferUpdateFlags::NEVER, VERTEX_LAYOUT_INTERLEAVED),
 		  Animation(true, false),
 		  updateShaderKey_(updateShaderKey),
@@ -30,7 +30,7 @@ Particles::Particles(GLuint numParticles, const std::string &updateShaderKey)
 }
 
 void Particles::begin() {
-	GLuint numParticles = numVertices();
+	uint32_t numParticles = numVertices();
 
 	// Initialize the random number generator and distribution
 	std::random_device rd;
@@ -40,7 +40,7 @@ void Particles::begin() {
 	// get a random seed for each particle
 	ref_ptr<ShaderInput1ui> randomSeed_ = ref_ptr<ShaderInput1ui>::alloc("randomSeed");
 	randomSeed_->setVertexData(numParticles, nullptr);
-	for (GLuint i = 0u; i < numParticles; ++i) {
+	for (uint32_t i = 0u; i < numParticles; ++i) {
 		randomSeed_->setVertex(i, dis(gen));
 	}
 	setInput(randomSeed_);
@@ -49,7 +49,7 @@ void Particles::begin() {
 	// get emitted in the first step
 	ref_ptr<ShaderInput1f> lifetimeInput_ = ref_ptr<ShaderInput1f>::alloc("lifetime");
 	lifetimeInput_->setVertexData(numParticles, nullptr);
-	for (GLuint i = 0u; i < numParticles; ++i) {
+	for (uint32_t i = 0u; i < numParticles; ++i) {
 		lifetimeInput_->setVertex(i, -1.0);
 	}
 	setInput(lifetimeInput_);
@@ -65,7 +65,7 @@ ref_ptr<BufferReference> Particles::end() {
 	bufferRange_.size_ = vboRef_[0]->allocatedSize();
 
 	// Create shader defines.
-	GLuint counter = 0;
+	uint32_t counter = 0;
 	for (auto it = inputs().begin(); it != inputs().end(); ++it) {
 		if (!it->in_->isVertexAttribute()) continue;
 		shaderDefine(
@@ -107,7 +107,7 @@ void Particles::setAdvanceRamp(const std::string &attributeName, const ref_ptr<T
 
 void Particles::configureAdvancing(
 		const ref_ptr<ShaderInput> &in,
-		GLuint counter,
+		uint32_t counter,
 		AdvanceMode mode) {
 	std::string advanceImportKey;
 	std::string advanceFunction;
@@ -275,7 +275,7 @@ void Particles::glAnimate(RenderState *rs, GLdouble dt) {
 	/*
 	// only emit a limited number of particles per frame
 	if (numVertices_ < numParticles_) {
-		GLuint nextNumParticles = numVertices_ + maxEmits_;
+		uint32_t nextNumParticles = numVertices_ + maxEmits_;
 		if (nextNumParticles > numParticles_) {
 			set_numVertices(numParticles_);
 		} else {
@@ -292,7 +292,7 @@ void Particles::glAnimate(RenderState *rs, GLdouble dt) {
 	rs->toggles().pop(RenderState::RASTERIZER_DISCARD);
 
 	// Update particle attribute layout.
-	GLuint currOffset = bufferRange_.offset_;
+	uint32_t currOffset = bufferRange_.offset_;
 	for (auto &particleAttribute: particleAttributes_) {
 		particleAttribute.input->set_buffer(bufferRange_.buffer_, vboRef_[nextIdx]);
 		particleAttribute.input->set_offset(currOffset);

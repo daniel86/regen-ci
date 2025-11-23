@@ -6,10 +6,17 @@ using namespace regen;
 
 #define USE_BONE_TBO
 
-Bones::Bones(GLuint numBoneWeights, GLuint numBones)
+Bones::Bones(const ref_ptr<BoneTree> &tree,
+			const std::vector<ref_ptr<BoneNode>> &boneNodes,
+			uint32_t numBoneWeights)
 		: State(),
-		  Animation(false, true) {
+		  Animation(false, true),
+		  boneTree_(tree),
+		  boneNodes_(boneNodes) {
+	const uint32_t numBones = static_cast<uint32_t>(boneNodes_.size());
+
 	bufferSize_ = 0u;
+	numInstances_ = boneTree_->numInstances();
 	setAnimationName("bones");
 
 	numBoneWeights_ = ref_ptr<ShaderInput1i>::alloc("numBoneWeights");
@@ -19,21 +26,11 @@ Bones::Bones(GLuint numBoneWeights, GLuint numBones)
 	// prepend '#define HAS_BONES' to loaded shaders
 	shaderDefine("HAS_BONES", "TRUE");
 	shaderDefine("NUM_BONES_PER_MESH", REGEN_STRING(numBones));
-}
-
-void Bones::setBones(const std::list<ref_ptr<BoneNode>> &bones) {
-	bones_ = bones;
-	shaderDefine("NUM_BONES", REGEN_STRING(bones_.size()));
-	if (bones.empty()) {
-		REGEN_WARN("bones array is empty.");
-		return;
-	} else {
-		numInstances_ = bones.front()->boneTransformationMatrix.size();
-	}
+	shaderDefine("NUM_BONES", REGEN_STRING(numBones));
 
 	// create and join bone matrix uniform
-	boneMatrices_ = ref_ptr<ShaderInputMat4>::alloc("boneMatrices", bones.size() * numInstances_);
-	boneMatrices_->set_forceArray(GL_TRUE);
+	boneMatrices_ = ref_ptr<ShaderInputMat4>::alloc("boneMatrices", numBones * numInstances_);
+	boneMatrices_->set_forceArray(true);
 	boneMatrices_->setUniformUntyped();
 	bufferSize_ = boneMatrices_->inputSize();
 
@@ -65,13 +62,10 @@ void Bones::animate(GLdouble dt) {
 	auto mapped = boneMatrices_->mapClientData<Mat4f>(BUFFER_GPU_WRITE);
 	auto *boneMatrixData_ = mapped.w.data();
 
-	unsigned int i = 0;
+	uint32_t matIdx = 0;
 	for (uint32_t instanceID=0u; instanceID < numInstances_; ++instanceID) {
-		for (auto &bone : bones_) {
-			// the bone matrix is actually calculated in the animation thread
-			// by NodeAnimation.
-			boneMatrixData_[i] = bone->boneTransformationMatrix[instanceID];
-			i += 1;
+		for (auto &boneNode : boneNodes_) {
+			boneMatrixData_[matIdx++] = boneTree_->boneMatrix(instanceID, boneNode->nodeIdx);
 		}
 	}
 }

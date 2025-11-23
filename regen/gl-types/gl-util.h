@@ -59,7 +59,7 @@ namespace regen {
 	/**
 	 * Query a GL query result.
 	 */
-	GLuint getGLQueryResult(GLuint query);
+	uint32_t getGLQueryResult(uint32_t query);
 
 	/**
 	 * Query a GL integer attribute.

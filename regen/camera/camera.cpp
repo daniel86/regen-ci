@@ -537,7 +537,7 @@ ref_ptr<Camera> createLightCamera(LoadingContext &ctx, scene::SceneInputNode &in
 		REGEN_WARN("Unable to find Light for '" << input.getDescription() << "'.");
 		return {};
 	}
-	auto numLayer = input.getValue<GLuint>("num-layer", 1u);
+	auto numLayer = input.getValue<uint32_t>("num-layer", 1u);
 	auto splitWeight = input.getValue<GLdouble>("split-weight", 0.9);
 	auto cameraType = input.getValue<std::string>("camera-type", "spot");
 	auto near = input.getValue<float>("near", 0.1f);
@@ -660,7 +660,7 @@ ref_ptr<Camera> Camera::createCamera(LoadingContext &ctx, scene::SceneInputNode 
 			}
 			const std::vector<ref_ptr<Mesh> > &vec = compositeMesh->meshes();
 			cam = ref_ptr<ReflectionCamera>::alloc(
-					userCamera, vec[0], input.getValue<GLuint>("vertex-index", 0u), hasBackFace);
+					userCamera, vec[0], input.getValue<uint32_t>("vertex-index", 0u), hasBackFace);
 		} else if (input.hasAttribute("reflector-normal")) {
 			auto normal = input.getValue<Vec3f>("reflector-normal", Vec3f(0.0f, 1.0f, 0.0f));
 			auto position = input.getValue<Vec3f>("reflector-point", Vec3f(0.0f, 0.0f, 0.0f));

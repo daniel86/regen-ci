@@ -21,17 +21,17 @@ namespace regen {
 		/**
 		 * Obtain n buffers.
 		 */
-		typedef void (GLAPIENTRY *CreateObjectFunc)(GLsizei n, GLuint *buffers);
+		typedef void (GLAPIENTRY *CreateObjectFunc)(GLsizei n, uint32_t *buffers);
 
 		/**
 		 * Obtain n buffers.
 		 */
-		typedef void (GLAPIENTRY *CreateObjectFunc2)(GLenum target, GLsizei n, GLuint *buffers);
+		typedef void (GLAPIENTRY *CreateObjectFunc2)(GLenum target, GLsizei n, uint32_t *buffers);
 
 		/**
 		 * Release n buffers.
 		 */
-		typedef void (GLAPIENTRY *ReleaseObjectFunc)(GLsizei n, const GLuint *buffers);
+		typedef void (GLAPIENTRY *ReleaseObjectFunc)(GLsizei n, const uint32_t *buffers);
 
 		/**
 		 * @param createObjects allocate buffers.
@@ -96,7 +96,7 @@ namespace regen {
 		uint32_t *ids() const { return ids_; }
 
 	protected:
-		GLuint *ids_;
+		uint32_t *ids_;
 		// an atomic copy counter, for protecting deletion of shared data
 		ref_ptr<std::atomic<uint32_t>> copyCounter_;
 		uint32_t numObjects_;

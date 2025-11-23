@@ -10,62 +10,70 @@
 #include <unordered_map>
 #include <vector>
 
-#include "regen/utility/stamped.h"
 #include "animation-channel.h"
 
 namespace regen {
 	/**
 	 * \brief A node in a skeleton with parent and children.
 	 */
-	class BoneNode {
-	public:
+	struct BoneNode {
 		// The node name.
 		std::string name;
+		// The index of the node in the BoneTree node array.
+		uint32_t nodeIdx = 0;
 		// The parent node.
 		ref_ptr<BoneNode> parent;
 		// The node children.
 		std::vector<ref_ptr<BoneNode>> children;
-		// Local transformation matrix.
-		Mat4f localTransform;
-		Mat4f globalTransform; // temporary storage
-		// Matrix that transforms from mesh space to bone space in bind pose.
-		Mat4f offsetMatrix;
-		// per-instance offsetMatrix * nodeTransform * inverseTransform
-		std::vector<Mat4f> boneTransformationMatrix;
-		// per-instance count of active animations affecting this node.
-		std::vector<uint32_t> numActive;
-		// The index of the node in the BoneTree node array.
-		uint32_t nodeIdx;
-		bool isBoneNode;
-		bool localDirty = true;
-		bool globalDirty = true;
-		float lastWeightSum = 0.0f;
 
 		/**
 		 * @param name the node name.
 		 * @param parent the parent node.
 		 */
-		BoneNode(const std::string &name, const ref_ptr<BoneNode> &parent);
+		BoneNode(const std::string &name, const ref_ptr<BoneNode> &parent)
+			: name(name), parent(parent) {}
 
 		/**
 		 * Add a node child.
 		 * @param child
 		 */
-		void addChild(const ref_ptr<BoneNode> &child);
+		void addChild(const ref_ptr<BoneNode> &child) { children.push_back(child); }
+	};
 
-		/**
-		 * Recursively updates the internal node transformations from the given matrix array.
-		 * @param transforms transformation matrices.
-		 */
-		void updateTransforms(uint32_t instanceIdx, Mat4f *transforms);
+	struct ActiveBoneRange {
+		// -1 indicates that the range is inactive
+		int32_t trackIdx_ = -1;
+		// config for currently active anim
+		double startTick_ = 0.0;
+		double duration_ = 0.0;
+		Vec2d tickRange_ = Vec2d(0.0, 0.0);
+		// milliseconds from start of animation
+		double elapsedTime_ = 0.0;
+		// last update time in ticks
+		double lastTime_ = 0.0;
+		// the current time in ticks
+		double timeInTicks_ = 0.0;
+		// Overall weight for this animation range, weights of nodes
+		// are multiplied with this.
+		float weight_ = 1.0;
+		// Per node weights for blending.
+		float *nodeWeights_;
+		// Remember last frame of each channel for interpolation.
+		std::vector<Vec3ui> lastFramePosition_;
+		std::vector<Vec3ui> startFramePosition_;
+	};
 
-		/**
-		 * Concatenates all parent transforms to get the global transform for this node.
-		 */
-		void calculateGlobalTransform();
+	struct BoneTreeTraversal;
+	class BoneTree;
 
-	protected:
-		Stack<BoneNode *> traversalStack;
+	/**
+	 * \brief A slice of a bone tree for multi-threaded updates.
+	 */
+	struct BoneTreeSlice {
+		BoneTree* boneTree;
+		uint32_t startInstance;
+		uint32_t endInstance;
+		float dt_ms;
 	};
 
 	/**
@@ -81,9 +89,13 @@ namespace regen {
 		using AnimationHandle = int32_t;
 
 		/**
-		 * @param rootNode animation tree.
+		 * Construct a bone tree.
+		 * The root node is the first node in the nodes array.
+		 * Make sure that in the array i < j for any node i being parent of node j.
+		 * @param nodes the array of bone nodes.
+		 * @param numInstances the number of instances.
 		 */
-		explicit BoneTree(const ref_ptr<BoneNode> &rootNode, uint32_t numInstances = 1);
+		explicit BoneTree(const std::vector<ref_ptr<BoneNode>> &nodes, uint32_t numInstances = 1);
 
 		/**
 		 * @return the root node.
@@ -94,6 +106,64 @@ namespace regen {
 		 * @return the number of nodes in the bone tree.
 		 */
 		uint32_t numNodes() const { return static_cast<uint32_t>(nodes_.size()); }
+
+		/**
+		 * @return the number of instances.
+		 */
+		uint32_t numInstances() const { return numInstances_; }
+
+		/**
+		 * @param instanceID the instance index.
+		 * @param nodeIdx the node index.
+		 * @return the bone matrix for the given node and instance.
+		 */
+		const Mat4f &boneMatrix(uint32_t instanceID, uint32_t nodeIdx) const {
+			const auto numNodes = static_cast<uint32_t>(nodes_.size());
+			return boneMatrix_[instanceID * numNodes + nodeIdx];
+		}
+
+		/**
+		 * Set the offset matrix for a given node.
+		 * @param nodeIdx the node index.
+		 * @param offset the offset matrix.
+		 */
+		void setOffsetMatrix(uint32_t nodeIdx, const Mat4f &offset) {
+			offsetMatrix_[nodeIdx] = offset;
+		}
+
+		/**
+		 * @param nodeIdx the node index.
+		 * @return the offset matrix for the given node.
+		 */
+		const Mat4f &offsetMatrix(uint32_t nodeIdx) const {
+			return offsetMatrix_[nodeIdx];
+		}
+
+		/**
+		 * Set the local transform for a given node.
+		 * @param nodeIdx the node index.
+		 * @param tf the local transform.
+		 */
+		void setLocalTransform(uint32_t nodeIdx, const Mat4f &tf) {
+			localTransform_[nodeIdx] = tf;
+		}
+
+		/**
+		 * Mark a node as bone node or not.
+		 * @param nodeIdx the node index.
+		 * @param isBone true if the node is a bone node.
+		 */
+		void setIsBoneNode(uint32_t nodeIdx, bool isBone) {
+			isBoneNode_[nodeIdx] = isBone;
+		}
+
+		/**
+		 * @param nodeIdx the node index.
+		 * @return true if the node is a bone node.
+		 */
+		bool isBoneNode(uint32_t nodeIdx) const {
+			return isBoneNode_[nodeIdx];
+		}
 
 		/**
 		 * Add an animation.
@@ -227,33 +297,14 @@ namespace regen {
 			uint32_t rangeIdx = 0;
 		};
 
-		struct ActiveRange {
-			// -1 indicates that the range is inactive
-			int32_t trackIdx_ = -1;
-			// config for currently active anim
-			double startTick_ = 0.0;
-			double duration_ = 0.0;
-			Vec2d tickRange_ = Vec2d(0.0, 0.0);
-			// milliseconds from start of animation
-			double elapsedTime_ = 0.0;
-			// last update time in ticks
-			double lastTime_ = 0.0;
-			// the current time in ticks
-			double timeInTicks_ = 0.0;
-			// Overall weight for this animation range, weights of nodes
-			// are multiplied with this.
-			float weight_ = 1.0;
-			// Per node weights for blending.
-			float *nodeWeights_;
-			// Remember last frame of each channel for interpolation.
-			std::vector<Vec3ui> lastFramePosition_;
-			std::vector<Vec3ui> startFramePosition_;
-			std::vector<Vec3f> lastInterpolation_;
-		};
 	protected:
+		std::vector<ref_ptr<BoneNode>> nodes_;
 		ref_ptr<BoneNode> rootNode_;
+		std::unordered_map<std::string, uint32_t> nameToNode_;
+
 		uint32_t numInstances_ = 1;
 		double timeFactor_ = 0.001;
+		bool hasScalingKeys_ = false;
 
 		/**
 		 * A track in the bone animation.
@@ -271,43 +322,48 @@ namespace regen {
 			ref_ptr<StaticAnimationData> staticData_;
 		};
 		std::vector<Track> animTracks_;
+		std::unordered_map<std::string, int32_t> trackNameToIndex_;
 
 		struct InstanceData {
 			// An array of active ranges, however the array only grows so we may have
 			// inactive ranges in between.
-			std::vector<ActiveRange> ranges_;
+			std::vector<ActiveBoneRange> ranges_;
 			// The number of active ranges, i.e. animations that are active in parallel.
 			// This is usually a very small number.
 			uint32_t numActiveRanges_ = 0;
+			// Indices into ranges_ that are currently active.
+			std::vector<int32_t> activeRanges_;
+			std::vector<uint32_t> handleToActiveRange_;
 		};
 		std::vector<InstanceData> instanceData_;
-		// per-instance + per-node local node transformation
-		std::vector<Mat4f> blendedTransforms_;
 		ref_ptr<BoneEvent> eventData_ = ref_ptr<BoneEvent>::alloc();
 
-		// tmp storage
-		Stamped<Vec3f> tmpPos_;
-		Stamped<Vec3f> tmpScale_;
-		Stamped<Quaternion> tmpRot_;
+		std::vector<BoneTreeSlice> instanceSlices_;
+		uint32_t sliceSize_;
 
-		// tmp storage
-		Vec3f accPos_;
-		Vec3f accScale_;
-		Quaternion accRot_;
+		// per-node data arrays
+		// Matrix that transforms from mesh space to bone space in bind pose.
+		std::vector<Mat4f> localTransform_;
+		std::vector<Mat4f> offsetMatrix_;
+		std::vector<int32_t> nodeParent_;
+		std::vector<int8_t> isBoneNode_;
 
-		std::vector<BoneNode*> nodes_;
-		std::unordered_map<std::string, uint32_t> nameToNode_;
-		std::unordered_map<std::string, int32_t> trackNameToIndex_;
+		// per-instance data arrays in node-major layout, i.e. numInstances x numNodes
+		std::vector<uint32_t> numActive_;
+		std::vector<Mat4f> boneMatrix_;
+		std::vector<Mat4f> blendedTransforms_;
 
-		void setTickRange(ActiveRange &ar, const Vec2d &forcedTickRange);
+		void setTickRange(ActiveBoneRange &ar, const Vec2d &forcedTickRange);
 
-		Quaternion nodeRotation(ActiveRange &ar, const AnimationChannel &channel, bool &isDirty, uint32_t i);
+		template <bool HasScaleKeys>
+		void updateBoneTree(uint32_t firstInstance, uint32_t numInstances, double dt_ms);
 
-		Vec3f nodePosition(ActiveRange &ar, const AnimationChannel &channel, bool &isDirty, uint32_t i);
+		template <bool HasScaleKeys>
+		void updateLocalTransforms(BoneTreeTraversal &td, uint32_t instanceIdx, InstanceData &instance);
 
-		Vec3f nodeScaling(ActiveRange &ar, const AnimationChannel &channel, bool &isDirty, uint32_t i);
+		void updateGlobalTransforms(BoneTreeTraversal &td, uint32_t instanceIdx);
 
-		static ref_ptr<BoneNode> findNode(ref_ptr<BoneNode> &n, const std::string &name);
+		friend struct BoneSliceJob;
 	};
 } // namespace
 

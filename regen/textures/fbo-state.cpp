@@ -119,7 +119,7 @@ void FBOState::disable(RenderState *rs) {
 	}
 }
 
-void FBOState::resize(GLuint width, GLuint height) {
+void FBOState::resize(uint32_t width, uint32_t height) {
 	fbo_->resize(width, height, fbo_->depth());
 }
 
@@ -139,7 +139,7 @@ static std::vector<std::string> getFBOAttachments(scene::SceneInputNode &input, 
 static std::vector<GLenum> getFBOAttachments_(scene::SceneInputNode &input, const std::string &key) {
 	auto attachments_str = getFBOAttachments(input, key);
 	std::vector<GLenum> attachments(attachments_str.size());
-	for (GLuint i = 0u; i < attachments_str.size(); ++i) {
+	for (uint32_t i = 0u; i < attachments_str.size(); ++i) {
 		auto &attachments_str_i = attachments_str[i];
 		if (attachments_str_i.empty()) {
 			REGEN_WARN("Empty attachment in " << input.getDescription() << ".");

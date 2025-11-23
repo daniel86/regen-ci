@@ -10,7 +10,7 @@ namespace regen {
 	struct InputLocation {
 		ref_ptr<ShaderInput> input; /**< the shader input. */
 		GLint location; /**< the input location. */
-		GLuint uploadStamp; /**< time stamp of last upload. */
+		uint32_t uploadStamp; /**< time stamp of last upload. */
 		/**
 		 * @param _input input data.
 		 * @param _location input location in shader.

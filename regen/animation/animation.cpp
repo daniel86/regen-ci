@@ -7,8 +7,8 @@
 
 using namespace regen;
 
-GLuint Animation::ANIMATION_STARTED = EventObject::registerEvent("animationStarted");
-GLuint Animation::ANIMATION_STOPPED = EventObject::registerEvent("animationStopped");
+uint32_t Animation::ANIMATION_STARTED = EventObject::registerEvent("animationStarted");
+uint32_t Animation::ANIMATION_STOPPED = EventObject::registerEvent("animationStopped");
 
 Animation::Animation(bool isGPUAnimation, bool isCPUAnimation)
 		: EventObject(),
@@ -65,7 +65,7 @@ void Animation::lock_gl() { mutex_gl_.lock(); }
 
 void Animation::unlock_gl() { mutex_gl_.unlock(); }
 
-void Animation::wait(GLuint milliseconds) {
+void Animation::wait(uint32_t milliseconds) {
 	usleepRegen(1000 * milliseconds);
 }
 

@@ -37,6 +37,12 @@ namespace regen {
 		void setVisualRange(float range);
 
 		/**
+		 * Set the attraction range of the boids, i.e. how far they are attracted to the neighbors.
+		 * @param range the attraction range.
+		 */
+		void setAttractionRange(float range);
+
+		/**
 		 * Set the look ahead factor of the boids.
 		 * @param factor the look ahead factor.
 		 */
@@ -188,6 +194,7 @@ namespace regen {
 
 		ref_ptr<ShaderInput1ui> maxNumNeighbors_;
 		ref_ptr<ShaderInput1f> visualRange_;
+		ref_ptr<ShaderInput1f> attractionRange_;
 		ref_ptr<ShaderInput1f> maxBoidSpeed_;
 		ref_ptr<ShaderInput1f> maxAngularSpeed_;
 		ref_ptr<ShaderInput1f> coherenceWeight_;

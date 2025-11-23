@@ -71,7 +71,7 @@ namespace regen {
 		std::list<std::wstring> value_;
 		GLfloat height_;
 		GLboolean centerAtOrigin_;
-		GLuint numCharacters_;
+		uint32_t numCharacters_;
 
 		ref_ptr<ShaderInput4f> textColor_;
 
@@ -88,7 +88,7 @@ namespace regen {
 				ClientData_rw<Vec3f> &posAttribute,
 				ClientData_rw<Vec3f> &norAttribute,
 				ClientData_rw<Vec3f> &texcoAttribute,
-				GLuint *vertexCounter);
+				uint32_t *vertexCounter);
 	};
 } // namespace
 

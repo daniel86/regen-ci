@@ -347,7 +347,7 @@ bool DirectiveProcessor::process(PreProcessorState &state, string &line) {
 	} else if (hasPrefix(statement, "#version ")) {
 		string versionStr = truncPrefix(statement, "#version ");
 		boost::trim(versionStr);
-		auto version = (GLuint) atoi(versionStr.c_str());
+		auto version = (uint32_t) atoi(versionStr.c_str());
 		if (state.version < version) { state.version = version; }
 		// remove version directives, must be prepended later
 		return DirectiveProcessor::getline(state, line);

@@ -99,7 +99,7 @@ protected:
 
 	ref_ptr<KeyFrameController> anchorAnim_;
 	std::vector<ref_ptr<CameraAnchor>> anchors_;
-	GLuint anchorIndex_;
+	uint32_t anchorIndex_;
 	GLdouble anchorEaseInOutIntensity_;
 	GLdouble anchorPauseTime_;
 	GLdouble anchorTimeScale_;

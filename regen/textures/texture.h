@@ -12,7 +12,7 @@
 
 namespace regen {
 	class Texture;
-	/** minification/magnifiction */
+	/** minification/magnification */
 	typedef Vec2i TextureFilter;
 	/** min/max LoD. */
 	typedef Vec2f TextureLoD;
@@ -553,7 +553,7 @@ namespace regen {
 		/**
 		 * @param numTextures number of texture images.
 		 */
-		explicit Texture1D(GLuint numTextures = 1);
+		explicit Texture1D(uint32_t numTextures = 1);
 	};
 
 	/**
@@ -570,7 +570,7 @@ namespace regen {
 		 */
 		explicit Texture2D(
 				GLenum textureTarget = GL_TEXTURE_2D,
-				GLuint numTextures = 1);
+				uint32_t numTextures = 1);
 	};
 
 	/**
@@ -581,7 +581,7 @@ namespace regen {
 	 */
 	class TextureMips2D : public Texture2D {
 	public:
-		explicit TextureMips2D(GLuint numMips = 4);
+		explicit TextureMips2D(uint32_t numMips = 4);
 
 		std::vector<Texture *> &mipTextures() { return mipTextures_; }
 
@@ -606,7 +606,7 @@ namespace regen {
 		/**
 		 * @param numTextures number of texture images.
 		 */
-		explicit TextureRectangle(GLuint numTextures = 1);
+		explicit TextureRectangle(uint32_t numTextures = 1);
 	};
 
 	/**
@@ -619,7 +619,7 @@ namespace regen {
 		 */
 		explicit Texture2DDepth(
 				GLenum textureTarget = GL_TEXTURE_2D,
-				GLuint numTextures = 1);
+				uint32_t numTextures = 1);
 	};
 
 	/**
@@ -637,7 +637,7 @@ namespace regen {
 		 */
 		explicit Texture2DMultisample(
 				GLsizei numSamples,
-				GLuint numTextures = 1,
+				uint32_t numTextures = 1,
 				GLboolean fixedLocations = GL_TRUE);
 	};
 
@@ -667,12 +667,12 @@ namespace regen {
 		 */
 		explicit Texture3D(
 				GLenum textureTarget = GL_TEXTURE_3D,
-				GLuint numTextures = 1);
+				uint32_t numTextures = 1);
 
 		/**
 		 * @param depth the texture depth.
 		 */
-		void set_depth(GLuint depth);
+		void set_depth(uint32_t depth);
 	};
 
 	/**
@@ -683,7 +683,7 @@ namespace regen {
 		/**
 		 * @param numTextures number of texture images.
 		 */
-		explicit Texture3DDepth(GLuint numTextures = 1);
+		explicit Texture3DDepth(uint32_t numTextures = 1);
 	};
 
 	/**
@@ -696,7 +696,7 @@ namespace regen {
 		 */
 		explicit Texture2DArray(
 				GLenum textureTarget = GL_TEXTURE_2D_ARRAY,
-				GLuint numTextures = 1);
+				uint32_t numTextures = 1);
 	};
 
 	class Texture2DArrayDepth : public Texture2DArray {
@@ -704,7 +704,7 @@ namespace regen {
 		/**
 		 * @param numTextures number of texture images.
 		 */
-		explicit Texture2DArrayDepth(GLuint numTextures = 1);
+		explicit Texture2DArrayDepth(uint32_t numTextures = 1);
 	};
 
 	/**
@@ -719,7 +719,7 @@ namespace regen {
 		 */
 		explicit Texture2DArrayMultisample(
 				int32_t numSamples,
-				GLuint numTextures = 1,
+				uint32_t numTextures = 1,
 				GLboolean fixedLocations = GL_FALSE);
 	};
 
@@ -735,7 +735,7 @@ namespace regen {
 		 */
 		explicit Texture2DArrayMultisampleDepth(
 				int32_t numSamples,
-				GLuint numTextures = 1,
+				uint32_t numTextures = 1,
 				GLboolean fixedLocations = GL_FALSE);
 	};
 
@@ -762,7 +762,7 @@ namespace regen {
 		/**
 		 * @param numTextures number of texture images.
 		 */
-		explicit TextureCube(GLuint numTextures = 1);
+		explicit TextureCube(uint32_t numTextures = 1);
 	};
 
 	/**
@@ -774,7 +774,7 @@ namespace regen {
 		/**
 		 * @param numTextures number of texture images.
 		 */
-		explicit TextureCubeDepth(GLuint numTextures = 1);
+		explicit TextureCubeDepth(uint32_t numTextures = 1);
 	};
 } // namespace
 #endif /* REGEN_TEXTURE_H_ */

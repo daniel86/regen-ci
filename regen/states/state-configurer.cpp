@@ -47,7 +47,7 @@ StateConfigurer::StateConfigurer()
 
 StateConfig &StateConfigurer::cfg() { return cfg_; }
 
-void StateConfigurer::setVersion(GLuint version) { cfg_.setVersion(version); }
+void StateConfigurer::setVersion(uint32_t version) { cfg_.setVersion(version); }
 
 void StateConfigurer::addNode(const StateNode *node) {
 	bool hadFBOBefore = hasFBO_;
