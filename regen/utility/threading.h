@@ -184,6 +184,13 @@ namespace regen {
 		}
 
 		/**
+		 * @return The number of worker threads in the pool.
+		 */
+		uint32_t numThreads() const {
+			return numThreads_;
+		}
+
+		/**
 		 * Stops all worker threads in the pool.
 		 */
 		void stopThreads() {

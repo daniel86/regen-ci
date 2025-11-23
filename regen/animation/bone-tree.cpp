@@ -2,6 +2,7 @@
 #include "bone-tree.h"
 #include <ranges>
 #include "regen/gl-types/queries/elapsed-time.h"
+#include "regen/scene/scene.h"
 
 using namespace regen;
 
@@ -12,6 +13,7 @@ namespace regen {
 	static constexpr uint32_t BONE_ROOT_NODE_IDX = 0u;
 	static constexpr bool BONE_LOCAL_ROOT_IS_IDENTITY = true;
 	static constexpr bool BONE_INTERPOLATE_QUATERNION_LINEAR = true;
+	static constexpr bool BONE_USE_MULTITHREADING = true;
 	static constexpr bool BONE_DEBUG_TREE_STRUCTURE = false;
 	static constexpr bool BONE_DEBUG_CULLING = false;
 
@@ -47,6 +49,14 @@ BoneTree::BoneTree(const std::vector<ref_ptr<BoneNode>> &nodes, uint32_t numInst
 	if (numNodes == 0) {
 		REGEN_WARN("Created BoneTree with zero nodes.");
 		return;
+	}
+	if constexpr (BONE_USE_MULTITHREADING) {
+		JobPool& pool = Scene::getJobPool();
+		const uint32_t numWorkerThreads = pool.numThreads();
+		// Compute the number of instances in each slice.
+		const uint32_t numSlices = std::min(numInstances_, numWorkerThreads + 1);
+		instanceSlices_.resize(numSlices);
+		sliceSize_ = (numInstances_ + numSlices - 1) / numSlices;
 	}
 	rootNode_ = nodes_[BONE_ROOT_NODE_IDX];
 
@@ -382,32 +392,75 @@ double BoneTree::ticksPerSecond(uint32_t trackIdx) const {
 	return animTracks_[trackIdx].ticksPerSecond_;
 }
 
+namespace regen {
+	struct BoneSliceJob {
+		static void run(void *arg) {
+			BoneTreeSlice &slice = *static_cast<BoneTreeSlice *>(arg);
+			BoneTree* boneTree = slice.boneTree;
+			const uint32_t numSliceInstances = slice.endInstance - slice.startInstance;
+
+			if (boneTree->hasScalingKeys_) {
+				boneTree->updateBoneTree<true>(slice.startInstance, numSliceInstances, slice.dt_ms);
+			} else {
+				boneTree->updateBoneTree<false>(slice.startInstance, numSliceInstances, slice.dt_ms);
+			}
+		}
+	};
+}
+
+static void boneSliceJob(void *arg) {
+	BoneSliceJob::run(arg);
+}
+
 void BoneTree::animate(double dt_ms) {
 #ifdef BONE_TREE_DEBUG_TIME
 	static ElapsedTimeDebugger elapsedTime("NodeAnimation Update", 300);
 	elapsedTime.beginFrame();
 #endif
 
-	if (hasScalingKeys_) [[unlikely]] {
-		updateBoneTree<true>(0, numInstances_, dt_ms);
-	} else [[likely]] {
-		updateBoneTree<false>(0, numInstances_, dt_ms);
+	if constexpr (BONE_USE_MULTITHREADING) {
+		JobPool& pool = Scene::getJobPool();
+		const uint32_t numSlices = instanceSlices_.size();
+
+		auto &firstSlice = instanceSlices_[0];
+		firstSlice.boneTree = this;
+		firstSlice.startInstance = 0;
+		firstSlice.endInstance = std::min(sliceSize_, numInstances_);
+		firstSlice.dt_ms = dt_ms;
+
+		for (uint32_t i = 1; i < numSlices; ++i) {
+			auto &slice = instanceSlices_[i];
+			slice.boneTree = this;
+			slice.startInstance = i * sliceSize_;
+			slice.endInstance = std::min(slice.startInstance + sliceSize_, numInstances_);
+			slice.dt_ms = dt_ms;
+			pool.addJobPreFrame(Job{
+				.fn = boneSliceJob,
+				.arg = &slice
+			});
+		}
+
+		// Execute jobs
+		pool.beginFrame(1u); // one local job
+		Job localJob = { boneSliceJob, &firstSlice };
+		do {
+			pool.performJob(localJob);
+		} while (pool.stealJob(localJob));
+		pool.endFrame();
+	}
+	else {
+		// Single-threaded update
+		if (hasScalingKeys_) [[unlikely]] {
+			updateBoneTree<true>(0, numInstances_, dt_ms);
+		} else [[likely]] {
+			updateBoneTree<false>(0, numInstances_, dt_ms);
+		}
 	}
 
 #ifdef BONE_TREE_DEBUG_TIME
 	elapsedTime.push("bone-tree-update");
 	elapsedTime.endFrame();
 #endif
-}
-
-template<typename T> static REGEN_FORCE_INLINE
-float computeInterpolation(ActiveBoneRange &ar, const Stamped<T> &key, const Stamped<T> &nextKey) {
-	double timeDifference = nextKey.time - key.time;
-	if (timeDifference < 0.0) {
-		timeDifference += ar.duration_;
-	}
-	float facOut = static_cast<float>((ar.timeInTicks_ - key.time) / timeDifference);
-	return facOut > 0.0 ? facOut : 0.0f;
 }
 
 template<typename T,int I> static REGEN_FORCE_INLINE
@@ -429,45 +482,27 @@ void findFrame(ActiveBoneRange &ar,
 	ar.lastFramePosition_[i][I] = frame;
 }
 
-static REGEN_FORCE_INLINE
-Vec3f nodePosition(ActiveBoneRange &ar, const AnimationChannel &channel, uint32_t i) {
-	const uint32_t keyCount = channel.positionKeys_.size();
-	auto &keys = channel.positionKeys_;
-	// Find present frame number.
-	uint32_t frame, lastFrame;
-	findFrame<Vec3f,0>(ar, i, frame, lastFrame, keys);
-	// Lookup nearest key
-	auto &key = keys[frame];
+namespace regen {
+	template<typename T> static REGEN_FORCE_INLINE
+	float computeInterpolation(ActiveBoneRange &ar, const Stamped<T> &key, const Stamped<T> &nextKey) {
+		double timeDifference = nextKey.time - key.time;
+		if (timeDifference < 0.0) {
+			timeDifference += ar.duration_;
+		}
+		float facOut = static_cast<float>((ar.timeInTicks_ - key.time) / timeDifference);
+		return facOut > 0.0 ? facOut : 0.0f;
+	}
 
-	// interpolate between this frame's value and next frame's value
-	if (frame < lastFrame && channel.postState == AnimationChannelBehavior::DEFAULT) {
-		return keys[0].value;
-	} else if (frame < lastFrame && channel.postState == AnimationChannelBehavior::CONSTANT) {
-		return key.value;
-	} else [[likely]] {
-		auto &nextKey = keys[(frame + 1) % keyCount];
+	template <typename T> T interpolateTypedChannel(ActiveBoneRange&, const Stamped<T>&, const Stamped<T>&);
+
+	template<> Vec3f interpolateTypedChannel<Vec3f>(ActiveBoneRange &ar,
+				const Stamped<Vec3f> &key, const Stamped<Vec3f> &nextKey) {
 		const float fac = computeInterpolation<Vec3f>(ar, key, nextKey);
 		return key.value + (nextKey.value - key.value) * fac;
 	}
-}
 
-static REGEN_FORCE_INLINE
-Quaternion nodeRotation(ActiveBoneRange &ar, const AnimationChannel &channel, uint32_t i) {
-	const uint32_t keyCount = channel.rotationKeys_.size();
-	auto &keys = channel.rotationKeys_;
-	// Find present frame number.
-	uint32_t frame, lastFrame;
-	findFrame<Quaternion,1>(ar, i, frame, lastFrame, keys);
-	// lookup nearest key
-	const Stamped<Quaternion> &key = keys[frame];
-
-	// interpolate between this frame's value and next frame's value
-	if (frame < lastFrame && channel.postState == AnimationChannelBehavior::DEFAULT) {
-		return keys[0].value;
-	} else if (frame < lastFrame && channel.postState == AnimationChannelBehavior::CONSTANT) {
-		return key.value;
-	} else [[likely]] {
-		const Stamped<Quaternion> &nextKey = keys[(frame + 1) % keyCount];
+	template<> Quaternion interpolateTypedChannel<Quaternion>(ActiveBoneRange &ar,
+				const Stamped<Quaternion> &key, const Stamped<Quaternion> &nextKey) {
 		float fac = computeInterpolation<Quaternion>(ar, key, nextKey);
 		Quaternion value;
 		if constexpr(BONE_INTERPOLATE_QUATERNION_LINEAR) {
@@ -479,24 +514,24 @@ Quaternion nodeRotation(ActiveBoneRange &ar, const AnimationChannel &channel, ui
 	}
 }
 
-static REGEN_FORCE_INLINE
-Vec3f nodeScaling(ActiveBoneRange &ar, const AnimationChannel &channel, uint32_t i) {
-	auto &keys = channel.scalingKeys_;
+template <typename T, int I>
+static REGEN_FORCE_INLINE  T interpolateChannel(ActiveBoneRange &ar,
+			const AnimationChannel &channel, const std::vector<Stamped<T>> &keys, uint32_t i) {
+	const uint32_t keyCount = keys.size();
 	// Find present frame number.
 	uint32_t frame, lastFrame;
-	findFrame<Vec3f,2>(ar, i, frame, lastFrame, keys);
-	// lookup nearest key
-	auto &key = keys[frame];
+	findFrame<T,I>(ar, i, frame, lastFrame, keys);
+	// Lookup nearest key
+	const Stamped<T> &key = keys[frame];
 
-	// set current value
+	// interpolate between this frame's value and next frame's value
 	if (frame < lastFrame && channel.postState == AnimationChannelBehavior::DEFAULT) {
 		return keys[0].value;
 	} else if (frame < lastFrame && channel.postState == AnimationChannelBehavior::CONSTANT) {
 		return key.value;
 	} else [[likely]] {
-		const Stamped<Vec3f> &nextKey = keys[(frame + 1) % keys.size()];
-		const float fac = computeInterpolation<Vec3f>(ar, key, nextKey);
-		return key.value + (nextKey.value - key.value) * fac;
+		auto &nextKey = keys[(frame + 1) % keyCount];
+		return interpolateTypedChannel<T>(ar, key, nextKey);
 	}
 }
 
@@ -564,14 +599,14 @@ void BoneTree::updateLocalTransforms(BoneTreeTraversal &td, uint32_t itemBase, I
 			weight *= weightSum;
 
 			// Accumulate position
-			accPos += nodePosition(range, channel, nodeIdx) * weight;
+			accPos += interpolateChannel<Vec3f,0>(range, channel, channel.positionKeys_, nodeIdx) * weight;
 			// Accumulate rotation
-			Quaternion rotation = nodeRotation(range, channel, nodeIdx);
+			Quaternion rotation = interpolateChannel<Quaternion,1>(range, channel, channel.rotationKeys_, nodeIdx);
 			if (accRot.dot(rotation) < 0.0f) { rotation = -rotation; }
 			accRot += rotation * weight;
 			// Accumulate scaling
 			if constexpr (HasScaleKeys) {
-				accScale += nodeScaling(range, channel, nodeIdx) * weight;
+				accScale += interpolateChannel<Vec3f,2>(range, channel, channel.scalingKeys_, nodeIdx) * weight;
 			}
 		}
 
@@ -623,8 +658,6 @@ void BoneTree::updateGlobalTransforms(BoneTreeTraversal &td, uint32_t itemBase) 
 		globalDirty[nodeIdx] = 1;
 		localDirty[nodeIdx] = 0;
 
-		// TODO: move this into animate, should be done in animation thread?
-		//		loop over all bone nodes + all instances then
 		if (isBoneNode[nodeIdx]) {
 			// Bone matrices transform from mesh coordinates in bind pose
 			// to mesh coordinates in skinned pose

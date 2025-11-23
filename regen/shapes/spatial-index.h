@@ -127,12 +127,6 @@ namespace regen {
 		static ref_ptr<SpatialIndex> load(LoadingContext &ctx, scene::SceneInputNode &input);
 
 		/**
-		 * @brief Set the maximum number of threads to use
-		 * @param maxNumThreads The maximum number of threads
-		 */
-		void setMaxNumThreads(uint8_t maxNumThreads) { maxNumThreads_ = maxNumThreads; }
-
-		/**
 		 * @brief Set the number of bits to use for distance in sort key
 		 * @param distanceBits The number of bits
 		 */
@@ -281,10 +275,6 @@ namespace regen {
 		void removeDebugShape(const ref_ptr<BoundingShape> &shape);
 
 	protected:
-		// pool for multithreaded jobs
-		std::unique_ptr<JobPool> jobPool_;
-		// max number of threads to use
-		uint32_t maxNumThreads_ = std::thread::hardware_concurrency();
 		// number of bits to use for distance in sort key
 		DistanceKeySize distanceBits_ = DISTANCE_KEY_24;
 

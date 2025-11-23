@@ -40,7 +40,6 @@ namespace regen {
 		void addChild(const ref_ptr<BoneNode> &child) { children.push_back(child); }
 	};
 
-
 	struct ActiveBoneRange {
 		// -1 indicates that the range is inactive
 		int32_t trackIdx_ = -1;
@@ -65,6 +64,17 @@ namespace regen {
 	};
 
 	struct BoneTreeTraversal;
+	class BoneTree;
+
+	/**
+	 * \brief A slice of a bone tree for multi-threaded updates.
+	 */
+	struct BoneTreeSlice {
+		BoneTree* boneTree;
+		uint32_t startInstance;
+		uint32_t endInstance;
+		float dt_ms;
+	};
 
 	/**
 	 * \brief A skeletal animation.
@@ -328,6 +338,9 @@ namespace regen {
 		std::vector<InstanceData> instanceData_;
 		ref_ptr<BoneEvent> eventData_ = ref_ptr<BoneEvent>::alloc();
 
+		std::vector<BoneTreeSlice> instanceSlices_;
+		uint32_t sliceSize_;
+
 		// per-node data arrays
 		// Matrix that transforms from mesh space to bone space in bind pose.
 		std::vector<Mat4f> localTransform_;
@@ -349,6 +362,8 @@ namespace regen {
 		void updateLocalTransforms(BoneTreeTraversal &td, uint32_t instanceIdx, InstanceData &instance);
 
 		void updateGlobalTransforms(BoneTreeTraversal &td, uint32_t instanceIdx);
+
+		friend struct BoneSliceJob;
 	};
 } // namespace
 
