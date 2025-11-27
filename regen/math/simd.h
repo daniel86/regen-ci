@@ -385,6 +385,15 @@ namespace regen {
 		template <typename T>
 		BatchOf_float operator>=(const T &other) const { return other.cmp_lt(*this); }
 
+		/**
+		 * Convert the comparison mask to a float batch.
+		 * Each element in the returned batch will be 1.0f if the corresponding element in this batch is non-zero, else 0.0f.
+		 * @return A BatchOf_float representing the mask as floats.
+		 */
+		BatchOf_float maskToFloat() const {
+			return { _mm256_and_ps(c, _mm256_set1_ps(1.0f)) };
+		}
+
 		template <typename T>
 		BatchOf_float operator&&(const T &other) const { return cmp_and(other); }
 		template <typename T>
@@ -451,6 +460,19 @@ namespace regen {
 			__m256 mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF));
 			// AND the mask with the float values to clear the sign bits
 			return BatchOf_float{_mm256_and_ps(this->c, mask)};
+		}
+
+		/**
+		 * Blend two batches based on a mask.
+		 * For each element, if the corresponding element in the mask has its sign bit set,
+		 * the element from 'other' is selected; otherwise, the element from this batch is retained.
+		 * @param other The other batch to blend with.
+		 * @param mask The mask batch determining which elements to select from 'other'.
+		 * @return A blended BatchOf_float.
+		 */
+		BatchOf_float blend(const BatchOf_float &other, const BatchOf_float &mask) const {
+			// select elements from 'other' where the sign bit of 'mask' is set
+			return BatchOf_float{ _mm256_blendv_ps(c, other.c, mask.c)};
 		}
 
 		/**
@@ -546,6 +568,40 @@ namespace regen {
 		template <typename IntType>
 		static BatchOf_int32 fromScalar(IntType v) {
 			return BatchOf_int32{simd::set1_epi32(v)};
+		}
+
+		/**
+		 * Fill an array of aligned int32_t with a specified value using SIMD.
+		 * @param data Pointer to the aligned int32_t array to fill.
+		 * @param numElements Number of elements to fill.
+		 * @param value The int32_t value to fill the array with.
+		 */
+		template <typename IntType>
+		static void fillAligned(IntType* __restrict data, size_t numElements, IntType value) {
+			size_t i = 0;
+			BatchOf_int32 v = fromScalar(value);
+			for (; i + simd::RegisterWidth <= numElements; i += simd::RegisterWidth) {
+				v.storeAligned(data + i);
+			}
+			// Tail loop (in case size is not divisible by 8)
+			for (; i < numElements; ++i) { data[i] = value; }
+		}
+
+		/**
+		 * Fill an array of unaligned int32_t with a specified value using SIMD.
+		 * @param data Pointer to the unaligned int32_t array to fill.
+		 * @param numElements Number of elements to fill.
+		 * @param value The int32_t value to fill the array with.
+		 */
+		template <typename IntType>
+		static void fillUnaligned(IntType* __restrict data, size_t numElements, IntType value) {
+			size_t i = 0;
+			BatchOf_int32 v = fromScalar(value);
+			for (; i + simd::RegisterWidth <= numElements; i += simd::RegisterWidth) {
+				v.storeUnaligned(data + i);
+			}
+			// Tail loop (in case size is not divisible by 8)
+			for (; i < numElements; ++i) { data[i] = value; }
 		}
 
 		static BatchOf_int32 castFloatBatch(const BatchOf_float &v) {

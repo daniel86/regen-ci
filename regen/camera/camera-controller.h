@@ -89,67 +89,67 @@ namespace regen {
 		/**
 		 * @param v move velocity.
 		 */
-		void set_moveAmount(GLfloat v) { moveAmount_ = v; }
+		void set_moveAmount(float v) { moveAmount_ = v; }
 
 		/**
 		 * @param v moving forward toggle.
 		 */
-		void moveForward(GLboolean v) { moveForward_ = v; }
+		void moveForward(bool v) { moveForward_ = v; }
 
 		/**
 		 * @param v moving backward toggle.
 		 */
-		void moveBackward(GLboolean v) { moveBackward_ = v; }
+		void moveBackward(bool v) { moveBackward_ = v; }
 
 		/**
 		 * @param v moving left toggle.
 		 */
-		void moveLeft(GLboolean v) { moveLeft_ = v; }
+		void moveLeft(bool v) { moveLeft_ = v; }
 
 		/**
 		 * @param v moving right toggle.
 		 */
-		void moveRight(GLboolean v) { moveRight_ = v; }
+		void moveRight(bool v) { moveRight_ = v; }
 
 		/**
 		 * @param v moving up toggle.
 		 */
-		void moveUp(GLboolean v) { moveUp_ = v; }
+		void moveUp(bool v) { moveUp_ = v; }
 
 		/**
 		 * @param v moving down toggle.
 		 */
-		void moveDown(GLboolean v) { moveDown_ = v; }
+		void moveDown(bool v) { moveDown_ = v; }
 
 		/**
 		 * @param v the amount to step forward.
 		 */
-		void stepForward(const GLfloat &v);
+		void stepForward(const float &v);
 
 		/**
 		 * @param v the amount to step backward.
 		 */
-		void stepBackward(const GLfloat &v);
+		void stepBackward(const float &v);
 
 		/**
 		 * @param v the amount to step left.
 		 */
-		void stepLeft(const GLfloat &v);
+		void stepLeft(const float &v);
 
 		/**
 		 * @param v the amount to step right.
 		 */
-		void stepRight(const GLfloat &v);
+		void stepRight(const float &v);
 
 		/**
 		 * @param v the amount to step up.
 		 */
-		void stepUp(const GLfloat &v);
+		void stepUp(const float &v);
 
 		/**
 		 * @param v the amount to step down.
 		 */
-		void stepDown(const GLfloat &v);
+		void stepDown(const float &v);
 
 		/**
 		 * @param v the amount to change the position.
@@ -159,48 +159,48 @@ namespace regen {
 		/**
 		 * @param v the amount of camera direction change in left direction.
 		 */
-		void lookLeft(GLdouble v);
+		void lookLeft(double v);
 
 		/**
 		 * @param v the amount of camera direction change in right direction.
 		 */
-		void lookRight(GLdouble v);
+		void lookRight(double v);
 
 		/**
 		 * @param amount the amount of camera direction change in up direction.
 		 */
-		void lookUp(GLdouble amount);
+		void lookUp(double amount);
 
 		/**
 		 * @param amount the amount of camera direction change in down direction.
 		 */
-		void lookDown(GLdouble amount);
+		void lookDown(double amount);
 
 		/**
 		 * @param amount the amount to zoom in.
 		 */
-		void zoomIn(GLdouble amount);
+		void zoomIn(double amount);
 
 		/**
 		 * @param amount the amount to zoom out.
 		 */
-		void zoomOut(GLdouble amount);
+		void zoomOut(double amount);
 
 		/**
 		 * @param orientation the orientation of the camera.
 		 */
-		void setHorizontalOrientation(GLdouble orientation) { horizontalOrientation_ = orientation; }
+		void setHorizontalOrientation(double orientation) { horizontalOrientation_ = orientation; }
 
 		/**
 		 * @param orientation the orientation of the camera.
 		 */
-		void setVerticalOrientation(GLdouble orientation) { verticalOrientation_ = orientation; }
+		void setVerticalOrientation(double orientation) { verticalOrientation_ = orientation; }
 
 		/**
 		 * @param distance the distance to the mesh.
 		 * @note only has an effect in third person mode.
 		 */
-		void setMeshDistance(GLfloat distance) { meshDistance_ = distance; }
+		void setMeshDistance(float distance) { meshDistance_ = distance; }
 
 		/**
 		 * @param offset the offset to the "eye position" of the mesh.
@@ -211,13 +211,13 @@ namespace regen {
 		/**
 		 * @param orientation initial orientation of the mesh relative to the camera.
 		 */
-		void setMeshHorizontalOrientation(GLdouble orientation) { meshHorizontalOrientation_ = orientation; }
+		void setMeshHorizontalOrientation(double orientation) { meshHorizontalOrientation_ = orientation; }
 
 		/**
 		 * Move a step in the direction of the given offset.
 		 * @param offset the offset.
 		 */
-		virtual void applyStep(GLfloat dt, const Vec3f &offset);
+		virtual void applyStep(float dt, const Vec3f &offset);
 
 		/**
 		 * Jump.
@@ -225,7 +225,7 @@ namespace regen {
 		virtual void jump();
 
 		// override Animation
-		void animate(GLdouble dt) override;
+		void cpuUpdate(double dt) override;
 
 	protected:
 		Mode cameraMode_;
@@ -236,7 +236,7 @@ namespace regen {
 		ref_ptr<ModelTransformation> attachedToTransform_;
 		ref_ptr<Mesh> attachedToMesh_;
 		Vec3f meshPos_;
-		GLfloat meshDistance_;
+		float meshDistance_;
 
 		Vec3f pos_;
 		Vec3f step_;

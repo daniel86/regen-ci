@@ -12,7 +12,7 @@
 
 using namespace regen;
 
-void DepthState::set_useDepthWrite(GLboolean useDepthWrite) {
+void DepthState::set_useDepthWrite(bool useDepthWrite) {
 	if (depthWriteToggle_.get()) {
 		disjoinStates(depthWriteToggle_);
 	}
@@ -20,14 +20,14 @@ void DepthState::set_useDepthWrite(GLboolean useDepthWrite) {
 	joinStates(depthWriteToggle_);
 }
 
-void DepthState::set_useDepthTest(GLboolean useDepthTest) {
+void DepthState::set_useDepthTest(bool useDepthTest) {
 	if (depthTestToggle_.get()) {
 		disjoinStates(depthTestToggle_);
 	}
 	if (useDepthTest) {
-		depthTestToggle_ = ref_ptr<ToggleState>::alloc(RenderState::DEPTH_TEST, GL_TRUE);
+		depthTestToggle_ = ref_ptr<ToggleState>::alloc(RenderState::DEPTH_TEST, true);
 	} else {
-		depthTestToggle_ = ref_ptr<ToggleState>::alloc(RenderState::DEPTH_TEST, GL_FALSE);
+		depthTestToggle_ = ref_ptr<ToggleState>::alloc(RenderState::DEPTH_TEST, false);
 	}
 	joinStates(depthTestToggle_);
 }
@@ -40,7 +40,7 @@ void DepthState::set_depthFunc(GLenum depthFunc) {
 	joinStates(depthFunc_);
 }
 
-void DepthState::set_depthRange(GLdouble nearVal, GLdouble farVal) {
+void DepthState::set_depthRange(double nearVal, double farVal) {
 	if (depthRange_.get()) {
 		disjoinStates(depthRange_);
 	}

@@ -16,7 +16,7 @@ namespace regen {
 				: Animation(false, true),
 				  camera_(camera) {}
 
-		void animate(double dt) override {
+		void cpuUpdate(double dt) override {
 			if(camera_->updatePose()) {
 				camera_->updateShaderData(dt);
 			}
@@ -409,7 +409,7 @@ void Camera::setOrtho(float left, float right, float bottom, float top, float ne
 	camStamp_ += 1u;
 }
 
-void Camera::set_isAudioListener(GLboolean isAudioListener) {
+void Camera::set_isAudioListener(bool isAudioListener) {
 	isAudioListener_ = isAudioListener;
 	if (isAudioListener_) {
 		AudioListener::set3f(AL_POSITION, position_[0].xyz());
@@ -538,7 +538,7 @@ ref_ptr<Camera> createLightCamera(LoadingContext &ctx, scene::SceneInputNode &in
 		return {};
 	}
 	auto numLayer = input.getValue<uint32_t>("num-layer", 1u);
-	auto splitWeight = input.getValue<GLdouble>("split-weight", 0.9);
+	auto splitWeight = input.getValue<double>("split-weight", 0.9);
 	auto cameraType = input.getValue<std::string>("camera-type", "spot");
 	auto near = input.getValue<float>("near", 0.1f);
 	ref_ptr<Camera> lightCamera;
@@ -613,7 +613,7 @@ ProjectionUpdater::ProjectionUpdater(const ref_ptr<Camera> &cam,
 
 void ProjectionUpdater::call(EventObject *, EventData *) {
 	auto windowViewport = screen_->viewport().r;
-	auto windowAspect = (GLfloat) windowViewport.x / (GLfloat) windowViewport.y;
+	auto windowAspect = (float) windowViewport.x / (float) windowViewport.y;
 
 	auto &lastProjParams = cam_->projParams()[0];
 	if (cam_->isOrtho()) {
@@ -709,20 +709,20 @@ ref_ptr<Camera> Camera::createCamera(LoadingContext &ctx, scene::SceneInputNode 
 		cam->setDirection(0, dir);
 
 		if (camType == "ortho" || camType == "orthographic" || camType == "orthogonal") {
-			auto width = input.getValue<GLfloat>("width", 10.0f);
-			auto height = input.getValue<GLfloat>("height", 10.0f);
+			auto width = input.getValue<float>("width", 10.0f);
+			auto height = input.getValue<float>("height", 10.0f);
 			cam->setOrtho(
 					-width / 2.0f, width / 2.0f,
 					-height / 2.0f, height / 2.0f,
-					input.getValue<GLfloat>("near", 0.1f),
-					input.getValue<GLfloat>("far", 200.0f));
+					input.getValue<float>("near", 0.1f),
+					input.getValue<float>("far", 200.0f));
 		} else {
 			auto viewport = ctx.scene()->screen()->viewport();
 			cam->setPerspective(
-					(GLfloat) viewport.r.x / (GLfloat) viewport.r.y,
-					input.getValue<GLfloat>("fov", 45.0f),
-					input.getValue<GLfloat>("near", 0.1f),
-					input.getValue<GLfloat>("far", 200.0f));
+					(float) viewport.r.x / (float) viewport.r.y,
+					input.getValue<float>("fov", 45.0f),
+					input.getValue<float>("near", 0.1f),
+					input.getValue<float>("far", 200.0f));
 			// Update frustum when window size changes
 			ctx.scene()->addEventHandler(Scene::RESIZE_EVENT,
 										 ref_ptr<ProjectionUpdater>::alloc(cam, ctx.scene()->screen()));

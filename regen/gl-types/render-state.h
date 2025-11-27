@@ -33,7 +33,7 @@ namespace regen {
 		GLenum func_;
 		/** specifies the reference value for the stencil test.
 		 * The initial value is 0. */
-		GLint ref_;
+		int ref_;
 		/** specifies a mask that is ANDed with both the reference value
 		 * and the stored stencil value when the test is done.
 		 * The initial value is all 1's. */
@@ -269,7 +269,7 @@ namespace regen {
 			/**
 			 * If enabled,
 			 * the fragment's coverage is ANDed with the temporary coverage value.  If
-			 * GL_SAMPLE_COVERAGE_INVERT is set to GL_TRUE, invert the coverage value.
+			 * GL_SAMPLE_COVERAGE_INVERT is set to true, invert the coverage value.
 			 */
 			SAMPLE_COVERAGE,
 			/**
@@ -335,7 +335,7 @@ namespace regen {
 		/**
 		 * Returns true if a transform feedback operation was started.
 		 */
-		inline GLboolean isTransformFeedbackAcive() const { return feedbackCount_ > 0; }
+		inline bool isTransformFeedbackAcive() const { return feedbackCount_ > 0; }
 
 		/**
 		 * Start transform feedback operation.
@@ -358,7 +358,7 @@ namespace regen {
 		/**
 		 * Enable or disable server-side GL capabilities.
 		 */
-		inline IndexedStateStack<GLboolean> &toggles() { return toggles_; }
+		inline IndexedStateStack<bool> &toggles() { return toggles_; }
 
 		/**
 		 * bind a buffer to given target.
@@ -515,7 +515,7 @@ namespace regen {
 
 		/**
 		 * Specifies whether the depth buffer is enabled for writing.
-		 * If flag is GL_FALSE, depth buffer writing is disabled.
+		 * If flag is false, depth buffer writing is disabled.
 		 * Otherwise, it is enabled. Initially, depth buffer writing is enabled.
 		 */
 		inline ByValueStateStack<GLboolean> &depthMask() { return depthMask_; }
@@ -626,26 +626,26 @@ namespace regen {
 		 * Specify the diameter of rasterized points.
 		 * The initial value is 1.
 		 */
-		inline ByValueStateStack<GLfloat> &pointSize() { return pointSize_; }
+		inline ByValueStateStack<float> &pointSize() { return pointSize_; }
 
 		/**
 		 * Specifies the threshold value to which point sizes are clamped
 		 * if they exceed the specified value. The default value is 1.0.
 		 */
-		inline KeyedStateStack<GLfloat> &pointFadeThreshold() { return pointFadeThreshold_; }
+		inline KeyedStateStack<float> &pointFadeThreshold() { return pointFadeThreshold_; }
 
 		/**
 		 * Specify the point sprite texture coordinate origin,
 		 * either GL_LOWER_LEFT or GL_UPPER_LEFT.
 		 * The default value is GL_UPPER_LEFT.
 		 */
-		inline KeyedStateStack<GLint> &pointSpriteOrigin() { return pointSpriteOrigin_; }
+		inline KeyedStateStack<int> &pointSpriteOrigin() { return pointSpriteOrigin_; }
 
 		/**
 		 * Specifies the number of vertices that
 		 * will be used to make up a single patch primitive.
 		 */
-		inline KeyedStateStack<GLint> &patchVertices() { return patchVertices_; }
+		inline KeyedStateStack<int> &patchVertices() { return patchVertices_; }
 
 		/**
 		 * Specifies the default outer or inner tessellation levels
@@ -662,12 +662,12 @@ namespace regen {
 		 * Specify the width of rasterized lines.
 		 * The initial value is 1.
 		 */
-		inline ByValueStateStack<GLfloat> &lineWidth() { return lineWidth_; }
+		inline ByValueStateStack<float> &lineWidth() { return lineWidth_; }
 
 		/**
 		 * Specifies minimum rate at which sample shaing takes place.
 		 */
-		inline ByValueStateStack<GLfloat> &sampleShading() { return minSampleShading_; }
+		inline ByValueStateStack<float> &sampleShading() { return minSampleShading_; }
 
 		/**
 		 * Specify a logical pixel operation for rendering.
@@ -678,17 +678,17 @@ namespace regen {
 		inline ByValueStateStack<GLenum> &logicOp() { return logicOp_; }
 
 	protected:
-		GLint maxDrawBuffers_;
-		GLint maxTextureUnits_;
-		GLint maxViewports_;
-		GLint maxAttributes_;
-		GLint maxFeedbackBuffers_;
-		GLint maxUniformBuffers_;
-		GLint maxAtomicCounterBuffers_;
-		GLint maxShaderStorageBuffers_;
-		GLint feedbackCount_;
+		int maxDrawBuffers_;
+		int maxTextureUnits_;
+		int maxViewports_;
+		int maxAttributes_;
+		int maxFeedbackBuffers_;
+		int maxUniformBuffers_;
+		int maxAtomicCounterBuffers_;
+		int maxShaderStorageBuffers_;
+		int feedbackCount_;
 
-		IndexedStateStack<GLboolean> toggles_;
+		IndexedStateStack<bool> toggles_;
 
 		std::map<uint32_t,uint32_t> bufferBaseBindings_[4];
 		KeyedStateStack<uint32_t> arrayBuffer_;
@@ -737,17 +737,17 @@ namespace regen {
 		KeyedStateStack<GLenum> polygonMode_;
 		ByReferenceStateStack<Vec2f> polygonOffset_;
 
-		ByValueStateStack<GLfloat> pointSize_;
-		KeyedStateStack<GLfloat> pointFadeThreshold_;
-		KeyedStateStack<GLint> pointSpriteOrigin_;
+		ByValueStateStack<float> pointSize_;
+		KeyedStateStack<float> pointFadeThreshold_;
+		KeyedStateStack<int> pointSpriteOrigin_;
 
-		KeyedStateStack<GLint> patchVertices_;
+		KeyedStateStack<int> patchVertices_;
 		ByReferenceStateStack<PatchLevels> patchLevel_;
 
 		IndexedStateStack<ColorMask> colorMask_;
 
-		ByValueStateStack<GLfloat> lineWidth_;
-		ByValueStateStack<GLfloat> minSampleShading_;
+		ByValueStateStack<float> lineWidth_;
+		ByValueStateStack<float> minSampleShading_;
 		ByValueStateStack<GLenum> logicOp_;
 		ByValueStateStack<GLenum> frontFace_;
 

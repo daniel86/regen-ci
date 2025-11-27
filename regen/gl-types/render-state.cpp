@@ -93,7 +93,7 @@ static inline void Regen_PatchLevel(const PatchLevels &l) {
 
 typedef void (GLAPIENTRY *ToggleFunc)(GLenum);
 
-inline void Regen_Toggle(uint32_t index, const GLboolean &v) {
+inline void Regen_Toggle(uint32_t index, const bool &v) {
 	GLenum toggleID = RenderState::toggleToID((RenderState::Toggle) index);
 	static ToggleFunc toggleFunctions[2] = {glDisable, glEnable};
 	toggleFunctions[v](toggleID);
@@ -181,16 +181,16 @@ template<typename T> void Regen_VAO(T v)
 template<typename T> void regen_noop_arg1(const T &v) {}
 
 RenderState::RenderState()
-		: maxDrawBuffers_(getGLInteger(GL_MAX_DRAW_BUFFERS)),
-		  maxTextureUnits_(getGLInteger(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS)),
-		  maxViewports_(getGLInteger(GL_MAX_VIEWPORTS)),
-		  maxAttributes_(getGLInteger(GL_MAX_VERTEX_ATTRIBS)),
-		  maxFeedbackBuffers_(getGLInteger(GL_MAX_TRANSFORM_FEEDBACK_BUFFERS)),
-		  maxUniformBuffers_(getGLInteger("GL_ARB_uniform_buffer_object",
+		: maxDrawBuffers_(glGetInteger(GL_MAX_DRAW_BUFFERS)),
+		  maxTextureUnits_(glGetInteger(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS)),
+		  maxViewports_(glGetInteger(GL_MAX_VIEWPORTS)),
+		  maxAttributes_(glGetInteger(GL_MAX_VERTEX_ATTRIBS)),
+		  maxFeedbackBuffers_(glGetInteger(GL_MAX_TRANSFORM_FEEDBACK_BUFFERS)),
+		  maxUniformBuffers_(glGetInteger("GL_ARB_uniform_buffer_object",
 										  GL_MAX_UNIFORM_BUFFER_BINDINGS, 0)),
-		  maxAtomicCounterBuffers_(getGLInteger("GL_ARB_shader_atomic_counters",
+		  maxAtomicCounterBuffers_(glGetInteger("GL_ARB_shader_atomic_counters",
 												GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS, 0)),
-		  maxShaderStorageBuffers_(getGLInteger("GL_ARB_shader_storage_buffer_object",
+		  maxShaderStorageBuffers_(glGetInteger("GL_ARB_shader_storage_buffer_object",
 												GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, 0)),
 		  feedbackCount_(0),
 		  toggles_(TOGGLE_STATE_LAST, regen_noop_arg1, Regen_Toggle),
@@ -254,24 +254,24 @@ RenderState::RenderState()
 			GL_CULL_FACE, GL_DEPTH_TEST,
 			GL_TEXTURE_CUBE_MAP_SEAMLESS
 	};
-	for (GLint i = 0; i < TOGGLE_STATE_LAST; ++i) {
+	for (int i = 0; i < TOGGLE_STATE_LAST; ++i) {
 		GLenum e = toggleToID((Toggle) i);
 		// avoid initial state set for unsupported states
 		if (e == GL_NONE) continue;
 
-		GLboolean enabled = GL_FALSE;
+		bool enabled = false;
 		for (uint32_t j = 0; j < sizeof(enabledToggles) / sizeof(GLenum); ++j) {
 			if (enabledToggles[j] == e) {
-				enabled = GL_TRUE;
+				enabled = true;
 				break;
 			}
 		}
 		toggles_.push(i, enabled);
 	}
-	toggles_.push(RenderState::BLEND, GL_FALSE);
+	toggles_.push(RenderState::BLEND, false);
 	// init value states
 	cullFace_.push(GL_BACK);
-	depthMask_.push(GL_TRUE);
+	depthMask_.push(true);
 	depthFunc_.push(GL_LEQUAL);
 	depthRange_.push(DepthRange(0.0, 1.0));
 	blendEquation_.push(BlendEquation::create(GL_FUNC_ADD));
@@ -280,7 +280,7 @@ RenderState::RenderState()
 	polygonOffset_.push(Vec2f::zero());
 	pointSize_.push(1.0);
 	lineWidth_.push(1.0);
-	colorMask_.push(ColorMask::create(GL_TRUE));
+	colorMask_.push(ColorMask::create(true));
 	logicOp_.push(GL_COPY);
 	frontFace_.push(GL_CCW);
 	pointFadeThreshold_.push(1.0);

@@ -47,7 +47,7 @@ public:
 		  widget_(widget), sceneFile_(sceneFile) {
 	}
 
-	void glAnimate(RenderState *rs, GLdouble dt) override {
+	void gpuUpdate(RenderState *rs, double dt) override {
 		widget_->loadSceneGraphicsThread(sceneFile_);
 	}
 
@@ -65,7 +65,7 @@ public:
 		: Animation(false, true), widget_(widget) {
 	}
 
-	void animate(GLdouble dt) override { widget_->updateGameTimeWidget(); }
+	void cpuUpdate(double dt) override { widget_->updateGameTimeWidget(); }
 
 protected:
 	SceneDisplayWidget *widget_;
@@ -107,7 +107,7 @@ public:
 		}
 	}
 
-	void glAnimate(RenderState *rs, GLdouble dt) override {
+	void gpuUpdate(RenderState *rs, double dt) override {
 		while (!interactionQueue_.empty()) {
 			boost::lock_guard<boost::mutex> lock(animationLock_);
 			auto interaction = interactionQueue_.front();
@@ -203,7 +203,7 @@ void SceneDisplayWidget::writeConfig() {
 void SceneDisplayWidget::nextView() {
 	if (viewNodes_.empty()) return;
 	ViewNode &active0 = *activeView_;
-	active0.node->set_isHidden(GL_TRUE);
+	active0.node->set_isHidden(true);
 
 	activeView_++;
 	if (activeView_ == viewNodes_.end()) {
@@ -211,7 +211,7 @@ void SceneDisplayWidget::nextView() {
 	}
 
 	ViewNode &active1 = *activeView_;
-	active1.node->set_isHidden(GL_FALSE);
+	active1.node->set_isHidden(false);
 	app_->toplevelWidget()->setWindowTitle(QString(active1.name.c_str()));
 
 	if (videoRecorder_.get()) {
@@ -227,7 +227,7 @@ void SceneDisplayWidget::nextView() {
 void SceneDisplayWidget::previousView() {
 	if (viewNodes_.empty()) return;
 	ViewNode &active0 = *activeView_;
-	active0.node->set_isHidden(GL_TRUE);
+	active0.node->set_isHidden(true);
 
 	if (activeView_ == viewNodes_.begin()) {
 		activeView_ = viewNodes_.end();
@@ -235,7 +235,7 @@ void SceneDisplayWidget::previousView() {
 	activeView_--;
 
 	ViewNode &active1 = *activeView_;
-	active1.node->set_isHidden(GL_FALSE);
+	active1.node->set_isHidden(false);
 	app_->toplevelWidget()->setWindowTitle(QString(active1.name.c_str()));
 
 	if (videoRecorder_.get()) {
@@ -259,7 +259,7 @@ void SceneDisplayWidget::toggleOnCameraTransform() {
 		// update the camera position
 		userController_->setTransform(userCamera_->position(0), userCamera_->direction(0));
 		userController_->startAnimation();
-		userController_->animate(0.0);
+		userController_->cpuUpdate(0.0);
 	}
 }
 
@@ -278,7 +278,7 @@ void SceneDisplayWidget::activateAnchor() {
 	double dt = getAnchorTime(anchor->position(), camPos);
 
 	anchorAnim_ = ref_ptr<KeyFrameController>::alloc(userCamera_);
-	anchorAnim_->setRepeat(GL_FALSE);
+	anchorAnim_->setRepeat(false);
 	anchorAnim_->setEaseInOutIntensity(anchorEaseInOutIntensity_);
 	anchorAnim_->setPauseBetweenFrames(anchorPauseTime_);
 	anchorAnim_->push_back(cameraAnchor, 0.0);
@@ -318,8 +318,8 @@ void SceneDisplayWidget::playAnchor() {
 	toggleOffCameraTransform();
 
 	anchorAnim_ = ref_ptr<KeyFrameController>::alloc(userCamera_);
-	anchorAnim_->setRepeat(GL_TRUE);
-	//anchorAnim_->setSkipFirstFrameOnLoop(GL_TRUE);
+	anchorAnim_->setRepeat(true);
+	//anchorAnim_->setSkipFirstFrameOnLoop(true);
 	anchorAnim_->setEaseInOutIntensity(anchorEaseInOutIntensity_);
 	anchorAnim_->setPauseBetweenFrames(anchorPauseTime_);
 	auto camPos = userCamera_->position(0);
@@ -331,7 +331,7 @@ void SceneDisplayWidget::playAnchor() {
 		anchorAnim_->push_back(anchor, dt * anchorTimeScale_);
 		lastPos = anchor->position();
 	}
-	anchorAnim_->animate(0.0);
+	anchorAnim_->cpuUpdate(0.0);
 	anchorAnim_->startAnimation();
 }
 
@@ -478,12 +478,12 @@ void SceneDisplayWidget::toggleInfo(bool isOn) {
 	if (isOn) {
 		auto guiNode = app_->renderTree()->findNodeWithName("GUI-Pass");
 		if (guiNode) {
-			guiNode->set_isHidden(GL_FALSE);
+			guiNode->set_isHidden(false);
 		}
 	} else {
 		auto guiNode = app_->renderTree()->findNodeWithName("GUI-Pass");
 		if (guiNode) {
-			guiNode->set_isHidden(GL_TRUE);
+			guiNode->set_isHidden(true);
 		}
 	}
 }
@@ -643,16 +643,16 @@ void SceneDisplayWidget::handleControllerConfiguration(
 
 		auto cameraEventHandler =
 			ref_ptr<QtCameraEventHandler>::alloc(userController_, camKeyMappings);
-		cameraEventHandler->set_sensitivity(node->getValue<GLfloat>("sensitivity", 0.005f));
+		cameraEventHandler->set_sensitivity(node->getValue<float>("sensitivity", 0.005f));
 		app_->connect(Scene::KEY_EVENT, cameraEventHandler);
 		app_->connect(Scene::BUTTON_EVENT, cameraEventHandler);
 		app_->connect(Scene::MOUSE_MOTION_EVENT, cameraEventHandler);
 		eventHandler_.emplace_back(cameraEventHandler);
 
 		// Handle anchor points
-		anchorEaseInOutIntensity_ = node->getValue<GLfloat>("ease-in-out", 1.0);
-		anchorPauseTime_ = node->getValue<GLfloat>("anchor-pause-time", 0.5);
-		anchorTimeScale_ = node->getValue<GLfloat>("anchor-time-scale", 1.0);
+		anchorEaseInOutIntensity_ = node->getValue<float>("ease-in-out", 1.0);
+		anchorPauseTime_ = node->getValue<float>("anchor-pause-time", 0.5);
+		anchorTimeScale_ = node->getValue<float>("anchor-time-scale", 1.0);
 		for (const auto &x: node->getChildren("anchor")) {
 			if (x->hasAttribute("transform")) {
 				auto transform = scene.getResources()->getTransform(&scene, x->getValue("transform"));
@@ -706,13 +706,13 @@ void SceneDisplayWidget::handleControllerConfiguration(
 		}
 		ref_ptr<KeyFrameController> keyFramesCamera = ref_ptr<KeyFrameController>::alloc(cam);
 		if (node->hasAttribute("ease-in-out")) {
-			keyFramesCamera->setEaseInOutIntensity(node->getValue<GLdouble>("ease-in-out", 1.0));
+			keyFramesCamera->setEaseInOutIntensity(node->getValue<double>("ease-in-out", 1.0));
 		}
 		for (const auto &x: node->getChildren("key-frame")) {
 			keyFramesCamera->push_back(
 				x->getValue<Vec3f>("pos", Vec3f(0.0f, 0.0f, 1.0f)),
 				x->getValue<Vec3f>("dir", Vec3f(0.0f, 0.0f, -1.0f)),
-				x->getValue<GLdouble>("dt", 0.0)
+				x->getValue<double>("dt", 0.0)
 			);
 		}
 		keyFramesCamera->startAnimation();
@@ -859,31 +859,6 @@ static ref_ptr<WorldModel> loadWorldModel(
 	return worldModel;
 }
 
-/**
-if (animationNode->getValue("mode") == string("random")) {
-		if (animItem->animation.get()) {
-			ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater>::alloc(animItem);
-			animItem->animation->connect(Animation::ANIMATION_STOPPED, animStopped);
-			eventHandler.push_back(animStopped);
-
-			EventData evData;
-			evData.eventID = Animation::ANIMATION_STOPPED;
-			animStopped->call(animItem->animation.get(), &evData);
-		}
-	} else if (animationNode->getValue("mode") == "fixed") {
-		if (animItem->animation.get()) {
-			auto &fixedRange = animItem->ranges[0];
-			ref_ptr<EventHandler> animStopped = ref_ptr<FixedAnimationRangeUpdater>::alloc(animItem->animation, fixedRange);
-			animItem->animation->connect(Animation::ANIMATION_STOPPED, animStopped);
-			eventHandler.push_back(animStopped);
-
-			EventData evData;
-			evData.eventID = Animation::ANIMATION_STOPPED;
-			animStopped->call(animItem->animation.get(), &evData);
-		}
-	}
- */
-
 static void handleMouseConfiguration(
 	QtApplication *app_,
 	scene::SceneLoader &sceneParser,
@@ -927,7 +902,7 @@ static void handleMouseConfiguration(
 void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
 	REGEN_INFO("Loading XML scene at " << sceneFile << ".");
 
-	AnimationManager::get().pause(GL_TRUE);
+	AnimationManager::get().pause(true);
 	AnimationManager::get().clear();
 	AnimationManager::get().setRootState(app_->renderTree()->state());
 	TextureBinder::reset();
@@ -990,6 +965,9 @@ void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
 	                     sceneParser.getEventHandler().begin(),
 	                     sceneParser.getEventHandler().end());
 	spatialIndices_ = sceneParser.getResources()->getIndices();
+	for (auto &x: spatialIndices_) {
+		spatialIndexList_.push_back(x.second);
+	}
 
 	// Process the configuration node
 	for (const auto &x: configurationNode->getChildren()) {
@@ -1037,7 +1015,7 @@ void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
 		activeView_ = viewNodes_.end();
 		activeView_--;
 		ViewNode &active = *activeView_;
-		active.node->set_isHidden(GL_FALSE);
+		active.node->set_isHidden(false);
 		app_->toplevelWidget()->setWindowTitle(QString(active.name.c_str()));
 	}
 
@@ -1084,7 +1062,7 @@ void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
 	animations_.emplace_back(timeWidgetAnimation_);
 	loadAnim_ = ref_ptr<Animation>();
 	lightStates_ = sceneParser.getResources()->getLights();
-	AnimationManager::get().setSpatialIndices(spatialIndices_);
+	AnimationManager::get().setSpatialIndices(spatialIndexList_);
 	AnimationManager::get().resetTime();
 
 	AnimationManager::get().resume();

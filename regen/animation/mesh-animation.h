@@ -69,12 +69,12 @@ namespace regen {
 		/**
 		 * Set the friction of the animation.
 		 */
-		void setFriction(GLfloat friction);
+		void setFriction(float friction);
 
 		/**
 		 * Set the frequency of the animation.
 		 */
-		void setFrequency(GLfloat frequency);
+		void setFrequency(float frequency);
 
 		/**
 		 * Add a custom mesh frame.
@@ -83,13 +83,13 @@ namespace regen {
 		 */
 		void addFrame(
 				const std::list<ref_ptr<ShaderInput> > &attributes,
-				GLdouble timeInTicks);
+				double timeInTicks);
 
 		/**
 		 * Add a frame for the original mesh attributes.
 		 * @param timeInTicks number of ticks for this morph.
 		 */
-		void addMeshFrame(GLdouble timeInTicks);
+		void addMeshFrame(double timeInTicks);
 
 		/**
 		 * Projects each vertex of the mesh to a sphere.
@@ -98,9 +98,9 @@ namespace regen {
 		 * @param timeInTicks number of ticks for this morph.
 		 */
 		void addSphereAttributes(
-				GLfloat horizontalRadius,
-				GLfloat verticalRadius,
-				GLdouble timeInTicks,
+				float horizontalRadius,
+				float verticalRadius,
+				double timeInTicks,
 				const Vec3f &offset = Vec3f(0.0f, 0.0f, 0.0f));
 
 		/**
@@ -111,21 +111,21 @@ namespace regen {
 		 * @param timeInTicks number of ticks for this morph.
 		 */
 		void addBoxAttributes(
-				GLfloat width,
-				GLfloat height,
-				GLfloat depth,
-				GLdouble timeInTicks,
+				float width,
+				float height,
+				float depth,
+				double timeInTicks,
 				const Vec3f &offset = Vec3f(0.0f, 0.0f, 0.0f));
 
 		// override
-		void glAnimate(RenderState *rs, GLdouble dt) override;
+		void gpuUpdate(RenderState *rs, double dt) override;
 
 	protected:
 		struct KeyFrame {
 			std::list<InputLocation> attributes;
-			GLdouble timeInTicks;
-			GLdouble startTick;
-			GLdouble endTick;
+			double timeInTicks;
+			double startTick;
+			double endTick;
 			ref_ptr<BufferReference> ref;
 		};
 
@@ -139,7 +139,7 @@ namespace regen {
 		ref_ptr<Mesh> mesh_;
 		uint32_t meshBufferOffset_;
 
-		GLint lastFrame_, nextFrame_;
+		int lastFrame_, nextFrame_;
 		uint32_t bufferSize_;
 
 		ref_ptr<VBO> feedbackBuffer_;
@@ -147,15 +147,15 @@ namespace regen {
 		BufferRange bufferRange_;
 
 		ref_ptr<VBO> animationBuffer_;
-		GLint pingFrame_, pongFrame_;
+		int pingFrame_, pongFrame_;
 		ref_ptr<BufferReference> pingIt_;
 		ref_ptr<BufferReference> pongIt_;
 		std::vector<KeyFrame> frames_;
 
 		// milliseconds from start of animation
-		GLdouble elapsedTime_;
-		GLdouble ticksPerSecond_;
-		GLdouble lastTime_;
+		double elapsedTime_;
+		double ticksPerSecond_;
+		double lastTime_;
 		Vec2d tickRange_;
 		uint32_t lastFramePosition_;
 		uint32_t startFramePosition_;
@@ -164,15 +164,15 @@ namespace regen {
 
 		bool hasMeshInterleavedAttributes_;
 
-		void loadFrame(uint32_t frameIndex, GLboolean isPongFrame);
+		void loadFrame(uint32_t frameIndex, bool isPongFrame);
 
 		ref_ptr<ShaderInput> findLastAttribute(const std::string &name);
 
 		static void findFrameAfterTick(
-				GLdouble tick, GLint &frame, std::vector<KeyFrame> &keys);
+				double tick, int &frame, std::vector<KeyFrame> &keys);
 
 		static void findFrameBeforeTick(
-				GLdouble &tick, uint32_t &frame, std::vector<KeyFrame> &keys);
+				double &tick, uint32_t &frame, std::vector<KeyFrame> &keys);
 	};
 } // namespace
 

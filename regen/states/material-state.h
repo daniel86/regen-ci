@@ -143,7 +143,7 @@ namespace regen {
 		/**
 		 * Indicates if the material should be rendered two-sided.
 		 */
-		void set_twoSided(GLboolean v);
+		void set_twoSided(bool v);
 
 		/**
 		 * Sets the wrapping mode for all textures.
@@ -160,12 +160,12 @@ namespace regen {
 		 * Sets the blending factor for color and diffuse maps
 		 * added to this material.
 		 */
-		void set_colorBlendFactor(GLfloat factor) { colorBlendFactor_ = factor; }
+		void set_colorBlendFactor(float factor) { colorBlendFactor_ = factor; }
 
 		/**
 		 * Sets the maximum height offset for height and displacement maps.
 		 */
-		void set_maxOffset(GLfloat offset);
+		void set_maxOffset(float offset);
 
 		/**
 		 * Sets the height map mode.
@@ -175,7 +175,7 @@ namespace regen {
 		/**
 		 * Indicates if the material should be rendered two-sided.
 		 */
-		GLboolean twoSided() const { return twoSidedState_.get() != nullptr; }
+		bool twoSided() const { return twoSidedState_.get() != nullptr; }
 
 		/**
 		 * Sets default material colors for jade.

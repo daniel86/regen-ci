@@ -200,7 +200,7 @@ void Texture::updateImage3D(GLubyte *subData) {
 						subData);
 }
 
-void Texture::updateSubImage1D(GLint layer, GLubyte *subData) {
+void Texture::updateSubImage1D(int layer, GLubyte *subData) {
 	glTextureSubImage1D(id(),
 						0, // mipmap level
 						0, // x offset
@@ -210,7 +210,7 @@ void Texture::updateSubImage1D(GLint layer, GLubyte *subData) {
 						subData);
 }
 
-void Texture::updateSubImage2D(GLint layer, GLubyte *subData) {
+void Texture::updateSubImage2D(int layer, GLubyte *subData) {
 	glTextureSubImage2D(id(),
 						0, // mipmap level
 						0, // x offset
@@ -222,7 +222,7 @@ void Texture::updateSubImage2D(GLint layer, GLubyte *subData) {
 						subData);
 }
 
-void Texture::updateSubImage3D(GLint layer, GLubyte *subData) {
+void Texture::updateSubImage3D(int layer, GLubyte *subData) {
 	glTextureSubImage3D(id(),
 						0, // mipmap level
 						0, // x offset
@@ -339,7 +339,7 @@ void Texture::updateImage(GLubyte *data) {
 	(this->*(this->updateImage_))(data);
 }
 
-void Texture::updateSubImage(GLint layer, GLubyte *subData) {
+void Texture::updateSubImage(int layer, GLubyte *subData) {
 	(this->*(this->updateSubImage_))(layer, subData);
 }
 
@@ -467,7 +467,7 @@ namespace regen {
 	public:
 		TextureResizer(const ref_ptr<Texture> &tex,
 					   const ref_ptr<Screen> &screen,
-					   GLfloat wScale, GLfloat hScale)
+					   float wScale, float hScale)
 				: EventHandler(),
 				  tex_(tex),
 				  screen_(screen),
@@ -486,7 +486,7 @@ namespace regen {
 	protected:
 		ref_ptr<Texture> tex_;
 		ref_ptr<Screen> screen_;
-		GLfloat wScale_, hScale_;
+		float wScale_, hScale_;
 	};
 }
 
@@ -623,7 +623,7 @@ ref_ptr<Texture> Texture::load(LoadingContext &ctx, scene::SceneInputNode &input
 		}
 	} else if (input.hasAttribute("spectrum")) {
 		auto spectrum = input.getValue<Vec2d>("spectrum", Vec2d(0.0, 1.0));
-		auto numTexels = input.getValue<GLint>("num-texels", 256u);
+		auto numTexels = input.getValue<int>("num-texels", 256u);
 		tex = regen::textures::loadSpectrum(spectrum.x, spectrum.y, numTexels);
 	} else if (typeName == "bloom") {
 		auto numMips = input.getValue<uint32_t>("num-mips", 5u);
@@ -751,7 +751,7 @@ void Texture::configure(ref_ptr<Texture> &tex, scene::SceneInputNode &input) {
 		tex->set_compare(TextureCompare(mode, function));
 	}
 	if (!input.getValue("max-level").empty()) {
-		tex->set_maxLevel(input.getValue<GLint>("max-level", 1000));
+		tex->set_maxLevel(input.getValue<int>("max-level", 1000));
 	}
 
 	if (!input.getValue("min-filter").empty() &&
@@ -815,7 +815,7 @@ Texture2DDepth::Texture2DDepth(GLenum textureTarget, uint32_t numTextures)
 Texture2DMultisample::Texture2DMultisample(
 		GLsizei numSamples,
 		uint32_t numTextures,
-		GLboolean fixedSampleLocations)
+		bool fixedSampleLocations)
 		: Texture2D(GL_TEXTURE_2D_MULTISAMPLE, numTextures) {
 	fixedSampleLocations_ = fixedSampleLocations;
 	samplerType_ = "sampler2DMS";
@@ -828,7 +828,7 @@ Texture2DMultisample::Texture2DMultisample(
 
 Texture2DMultisampleDepth::Texture2DMultisampleDepth(
 		GLsizei numSamples,
-		GLboolean fixedSampleLocations)
+		bool fixedSampleLocations)
 		: Texture2DDepth(GL_TEXTURE_2D_MULTISAMPLE, 1) {
 	internalFormat_ = GL_DEPTH_COMPONENT24;
 	fixedSampleLocations_ = fixedSampleLocations;
@@ -873,7 +873,7 @@ Texture2DArrayDepth::Texture2DArrayDepth(uint32_t numTextures)
 Texture2DArrayMultisample::Texture2DArrayMultisample(
 		GLsizei numSamples,
 		uint32_t numTextures,
-		GLboolean fixedSampleLocations)
+		bool fixedSampleLocations)
 		: Texture2DArray(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, numTextures) {
 	samplerType_ = "sampler2DMSArray";
 	set_numSamples(numSamples);
@@ -883,7 +883,7 @@ Texture2DArrayMultisample::Texture2DArrayMultisample(
 Texture2DArrayMultisampleDepth::Texture2DArrayMultisampleDepth(
 		GLsizei numSamples,
 		uint32_t numTextures,
-		GLboolean fixedSampleLocations)
+		bool fixedSampleLocations)
 		: Texture2DArray(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, numTextures) {
 	samplerType_ = "sampler2DMSArray";
 	set_numSamples(numSamples);

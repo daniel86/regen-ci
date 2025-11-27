@@ -22,7 +22,7 @@ namespace regen {
 		 * @param key the toggle key.
 		 * @param toggle the toggle value.
 		 */
-		ToggleState(RenderState::Toggle key, GLboolean toggle)
+		ToggleState(RenderState::Toggle key, bool toggle)
 				: ServerSideState(), key_(key), toggle_(toggle) {}
 
 		/**
@@ -33,7 +33,7 @@ namespace regen {
 		/**
 		 * @return the toggle value.
 		 */
-		GLboolean toggle() const { return toggle_; }
+		bool toggle() const { return toggle_; }
 
 		void enable(RenderState *rs) override { rs->toggles().push(key_, toggle_); }
 
@@ -51,7 +51,7 @@ namespace regen {
 
 	protected:
 		RenderState::Toggle key_;
-		GLboolean toggle_;
+		bool toggle_;
 	};
 
 	/**
@@ -87,7 +87,7 @@ namespace regen {
 		 * @param farVal specifies the mapping of the far clipping plane to window coordinates.
 		 *    The initial value is 1.
 		 */
-		DepthRangeState(GLdouble nearVal, GLdouble farVal)
+		DepthRangeState(double nearVal, double farVal)
 				: ServerSideState(), nearVal_(nearVal), farVal_(farVal) {}
 
 		void enable(RenderState *rs) override { rs->depthRange().push(DepthRange(nearVal_, farVal_)); }
@@ -95,7 +95,7 @@ namespace regen {
 		void disable(RenderState *rs) override { rs->depthRange().pop(); }
 
 	protected:
-		GLdouble nearVal_, farVal_;
+		double nearVal_, farVal_;
 	};
 
 	/**
@@ -104,10 +104,10 @@ namespace regen {
 	class ToggleDepthWriteState : public ServerSideState {
 	public:
 		/**
-		 * If flag is GL_FALSE, depth buffer writing is disabled.
+		 * If flag is false, depth buffer writing is disabled.
 		 * Otherwise, it is enabled. Initially, depth buffer writing is enabled.
 		 */
-		explicit ToggleDepthWriteState(GLboolean toggle)
+		explicit ToggleDepthWriteState(bool toggle)
 				: ServerSideState(), toggle_(toggle) {}
 
 		void enable(RenderState *rs) override { rs->depthMask().push(toggle_); }
@@ -115,7 +115,7 @@ namespace regen {
 		void disable(RenderState *rs) override { rs->depthMask().pop(); }
 
 	protected:
-		GLboolean toggle_;
+		bool toggle_;
 	};
 
 	/**
@@ -260,11 +260,11 @@ namespace regen {
 		 * @param units is multiplied by an implementation-specific value to
 		 *    create a constant depth offset. The initial value is 0.
 		 */
-		PolygonOffsetState(GLfloat factor, GLfloat units)
+		PolygonOffsetState(float factor, float units)
 				: PolygonState(), factor_(factor), units_(units) {}
 
 		void enable(RenderState *rs) override {
-			rs->toggles().push(RenderState::POLYGON_OFFSET_FILL, GL_TRUE);
+			rs->toggles().push(RenderState::POLYGON_OFFSET_FILL, true);
 			rs->polygonOffset().push(Vec2f(factor_, units_));
 		}
 
@@ -274,7 +274,7 @@ namespace regen {
 		}
 
 	protected:
-		GLfloat factor_, units_;
+		float factor_, units_;
 	};
 
 	/**
@@ -409,7 +409,7 @@ namespace regen {
 				fbo_->clearDepthAttachment(defaultClearDepth);
 			}
 			if (clearBits_ & GL_STENCIL_BUFFER_BIT) {
-				static const GLint defaultClearStencil = 0;
+				static const int defaultClearStencil = 0;
 				fbo_->clearStencilAttachment(defaultClearStencil);
 			}
 		}

@@ -43,12 +43,12 @@ namespace regen {
 		/**
 		 * @return is the node hidden.
 		 */
-		GLboolean isHidden() const { return isHidden_; }
+		bool isHidden() const { return isHidden_; }
 
 		/**
 		 * @param isHidden is the node hidden.
 		 */
-		void set_isHidden(GLboolean isHidden) { isHidden_ = isHidden; }
+		void set_isHidden(bool isHidden) { isHidden_ = isHidden; }
 
 		/**
 		 * @return true if a parent is set.
@@ -206,7 +206,7 @@ namespace regen {
 		 * Do something after render call.
 		 * @param dt time difference to last traversal.
 		 */
-		static void postRender(GLdouble dt);
+		static void postRender(double dt);
 	};
 } // namespace
 

@@ -21,7 +21,7 @@ namespace regen {
 		 * @param timeScale scale for dt values.
 		 * @param name optional timer name.
 		 */
-		explicit TimerInput(GLfloat timeScale, const std::string &name = "time")
+		explicit TimerInput(float timeScale, const std::string &name = "time")
 				: ShaderInput1f(name),
 				  Animation(false, true),
 				  timeScale_(timeScale) {
@@ -29,13 +29,13 @@ namespace regen {
 		}
 
 		// Override
-		void animate(GLdouble dt) override {
+		void cpuUpdate(double dt) override {
 			auto mapped = mapClientVertex<float>(BUFFER_GPU_READ | BUFFER_GPU_WRITE, 0);
 			mapped.w = mapped.r + static_cast<float>(dt) * timeScale_;
 		}
 
 	private:
-		GLfloat timeScale_;
+		float timeScale_;
 	};
 } // namespace
 
@@ -241,7 +241,7 @@ namespace regen {
 				else {
 					auto type = input.getValue<std::string>("type", "");
 					if (type == "time") {
-						auto scale = input.getValue<GLfloat>("scale", 1.0f);
+						auto scale = input.getValue<float>("scale", 1.0f);
 						auto timer = ref_ptr<TimerInput>::alloc(scale);
 						in = timer;
 						timer->startAnimation();
@@ -347,7 +347,7 @@ namespace regen {
 					for (const auto &m: n->getChildren("key-frame")) {
 						inputAnimation->push_back(
 								m->getValue<T>("value", T()),
-								m->getValue<GLdouble>("dt", 1.0)
+								m->getValue<double>("dt", 1.0)
 						);
 					}
 					state->attach(inputAnimation);

@@ -158,10 +158,10 @@ namespace regen {
 		void createResources();
 
 		// override
-		void animate(GLdouble dt) override;
+		void cpuUpdate(double dt) override;
 
 		// override
-		void glAnimate(RenderState *, GLdouble dt) override;
+		void gpuUpdate(RenderState *, double dt) override;
 
 	protected:
 		ref_ptr<ShaderInput3f> pos_;

@@ -47,7 +47,7 @@ ref_ptr<ShaderInput> FeedbackSpecification::getFeedback(const std::string &name)
 	return *(it->second);
 }
 
-GLboolean FeedbackSpecification::hasFeedback(const std::string &name) const {
+bool FeedbackSpecification::hasFeedback(const std::string &name) const {
 	return feedbackAttributeMap_.count(name) > 0;
 }
 
@@ -94,7 +94,7 @@ void FeedbackState::enable(RenderState *rs) {
 		rs->beginTransformFeedback(feedbackPrimitive_);
 	} else {
 		if (!rs->isTransformFeedbackAcive()) {
-			GLint bufferIndex = 0;
+			int bufferIndex = 0;
 			for (auto & att : feedbackAttributes_) {
 				bufferRange_.offset_ = att->offset();
 				bufferRange_.size_ = att->inputSize();

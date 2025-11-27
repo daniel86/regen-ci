@@ -311,15 +311,15 @@ namespace regen {
 		void set_isVertexAttribute(bool isVertexAttribute);
 
 		/**
-		 * Specifies whether fixed-point data values should be normalized (GL_TRUE)
-		 * or converted directly as fixed-point values (GL_FALSE) when they are accessed.
+		 * Specifies whether fixed-point data values should be normalized (true)
+		 * or converted directly as fixed-point values (false) when they are accessed.
 		 */
 		bool normalize() const { return normalize_; }
 
 		/**
 		 * @param transpose transpose the data.
 		 */
-		void set_transpose(GLboolean transpose) { transpose_ = transpose; }
+		void set_transpose(bool transpose) { transpose_ = transpose; }
 
 		/**
 		 * @return transpose the data.
@@ -336,7 +336,7 @@ namespace regen {
 		 * Constants can not change the value during the lifetime
 		 * of the shader program.
 		 */
-		void set_isConstant(GLboolean isConstant) { isConstant_ = isConstant; }
+		void set_isConstant(bool isConstant) { isConstant_ = isConstant; }
 
 		/**
 		 * Constants can not change the value during the lifetime
@@ -359,7 +359,7 @@ namespace regen {
 		 * with [1] in the generated shader if forceArray is true.
 		 * Note: attributes can not be arrays.
 		 */
-		void set_forceArray(GLboolean forceArray) { forceArray_ = forceArray; }
+		void set_forceArray(bool forceArray) { forceArray_ = forceArray; }
 
 		/**
 		 * Uniforms with a single array element will appear
@@ -571,39 +571,39 @@ namespace regen {
 		 * Binds vertex attribute for active buffer to the
 		 * given shader location.
 		 */
-		void enableAttribute(GLint loc) const;
+		void enableAttribute(int loc) const;
 
 		/**
 		 * Binds uniform to the given shader location.
 		 */
-		void enableUniform(GLint loc) const;
+		void enableUniform(int loc) const;
 
 		/**
 		 * Bind the attribute to the given shader location.
 		 */
-		void enableAttribute_f(GLint location) const;
+		void enableAttribute_f(int location) const;
 
 		/**
 		 * Only the integer types GL_BYTE, GL_UNSIGNED_BYTE, GL_SHORT,
 		 * GL_UNSIGNED_SHORT, GL_INT, GL_UNSIGNED_INT are accepted.
 		 * Values are always left as integer values.
 		 */
-		void enableAttribute_i(GLint location) const;
+		void enableAttribute_i(int location) const;
 
 		/**
 		 * Matrix attributes have special enable functions.
 		 */
-		void enableAttributeMat4(GLint location) const;
+		void enableAttributeMat4(int location) const;
 
 		/**
 		 * Matrix attributes have special enable functions.
 		 */
-		void enableAttributeMat3(GLint location) const;
+		void enableAttributeMat3(int location) const;
 
 		/**
 		 * Matrix attributes have special enable functions.
 		 */
-		void enableAttributeMat2(GLint location) const;
+		void enableAttributeMat2(int location) const;
 
 		/**
 		 * @return the input schema.
@@ -671,9 +671,9 @@ namespace regen {
 
 		const InputSchema *schema_ = InputSchema::unknown();
 
-		void (ShaderInput::*enableAttribute_)(GLint loc) const;
+		void (ShaderInput::*enableAttribute_)(int loc) const;
 
-		std::function<void(GLint)> enableInput_;
+		std::function<void(int)> enableInput_;
 
 		ShaderInput(const ShaderInput &);
 
@@ -726,7 +726,7 @@ namespace regen {
 				const std::string &name,
 				uint32_t structSize,
 				uint32_t numArrayElements,
-				GLboolean normalize)
+				bool normalize)
 				: ShaderInput(name, GL_NONE, structSize, 1, numArrayElements, normalize),
 				  structTypeName_(structTypeName) {
 			isStruct_ = true;
@@ -757,7 +757,7 @@ namespace regen {
 				const std::string &typeName,
 				const std::string &name,
 				uint32_t numArrayElements,
-				GLboolean normalize = GL_FALSE)
+				bool normalize = false)
 				: ShaderStructBase(typeName, name, sizeof(StructType), numArrayElements, normalize) {}
 
 		~ShaderInputStruct() override = default;
@@ -815,7 +815,7 @@ namespace regen {
 		ShaderInputTyped(
 				const std::string &name,
 				uint32_t numArrayElements,
-				GLboolean normalize)
+				bool normalize)
 				: ShaderInput(name,
 							  TypeValue,
 							  sizeof(BaseType),
@@ -999,7 +999,7 @@ namespace regen {
 	/**
 	 * \brief Provides 1D double input to shader programs.
 	 */
-	class ShaderInput1d : public ShaderInputTyped<GLdouble, double, GL_DOUBLE> {
+	class ShaderInput1d : public ShaderInputTyped<double, double, GL_DOUBLE> {
 	public:
 		/**
 		 * @param name the input name.

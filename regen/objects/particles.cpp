@@ -86,7 +86,7 @@ ref_ptr<BufferReference> Particles::end() {
 	for (auto &particleInput: inputs()) {
 		const ref_ptr<ShaderInput> in = particleInput.in_;
 		if (!in->isVertexAttribute()) continue;
-		GLint loc = updateState_->shader()->attributeLocation(particleInput.in_->name());
+		int loc = updateState_->shader()->attributeLocation(particleInput.in_->name());
 		if (loc == -1) continue;
 		particleAttributes_.emplace_back(in, loc);
 	}
@@ -111,7 +111,7 @@ void Particles::configureAdvancing(
 		AdvanceMode mode) {
 	std::string advanceImportKey;
 	std::string advanceFunction;
-	GLfloat advanceFactor = 1.0f;
+	float advanceFactor = 1.0f;
 	switch (mode) {
 		case ADVANCE_MODE_CUSTOM: {
 			auto needle = advanceFunctions_.find(in->name());
@@ -253,10 +253,10 @@ void Particles::createUpdateShader() {
 	shaderCfg.feedbackAttributes_.clear();
 }
 
-void Particles::glAnimate(RenderState *rs, GLdouble dt) {
+void Particles::gpuUpdate(RenderState *rs, double dt) {
 	const uint32_t nextIdx = (updateIdx_ == 0) ? 1 : 0;
 
-	rs->toggles().push(RenderState::RASTERIZER_DISCARD, GL_TRUE);
+	rs->toggles().push(RenderState::RASTERIZER_DISCARD, true);
 	updateState_->enable(rs);
 
 	rs->vao().apply(particleVAO_.id());

@@ -45,7 +45,7 @@ public:
 
 	~RotateAnimation() override = default;
 
-	void animate(GLdouble dt) override { widget_->transformMesh(dt); }
+	void cpuUpdate(double dt) override { widget_->transformMesh(dt); }
 	MeshViewerWidget *widget_;
 };
 
@@ -59,7 +59,7 @@ QWidget *createParameterWidget(QtApplication *app, QWidget *parent,
 }
 
 static void hideLayout(QLayout *layout) {
-	for (GLint i = 0; i < layout->count(); ++i) {
+	for (int i = 0; i < layout->count(); ++i) {
 		QLayoutItem *item = layout->itemAt(i);
 		if (item->widget()) { item->widget()->hide(); }
 		if (item->layout()) { hideLayout(item->layout()); }
@@ -67,7 +67,7 @@ static void hideLayout(QLayout *layout) {
 }
 
 static void showLayout(QLayout *layout) {
-	for (GLint i = 0; i < layout->count(); ++i) {
+	for (int i = 0; i < layout->count(); ++i) {
 		QLayoutItem *item = layout->itemAt(i);
 		if (item->widget()) { item->widget()->show(); }
 		if (item->layout()) { showLayout(item->layout()); }
@@ -345,7 +345,7 @@ void MeshViewerWidget::loadAnimation(const ref_ptr<Mesh> &mesh, uint32_t index) 
 		mesh->joinStates(bonesState);
 	}
 
-	ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater2>::alloc(nodeAnim);
+	ref_ptr<EventHandler> animStopped = ref_ptr<RandomAnimationRangeUpdater>::alloc(nodeAnim);
 	nodeAnim->connect(Animation::ANIMATION_STOPPED, animStopped);
 	{
 		EventData evData;
@@ -385,7 +385,7 @@ void MeshViewerWidget::selectMesh(int32_t meshIndex, uint32_t lodIndex) {
 
 static ref_ptr<Camera> createUserCamera(const Vec2i &viewport) {
 	auto cam = ref_ptr<Camera>::alloc(1);
-	float aspect = (GLfloat) viewport.x / (GLfloat) viewport.y;
+	float aspect = (float) viewport.x / (float) viewport.y;
 	cam->set_isAudioListener(false);
 	cam->setPosition(0, Vec3f(0.0f, 0.0f, -3.0f));
 	cam->setDirection(0, Vec3f(0.0f, 0.0f, 1.0f));
@@ -413,7 +413,7 @@ void MeshViewerWidget::createCameraController() {
 }
 
 void MeshViewerWidget::gl_loadScene() {
-	AnimationManager::get().pause(GL_TRUE);
+	AnimationManager::get().pause(true);
 	AnimationManager::get().setRootState(app_->renderTree()->state());
 
 	// create render target
@@ -502,7 +502,7 @@ void MeshViewerWidget::gl_loadScene() {
 	createCameraController();
 }
 
-void MeshViewerWidget::transformMesh(GLdouble dt) {
+void MeshViewerWidget::transformMesh(double dt) {
 	// rotate the mesh around the Y axis
 	meshOrientation_ += dt * 0.001f;
 	if (meshOrientation_ > M_PI * 2.0f) {

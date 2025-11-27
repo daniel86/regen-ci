@@ -16,9 +16,9 @@ namespace regen {
 		/** aerosol profile */
 		Vec4f mie;
 		/** sun-spotlight */
-		GLfloat spot;
+		float spot;
 		/** scattering strength */
-		GLfloat scatterStrength;
+		float scatterStrength;
 		/** Absorption color */
 		Vec3f absorption;
 	};
@@ -152,7 +152,7 @@ namespace regen {
 		const ref_ptr<TextureCube> &cubeMap() const;
 
 		// Override SkyLayer
-		void updateSkyLayer(RenderState *rs, GLdouble dt) override;
+		void updateSkyLayer(RenderState *rs, double dt) override;
 
 		// Override SkyLayer
 		void createUpdateShader() override;

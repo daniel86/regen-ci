@@ -44,7 +44,7 @@ namespace regen {
 		 * @param index index in stream.
 		 * @param cachedBytesLimit limit for pre-loading.
 		 */
-		AudioVideoStream(AVStream *stream, GLint index, uint32_t cachedBytesLimit);
+		AudioVideoStream(AVStream *stream, int index, uint32_t cachedBytesLimit);
 
 		/**
 		 * @param cachedBytesLimit limit for pre-loading.
@@ -90,7 +90,7 @@ namespace regen {
 		 * Calling setInactive() will make sure that the stream
 		 * drops out the block so that other media can be loaded.
 		 */
-		void setInactive() { isActive_ = GL_FALSE; }
+		void setInactive() { isActive_ = false; }
 
 		/**
 		 * Decodes a single packet.
@@ -108,16 +108,16 @@ namespace regen {
 		AVStream *stream_;
 		AVCodecContext *codecCtx_;
 		const AVCodec *codec_;
-		GLint index_;
+		int index_;
 
 		std::queue<AVFrame *> decodedFrames_;
-		std::queue<GLint> frameSizes_;
+		std::queue<int> frameSizes_;
 
 		uint32_t cachedBytes_;
 		uint32_t cachedBytesLimit_;
-		GLboolean isActive_;
+		bool isActive_;
 
-		void open(AVStream *stream, GLint index, GLboolean initial = GL_FALSE);
+		void open(AVStream *stream, int index, bool initial = false);
 
 		void close();
 	};

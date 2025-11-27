@@ -44,13 +44,13 @@ namespace regen {
 			/** texture coordinate mode. */
 			TexcoMode texcoMode;
 			/** generate normal attribute ?. */
-			GLboolean isNormalRequired;
+			bool isNormalRequired;
 			/** generate tangent attribute ?. */
-			GLboolean isTangentRequired;
+			bool isTangentRequired;
 			/** radius of the torus ring. */
-			GLfloat ringRadius;
+			float ringRadius;
 			/** radius of the tube. */
-			GLfloat tubeRadius;
+			float tubeRadius;
 			/** Buffer usage hints. */
 			ClientAccessMode accessMode = BUFFER_CPU_WRITE;
 			BufferUpdateFlags updateHints = BufferUpdateFlags::NEVER;

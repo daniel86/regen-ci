@@ -14,7 +14,7 @@ Cone::Cone(GLenum primitive, const BufferUpdateFlags &hints)
 ConeOpened::Config::Config()
 		: cosAngle(0.5),
 		  height(1.0f),
-		  isNormalRequired(GL_TRUE),
+		  isNormalRequired(true),
 		  levelOfDetails({1}) {
 }
 
@@ -34,10 +34,10 @@ void ConeOpened::generateLODLevel(const Config &cfg,
 	auto v_nor = (cfg.isNormalRequired ?
 				  (Vec3f*) nor_->clientBuffer()->clientData(0) : nullptr);
 
-	GLfloat phi = acos(cfg.cosAngle);
-	GLfloat radius = tan(phi) * cfg.height;
-	GLfloat angle = 0.0f;
-	GLfloat angleStep = 2.0f * M_PI / (GLfloat) lodLevel;
+	float phi = acos(cfg.cosAngle);
+	float radius = tan(phi) * cfg.height;
+	float angle = 0.0f;
+	float angleStep = 2.0f * M_PI / (float) lodLevel;
 	uint32_t i = vertexOffset;
 
 	v_pos[i] = Vec3f::zero();
@@ -47,8 +47,8 @@ void ConeOpened::generateLODLevel(const Config &cfg,
 
 	for (; i < lodLevel + 1; ++i) {
 		angle += angleStep;
-		GLfloat s = sin(angle) * radius;
-		GLfloat c = cos(angle) * radius;
+		float s = sin(angle) * radius;
+		float c = cos(angle) * radius;
 		Vec3f pos(c, s, cfg.height);
 		v_pos[i + 1] = pos;
 		minPosition_.setMin(pos);
@@ -102,8 +102,8 @@ void ConeOpened::updateAttributes(const Config &cfg) {
 ConeClosed::Config::Config()
 		: radius(0.5),
 		  height(1.0f),
-		  isNormalRequired(GL_TRUE),
-		  isBaseRequired(GL_TRUE),
+		  isNormalRequired(true),
+		  isBaseRequired(true),
 		  levelOfDetails({1}) {
 }
 
@@ -114,8 +114,8 @@ ref_ptr<Mesh> ConeClosed::getBaseCone() {
 		cfg.height = 1.0f;
 		cfg.radius = 0.5;
 		cfg.levelOfDetails = {3, 2, 1};
-		cfg.isNormalRequired = GL_FALSE;
-		cfg.isBaseRequired = GL_TRUE;
+		cfg.isNormalRequired = false;
+		cfg.isBaseRequired = true;
 		mesh = ref_ptr<ConeClosed>::alloc(cfg);
 	}
 	return ref_ptr<Mesh>::alloc(mesh);
@@ -132,13 +132,13 @@ static void loadConeData(
 		Vec3f *pos, Vec3f *nor,
 		Vec3f &min,
 		Vec3f &max,
-		GLboolean useBase,
+		bool useBase,
 		uint32_t subdivisions,
-		GLfloat radius,
-		GLfloat height) {
-	GLfloat angle = 0.0f;
-	GLfloat angleStep = 2.0f * M_PI / (GLfloat) subdivisions;
-	GLint i = 0;
+		float radius,
+		float height) {
+	float angle = 0.0f;
+	float angleStep = 2.0f * M_PI / (float) subdivisions;
+	int i = 0;
 
 	// apex
 	pos[i] = Vec3f::zero();
@@ -153,11 +153,11 @@ static void loadConeData(
 		++i;
 	}
 
-	GLint numVertices = subdivisions + i;
+	int numVertices = subdivisions + i;
 	for (; i < numVertices; ++i) {
 		angle += angleStep;
-		GLfloat s = sin(angle) * radius;
-		GLfloat c = cos(angle) * radius;
+		float s = sin(angle) * radius;
+		float c = cos(angle) * radius;
 		pos[i] = Vec3f(c, s, height);
 		min.setMin(pos[i]);
 		max.setMax(pos[i]);
@@ -192,7 +192,7 @@ void ConeClosed::generateLODLevel(
 	const uint32_t apexIndex = vertexOffset;
 	const uint32_t baseCenterIndex = vertexOffset + 1;
 	uint32_t faceIndex = indexOffset;
-	GLint vIndex = vertexOffset + cfg.isBaseRequired ? 2 : 1;
+	int vIndex = vertexOffset + cfg.isBaseRequired ? 2 : 1;
 	// cone
 	for (uint32_t i = 0; i < lodLevel; ++i) {
 		setIndexValue(indices, indexType, faceIndex++, apexIndex);

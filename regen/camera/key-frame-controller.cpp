@@ -5,11 +5,11 @@ using namespace regen;
 KeyFrameController::KeyFrameController(const ref_ptr<Camera> &cam)
 		: Animation(false, true),
 		  CameraControllerBase(cam),
-		  repeat_(GL_TRUE),
-		  skipFirstFrameOnLoop_(GL_TRUE),
+		  repeat_(true),
+		  skipFirstFrameOnLoop_(true),
 		  pauseTime_(0.0),
 		  currentPauseDuration_(0.0),
-		  isPaused_(GL_FALSE) {
+		  isPaused_(false) {
 	setAnimationName("controller");
 	camPos_ = cam->position()[0].xyz();
 	camDir_ = cam->direction()[0].xyz();
@@ -22,7 +22,7 @@ KeyFrameController::KeyFrameController(const ref_ptr<Camera> &cam)
 	updateCamera(camPos_, camDir_, 0.0);
 }
 
-void KeyFrameController::push_back(const ref_ptr<CameraAnchor> &anchor, GLdouble dt) {
+void KeyFrameController::push_back(const ref_ptr<CameraAnchor> &anchor, double dt) {
 	CameraKeyFrame f;
 	f.anchor = anchor;
 	f.dt = dt;
@@ -33,18 +33,18 @@ void KeyFrameController::push_back(const ref_ptr<CameraAnchor> &anchor, GLdouble
 	}
 }
 
-void KeyFrameController::push_back(const Vec3f &pos, const Vec3f &dir, GLdouble dt) {
+void KeyFrameController::push_back(const Vec3f &pos, const Vec3f &dir, double dt) {
 	auto anchor = ref_ptr<FixedCameraAnchor>::alloc(pos, dir);
 	push_back(anchor, dt);
 }
 
-static inline auto easeInOutCubic(GLdouble t, GLdouble intensity) {
+static inline auto easeInOutCubic(double t, double intensity) {
 	t = pow(t, intensity);
 	return t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2;
 }
 
-Vec3f KeyFrameController::interpolatePosition(const Vec3f &v0, const Vec3f &v1, GLdouble t) const {
-	GLdouble sample;
+Vec3f KeyFrameController::interpolatePosition(const Vec3f &v0, const Vec3f &v1, double t) const {
+	double sample;
 	if (easeInOutIntensity_ > 0.0) {
 		sample = easeInOutCubic(t, easeInOutIntensity_);
 	} else {
@@ -53,7 +53,7 @@ Vec3f KeyFrameController::interpolatePosition(const Vec3f &v0, const Vec3f &v1, 
     return math::mix(v0, v1, sample);
 }
 
-Vec3f KeyFrameController::interpolateDirection(const Vec3f &v0, const Vec3f &v1, GLdouble t) const {
+Vec3f KeyFrameController::interpolateDirection(const Vec3f &v0, const Vec3f &v1, double t) const {
 	if (v0 == v1) return v0;
 
 	double sample = easeInOutIntensity_ > 0.0
@@ -98,8 +98,8 @@ Vec3f KeyFrameController::interpolateDirection(const Vec3f &v0, const Vec3f &v1,
 }
 
 /**
-Vec3f KeyFrameController::interpolateDirection(const Vec3f &v0, const Vec3f &v1, GLdouble t) const {
-	GLdouble sample;
+Vec3f KeyFrameController::interpolateDirection(const Vec3f &v0, const Vec3f &v1, double t) const {
+	double sample;
 	// skip if the direction is the same
 	if (v0 == v1) {
 		return v0;
@@ -113,8 +113,8 @@ Vec3f KeyFrameController::interpolateDirection(const Vec3f &v0, const Vec3f &v1,
 }
 **/
 
-void KeyFrameController::animate(GLdouble dt) {
-	GLdouble dtSeconds = dt / 1000.0;
+void KeyFrameController::cpuUpdate(double dt) {
+	double dtSeconds = dt / 1000.0;
 
 	if (it_ == frames_.end()) {
 		// end reached
@@ -136,7 +136,7 @@ void KeyFrameController::animate(GLdouble dt) {
 	if (isPaused_) {
 		currentPauseDuration_ += dtSeconds;
 		if(currentPauseDuration_ >= pauseTime_) {
-			isPaused_ = GL_FALSE;
+			isPaused_ = false;
 			dtSeconds = currentPauseDuration_ - pauseTime_;
 			currentPauseDuration_ = 0.0;
 		} else {
@@ -148,7 +148,7 @@ void KeyFrameController::animate(GLdouble dt) {
 
 	// reached next frame?
 	if (dt_ > currentFrame.dt) {
-		GLdouble dtNewFrame = dt_ - currentFrame.dt;
+		double dtNewFrame = dt_ - currentFrame.dt;
 		// move to next frame
 		++it_;
 		lastFrame_ = currentFrame;
@@ -162,7 +162,7 @@ void KeyFrameController::animate(GLdouble dt) {
 				}
 			} else if (currentFrame.anchor->following()) {
 				dt_ = 0.0;
-				animate(dtNewFrame);
+				cpuUpdate(dtNewFrame);
 				return;
 			} else {
 				stopAnimation();
@@ -171,13 +171,13 @@ void KeyFrameController::animate(GLdouble dt) {
 		}
 		// enter pause mode if pause time is set
 		if (pauseTime_ > 0.0) {
-			isPaused_ = GL_TRUE;
+			isPaused_ = true;
 			currentPauseDuration_ = dtNewFrame;
 			dt_ = 0.0;
 			return;
 		} else {
 			dt_ = 0.0;
-			animate(dtNewFrame);
+			cpuUpdate(dtNewFrame);
 			return;
 		}
 	}
@@ -186,7 +186,7 @@ void KeyFrameController::animate(GLdouble dt) {
 	Vec3f pos1 = currentFrame.anchor->position();
 	Vec3f dir0 = lastFrame_.anchor->direction();
 	Vec3f dir1 = currentFrame.anchor->direction();
-	GLdouble t = currentFrame.dt > 0.0 ? dt_ / currentFrame.dt : 1.0;
+	double t = currentFrame.dt > 0.0 ? dt_ / currentFrame.dt : 1.0;
 	dir0.normalize();
 	dir1.normalize();
 

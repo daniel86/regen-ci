@@ -261,7 +261,7 @@ namespace regen {
 				uint32_t count,
 				GLenum targetType,
 				GLenum format,
-				GLint internalFormat,
+				int internalFormat,
 				GLenum pixelType,
 				uint32_t numSamples=1);
 
@@ -272,7 +272,7 @@ namespace regen {
 				uint32_t count,
 				GLenum targetType,
 				GLenum format,
-				GLint internalFormat,
+				int internalFormat,
 				GLenum pixelType,
 				uint32_t numSamples=1);
 
@@ -324,7 +324,7 @@ namespace regen {
 				GLenum writeAttachment,
 				GLbitfield mask = GL_COLOR_BUFFER_BIT,
 				GLenum filter = GL_NEAREST,
-				GLboolean keepRatio = GL_FALSE);
+				bool keepRatio = false);
 
 		/**
 		 * Blit fbo attachment into screen back buffer.
@@ -334,7 +334,7 @@ namespace regen {
 				GLenum readAttachment,
 				GLbitfield mask = GL_COLOR_BUFFER_BIT,
 				GLenum filter = GL_NEAREST,
-				GLboolean keepRatio = GL_FALSE);
+				bool keepRatio = false);
 
 		/**
 		 * Clear the FBO color attachments to the given color.

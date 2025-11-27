@@ -12,10 +12,10 @@ static Rectangle::Config getRectangleConfig(const Blanket::BlanketConfig &cfg) {
 	rectCfg.posScale.y = 1.0;
 	rectCfg.rotation = Vec3f(0.0f, 0.0f, M_PIf);
 	rectCfg.texcoScale = cfg.texcoScale;
-	rectCfg.isNormalRequired = GL_TRUE;
-	rectCfg.isTangentRequired = GL_TRUE;
-	rectCfg.isTexcoRequired = GL_TRUE;
-	rectCfg.centerAtOrigin = GL_TRUE;
+	rectCfg.isNormalRequired = true;
+	rectCfg.isTangentRequired = true;
+	rectCfg.isTexcoRequired = true;
+	rectCfg.centerAtOrigin = true;
 	rectCfg.updateHint = cfg.updateHint;
 	rectCfg.mapMode = cfg.mapMode;
 	rectCfg.accessMode = cfg.accessMode;
@@ -30,7 +30,7 @@ namespace regen {
 			  blanket_(blanket) {
 		}
 
-		void animate(GLdouble dt) override {
+		void cpuUpdate(double dt) override {
 			blanket_->updateLifetime(dt * 0.001f);
 		}
 

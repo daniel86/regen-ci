@@ -117,7 +117,7 @@ namespace regen {
 		 * @param index index in stream.
 		 * @param chachedBytesLimit limit for pre-loading.
 		 */
-		AudioSource(AVStream *stream, GLint index, uint32_t chachedBytesLimit);
+		AudioSource(AVStream *stream, int index, uint32_t chachedBytesLimit);
 
 		~AudioSource() override;
 
@@ -188,7 +188,7 @@ namespace regen {
 		 * @param initial flag indicating if the open call comes from constructor.
 		 */
 		void openAudioStream(AVStream *stream,
-							 GLint index, GLboolean initial = GL_FALSE);
+							 int index, bool initial = false);
 
 		// override
 		void decode(AVPacket *packet) override;
@@ -200,7 +200,7 @@ namespace regen {
 			ref_ptr<AudioBuffer> buffer;
 			AVFrame *avFrame;
 			ALbyte *convertedFrame;
-			GLdouble dts;
+			double dts;
 
 			void free();
 		};
@@ -210,7 +210,7 @@ namespace regen {
 		ALenum alChannelLayout_;
 		ALenum alFormat_;
 		ALint rate_;
-		GLdouble elapsedTime_;
+		double elapsedTime_;
 
 		Stack<ref_ptr<AudioBuffer> > queued_;
 #ifdef HAS_LIBSWRESAMPLE

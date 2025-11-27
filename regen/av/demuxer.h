@@ -67,7 +67,7 @@ namespace regen {
 		/**
 		 * Repeat video of end position reached ?
 		 */
-		void set_repeat(GLboolean repeat);
+		void set_repeat(bool repeat);
 
 		/**
 		 * Repeat video of end position reached ?
@@ -110,7 +110,7 @@ namespace regen {
 		/**
 		 * Seek to given position [0,1]
 		 */
-		void seekTo(GLdouble p);
+		void seekTo(double p);
 
 		/**
 		 * The video stream or NULL.

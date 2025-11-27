@@ -29,27 +29,27 @@ void CameraController::setAttachedTo(
 	pos_ = target->position(0).r;
 }
 
-void CameraController::stepUp(const GLfloat &v) {
+void CameraController::stepUp(const float &v) {
 	step(Vec3f(0.0f, v, 0.0f));
 }
 
-void CameraController::stepDown(const GLfloat &v) {
+void CameraController::stepDown(const float &v) {
 	step(Vec3f(0.0f, -v, 0.0f));
 }
 
-void CameraController::stepForward(const GLfloat &v) {
+void CameraController::stepForward(const float &v) {
 	step(dirXZ_ * v);
 }
 
-void CameraController::stepBackward(const GLfloat &v) {
+void CameraController::stepBackward(const float &v) {
 	step(dirXZ_ * (-v));
 }
 
-void CameraController::stepLeft(const GLfloat &v) {
+void CameraController::stepLeft(const float &v) {
 	step(dirSidestep_ * (-v));
 }
 
-void CameraController::stepRight(const GLfloat &v) {
+void CameraController::stepRight(const float &v) {
 	step(dirSidestep_ * v);
 }
 
@@ -57,31 +57,31 @@ void CameraController::step(const Vec3f &v) {
 	step_ += v;
 }
 
-void CameraController::lookLeft(GLdouble amount) {
+void CameraController::lookLeft(double amount) {
 	horizontalOrientation_ = fmod(horizontalOrientation_ + amount, 2.0 * M_PI);
 }
 
-void CameraController::lookRight(GLdouble amount) {
+void CameraController::lookRight(double amount) {
 	horizontalOrientation_ = fmod(horizontalOrientation_ - amount, 2.0 * M_PI);
 }
 
 #define REGEN_ORIENT_THRESHOLD_ 0.1
 
-void CameraController::lookUp(GLdouble amount) {
+void CameraController::lookUp(double amount) {
 	verticalOrientation_ = math::clamp<float>(verticalOrientation_ + amount, -orientThreshold_, orientThreshold_);
 }
 
-void CameraController::lookDown(GLdouble amount) {
+void CameraController::lookDown(double amount) {
 	verticalOrientation_ = math::clamp<float>(verticalOrientation_ - amount, -orientThreshold_, orientThreshold_);
 }
 
-void CameraController::zoomIn(GLdouble amount) {
+void CameraController::zoomIn(double amount) {
 	if(isThirdPerson()) {
 		meshDistance_ = math::clamp<float>(meshDistance_ - amount, 0.0, 100.0);
 	}
 }
 
-void CameraController::zoomOut(GLdouble amount) {
+void CameraController::zoomOut(double amount) {
 	if(isThirdPerson()) {
 		meshDistance_ = math::clamp<float>(meshDistance_ + amount, 0.0, 100.0);
 	}
@@ -142,7 +142,7 @@ void CameraController::updateModel() {
 	}
 }
 
-void CameraController::applyStep(GLfloat dt, const Vec3f &offset) {
+void CameraController::applyStep(float dt, const Vec3f &offset) {
 	pos_ += offset;
 }
 
@@ -150,7 +150,7 @@ void CameraController::jump() {
 	// do nothing
 }
 
-void CameraController::animate(GLdouble dt) {
+void CameraController::cpuUpdate(double dt) {
 	step_ = Vec3f::zero();
 	isMoving_ = moveForward_ || moveBackward_ || moveLeft_ || moveRight_;
 	auto orientation = horizontalOrientation_ + meshHorizontalOrientation_;

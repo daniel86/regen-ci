@@ -86,7 +86,7 @@ void Shader::printLog(
 		uint32_t shader,
 		GLenum shaderType,
 		const char *shaderCode,
-		GLboolean success) {
+		bool success) {
 	Logging::LogLevel logLevel;
 	if (shaderCode != nullptr) {
 		std::string shaderName = glenum::glslStageName(shaderType);
@@ -240,17 +240,17 @@ ref_ptr<ShaderInput> Shader::input(const std::string &name) {
 	}
 }
 
-GLint Shader::samplerLocation(const std::string &name) {
+int Shader::samplerLocation(const std::string &name) {
 	auto it = samplerLocations_.find(name);
 	return (it != samplerLocations_.end()) ? it->second : -1;
 }
 
-GLint Shader::attributeLocation(const std::string &name) {
+int Shader::attributeLocation(const std::string &name) {
 	auto it = attributeLocations_.find(name);
 	return (it != attributeLocations_.end()) ? it->second : -1;
 }
 
-GLint Shader::uniformLocation(const std::string &name) {
+int Shader::uniformLocation(const std::string &name) {
 	auto it = uniformLocations_.find(name);
 	return (it != uniformLocations_.end()) ? it->second : -1;
 }
@@ -265,8 +265,8 @@ bool Shader::compile() {
 		ref_ptr<uint32_t> shaderStage = ref_ptr<uint32_t>::alloc();
 		uint32_t &stage = *shaderStage.get();
 		stage = glCreateShader(shaderCode.first);
-		GLint length = -1;
-		GLint status;
+		int length = -1;
+		int status;
 
 		glShaderSource(stage, 1, &source, &length);
 		glCompileShader(stage);
@@ -292,12 +292,12 @@ bool Shader::link() {
 		int validCounter = 0;
 
 		GLenum stage = feedbackStage_;
-		GLint i = 0;
+		int i = 0;
 		for (; glenum::glslStages()[i] != stage; ++i) {}
 
 		// find next stage
 		std::string nextStagePrefix = "out";
-		for (GLint j = i + 1; j < glenum::glslStageCount(); ++j) {
+		for (int j = i + 1; j < glenum::glslStageCount(); ++j) {
 			GLenum nextStage = glenum::glslStages()[j];
 			if (shaders_.count(nextStage) != 0) {
 				nextStagePrefix = glenum::glslStagePrefix(nextStage);
@@ -325,7 +325,7 @@ bool Shader::link() {
 	int status;
 	glGetProgramiv(id(), GL_LINK_STATUS, &status);
 	GL_ERROR_LOG();
-	if (status == GL_FALSE) {
+	if (status == false) {
 		for (auto &shaderCode: shaderCodes_) {
 			const char *source = shaderCode.second.c_str();
 			printLog(id(), shaderCode.first, source, false);
@@ -341,9 +341,9 @@ bool Shader::link() {
 
 bool Shader::validate() {
 	glValidateProgram(id());
-	GLint status;
+	int status;
 	glGetProgramiv(id(), GL_VALIDATE_STATUS, &status);
-	if (status == GL_FALSE) {
+	if (status == false) {
 		int length;
 		glGetProgramiv(id(), GL_INFO_LOG_LENGTH, &length);
 		char *log = new char[length];
@@ -357,8 +357,8 @@ bool Shader::validate() {
 }
 
 void Shader::setupInputLocations() {
-	GLint count;
-	GLint arraySize;
+	int count;
+	int arraySize;
 	GLenum type;
 	char nameC[320];
 
@@ -565,7 +565,7 @@ ref_ptr<ShaderInput> Shader::createUniform(const std::string &name) {
 		return {};
 	}
 
-	GLint arraySize;
+	int arraySize;
 	GLenum type;
 	char nameC[320];
 	glGetActiveUniform(id(), loc, 320, nullptr, &arraySize, &type, nameC);

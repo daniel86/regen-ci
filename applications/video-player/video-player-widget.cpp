@@ -38,7 +38,7 @@ extern "C" {
 
 using namespace std;
 
-static QString formatTime(GLfloat elapsedSeconds) {
+static QString formatTime(float elapsedSeconds) {
 	uint32_t seconds = (uint32_t) elapsedSeconds;
 	uint32_t minutes = seconds / 60;
 	seconds = seconds % 60;
@@ -50,7 +50,7 @@ static QString formatTime(GLfloat elapsedSeconds) {
 }
 
 static void hideLayout(QLayout *layout) {
-	for (GLint i = 0; i < layout->count(); ++i) {
+	for (int i = 0; i < layout->count(); ++i) {
 		QLayoutItem *item = layout->itemAt(i);
 		if (item->widget()) { item->widget()->hide(); }
 		if (item->layout()) { hideLayout(item->layout()); }
@@ -58,19 +58,19 @@ static void hideLayout(QLayout *layout) {
 }
 
 static void showLayout(QLayout *layout) {
-	for (GLint i = 0; i < layout->count(); ++i) {
+	for (int i = 0; i < layout->count(); ++i) {
 		QLayoutItem *item = layout->itemAt(i);
 		if (item->widget()) { item->widget()->show(); }
 		if (item->layout()) { showLayout(item->layout()); }
 	}
 }
 
-static GLboolean isRegularFile(const string &f) {
+static bool isRegularFile(const string &f) {
 	boost::filesystem::path p(f);
 	return boost::filesystem::is_regular_file(p);
 }
 
-static GLboolean isDirectory(const string &f) {
+static bool isDirectory(const string &f) {
 	boost::filesystem::path p(f);
 	return boost::filesystem::is_directory(p);
 }
@@ -83,7 +83,7 @@ public:
 	explicit VideoInitAnimation(VideoPlayerWidget *widget)
 			: Animation(true, false), widget_(widget) {}
 
-	void glAnimate(RenderState *rs, GLdouble dt) override { widget_->gl_loadScene(); }
+	void gpuUpdate(RenderState *rs, double dt) override { widget_->gl_loadScene(); }
 
 	VideoPlayerWidget *widget_;
 };
@@ -94,10 +94,10 @@ VideoPlayerWidget::VideoPlayerWidget(QtApplication *app)
 		  gain_(1.0f),
 		  elapsedTimer_(this),
 		  activePlaylistRow_(nullptr),
-		  wereControlsShown_(GL_FALSE) {
+		  wereControlsShown_(false) {
 	setMouseTracking(true);
 	setAcceptDrops(true);
-	controlsShown_ = GL_TRUE;
+	controlsShown_ = true;
 
 	ui_.setupUi(this);
 	app_->glWidget()->setEnabled(false);
@@ -130,7 +130,7 @@ VideoPlayerWidget::VideoPlayerWidget(QtApplication *app)
 // Resizes Framebuffer texture when the window size changed
 class FBOResizer : public EventHandler {
 public:
-	FBOResizer(const ref_ptr<FBOState> &fbo, GLfloat wScale, GLfloat hScale)
+	FBOResizer(const ref_ptr<FBOState> &fbo, float wScale, float hScale)
 			: EventHandler(), fboState_(fbo), wScale_(wScale), hScale_(hScale) {}
 
 	~FBOResizer() override = default;
@@ -143,7 +143,7 @@ public:
 
 protected:
 	ref_ptr<FBOState> fboState_;
-	GLfloat wScale_, hScale_;
+	float wScale_, hScale_;
 };
 
 void setBlitToScreen(Scene *app, const ref_ptr<FBO> &fbo, GLenum attachment) {
@@ -157,17 +157,17 @@ ref_ptr<Mesh> createVideoWidget(
 		const ref_ptr<StateNode> &root) {
 	Rectangle::Config quadConfig;
 	quadConfig.levelOfDetails = {0};
-	quadConfig.isTexcoRequired = GL_TRUE;
-	quadConfig.isNormalRequired = GL_FALSE;
-	quadConfig.isTangentRequired = GL_FALSE;
-	quadConfig.centerAtOrigin = GL_TRUE;
+	quadConfig.isTexcoRequired = true;
+	quadConfig.isNormalRequired = false;
+	quadConfig.isTangentRequired = false;
+	quadConfig.centerAtOrigin = true;
 	quadConfig.rotation = Vec3f(0.5 * M_PI, 0.0 * M_PI, 0.0 * M_PI);
 	quadConfig.posScale = Vec3f::one();
 	quadConfig.texcoScale = Vec2f(-1.0f, 1.0f);
 	quadConfig.levelOfDetails = {0};
-	quadConfig.isTexcoRequired = GL_TRUE;
-	quadConfig.isNormalRequired = GL_FALSE;
-	quadConfig.centerAtOrigin = GL_TRUE;
+	quadConfig.isTexcoRequired = true;
+	quadConfig.isNormalRequired = false;
+	quadConfig.centerAtOrigin = true;
 	auto mesh = regen::Rectangle::create(quadConfig);
 
 	ref_ptr<TextureState> texState = ref_ptr<TextureState>::alloc(videoTexture);
@@ -190,7 +190,7 @@ ref_ptr<Mesh> createVideoWidget(
 }
 
 void VideoPlayerWidget::gl_loadScene() {
-	AnimationManager::get().pause(GL_TRUE);
+	AnimationManager::get().pause(true);
 
 	vid_ = ref_ptr<VideoTexture>::alloc();
 	demuxer_ = vid_->demuxer();
@@ -251,7 +251,7 @@ void VideoPlayerWidget::changeVolume(int val) {
 }
 
 void VideoPlayerWidget::updateElapsedTime() {
-	GLfloat elapsed = vid_->elapsedSeconds();
+	float elapsed = vid_->elapsedSeconds();
 	ui_.progressLabel->setText(formatTime(elapsed));
 	ui_.progressSlider->blockSignals(true);
 	ui_.progressSlider->setValue((int) (
@@ -292,7 +292,7 @@ int VideoPlayerWidget::addPlaylistItem(const string &filePath) {
 	if (avformat_find_stream_info(formatCtx, nullptr) < 0) {
 		return -1;
 	}
-	GLdouble numSeconds = formatCtx->duration / (GLdouble) AV_TIME_BASE;
+	double numSeconds = formatCtx->duration / (double) AV_TIME_BASE;
 	__CLOSE_INPUT__(formatCtx);
 
 	std::string filename = boost::filesystem::path(filePath).stem().string();
@@ -339,15 +339,15 @@ void VideoPlayerWidget::addLocalPath(const string &filePath) {
 
 void VideoPlayerWidget::updateSize() {
 	if (!vid_.get()) return;
-	GLfloat widgetRatio = ui_.blackBackground->width() / (GLfloat) ui_.blackBackground->height();
-	GLfloat videoRatio = vid_->width() / (GLfloat) vid_->height();
-	GLint w, h;
+	float widgetRatio = ui_.blackBackground->width() / (float) ui_.blackBackground->height();
+	float videoRatio = vid_->width() / (float) vid_->height();
+	int w, h;
 	if (widgetRatio > videoRatio) {
-		w = (GLint) (ui_.blackBackground->height() * videoRatio);
+		w = (int) (ui_.blackBackground->height() * videoRatio);
 		h = ui_.blackBackground->height();
 	} else {
 		w = ui_.blackBackground->width();
-		h = (GLint) (ui_.blackBackground->width() / videoRatio);
+		h = (int) (ui_.blackBackground->width() / videoRatio);
 	}
 	if (w % 2 != 0) { w -= 1; }
 	if (h % 2 != 0) { h -= 1; }

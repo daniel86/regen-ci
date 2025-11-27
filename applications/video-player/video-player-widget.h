@@ -80,12 +80,12 @@ protected:
 	Ui_mainWindow ui_;
 	ref_ptr<VideoTexture> vid_;
 	ref_ptr<Demuxer> demuxer_;
-	GLfloat gain_;
+	float gain_;
 	QTimer elapsedTimer_;
 	QTableWidgetItem *activePlaylistRow_;
 
-	GLboolean controlsShown_;
-	GLboolean wereControlsShown_;
+	bool controlsShown_;
+	bool wereControlsShown_;
 	QList<int> splitterSizes_;
 
 	ref_ptr<Animation> initAnim_;

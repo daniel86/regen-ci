@@ -45,11 +45,11 @@ namespace regen {
 			/** texture coordinate mode */
 			TexcoMode texcoMode;
 			/** generate normal attribute */
-			GLboolean isNormalRequired;
+			bool isNormalRequired;
 			/** generate tangent attribute */
-			GLboolean isTangentRequired;
+			bool isTangentRequired;
 			/** If true only bottom half sphere is used. */
-			GLboolean isHalfSphere;
+			bool isHalfSphere;
 			/** Buffer usage hints. */
 			ClientAccessMode accessMode = BUFFER_CPU_WRITE;
 			BufferUpdateFlags updateHint = BufferUpdateFlags::NEVER;
@@ -80,7 +80,7 @@ namespace regen {
 		ref_ptr<ShaderInput2f> texco_;
 		ref_ptr<ShaderInput4f> tan_;
 		ref_ptr<ShaderInput> indices_;
-		GLfloat radius_;
+		float radius_;
 
 		void generateLODLevel(const Config &cfg,
 				uint32_t lodLevel,
@@ -109,7 +109,7 @@ namespace regen {
 		 */
 		struct Config {
 			/** one radius for each sphere. */
-			GLfloat *radius;
+			float *radius;
 			/** one position for each sphere. */
 			Vec3f *position;
 			/** number of spheres. */

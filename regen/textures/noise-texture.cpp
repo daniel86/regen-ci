@@ -7,7 +7,7 @@
 using namespace regen;
 using namespace noise;
 
-static GLfloat sampleNoise(
+static float sampleNoise(
 		const NoiseGenerator &noiseGen,
 		double x, double y, double z,
 		bool isSeamless2D,
@@ -51,7 +51,7 @@ void NoiseTexture::setNoiseGenerator(const ref_ptr<NoiseGenerator> &generator) {
 	updateNoise();
 }
 
-NoiseTexture2D::NoiseTexture2D(uint32_t width, uint32_t height, GLboolean isSeamless)
+NoiseTexture2D::NoiseTexture2D(uint32_t width, uint32_t height, bool isSeamless)
 		: Texture2D(), NoiseTexture(isSeamless) {
 	set_rectangleSize(width, height);
 	set_pixelType(GL_UNSIGNED_BYTE);
@@ -69,7 +69,7 @@ void NoiseTexture2D::updateNoise() {
 		for (uint32_t y = 0u; y < height(); ++y) {
 			float fx = noiseScale_ * float(x) / float(width());
 			float fy = noiseScale_ * float(y) / float(height());
-			GLfloat val = sampleNoise(gen, fx, fy, 0.0, isSeamless_, false);
+			float val = sampleNoise(gen, fx, fy, 0.0, isSeamless_, false);
 			*dataPtr = static_cast<GLubyte>(val * 255.0f);
 			++dataPtr;
 		}
@@ -84,7 +84,7 @@ void NoiseTexture2D::updateNoise() {
 	set_wrapping(TextureWrapping::create(GL_MIRRORED_REPEAT));
 }
 
-NoiseTexture3D::NoiseTexture3D(uint32_t width, uint32_t height, uint32_t depth, GLboolean isSeamless)
+NoiseTexture3D::NoiseTexture3D(uint32_t width, uint32_t height, uint32_t depth, bool isSeamless)
 		: Texture3D(), NoiseTexture(isSeamless) {
 	set_rectangleSize(width, height);
 	set_depth(depth);
@@ -106,7 +106,7 @@ void NoiseTexture3D::updateNoise() {
 				float fx = noiseScale_ * float(x) / float(width());
 				float fy = noiseScale_ * float(y) / float(height());
 				float fz = noiseScale_ * float(z) / float(depth());
-				GLfloat val = sampleNoise(gen, fx, fy, fz, false, isSeamless_);
+				float val = sampleNoise(gen, fx, fy, fz, false, isSeamless_);
 				*dataPtr = static_cast<GLubyte>(val * 255.0f);
 				++dataPtr;
 			}
@@ -143,11 +143,11 @@ void NoiseGenerator::removeSource(const ref_ptr<NoiseGenerator> &source) {
 	}
 }
 
-GLdouble NoiseGenerator::GetValue(GLdouble x, GLdouble y, GLdouble z) const {
+double NoiseGenerator::GetValue(double x, double y, double z) const {
 	return handle_->GetValue(x, y, z);
 }
 
-ref_ptr<NoiseGenerator> NoiseGenerator::preset_perlin(GLint randomSeed) {
+ref_ptr<NoiseGenerator> NoiseGenerator::preset_perlin(int randomSeed) {
 	auto perlin = ref_ptr<module::Perlin>::alloc();
 	if (randomSeed != 0) perlin->SetSeed(randomSeed);
 	perlin->SetFrequency(4.0);
@@ -157,7 +157,7 @@ ref_ptr<NoiseGenerator> NoiseGenerator::preset_perlin(GLint randomSeed) {
 	return ref_ptr<NoiseGenerator>::alloc("perlin", perlin);
 }
 
-ref_ptr<NoiseGenerator> NoiseGenerator::preset_clouds(GLint randomSeed) {
+ref_ptr<NoiseGenerator> NoiseGenerator::preset_clouds(int randomSeed) {
 	// Base of the cloud texture.
 	// The billowy noise produces the basic shape of soft, fluffy clouds.
 	auto cloudBase = ref_ptr<module::Billow>::alloc();
@@ -180,7 +180,7 @@ ref_ptr<NoiseGenerator> NoiseGenerator::preset_clouds(GLint randomSeed) {
 	return finalGen;
 }
 
-ref_ptr<NoiseGenerator> NoiseGenerator::preset_wood(GLint randomSeed) {
+ref_ptr<NoiseGenerator> NoiseGenerator::preset_wood(int randomSeed) {
 	// Base wood texture.  The base texture uses concentric cylinders aligned
 	// on the z axis, like a log.
 	auto baseWood = ref_ptr<module::Cylinders>::alloc();
@@ -252,7 +252,7 @@ ref_ptr<NoiseGenerator> NoiseGenerator::preset_wood(GLint randomSeed) {
 	return finalGen;
 }
 
-ref_ptr<NoiseGenerator> NoiseGenerator::preset_granite(GLint randomSeed) {
+ref_ptr<NoiseGenerator> NoiseGenerator::preset_granite(int randomSeed) {
 	// Primary granite texture.  This generates the "roughness" of the texture
 	// when lit by a light source.
 	auto primaryGranite = ref_ptr<module::Billow>::alloc();
@@ -409,7 +409,7 @@ ref_ptr<NoiseGenerator> loadGenerator(
 }
 
 ref_ptr<NoiseGenerator> NoiseGenerator::load(LoadingContext &ctx, scene::SceneInputNode &input) {
-	auto randomSeed = input.getValue<GLint>("random-seed", math::randomInt());
+	auto randomSeed = input.getValue<int>("random-seed", math::randomInt());
 
 	if (input.hasAttribute("preset")) {
 		auto preset = input.getValue("preset");

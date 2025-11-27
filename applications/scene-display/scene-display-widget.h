@@ -100,15 +100,17 @@ protected:
 	ref_ptr<KeyFrameController> anchorAnim_;
 	std::vector<ref_ptr<CameraAnchor>> anchors_;
 	uint32_t anchorIndex_;
-	GLdouble anchorEaseInOutIntensity_;
-	GLdouble anchorPauseTime_;
-	GLdouble anchorTimeScale_;
+	double anchorEaseInOutIntensity_;
+	double anchorPauseTime_;
+	double anchorTimeScale_;
+
+	std::map<std::string, ref_ptr<SpatialIndex>> spatialIndices_;
+	std::vector<ref_ptr<SpatialIndex>> spatialIndexList_;
 
 	QDialog *inputDialog_;
 	ShaderInputWidget *inputWidget_;
 	QtApplication *app_;
 	ref_ptr<BulletPhysics> physics_;
-	std::map<std::string, ref_ptr<SpatialIndex>> spatialIndices_;
 	Ui_sceneViewer ui_;
 	std::string activeFile_;
 	ViewNodeList viewNodes_;

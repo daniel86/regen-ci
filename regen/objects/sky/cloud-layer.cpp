@@ -5,9 +5,9 @@
 
 using namespace regen;
 
-static GLfloat *createNoiseSlice(uint32_t texSize, uint32_t octave) {
+static float *createNoiseSlice(uint32_t texSize, uint32_t octave) {
 	uint32_t size2 = texSize * texSize;
-	GLfloat oneOverTexSize = 1.f / static_cast<float>(texSize);
+	float oneOverTexSize = 1.f / static_cast<float>(texSize);
 	osgHimmel::Noise n(1 << (octave + 2),
 					   math::random<float>(0.f, 1.f),
 					   math::random<float>(0.f, 1.f));
@@ -35,7 +35,7 @@ static ref_ptr<Texture3D> createNoiseArray(uint32_t texSize, uint32_t octave, ui
 	tex->set_pixelType(GL_FLOAT);
 	tex->allocTexture();
 	for (uint32_t s = 0; s < slices; ++s) {
-		GLfloat *data = createNoiseSlice(texSize, octave);
+		float *data = createNoiseSlice(texSize, octave);
 		tex->updateSubImage(static_cast<int>(s), (GLubyte *) data);
 		delete[]data;
 	}
@@ -166,7 +166,7 @@ float CloudLayer::defaultChangeLow() {
 	return 0.1f;
 }
 
-void CloudLayer::updateSkyLayer(RenderState *rs, GLdouble dt) {
+void CloudLayer::updateSkyLayer(RenderState *rs, double dt) {
 	static const Vec4f clearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	fbo_->clearAllColorAttachments(clearColor);
 	rs->viewport().push(fbo_->glViewport());

@@ -64,7 +64,7 @@ Demuxer::~Demuxer() {
 	if (formatCtx_) avformat_close_input(&formatCtx_);
 }
 
-void Demuxer::set_repeat(GLboolean repeat) {
+void Demuxer::set_repeat(bool repeat) {
 	repeatStream_ = repeat;
 }
 
@@ -157,7 +157,7 @@ void Demuxer::setInactive() {
 	if (audioStream_.get()) { audioStream_->setInactive(); }
 }
 
-void Demuxer::seekTo(GLdouble p) {
+void Demuxer::seekTo(double p) {
 	if (!formatCtx_) { return; }
 	p = std::max(0.0, std::min(1.0, p));
 	seek_.isRequired = true;

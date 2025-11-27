@@ -223,7 +223,7 @@ TextureState::TextureState(const ref_ptr<Texture> &texture, const std::string &n
 		: State(),
 		  stateID_(++idCounter_),
 		  texcoChannel_(0u),
-		  ignoreAlpha_(GL_FALSE) {
+		  ignoreAlpha_(false) {
 	set_blendMode(BLEND_MODE_SRC);
 	set_blendFactor(1.0f);
 	set_mapping(MAPPING_TEXCO);
@@ -239,7 +239,7 @@ TextureState::TextureState()
 		  stateID_(++idCounter_),
 		  samplerType_("sampler2D"),
 		  texcoChannel_(0u),
-		  ignoreAlpha_(GL_FALSE) {
+		  ignoreAlpha_(false) {
 	set_blendMode(BLEND_MODE_SRC);
 	set_blendFactor(1.0f);
 	set_mapping(MAPPING_TEXCO);
@@ -277,12 +277,12 @@ void TextureState::set_texcoChannel(uint32_t texcoChannel) {
 	shaderDefine(REGEN_TEX_NAME("TEX_TEXCO"), REGEN_STRING("texco" << texcoChannel_));
 }
 
-void TextureState::set_ignoreAlpha(GLboolean v) {
+void TextureState::set_ignoreAlpha(bool v) {
 	ignoreAlpha_ = v;
 	shaderDefine(REGEN_TEX_NAME("TEX_IGNORE_ALPHA"), v ? "TRUE" : "FALSE");
 }
 
-void TextureState::set_blendFactor(GLfloat blendFactor) {
+void TextureState::set_blendFactor(float blendFactor) {
 	blendFactor_ = blendFactor;
 	shaderDefine(REGEN_TEX_NAME("TEX_BLEND_FACTOR"), REGEN_STRING(blendFactor_));
 }
@@ -502,7 +502,7 @@ ref_ptr<TextureState> TextureState::load(LoadingContext &ctx, scene::SceneInputN
 				input.getValue<BlendMode>("blend-mode", BLEND_MODE_SRC));
 	}
 	texState->set_blendFactor(
-			input.getValue<GLfloat>("blend-factor", 1.0f));
+			input.getValue<float>("blend-factor", 1.0f));
 
 	// Defines how a texture should be mapped on geometry.
 	auto customMapping = ShaderFunction::load(input, "mapping-function");
@@ -537,7 +537,7 @@ ref_ptr<TextureState> TextureState::load(LoadingContext &ctx, scene::SceneInputN
 	}
 
 	if (input.hasAttribute("texco-scale")) {
-		auto scale = input.getValue<GLfloat>("texco-scale", 1.0f);
+		auto scale = input.getValue<float>("texco-scale", 1.0f);
 		texState->set_texcoScale(scale);
 	}
 

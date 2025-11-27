@@ -50,27 +50,27 @@ namespace regen {
 		 * @param z the z coordinate.
 		 * @return the noise value.
 		 */
-		GLdouble GetValue(GLdouble x, GLdouble y, GLdouble z) const;
+		double GetValue(double x, double y, double z) const;
 
 		/**
 		 * @param randomSeed the random seed.
 		 */
-		static ref_ptr<NoiseGenerator> preset_perlin(GLint randomSeed);
+		static ref_ptr<NoiseGenerator> preset_perlin(int randomSeed);
 
 		/**
 		 * @param randomSeed the random seed.
 		 */
-		static ref_ptr<NoiseGenerator> preset_wood(GLint randomSeed);
+		static ref_ptr<NoiseGenerator> preset_wood(int randomSeed);
 
 		/**
 		 * @param randomSeed the random seed.
 		 */
-		static ref_ptr<NoiseGenerator> preset_granite(GLint randomSeed);
+		static ref_ptr<NoiseGenerator> preset_granite(int randomSeed);
 
 		/**
 		 * @param randomSeed the random seed.
 		 */
-		static ref_ptr<NoiseGenerator> preset_clouds(GLint randomSeed);
+		static ref_ptr<NoiseGenerator> preset_clouds(int randomSeed);
 
 		/**
 		 * Load noise generator from a scene input node.
@@ -128,7 +128,7 @@ namespace regen {
 		 * @param height the height of the texture.
 		 * @param isSeamless true if the texture should be seamless.
 		 */
-		NoiseTexture2D(uint32_t width, uint32_t height, GLboolean isSeamless = GL_FALSE);
+		NoiseTexture2D(uint32_t width, uint32_t height, bool isSeamless = false);
 
 		~NoiseTexture2D() override = default;
 
@@ -146,7 +146,7 @@ namespace regen {
 		 * @param depth the depth of the texture.
 		 * @param isSeamless true if the texture should be seamless.
 		 */
-		NoiseTexture3D(uint32_t width, uint32_t height, uint32_t depth, GLboolean isSeamless = GL_FALSE);
+		NoiseTexture3D(uint32_t width, uint32_t height, uint32_t depth, bool isSeamless = false);
 
 		~NoiseTexture3D() override = default;
 

@@ -15,13 +15,13 @@ namespace regen {
 		 * @param cam the perspective camera.
 		 * @param frontToBack sort front to back or back to front
 		 */
-		NodeEyeDepthComparator(const ref_ptr<Camera> &cam, GLboolean frontToBack);
+		NodeEyeDepthComparator(const ref_ptr<Camera> &cam, bool frontToBack);
 
 		/**
 		 * @param worldPosition the world position.
 		 * @return world position camera distance.
 		 */
-		GLfloat getEyeDepth(const Vec3f &worldPosition) const;
+		float getEyeDepth(const Vec3f &worldPosition) const;
 
 		/**
 		 * @param n a node.
@@ -43,7 +43,7 @@ namespace regen {
 	protected:
 		mutable std::map<StateNode*, ModelTransformation*> modelTransformations_;
 		ref_ptr<Camera> cam_;
-		GLint mode_;
+		int mode_;
 	};
 } // namespace
 

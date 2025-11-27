@@ -121,7 +121,7 @@ void Scene::addOptionalExtension(const std::string &ext) { optionalExt_.push_bac
 void Scene::mouseEnter() {
 	isMouseEntered_->setVertex(0, 1);
 	ref_ptr<MouseLeaveEvent> event = ref_ptr<MouseLeaveEvent>::alloc();
-	event->entered = GL_TRUE;
+	event->entered = true;
 	queueEmit(MOUSE_LEAVE_EVENT, event);
 }
 
@@ -141,8 +141,8 @@ void Scene::updateMousePosition() {
 	auto viewport = screen_->viewport();
 	// mouse position in range [0,1] within viewport
 	mouseTexco_->setVertex(0, Vec2f(
-			mousePosition.r.x / (GLfloat) viewport.r.x,
-			1.0f - mousePosition.r.y / (GLfloat) viewport.r.y));
+			mousePosition.r.x / (float) viewport.r.x,
+			1.0f - mousePosition.r.y / (float) viewport.r.y));
 }
 
 void Scene::mouseMove(const Vec2i &pos) {
@@ -158,7 +158,7 @@ void Scene::mouseMove(const Vec2i &pos) {
 	updateMousePosition();
 
 	ref_ptr<MouseMotionEvent> event = ref_ptr<MouseMotionEvent>::alloc();
-	event->dt = ((GLdouble) (time - lastMotionTime_).total_microseconds()) / 1000.0;
+	event->dt = ((double) (time - lastMotionTime_).total_microseconds()) / 1000.0;
 	event->dx = dx;
 	event->dy = dy;
 	queueEmit(MOUSE_MOTION_EVENT, event);
@@ -282,7 +282,7 @@ void Scene::initGL() {
 	glEnable(GL_DEBUG_OUTPUT);
 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 	glDebugMessageCallback(openglDebugCallback, NULL);
-	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, true);
 #endif
 
 	setupShaderLoading();
@@ -290,7 +290,7 @@ void Scene::initGL() {
 	BufferObject::createMemoryPools();
 	renderTree_->init();
 	renderState_ = RenderState::get();
-	isGLInitialized_ = GL_TRUE;
+	isGLInitialized_ = true;
 	REGEN_INFO("GL initialized.");
 
 	globalUniforms_ = ref_ptr<UBO>::alloc("GlobalUniforms", BufferUpdateFlags::FULL_PER_FRAME);
@@ -311,7 +311,7 @@ void Scene::setTime() {
 	lastTime_ = boost::posix_time::ptime(
 			boost::posix_time::microsec_clock::local_time());
 	lastMotionTime_ = lastTime_;
-	isTimeInitialized_ = GL_TRUE;
+	isTimeInitialized_ = true;
 }
 
 void Scene::clear() {
@@ -319,7 +319,7 @@ void Scene::clear() {
 	renderTree_->clear();
 	namedToObject_.clear();
 	idToObject_.clear();
-	isTimeInitialized_ = GL_FALSE;
+	isTimeInitialized_ = false;
 	StagingSystem::instance().clear();
 	RenderState::reset();
 	BindingManager::clear();
@@ -395,7 +395,7 @@ void Scene::updateBOs() {
 	std::set<const ShaderInput*> visited;
 	nodeQueue.push(renderTree_.get());
 
-	for (auto &anim : AnimationManager::get().graphicsAnimations()) {
+	for (auto &anim : AnimationManager::get().gpuAnimations()) {
 		if(anim->animationState().get() != nullptr)
 			stateQueue.push(anim->animationState().get());
 	}
@@ -477,7 +477,7 @@ namespace regen {
 				Animation(true, false),
 				f_(f) {}
 
-		void glAnimate(RenderState *rs, GLdouble dt) override {
+		void gpuUpdate(RenderState *rs, double dt) override {
 			f_();
 			stopAnimation();
 		}

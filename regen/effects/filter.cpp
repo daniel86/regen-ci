@@ -104,10 +104,10 @@ void Filter::setInput(
 /////////////////
 
 
-FilterSequence::FilterSequence(const ref_ptr<Texture> &input, GLboolean bindInput)
+FilterSequence::FilterSequence(const ref_ptr<Texture> &input, bool bindInput)
 		: State(),
 		  input_(input),
-		  clearFirstFilter_(GL_FALSE),
+		  clearFirstFilter_(false),
 		  clearColor_(Vec4f::zero()),
 		  lastWidth_(0u),
 		  lastHeight_(0u),
@@ -185,7 +185,7 @@ ref_ptr<FilterSequence> FilterSequence::load(LoadingContext &ctx, scene::SceneIn
 		}
 		filterSeq->addFilter(ref_ptr<Filter>::alloc(
 				n->getValue("shader"),
-				n->getValue<GLfloat>("scale", 1.0f)));
+				n->getValue<float>("scale", 1.0f)));
 	}
 
 	StateConfigurer shaderConfigurer;

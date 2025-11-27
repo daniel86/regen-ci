@@ -206,7 +206,7 @@ namespace regen {
 		 * @param factor Specifies how this texture should be mixed with existing
 		 * pixels.
 		 */
-		void set_blendFactor(GLfloat factor);
+		void set_blendFactor(float factor);
 
 		/**
 		 * @param mapping Specifies how a texture should be mapped on geometry.
@@ -267,7 +267,7 @@ namespace regen {
 		 * Explicit request to the application to ignore the alpha channel
 		 * of the texture.
 		 */
-		void set_ignoreAlpha(GLboolean v);
+		void set_ignoreAlpha(bool v);
 
 		/**
 		 * Explicit request to the application to ignore the alpha channel

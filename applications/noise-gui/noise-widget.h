@@ -26,9 +26,9 @@ public:
 	// Override
 	void call(EventObject *ev, EventData *data);
 
-	void animate(GLdouble dt);
+	void cpuUpdate(double dt);
 
-	void glAnimate(RenderState *rs, GLdouble dt);
+	void gpuUpdate(RenderState *rs, double dt);
 
 public slots:
 
@@ -62,7 +62,7 @@ protected:
 	QtApplication *app_;
 	Ui_mainWindow ui_;
 	ref_ptr<NoiseTexture2D> texture_;
-	GLboolean updateTexture_ = GL_TRUE;
+	bool updateTexture_ = true;
 
 	std::map<std::string, ref_ptr<NoiseGenerator>> noiseGenerators_;
 
@@ -88,17 +88,17 @@ protected:
 
 	void addProperty(
 			std::string_view name,
-			GLdouble min,
-			GLdouble max,
-			GLdouble value,
-			const std::function<void(GLdouble)> &setter);
+			double min,
+			double max,
+			double value,
+			const std::function<void(double)> &setter);
 
 	void addProperty_i(
 			std::string_view name,
-			GLint min,
-			GLint max,
-			GLint value,
-			const std::function<void(GLint)> &setter);
+			int min,
+			int max,
+			int value,
+			const std::function<void(int)> &setter);
 };
 
 #endif /* NOISE_WIDGET_H_ */
