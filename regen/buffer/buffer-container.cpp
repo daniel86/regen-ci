@@ -3,16 +3,8 @@
 
 using namespace regen;
 
-// TODO: would be nice if updateBuffer would not be needed.
-//       at least information about shader inputs is needed early when shaders are compiled,
-//       but the actual buffers do not need to be allocated then. So we could dynamically create
-//       ShaderInput etc. and then make a deferred data allocation.
-//       However, one workflow would be that a shader input is added to the container, and then
-//       the input is changed, e.g. to n instances. however, input does not really have a reference
-//       to the container where it is stored.
-
 BufferContainer::BufferContainer(
-	const std::string &bufferName,
+	std::string_view bufferName,
 	const std::vector<NamedShaderInput> &namedInputs,
 	const BufferUpdateFlags &hints)
 		: State(),
@@ -22,20 +14,20 @@ BufferContainer::BufferContainer(
 	updateBuffer();
 }
 
-BufferContainer::BufferContainer(const std::string &bufferName, const BufferUpdateFlags &hints)
+BufferContainer::BufferContainer(std::string_view bufferName, const BufferUpdateFlags &hints)
 	: State(),
 	  bufferUpdateHints_(hints),
 	  bufferName_(bufferName) {
 }
 
-void BufferContainer::addInput(const ref_ptr<ShaderInput> &input, const std::string &name) {
+void BufferContainer::addInput(const ref_ptr<ShaderInput> &input, std::string_view name) {
 	if (input->isBufferBlock()) {
 		auto block = ref_ptr<BufferBlock>::dynamicCast(input);
 		for (auto &blockUniform: block->stagedInputs()) {
 			namedInputs_.emplace_back(blockUniform.in_, blockUniform.name_);
 		}
 	} else {
-		namedInputs_.emplace_back(input, name);
+		namedInputs_.emplace_back(input, std::string(name));
 	}
 	isAllocated_ = false;
 }
@@ -147,11 +139,6 @@ void BufferContainer::updateBuffer() {
 
 ref_ptr<StagedBuffer> BufferContainer::getBufferObject(const ref_ptr<ShaderInput> &input) {
 	return bufferObjectOfInput_[input.get()];
-}
-
-void BufferContainer::enable(RenderState *rs) {
-	updateBuffer();
-	State::enable(rs);
 }
 
 void BufferContainer::printLayout() {

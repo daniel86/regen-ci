@@ -30,7 +30,7 @@ namespace regen {
 		 * @param hints the buffer update hints.
 		 * @param memoryLayout the memory layout.
 		 */
-		StagedBuffer(const std::string &name,
+		StagedBuffer(std::string_view name,
 				BufferTarget target,
 				const BufferUpdateFlags &hints,
 				BufferMemoryLayout memoryLayout);
@@ -38,7 +38,7 @@ namespace regen {
 		/**
 		 * Copy constructor. Does not copy GPU data, both objects will share the same buffer.
 		 */
-		StagedBuffer(const StagedBuffer &other, const std::string &name = "");
+		StagedBuffer(const StagedBuffer &other, std::string_view name = "");
 
 		~StagedBuffer() override;
 
@@ -46,7 +46,7 @@ namespace regen {
 		 * Add a uniform to the staged buffer.
 		 * @param input the shader input.
 		 */
-		void addStagedInput(const ref_ptr<ShaderInput> &input, const std::string &name = "");
+		void addStagedInput(const ref_ptr<ShaderInput> &input, std::string_view name = "");
 
 		/**
 		 * Remove an input by name.
@@ -223,13 +223,13 @@ namespace regen {
 				inputSize = other.inputSize;
 			}
 
-			ref_ptr<ShaderInput> input;
+			ShaderInput *input;
 			uint32_t offset = 0;
 			std::vector<uint32_t> lastStamp = {0, 0};
 			uint32_t inputSize = 0;
 		};
 
-		std::vector<ref_ptr<StagedInput>> stagedInputs_;
+		std::vector<StagedInput> stagedInputs_;
 
 		// dirty segments are used to track which parts of the buffer have changed
 		struct SegmentRange {
@@ -278,21 +278,21 @@ namespace regen {
 
 		ref_ptr<Shared> shared_;
 
-		inline void resetDirtySegments();
-
 		inline void createNextDirtySegment();
 
-		void setDirtyRange(uint32_t dirtyIdx, StagedInput &input, uint32_t inputIdx);
+		inline uint32_t getLastInputStamp(const StagedInput &blockInput) const;
 
-		void appendToDirtyRange(uint32_t dirtyIdx, StagedInput &input, uint32_t inputIdx);
-
-		inline uint32_t &lastInputStamp(StagedInput &blockInput);
+		inline void setLastInputStamp(StagedInput &blockInput) const;
 
 		void updateStorageFlags();
 
 		void enableWriteAccess();
 
 		void setStagingBuffering(BufferingMode mode);
+
+		void updateRequiredSize();
+
+		bool updateDirtySegments();
 
 		void copyDirtyData(byte *bufferData, uint32_t mapOffset);
 

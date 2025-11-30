@@ -78,7 +78,7 @@ namespace regen {
 		 * @param normalize Specifies whether fixed-point data values should be normalized.
 		 */
 		ShaderInput(
-				const std::string &name,
+				std::string_view name,
 				GLenum baseType,
 				uint32_t dataTypeBytes,
 				int32_t valsPerElement,
@@ -204,6 +204,12 @@ namespace regen {
 		 * @return the aligned base size of the input in bytes.
 		 */
 		inline uint32_t alignedBaseSize() const { return alignedBaseSize_; }
+
+		/**
+		 * Aligned size of the input.
+		 * @return the aligned size of the input in bytes.
+		 */
+		inline uint32_t alignedInputSize() const { return alignedInputSize_; }
 
 		/**
 		 * This is the number of times the base alignment is applied to the input
@@ -631,6 +637,7 @@ namespace regen {
 		uint32_t baseAlignment_;
 		uint32_t alignmentCount_;
 		uint32_t alignedBaseSize_;
+		uint32_t alignedInputSize_ = 0u;
 		uint32_t unalignedSize_ = 0u;
 
 		uint32_t stride_ = 0u;
@@ -705,7 +712,6 @@ namespace regen {
 		/** the shader input data. */
 		ref_ptr<ShaderInput> in_;
 		/** the name overwrite. */
-		// TODO: could use global atom table for shader input names
 		std::string name_;
 		/** the type overwrite. */
 		std::string type_;
