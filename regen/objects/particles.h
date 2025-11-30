@@ -1,16 +1,12 @@
-/*
- * particle-state.h
- *
- *  Created on: 03.11.2012
- *      Author: daniel
- */
-
 #ifndef PARTICLE_STATE_H_
 #define PARTICLE_STATE_H_
 
 #include <regen/objects/mesh.h>
+
+#include "regen/buffer/bbox-buffer.h"
 #include "regen/shader/shader-state.h"
 #include "regen/gl-types/atomic-counter.h"
+#include "regen/states/compute-pass.h"
 
 namespace regen {
 	/**
@@ -169,7 +165,6 @@ namespace regen {
 		ref_ptr<BufferReference> vboRef_[2];
 		uint32_t updateIdx_ = 0;
 		BufferRange bufferRange_;
-		//ref_ptr<BoundingBoxCounter> boundingBoxCounter_;
 		std::list<InputLocation> particleAttributes_;
 		ref_ptr<ShaderState> updateState_;
 		VAO particleVAO_;
@@ -186,6 +181,11 @@ namespace regen {
 		};
 		std::map<std::string, Ramp> ramps_;
 		std::map<std::string, std::string> rampFunctions_;
+
+		// Optional: bounding box computation on GPU.
+		//ref_ptr<BBoxBuffer> bboxBuffer_;
+		//ref_ptr<ComputePass> bboxPass_;
+		//double bbox_time_ = 0.0;
 
 		void createUpdateShader();
 

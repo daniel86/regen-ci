@@ -5,7 +5,6 @@
     <constant name="close-range" value="40.0"/>
     <constant name="mid-range" value="100.0"/>
     <constant name="map-y" value="-2.0"/>
-    <constant name="grass-max-y" value="0.0"/>
 
     <include xml-file="scene-display/examples/templates/default.xml"/>
 
@@ -58,10 +57,6 @@
         <texture id="density" pixel-components="1"/>
         <texture id="color" pixel-components="4"/>
     </fbo>
-    <fbo id="particle-depth" size-mode="rel" size="0.25, 0.25"
-         pixel-type="UNSIGNED_BYTE">
-        <depth id="depth" pixel-size="24"/>
-    </fbo>
     <fbo id="room-light-shadow0"
          target="TEXTURE_2D_ARRAY"
          size-mode="abs" size="2048,2048,1">
@@ -83,11 +78,11 @@
     <texture id="ground-color" file="res/textures/materials/grass/0/ground.png"/>
     <texture id="glow-map" file="res/textures/glow-map.tga" wrapping="CLAMP_TO_EDGE"/>
     <texture id="sand" file="res/textures/materials/sand.jpg"/>
-    <texture id="grass-color" file="res/textures/materials/grass/0/color.png" wrapping="REPEAT"/>
     <texture id="wind-flowmap" file="res/textures/wind/flowmap0.png" wrapping="REPEAT"/>
     <texture id="wind-noise" type="noise" preset="cloud"
             size="128.0,128.0,1.0" swizzle-g="RED" swizzle-b="RED"/>
     <texture id="particle-splat" file="res/textures/splats/flare.jpg"/>
+    <!--
     <texture id="particle-color-ramp" ramp="inline" format="RGB">
         <texel v="255, 255, 20"/>
         <texel v="250, 60, 20"/>
@@ -96,6 +91,7 @@
         <texel v="0, 0, 0"/>
         <texel v="0, 0, 0"/>
     </texture>
+    -->
     <!-- Spatial Index -->
     <index id="main-index" type="quadtree"
             min-node-size="2.0"
@@ -224,7 +220,7 @@
     <mesh id="dwarf-mesh" type="asset" asset="dwarf-asset" asset-indices="*" asset-animation="1">
         <transform id="dwarf-tf">
             <rotate value="1.5707963,0.0,0.0"/>
-            <translate value="3.0,0.1,-40.0"/>
+            <translate value="3.0,0.1,40.0"/>
         </transform>
     </mesh>
 
@@ -232,14 +228,15 @@
     <!--********* Ground *********-->
     <!--**************************-->
 
-    <mesh id="ground-mesh" type="rectangle" use-normal="1" use-texco="1" center="1" lod="4"
+    <mesh id="ground-mesh" type="rectangle" use-normal="1" use-texco="1" use-tangent="1" center="1" lod="4"
           rotation="0.0,0.0,3.1415"
           scaling="400.0,20.0,400.0"
-          texco-scaling="100.0,100.0"
+          texco-scaling="10.0,10.0"
           update-frequency="NEVER">
         <transform id="ground-tf" update-frequency="NEVER">
             <translate value="0.0,-2.0,0.0"/>
         </transform>
+        <material preset="iron" variant="0"/>
         <shape id="ground-physics" physics="1" shape="triangle-mesh" mass="0.0"
                mesh-id="ground-mesh" transform-id="ground-tf"/>
     </mesh>
@@ -328,69 +325,8 @@
     </node>
 
     <!--**************************-->
-    <!--********* Other Garden Stuff *********-->
+    <!--********* Other Stuff *********-->
     <!--**************************-->
-
-    <node id="Grass">
-        <node id="grass1">
-            <!-- TODO: the grass alpha discard is super slow!
-                some ideas to improve:
-                - use better texture without much alpha.
-                - make patches and sort them by distance to camera,
-                  that should reduce overdraw.
-                - maybe see if tessellation can produce sorted results.
-            -->
-            <!-- <input type="vec4" name="clipPlane" value="0.0,1.0,0.0,-2.0" /> -->
-            <!-- <toggle key="MULTISAMPLE" value="1" /> -->
-            <alpha discard-threshold="0.25" />
-            <define key="TESS_SPACING" value="equal_spacing"/>
-            <tesselation num-patch-vertices="3" lod-factor="0.4" lod-metric="EDGE_DEVICE_DISTANCE"/>
-            <input name="lodMinDeviceDistance" type="float" value="0.1"/>
-            <input name="lodMaxDeviceDistance" type="float" value="0.5"/>
-            <input name="minTessLevel" type="float" value="1.0"/>
-            <input name="maxTessLevel" type="float" value="60.0"/>
-            <!-- use more complex geometry in close range. -->
-            <define key="USE_SPRITE_LOD" value="TRUE"/>
-            <input name="lodGeomLevel0" type="float" value="{{close-range}}"/>
-            <input name="lodGeomLevel1" type="float" value="{{mid-range}}"/>
-            <input name="lodGeomBrightness0" type="float" value="1.7"/>
-            <input name="lodGeomVariance" type="float" value="6.0"/>
-            <!-- size and position -->
-            <input name="quadSize" type="vec2" value="2.0, 0.5"/>
-            <input name="posVariation" type="float" value="0.4"/>
-            <input name="offset" type="vec3" value="0.0, -0.2, 0.0"/>
-            <!-- color -->
-            <texture id="grass-color" map-to="color" blend-mode="mul"/>
-            <input name="uvDarken" type="float" value="0.25"/>
-            <!-- wind -->
-            <texture name="windFlow" id="wind-flowmap"/>
-            <input name="stiffness" type="float" value="1.0"/>
-            <!-- small-scale wind details -->
-            <texture name="windNoise" id="wind-noise"/>
-            <input name="windNoiseScale" type="float" value="100.0"/>
-            <input name="windNoiseSpeed" type="float" value="1.0"/>
-            <input name="windNoiseStrength" type="float" value="0.1"/>
-            <!-- collision with player -->
-            <texture name="collisionMap" fbo="collision-fbo" attachment="0" />
-            <input name="collisionMapArea" type="vec2" value="90.0,90.0"/>
-            <input name="collisionMapCenter" type="vec2" value="0.0,0.0"/>
-            <define key="COLLISION_MAP_FLIP_X" value="TRUE"/>
-            <input name="colliderStrength" type="float" value="5.0"/>
-            <!-- TODO: Rather use existing buffer block! But the name matching would not really work well
-                       in general with the adaptive buffer container used by TF!
-                       Current mechanism is not sufficient to handle this case... -->
-            <!-- <input name="ColliderTransform" state="dwarf-tf" component="modelMatrix" member-suffix="_Collider"/> -->
-            <input name="colliderModelMat" state="dwarf-tf" component="modelMatrix"/>
-            <input name="colliderRadius" type="float" value="4.4"/>
-            <material
-                    diffuse="1.5, 1.5, 1.5"
-                    specular="0.0, 0.0, 0.0"
-                    shininess="256.0"
-                    emission="0.0, 0.0, 0.0"
-                    update-frequency="NEVER"/>
-            <mesh id="ground-mesh" primitive="patches" shader="regen.terrain.grass.patch"/>
-        </node>
-    </node>
 
     <mesh id="stone0" type="sphere" use-normal="1" use-texco="1" use-tangent="1"
           lod-levels="4, 3, 2"
@@ -513,7 +449,7 @@
     </mesh>
 
     <node id="Platforms">
-        <material preset="iron" emission="0.05,0.07,0.07" update-frequency="NEVER"/>
+        <material preset="iron" variant="0" emission="0.015,0.017,0.017" update-frequency="NEVER"/>
         <node id="platform0">
             <mesh id="platform0-mesh" shader="regen.models.mesh"/>
         </node>
@@ -571,27 +507,6 @@
     <!--***** Particles etc. *****-->
     <!--**************************-->
 
-    <!--
-    <texture id="fire-noise" file="res/textures/fire/noise.png" wrapping="REPEAT"/>
-    <texture id="fire-color" file="res/textures/fire/color.png" wrapping="CLAMP_TO_EDGE"/>
-
-    <mesh id="fire-sprite" type="point" update-frequency="NEVER">
-        <transform>
-            <translate value="-16.0, 12.0, -3.0"/>
-        </transform>
-    </mesh>
-
-    <node id="Fire">
-        <blend mode="alpha"/>
-        <alpha discard-threshold="0.25"/>
-        <input type="vec2" name="spriteSize" value="8.0, 8.0"/>
-        <texture id="fire-noise" name="fireNoiseTexture"/>
-        <texture id="fire-color" map-to="COLOR" blend="SRC"
-            texco-transfer-key="regen.models.sprite.fireTransfer1"/>
-        <mesh id="fire-sprite" shader="regen.models.sprite"/>
-    </node>
-    -->
-
     <block type="ubo" id="ParticlesUBO" update-frequency="NEVER">
         <uniform type="vec3" name="gravity" value="0.0,9.81,0.0"/>
         <uniform type="float" name="dampingFactor" value="1.0"/>
@@ -612,7 +527,6 @@
         <texture name="windFlow" id="wind-flowmap"/>
     </node>
 
-    <!-- TODO: add a bounding box for the particles. -->
     <mesh id="test-particles1" type="particles" num-vertices="800" max-emits="10" animation-state="Particle-Config">
         <input type="vec3" name="pos" is-attribute="1"/>
         <input type="vec3" name="velocity" is-attribute="1"/>
@@ -635,31 +549,9 @@
         <define key="USE_NEAR_CAMERA_SOFT_PARTICLES" value="FALSE"/>
         <depth test="0" write="0"/>
 
-        <!-- downsample g-buffer depth to particle-fbo size.
-             note: we can also test against g-buffer depth, but
-             there might be halos around objects with particles. -->
-        <!--
-        <node id="Particle-Depth-Downsample">
-            <depth test="1" write="1" />
-            <fbo id="particle-depth" clear-depth="1" />
-            <texture name="inputTexture" fbo="g-buffer" attachment="depth" />
-            <fullscreen-pass shader="regen.filter.sampling.downsample.depth"/>
-        </node>
-        <view id="Particle-Depth">
-            <fbo id="SCREEN"/>
-            <texture name="inputTexture" fbo="particle-depth" attachment="depth" />
-            <fullscreen-pass shader="regen.filter.sampling.depth"/>
-        </view>
-        -->
-
         <node id="Particle-Density">
             <fbo id="particle-fbo" clear-buffers="0" draw-buffers="0"/>
             <blend mode="add"/>
-            <!-- TODO: there is a halo around objects, maybe it can be avoided with down-sampled depth
-                       but first attempt did not have an effect for some reason. -->
-            <!--
-            <texture name="depthTexture" fbo="particle-depth" attachment="depth"/>
-            -->
             <texture name="depthTexture" fbo="g-buffer" attachment="depth"/>
             <!--
             <texture name="splatTexture" id="particle-splat" map-to="ALPHA" blend-mode="MUL"/>
@@ -681,12 +573,14 @@
             <fbo id="particle-fbo" clear-buffers="1" draw-buffers="1"/>
             <blend mode="alpha"/>
             <texture name="densityTexture" fbo="particle-fbo" attachment="0"/>
+            <!--
             <texture name="colorRamp" id="particle-color-ramp" blend-mode="MUL"/>
+            -->
             <texture name="windFlow" id="wind-flowmap"/>
-            <input type="float" name="gamma" value="1.0"/>
-            <input type="float" name="exposure" value="1.0"/>
-            <input type="float" name="brightness" value="1.0"/>
-            <input type="vec4" name="color" value="1.0, 1.0, 1.0, 1.0"/>
+            <input type="float" name="gamma" value="0.53"/>
+            <input type="float" name="exposure" value="0.62"/>
+            <input type="float" name="brightness" value="0.66"/>
+            <input type="vec4" name="color" value="0.53, 0.53, 0.78, 0.8"/>
             <fullscreen-pass shader="regen.particles.sprite.densityColor"/>
         </node>
         <view id="Particle-Density">
@@ -695,13 +589,6 @@
         <view id="Particle-Color">
             <blit src-fbo="particle-fbo" src-attachment="1" dst-fbo="SCREEN"/>
         </view>
-        <!--
-        <view id="Particle-Ramp">
-            <fbo id="SCREEN"/>
-            <texture name="inputTexture" id="particle-color-ramp"/>
-            <fullscreen-pass shader="regen.filter.sampling"/>
-        </view>
-        -->
 
         <!-- Finally, create a blurred version. -->
         <node id="Particle-Blur">
@@ -797,27 +684,6 @@
     <!--********* Objects ********-->
     <!--**************************-->
 
-    <mesh id="light-bulb-point" type="point" num-vertices="1" update-frequency="NEVER">
-        <material diffuse="0.0, 0.0, 0.0" ambient="0.0, 0.0, 0.0" specular="0.0, 0.0, 0.0" shininess="256.0" update-frequency="NEVER"/>
-        <!-- TODO: improve interface for this, maybe:
-            <input name="LightEmission" state="fire-flies-light0" component="Light">
-                <rename key="lightDiffuse" value="matEmission"/>
-            </input>
-        -->
-        <define key="in_modelOffset" value="in_lightPosition_Bulb" />
-        <define key="in_matEmission" value="in_lightDiffuse_Bulb" />
-        <define key="HAS_modelOffset" value="TRUE" />
-        <define key="HAS_matEmission" value="TRUE" />
-        <input name="LightOfBulb" state="room-light0" component="Light" member-suffix="_Bulb"/>
-        <!-- FIXME: Shape and LOD State won't be able to find the TF/model-offset of the mesh!
-                - There is code that searches for inputs named "modelOffset", that won't work with the
-                  defines above. -->
-        <!--
-        <input name="modelOffset" state="room-light0" component="lightPosition"/>
-        -->
-        <shape id="light-bulb-shape" index="1" cull="1" type="sphere" radius="0.5" mesh-id="light-bulb-point" />
-    </mesh>
-
     <node id="Static-Ground-Items">
         <node import="Pedestal"/>
         <node import="Garden-Items"/>
@@ -842,18 +708,8 @@
     </node>
 
     <node id="Non-Shadow-Caster">
-        <node import="Grass"/>
         <node id="Ground">
-            <texture id="ground-color" map-to="color" blend-mode="SRC" wrapping="REPEAT"/>
-            <material specular="0, 0, 0" ambient="0.05, 0.0, 0.0" update-frequency="NEVER"/>
             <mesh id="ground-mesh" primitive="triangles" shader="regen.models.mesh"/>
-        </node>
-
-        <node id="Light-Bulbs">
-            <node id="Light-Bulb0">
-                <input name="sphereRadius" type="float" value="0.5"/>
-                <mesh id="light-bulb-point" shader="regen.models.sprite-sphere"/>
-            </node>
         </node>
     </node>
 
@@ -1052,11 +908,6 @@
                     <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
                 </node>
             </view>
-            <!--
-            <node import="bullet-debug">
-                <fbo id="g-buffer" draw-buffers="1"/>
-            </node>
-            -->
             <view id="Spatial Index">
                 <node import="spatial-index-debug">
                     <fbo id="g-buffer" draw-buffers="0"/>
@@ -1065,11 +916,6 @@
                     <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
                 </node>
             </view>
-            <!--
-            <node import="spatial-index-debug">
-                <fbo id="g-buffer" draw-buffers="0"/>
-            </node>
-            -->
 
             <node import="GUI-Pass">
                 <fbo id="g-buffer" draw-buffers="0"/>

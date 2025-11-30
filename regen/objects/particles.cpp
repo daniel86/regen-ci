@@ -25,8 +25,6 @@ Particles::Particles(uint32_t numParticles, const std::string &updateShaderKey)
 	set_numVertices(numParticles);
 	updateState_ = ref_ptr<ShaderState>::alloc();
 	numParticles_ = numParticles;
-	// create an atomic counter for computing the bounding box
-	//boundingBoxCounter_ = ref_ptr<BoundingBoxCounter>::alloc();
 }
 
 void Particles::begin() {
@@ -92,6 +90,20 @@ ref_ptr<BufferReference> Particles::end() {
 	}
 	// start with zero emitted particles
 	//set_numVertices(0);
+
+	// create an atomic counter for computing the bounding box
+	/**
+	bboxBuffer_ = ref_ptr<BBoxBuffer>::alloc(Bounds<Vec3f>());
+	bboxPass_ = ref_ptr<ComputePass>::alloc("regen.compute.bbox");
+	bboxPass_->computeState()->setNumWorkUnits(numParticles_, 1, 1);
+	bboxPass_->computeState()->setGroupSize(256, 1, 1);
+	bboxPass_->setInput(ref_ptr<SSBO>::alloc(feedbackBuffer_, vboRef_));
+	bboxPass_->setInput(bboxBuffer_);
+	StateConfigurer shaderConfigurer;
+	shaderConfigurer.define("NUM_ELEMENTS", REGEN_STRING(numParticles_));
+	shaderConfigurer.addState(bboxPass_.get());
+	bboxPass_->createShader(shaderConfigurer.cfg());
+	**/
 
 	return vboRef_[0];
 }
@@ -307,9 +319,23 @@ void Particles::gpuUpdate(RenderState *rs, double dt) {
 	// Ping-Pong VBO references so that next feedback goes to other buffer.
 	updateIdx_ = nextIdx;
 
-	// Read atomic counter to get the bounding box of the particles
-	//auto bounds = boundingBoxCounter_->updateBounds();
-	//set_bounds(bounds.min, bounds.max);
+	// TODO: Update bounding box every ~166 ms
+	/**
+	bbox_time_ += dt;
+	if (bbox_time_ > 166.0) {
+		bboxBuffer_->clear();
+		bboxPass_->enable(rs);
+		bboxPass_->disable(rs);
+		// update the grid in case the bounding box around the boids changed.
+		if(bboxBuffer_->updateBoundingBox()) {
+			auto &newBounds = bboxBuffer_->bbox();
+			if (newBounds.max != newBounds.min) {
+				set_bounds(newBounds.min, newBounds.max);
+			}
+		}
+		bbox_time_ = 0.0;
+	}
+	**/
 }
 
 namespace regen {
