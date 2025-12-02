@@ -1,12 +1,12 @@
 #include <GL/glew.h>
 #include "regen/shader/includer.h"
 #include <regen/config.h>
-#include <regen/gl-types/gl-param.h>
-#include <regen/buffer/binding-manager.h>
+#include <regen/gl/gl-param.h>
+#include <regen/memory/binding-manager.h>
 #include <regen/textures/texture-binder.h>
 #include "scene.h"
 #include "regen/animation/animation-manager.h"
-#include "regen/states/light-pass.h"
+#include "regen/shading/light-pass.h"
 #include "regen/textures/texture-loader.h"
 #include "regen/textures/devil-loader.h"
 #include "regen/textures/stb-loader.h"

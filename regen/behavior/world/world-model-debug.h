@@ -1,12 +1,12 @@
 #ifndef REGEN_WORLD_MODEL_DEBUG_H
 #define REGEN_WORLD_MODEL_DEBUG_H
 
-#include <regen/states/state-node.h>
+#include <regen/scene/state-node.h>
 #include "regen/shader/shader-state.h"
-#include "regen/states/state-configurer.h"
+#include "regen/scene/state-configurer.h"
 #include "regen/utility/debug-interface.h"
 #include "world-model.h"
-#include "regen/math/bezier.h"
+#include "regen/compute/bezier.h"
 
 namespace regen {
 	class WorldModelDebug : public StateNode, public HasShader, public DebugInterface {

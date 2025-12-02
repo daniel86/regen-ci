@@ -10,12 +10,12 @@
 
 #include "regen/shader/shader-state.h"
 #include "regen/textures/fbo-state.h"
-#include <regen/states/blit-state.h>
+#include <regen/gl/states/blit-state.h>
 #include <regen/utility/filesystem.h>
 #include <regen/animation/animation-manager.h>
 #include <regen/objects/lod/mesh-simplifier.h>
 #include <regen/objects/lod/impostor-billboard.h>
-#include <regen/states/direct-shading.h>
+#include <regen/shading/direct-shading.h>
 #include <applications/qt/qt-events.h>
 #include <applications/qt/ColorWidget.h>
 #include <applications/scene-display/animation-events.h>

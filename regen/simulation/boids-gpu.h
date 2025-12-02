@@ -2,10 +2,10 @@
 #define REGEN_BOIDS_GPU_H
 
 #include "boid-simulation.h"
-#include "../animation/animation.h"
-#include "regen/buffer/bbox-buffer.h"
-#include "regen/states/compute-pass.h"
-#include "regen/gl-types/queries/elapsed-time.h"
+#include "regen/animation/animation.h"
+#include "regen/memory/bbox-buffer.h"
+#include "regen/compute/compute-pass.h"
+#include "regen/gl/queries/elapsed-time.h"
 
 namespace regen {
 	/**

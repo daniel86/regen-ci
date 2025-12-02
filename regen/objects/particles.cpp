@@ -1,8 +1,6 @@
 #include <regen/utility/string-util.h>
-#include <regen/states/blend-state.h>
-#include <regen/states/depth-state.h>
-#include <regen/states/state-configurer.h>
-#include <regen/gl-types/gl-enum.h>
+#include "regen/scene/state-configurer.h"
+#include <regen/gl/gl-enum.h>
 #include <random>
 #include "particles.h"
 

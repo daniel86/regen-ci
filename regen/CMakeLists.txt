@@ -7,21 +7,21 @@ configure_file(${PROJECT_NAME}.pc.in ${CMAKE_BINARY_DIR}/regen/${PROJECT_NAME}.p
 message(STATUS "Installing config.h to ${CMAKE_BINARY_DIR}/regen/config.h")
 
 set(SOURCE_DIRS
-    math
+    compute
     av
-    gl-types
+    gl
     shader
-    buffer
+    memory
     utility
     shapes
     animation
     simulation
     behavior
     textures
-    states
+    shading
     camera
     objects
-    effects
+    passes
     scene
     external)
 

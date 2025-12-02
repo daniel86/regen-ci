@@ -4,12 +4,12 @@
 #include <vector>
 #include <list>
 
-#include "regen/gl-types/gl-object.h"
-#include "regen/gl-types/render-state.h"
+#include "regen/gl/gl-object.h"
+#include "regen/gl/render-state.h"
 #include "regen/textures/texture.h"
 #include "regen/shader/shader-input.h"
 #include "regen/utility/ref-ptr.h"
-#include "regen/buffer/ubo.h"
+#include "regen/memory/ubo.h"
 #include "regen/scene/loading-context.h"
 #include "regen/textures/render-buffer.h"
 

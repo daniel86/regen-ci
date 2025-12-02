@@ -1,16 +1,16 @@
 #ifndef REGEN_LOD_STATE_H_
 #define REGEN_LOD_STATE_H_
 
-#include <regen/states/state-node.h>
+#include <regen/scene/state-node.h>
 #include <regen/shapes/spatial-index.h>
 #include "regen/camera/sorting.h"
-#include "regen/buffer/ssbo.h"
-#include "regen/buffer/pbo.h"
-#include "regen/buffer/staging-buffer.h"
-#include "regen/states/compute-pass.h"
-#include "regen/states/radix-sort.h"
+#include "regen/memory/ssbo.h"
+#include "regen/memory/pbo.h"
+#include "regen/memory/staging-buffer.h"
+#include "regen/compute/compute-pass.h"
+#include "regen/compute/radix-sort.h"
 #include "regen/shapes/cull-shape.h"
-#include "regen/gl-types/draw-command.h"
+#include "regen/gl/draw-command.h"
 
 namespace regen {
 	/**

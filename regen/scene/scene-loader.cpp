@@ -1,27 +1,26 @@
 #include "scene-loader.h"
-#include "regen/states/blit-state.h"
-#include "regen/states/depth-state.h"
-#include "regen/states/tesselation-state.h"
 #include "regen/scene/animation-processor.h"
 #include "regen/scene/shape-processor.h"
 #include "regen/scene/debug-node-processor.h"
-#include "regen/effects/filter.h"
-#include "regen/effects/motion-blur.h"
-#include "regen/states/light-pass.h"
+#include "regen/passes/filter.h"
+#include "regen/passes/motion-blur.h"
+#include "regen/shading/light-pass.h"
 #include "shader-input-processor.h"
-#include "regen/states/geometric-picking.h"
-#include "regen/effects/bloom-pass.h"
+#include "regen/passes/geometric-picking.h"
+#include "regen/passes/bloom-pass.h"
 #include "regen/scene/node-processor.h"
-#include "regen/states/direct-shading.h"
-#include "regen/states/stencil-state.h"
-#include "regen/states/alpha-state.h"
+#include "regen/shading/direct-shading.h"
 #include <regen/scene/mesh-processor.h>
 #include <regen/scene/loadable-input.h>
 #include <regen/scene/shader-define-processor.h>
 
 #include "regen/behavior/skeleton/bone-controller.h"
 #include "regen/behavior/world/body-part.h"
-#include "regen/states/horizon-divider.h"
+#include "regen/gl/states/alpha-state.h"
+#include "regen/gl/states/blit-state.h"
+#include "regen/gl/states/stencil-state.h"
+#include "regen/gl/states/tesselation-state.h"
+#include "horizon-divider.h"
 
 using namespace regen::scene;
 using namespace regen;

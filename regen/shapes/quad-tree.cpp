@@ -4,13 +4,13 @@
 #include <unordered_set>
 
 #include "quad-tree.h"
-#include "regen/math/simd.h"
+#include "regen/compute/simd.h"
 
 #define QUAD_TREE_DEBUG_TIME
 //#define QUAD_TREE_DISABLE_SIMD
 
 #ifdef QUAD_TREE_DEBUG_TIME
-#include "regen/gl-types/queries/elapsed-time.h"
+#include "regen/gl/queries/elapsed-time.h"
 #endif
 
 using namespace regen;

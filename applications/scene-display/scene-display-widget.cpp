@@ -12,7 +12,7 @@
 #include <regen/scene/resource-manager.h>
 #include <regen/scene/scene-input-xml.h>
 
-#include "../../regen/behavior/person-controller.h"
+#include "regen/behavior/person-controller.h"
 #include "applications/qt/qt-events.h"
 #include "regen/behavior/behavior-tree.h"
 #include "regen/behavior/user-controller.h"
@@ -29,10 +29,10 @@ using namespace std;
 #include "interaction-manager.h"
 #include "interactions/video-toggle.h"
 #include "interactions/node-activation.h"
-#include "../../regen/simulation/impulse-controller.h"
-#include "../../regen/behavior/animal-controller.h"
+#include "regen/simulation/impulse-controller.h"
+#include "regen/behavior/animal-controller.h"
 #include "regen/av/video-recorder.h"
-#include "regen/states/blit-state.h"
+#include "regen/gl/states/blit-state.h"
 
 #define CONFIG_FILE_NAME ".regen-scene-display.cfg"
 

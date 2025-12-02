@@ -11,7 +11,7 @@
 #include "mask-mesh.h"
 #include "terrain/proc-tree.h"
 #include "particles.h"
-#include "regen/states/state-node.h"
+#include "regen/scene/state-node.h"
 #include "regen/scene/loading-context.h"
 #include "regen/scene/resource-manager.h"
 #include "lod/mesh-simplifier.h"
@@ -20,6 +20,7 @@
 #include "regen/objects/terrain/grass-patch.h"
 #include "silhouette-mesh.h"
 #include "primitives/blanket.h"
+#include "primitives/cone.h"
 #include "terrain/blanket-trail.h"
 #include "terrain/ground-path.h"
 

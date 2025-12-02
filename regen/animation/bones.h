@@ -1,9 +1,9 @@
 #ifndef REGEN_BONES_H
 #define REGEN_BONES_H
 
-#include <regen/states/state.h>
+#include <regen/scene/state.h>
 #include <regen/animation/bone-tree.h>
-#include <regen/buffer/vbo.h>
+#include <regen/memory/vbo.h>
 #include <regen/textures/texture-state.h>
 #include <regen/textures/texture-buffer.h>
 

@@ -13,9 +13,9 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 
-#include <regen/utility/threading.h>
+#include <regen/compute/threading.h>
 #include <regen/utility/logging.h>
-#include <regen/gl-types/gl-util.h>
+#include <regen/gl/gl-util.h>
 #include <regen/config.h>
 
 #include "video-texture.h"
