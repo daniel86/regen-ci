@@ -14,30 +14,6 @@ vec2 groundUV(vec3 posWorld, vec3 normal) {
 }
 #endif // ground_uv_included
 
--- groundHeightBlend
-#ifndef ground_heightBlend_included
-#define2 ground_heightBlend_included
-#include regen.terrain.ground.groundUV
-void groundHeightBlend(in vec3 offset, inout vec3 P, float one) {
-#ifdef IS_SKIRT_MESH
-    // TODO: Reconsider the skirt handling.
-    //      - Push along normal instead?
-    //      - Scale model y position based on slope --> make skirt larger on sloped areas?
-    /**
-    vec3 nor = normalize((texture(in_normalMap, groundUV(P)).xzy * 2.0) - 1.0);
-    if (in_pos.y < -0.25) {
-        float slope = smoothstep(0.1, 0.6, 1.0 - nor.y);
-        P.y += in_skirtSize;
-        P.y -= mix(in_skirtSize, 4.0f*in_skirtSize, slope);
-    }
-    **/
-    P += offset;
-#else
-    P += offset;
-#endif
-}
-#endif // ground_heightBlend_included
-
 ------------
 ----- Maps a world position to uv coordinate that spans a local area of the ground.
 ------------
@@ -164,13 +140,6 @@ void computeMaterialWeights(float heightNorm, vec3 nor, float slope) {
     weight_${MAT_I} /= weightSum;
 #endfor
 
-#ifdef HAS_stone_MATERIAL && HAS_dirt_MATERIAL
-    #define2 STONE_I ${stone_MATERIAL_IDX}
-    #define2 DIRT_I ${dirt_MATERIAL_IDX}
-    // Remove dirt where rock is strong
-    // TODO: can we make this configurable?
-    weight_${DIRT_I} *= (1.0 - weight_${STONE_I});
-#endif
 #ifdef HAS_fallback_MATERIAL
     #define2 FALLBACK_I ${fallback_MATERIAL_IDX}
     weight_${FALLBACK_I} += 0.66 * step(weightSum, 0.001);

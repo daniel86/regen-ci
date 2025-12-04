@@ -1,19 +1,16 @@
 
 -- fetchNormal
-vec3 fetchNormal(sampler2D norWorldTex, vec2 texco) {
+vec4 fetchNormal(sampler2D norWorldTex, vec2 texco) {
     vec4 N = texture(norWorldTex, texco);
-    if( N.w==0.0 ) discard;
-    return N.xyz*2.0 - vec3(1.0);
+    return vec4(N.xyz*2.0 - vec3(1.0), N.w);
 }
-vec3 fetchNormal(sampler2DArray norWorldTex, vec3 texco) {
+vec4 fetchNormal(sampler2DArray norWorldTex, vec3 texco) {
     vec4 N = texture(norWorldTex, texco);
-    if( N.w==0.0 ) discard;
-    return N.xyz*2.0 - vec3(1.0);
+    return vec4(N.xyz*2.0 - vec3(1.0), N.w);
 }
-vec3 fetchNormal(samplerCube norWorldTex, vec3 texco) {
+vec4 fetchNormal(samplerCube norWorldTex, vec3 texco) {
     vec4 N = texture(norWorldTex, texco);
-    if( N.w==0.0 ) discard;
-    return N.xyz*2.0 - vec3(1.0);
+    return vec4(N.xyz*2.0 - vec3(1.0), N.w);
 }
 
 -- fetchPosition
@@ -79,13 +76,11 @@ uniform sampler2D in_gDiffuseTexture;
 uniform vec3 in_lightAmbient;
 
 #include regen.filter.sampling.computeTexco
-#include regen.shading.deferred.fetchNormal
 
 void main() {
     vec2 texco_2D = gl_FragCoord.xy*in_inverseViewport;
     vecTexco texco = computeTexco(texco_2D);
-    
-    vec3 N = fetchNormal(in_gNorWorldTexture,texco);
+
     vec4 diff = texture(in_gDiffuseTexture,texco);
     out_color.rgb = diff.rgb*in_lightAmbient;
     out_color.a = 0.0;
@@ -171,7 +166,7 @@ void main() {
     vecTexco texco = computeTexco(texco_2D);
     
     // fetch from GBuffer
-    vec3 N = fetchNormal(in_gNorWorldTexture,texco);
+    vec4 N = fetchNormal(in_gNorWorldTexture,texco);
     float depth = texture(in_gDepthTexture, texco).r;
     vec3 P = transformTexcoToWorld(texco_2D, depth, in_layer);
     vec4 spec = texture(in_gSpecularTexture, texco);
@@ -182,7 +177,7 @@ void main() {
     vec3 lightColor = vec3(0.0);
 #endif
     vec3 L = normalize(in_lightDirection.xyz);
-    float nDotL = dot( N, L );
+    float nDotL = dot( N.xyz, L );
     // modulate light intensity by the vertical component of the light direction
     // this makes the light less strong when coming from the side and cancels it
     // when coming from below the ground.
@@ -212,19 +207,20 @@ void main() {
     // compute texture lookup coordinate
     vec4 shadowCoord = dirShadowCoord(shadowLayer, P, in_lightMatrix[shadowLayer]);
     // compute filtered shadow
-    float attenuation = dirShadow${SHADOW_MAP_FILTER}(in_shadowTexture, shadowCoord);
+    // Note: we multiply by N.w which contains the SSAO occlusion factor.
+    float attenuation = dirShadow${SHADOW_MAP_FILTER}(in_shadowTexture, shadowCoord) * N.w;
 #ifdef USE_SHADOW_COLOR
     vec4 shadowColor = shadow2DArray(in_shadowColorTexture,shadowCoord);
     attenuation += (1.0-shadow)*(1.0-shadowColor.a);
     diff.rgb += mix(diff.rgb, shadowColor.rgb, shadowColor.a);
 #endif
 #else
-    float attenuation = 1.0;
+    float attenuation = N.w;
 #endif
 
     // Note: shininess stored in specular buffer in the range [0,1].
     //       We map it back to [0,256] to get the shininess value.
-    float sf = specularFactor(P,L,N);
+    float sf = specularFactor(P,L,N.xyz);
     float shininess = spec.a*256.0; // map from [0,1] to [0,256]
     // multiple diffuse and specular material color with light color
     diff.rgb *= in_lightDiffuse;
@@ -333,7 +329,7 @@ void main() {
     vecTexco texco = computeTexco(texco_2D);
     
     // fetch from GBuffer
-    vec3 N = fetchNormal(in_gNorWorldTexture,texco);
+    vec4 N = fetchNormal(in_gNorWorldTexture,texco);
     vec3 P = transformTexcoToWorld(texco_2D,
             texture(in_gDepthTexture, texco).r,
             in_layer);
@@ -348,18 +344,19 @@ void main() {
     vec3 lightColor = vec3(0.0);
 #endif
     
-    // calculate attenuation
-    float attenuation = radiusAttenuation(lightDist, in_lightRadius.x, in_lightRadius.y);
+    // calculate attenuation.
+    // Note: we multiply by N.w which contains the SSAO occlusion factor.
+    float attenuation = radiusAttenuation(lightDist, in_lightRadius.x, in_lightRadius.y) * N.w;
 #ifdef IS_SPOT_LIGHT
     attenuation *= spotConeAttenuation(L,in_lightDirection.xyz,in_lightConeAngles);
 #endif
-    float nDotL = dot( N, L );
+    float nDotL = dot( N.xyz, L );
 
 #ifdef USE_AMBIENT_LIGHT
-    if(attenuation*nDotL >= 0.0) {
+    if(attenuation*nDotL > 0.0) {
 #else
     // discard if facing away
-    if(attenuation*nDotL < 0.0) discard;
+    if(attenuation*nDotL <= 0.0) discard;
 #endif
 #ifdef HAS_headlightMask
     vec4 lightUV = in_viewProjectionMatrix_Light * vec4(P,1.0);
@@ -444,7 +441,7 @@ void main() {
 
     // Note: shininess stored in specular buffer in the range [0,1].
     //       We map it back to [0,256] to get the shininess value.
-    float sf = specularFactor(P,L,N);
+    float sf = specularFactor(P,L,N.xyz);
     float shininess = spec.a*256.0; // map from [0,1] to [0,256]
     //shininess = 1.0;
     // multiple diffuse and specular material color with light color
@@ -565,35 +562,3 @@ void main() {
 -- spot.fs
 #define IS_SPOT_LIGHT
 #include regen.shading.deferred.local.fs
-
---------------------------------------
---------------------------------------
----- Ambient Light Shading. Input mesh should be a unit-quad.
---------------------------------------
---------------------------------------
--- ambient.vs
-#include regen.filter.sampling.vs
--- ambient.gs
-#include regen.filter.sampling.gs
--- ambient.fs
-#include regen.states.camera.defines
-
-out vec4 out_color;
-
-uniform sampler2D in_gDepthTexture;
-uniform sampler2D in_gNorWorldTexture;
-uniform sampler2D in_gDiffuseTexture;
-
-uniform vec3 in_lightAmbient;
-
-#include regen.filter.sampling.computeTexco
-#include regen.shading.deferred.fetchNormal
-
-void main() {
-    vec2 texco_2D = gl_FragCoord.xy*in_inverseViewport;
-    vecTexco texco = computeTexco(texco_2D);
-
-    vec3 N = fetchNormal(in_gNorWorldTexture,texco);
-    vec4 diff = texture(in_gDiffuseTexture,texco);
-    out_color.rgb = diff.rgb*in_lightAmbient + diff.rgb;
-}

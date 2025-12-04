@@ -355,7 +355,7 @@ namespace regen {
 		 * @param v the input vector.
 		 * @return the input vector rotated using this Quaternion.
 		 */
-		constexpr Vec3f rotate(const Vec3f &v) {
+		constexpr Vec3f rotate(const Vec3f &v) const {
 			Quaternion q2(0.0f, v.x, v.y, v.z);
 			Quaternion q = *this;
 			q.conjugate();
@@ -379,10 +379,10 @@ namespace regen {
 
 	// reading vector from input stream
 	inline std::istream &operator>>(std::istream &in, Quaternion &v) {
-		readValue(in, v.x);
-		readValue(in, v.y);
-		readValue(in, v.z);
-		readValue(in, v.w);
+		readValue(in, v.x, 0.0f);
+		readValue(in, v.y, 0.0f);
+		readValue(in, v.z, 0.0f);
+		readValue(in, v.w, 0.0f);
 		return in;
 	}
 } // namespace

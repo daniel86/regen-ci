@@ -71,10 +71,14 @@ void Ground::setMapTextures(
 		const ref_ptr<Texture2D> &normalMap) {
 	heightMap_ = heightMap;
 	normalMap_ = normalMap;
+	// Note: We use regular additive blending for the height map, including
+	// for the skirt part. Skirt vertices are just translated downwards along y-axis,
+	// so blending still works as expected.
+	// However, this approach does not work well for walls that are nearly vertical,
+	// as the skirt area then doesn't cover a large area in horizontal direction.
 	auto heightMapState = groundMaterial_->set_texture(
 			heightMap_, TextureState::MAP_TO_HEIGHT, "heightMap");
 	heightMapState->set_mapping(ShaderFunction::createImport("regen.terrain.ground.groundUV"));
-	heightMapState->set_blendMode(ShaderFunction::createImport("regen.terrain.ground.groundHeightBlend"));
 	groundMaterial_->set_texture(normalMap_, TextureState::MAP_TO_CUSTOM, "normalMap");
 }
 
@@ -205,9 +209,16 @@ void Ground::updateAttributes() {
 	minPos.z -= patchSize_.y * 0.5f;
 	maxPos.x += patchSize_.x * 0.5f;
 	maxPos.z += patchSize_.y * 0.5f;
-	minPos.y -= skirtSize_;
-	maxPos.y += 0.1f*mapSize_.y;
-	minPos.y -= 0.1f*mapSize_.y;
+	// extend bounds in y direction by half the map size.
+	// This is exessive, and usually far too much, but e.g. if we have a patch
+	// with a steep cliff, we want to make sure the entire patch is always
+	// contained in the bounds.
+	// Note: we could compute tight bounds on per-patch basis, but
+	// that would require quite some changes. For CPU path, we have a shape
+	// per patch (per instance), so we can give them tight bounds at least
+	// based on heightmap min/max.
+	maxPos.y += 0.5f*mapSize_.y;
+	minPos.y -= 0.5f*mapSize_.y;
 
 	set_bounds(minPos, maxPos);
 	if(skirtMesh_.get()) {
