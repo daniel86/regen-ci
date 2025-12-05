@@ -84,21 +84,6 @@ PositionReader ModelTransformation::position(uint32_t idx) const {
 		idx};
 }
 
-void ModelTransformation::enable(RenderState *rs) {
-	if (isAudioSource()) {
-		boost::posix_time::ptime time(
-				boost::posix_time::microsec_clock::local_time());
-		double dt = ((double) (time - lastTime_).total_microseconds()) / 1000.0;
-		lastTime_ = time;
-
-		if (dt > 1e-6) {
-			auto val = modelMat_->getVertex(0);
-			audioSource_->set3f(AL_POSITION, val.r.position());
-		}
-	}
-	State::enable(rs);
-}
-
 static void transformMatrix(
 		scene::SceneLoader *scene,
 		const ref_ptr<scene::SceneInputNode> &input,

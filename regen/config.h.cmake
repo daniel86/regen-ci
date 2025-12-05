@@ -42,6 +42,9 @@
 #cmakedefine HAS_LIBAVCODEC
 #cmakedefine HAS_LIBSWSCALE
 #cmakedefine HAS_LIBSWRESAMPLE
+/* ALUT defines */
+#cmakedefine HAS_ALUT
+#cmakedefine HAS_OPENAL
 
 namespace regen {
     class LoadingContext;
