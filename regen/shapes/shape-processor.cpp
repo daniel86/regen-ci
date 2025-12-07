@@ -1,6 +1,6 @@
 #include "shape-processor.h"
 
-#include "resource-manager.h"
+#include "../scene/resource-manager.h"
 #include "regen/shapes/aabb.h"
 #include "regen/shapes/obb.h"
 #include "regen/objects/composite-mesh.h"
@@ -259,20 +259,26 @@ static ref_ptr<BoundingShape> createShape(
 	// create a collision shape
 	ref_ptr<BoundingShape> shape;
 	if (shapeType == "sphere") {
+		ref_ptr<BoundingSphere> sphere;
 		if (mesh.get()) {
 			if (input.hasAttribute("radius")) {
-				shape = ref_ptr<BoundingSphere>::alloc(mesh, parts, input.getValue<float>("radius", 1.0f));
+				sphere = ref_ptr<BoundingSphere>::alloc(mesh, parts, input.getValue<float>("radius", 1.0f));
 			} else {
-				shape = ref_ptr<BoundingSphere>::alloc(mesh, parts);
+				sphere = ref_ptr<BoundingSphere>::alloc(mesh, parts);
+			}
+			if (input.hasAttribute("base-offset"))  {
+				sphere->setBasePosition(
+					input.getValue<Vec3f>("base-offset", Vec3f::zero()));
 			}
 		} else if (input.hasAttribute("radius")) {
 			auto radius_opt = getRadius(input);
 			if (radius_opt.has_value()) {
 				auto center = input.getValue<Vec3f>("center", Vec3f::zero());
-				shape = ref_ptr<BoundingSphere>::alloc(center, radius_opt.value());
-				for (auto &part: parts) { shape->addPart(part); }
+				sphere = ref_ptr<BoundingSphere>::alloc(center, radius_opt.value());
+				for (auto &part: parts) { sphere->addPart(part); }
 			}
 		}
+		shape = sphere;
 	} else if (shapeType == "aabb") {
 		if (mesh.get()) {
 			shape = ref_ptr<AABB>::alloc(mesh, parts);
@@ -358,31 +364,6 @@ static ref_ptr<SpatialIndex> getSpatialIndex(scene::SceneLoader *scene, SceneInp
 	return spatialIndex;
 }
 
-static ref_ptr<ShaderInput4f> getOffset(
-		SceneInputNode &input,
-		const ref_ptr<Mesh> &mesh,
-		const std::vector<ref_ptr<Mesh>> &parts) {
-	// try to find shader inputs of mesh
-	ref_ptr<Mesh> m = mesh;
-	if (m.get() == nullptr) {
-		if (!parts.empty()) {
-			m = parts[0];
-		} else {
-			return {};
-		}
-	}
-	auto meshOffset = m->findShaderInput("modelOffset");
-	if (meshOffset.has_value()) {
-		auto upcasted = ref_ptr<ShaderInput4f>::dynamicCast(meshOffset.value().in);
-		if (upcasted.get()) {
-			return upcasted;
-		} else {
-			REGEN_WARN("Ignoring mesh offset with wrong type in node " << input.getDescription() << ".");
-		}
-	}
-	return {};
-}
-
 void ShapeProcessor::processInput(
 		scene::SceneLoader *scene,
 		SceneInputNode &input,
@@ -430,15 +411,6 @@ void ShapeProcessor::processInput(
 	}
 
 	auto transform = scene->getResource<ModelTransformation>(transformID);
-	if(!transform.get()) {
-		auto offset = getOffset(input, mesh, parts);
-		if (offset.get()) {
-			// TODO: Improve this, we should not create a new ModelTransformation.
-			//   The offset might be part of another BO, so best would be to create a "virtual" TF
-			//   in the range of the offset in its buffer.
-			transform = ref_ptr<ModelTransformation>::alloc(offset);
-		}
-	}
 	if (transform.get()) {
 		numInstances = transform->numInstances();
 	}

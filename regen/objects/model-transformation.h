@@ -120,21 +120,6 @@ namespace regen {
 		 */
 		PositionReader position(uint32_t idx) const;
 
-		/**
-		 * @param audioSource the audio source attached to the world position
-		 * of the model.
-		 */
-		void setAudioSource(const ref_ptr<AudioSource> &audioSource) { audioSource_ = audioSource; }
-
-		/**
-		 * @return the audio source attached to the world position
-		 * of the model.
-		 */
-		bool isAudioSource() const { return audioSource_.get() != nullptr; }
-
-		// Override
-		void enable(RenderState *rs) override;
-
 		static ref_ptr<ModelTransformation> load(LoadingContext &ctx, scene::SceneInputNode &input, const ref_ptr<State> &state);
 
 	protected:
@@ -144,9 +129,6 @@ namespace regen {
 		ref_ptr<ShaderInput4f> modelOffset_;
 		ref_ptr<BufferContainer> tfBuffer_;
 		ref_ptr<ClientBuffer> tfClientBuffer_;
-
-		ref_ptr<AudioSource> audioSource_;
-		boost::posix_time::ptime lastTime_ = boost::posix_time::microsec_clock::local_time();
 
 		void initBufferContainer();
 

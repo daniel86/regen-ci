@@ -2,9 +2,11 @@
 #include "blackboard.h"
 #include "world/action-type.h"
 
-//#define NPC_ACTIONS_DEBUG
-
 using namespace regen;
+
+namespace regen {
+	static constexpr bool NPC_ACTIONS_DEBUG = false;
+}
 
 float traitStrength(const std::vector<float> &positive, const std::vector<float> &negative) {
 	if (positive.empty() && negative.empty()) return 0.5f;
@@ -47,14 +49,15 @@ static void setLingerTime(Blackboard& kb, PlaceType placeType) {
 	}
 }
 
-static void setInitialDistance(Blackboard& kb, Patient &patient) {
+static bool setInitialDistance(Blackboard& kb, Patient &patient) {
 	const Vec3f &characterPos = kb.currentPosition();
 	if (!patient.object) {
-		REGEN_WARN("["<<kb.instanceId()<<"] Unable to set initial distance, no object set.");
 		patient.currentDistance = std::numeric_limits<float>::max();
+		return false;
 	} else {
 		float dist = (patient.object->position2D() - Vec2f(characterPos.x, characterPos.z)).length();
 		patient.currentDistance = dist;
+		return true;
 	}
 }
 
@@ -96,10 +99,10 @@ BehaviorStatus SelectTargetPlace::tick(Blackboard& kb, float /*dt_s*/) {
 		kb.setTargetPlace(places[math::randomInt() % places.size()]);
 	}
 	setLingerTime(kb, kb.targetPlace()->placeType());
-#ifdef NPC_ACTIONS_DEBUG
-	REGEN_INFO("["<<kb.instanceId()<<"] Selected target place " <<
-		(kb.targetPlace().get() ? kb.targetPlace()->name() : "null"));
-#endif
+	if constexpr(NPC_ACTIONS_DEBUG) {
+		REGEN_INFO("["<<kb.instanceId()<<"] Selected target place " <<
+			(kb.targetPlace().get() ? kb.targetPlace()->name() : "null"));
+	}
 	return BehaviorStatus::SUCCESS;
 }
 
@@ -110,12 +113,11 @@ BehaviorStatus SetTargetPlace::tick(Blackboard& kb, float /*dt_s*/) {
 	}
 	if (targetPlace.get() != currentTargetPlace) {
 		kb.setTargetPlace(targetPlace);
-		setInitialDistance(kb, kb.navigationTarget());
 		setLingerTime(kb, targetPlace->placeType());
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Setting target place to " <<
-			(targetPlace.get() ? targetPlace->name() : "null"));
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_INFO("["<<kb.instanceId()<<"] Setting target place to " <<
+				(targetPlace.get() ? targetPlace->name() : "null"));
+		}
 	}
 	return BehaviorStatus::SUCCESS;
 }
@@ -145,7 +147,9 @@ BehaviorStatus SetRoamingTarget::tick(Blackboard& kb, float /*dt_s*/) {
 	navTarget.affordance = {};
 	navTarget.affordanceSlot = -1;
 	kb.setNavigationTarget(navTarget);
-	setInitialDistance(kb, kb.navigationTarget());
+	if (!setInitialDistance(kb, kb.navigationTarget())) {
+		REGEN_WARN("["<<kb.instanceId()<<"] Unable to set initial distance, no object set.");
+	}
 
 	return BehaviorStatus::SUCCESS;
 }
@@ -158,56 +162,87 @@ static bool canWalkAt(Blackboard& kb, PathwayType pathway, const ref_ptr<Place> 
 	return place->hasPathWay(pathway) && kb.canPerformAction(ActionType::PATROLLING);
 }
 
+namespace regen {
+	struct WeightedAction {
+		ActionType action;
+		float baseWeight;
+		float randomWeight;
+		float traitWeight;
+		std::vector<Trait> positiveTraits;
+		std::vector<Trait> negativeTraits;
+	};
+
+	struct WeightedNavigation {
+		PathwayType pathway;
+		ActionType action;
+		float baseWeight;
+		float randomWeight;
+		float traitWeight;
+		std::vector<Trait> positiveTraits;
+		std::vector<Trait> negativeTraits;
+	};
+}
+
 void SelectPlaceActivity::updateActionPossibilities(Blackboard& kb) {
-	// TODO: improve probability handling, make it more generic!
+	static const std::vector<WeightedAction> PossibleActions = {
+		{ ActionType::OBSERVING, 0.25f, 0.25f, 0.5f,
+			{Trait::ALERTNESS}, {Trait::SOCIALABILITY} },
+		{ ActionType::CONVERSING, 0.25f, 0.25f, 0.5f,
+			{Trait::SOCIALABILITY}, {Trait::LAZINESS} },
+		{ ActionType::PRAYING, 0.25f, 0.25f, 0.5f,
+			{Trait::SPIRITUALITY}, {Trait::LAZINESS} },
+		{ ActionType::SLEEPING, 0.1f, 0.1f, 0.5f,
+			{Trait::LAZINESS}, {Trait::ALERTNESS, Trait::SOCIALABILITY} },
+		{ ActionType::ATTACKING, 0.15f, 0.15f, 0.4f,
+			{Trait::BRAVERY}, {Trait::LAZINESS, Trait::SOCIALABILITY} },
+	};
+	static const std::vector<WeightedNavigation> PossibleNavigations = {
+		{ PathwayType::PATROL, ActionType::PATROLLING, 0.1f, 0.1f, 0.4f,
+			{Trait::ALERTNESS, Trait::BRAVERY}, {Trait::LAZINESS, Trait::SOCIALABILITY} },
+		{ PathwayType::STROLL, ActionType::STROLLING, 0.15f, 0.15f, 0.4f,
+			{Trait::LAZINESS}, {Trait::SOCIALABILITY, Trait::ALERTNESS, Trait::BRAVERY} },
+	};
+
 	actionPossibilities_.clear();
 	actionPossibilities_.emplace_back(ActionType::IDLE, (
 			0.05f +
 			0.05f * math::random<float>() +
 			0.1f * traitStrength({kb.laziness()}, {kb.alertness(), kb.sociability()})));
 
-	if (canWalkAt(kb, PathwayType::PATROL, lastPlace_)) {
-		actionPossibilities_.emplace_back(ActionType::PATROLLING, (
-				0.1f +
-				0.1f * math::random<float>() +
-				0.4f * traitStrength({kb.alertness(), kb.bravery()}, {kb.laziness(), kb.sociability()})));
+	// Add possible navigation actions based on pathways.
+	for (const auto &wn : PossibleNavigations) {
+		if (canWalkAt(kb, wn.pathway, lastPlace_)) {
+			std::vector<float> posTraits, negTraits;
+			for (const auto &t : wn.positiveTraits) {
+				posTraits.push_back(kb.traitStrength(t));
+			}
+			for (const auto &t : wn.negativeTraits) {
+				negTraits.push_back(kb.traitStrength(t));
+			}
+			actionPossibilities_.emplace_back(wn.action, (
+				wn.baseWeight +
+				wn.randomWeight * math::random<float>() +
+				wn.traitWeight * traitStrength(posTraits, negTraits)));
+		}
 	}
-	if (canWalkAt(kb, PathwayType::STROLL, lastPlace_)) {
-		actionPossibilities_.emplace_back(ActionType::STROLLING, (
-				0.15f +
-				0.15f * math::random<float>() +
-				0.4f * traitStrength({kb.laziness()}, {kb.sociability(), kb.alertness(), kb.bravery()})));
+
+	// Add other possible actions based on affordances.
+	for (const auto &wa : PossibleActions) {
+		if (canUseAt(kb, wa.action, lastPlace_)) {
+			std::vector<float> posTraits, negTraits;
+			for (const auto &t : wa.positiveTraits) {
+				posTraits.push_back(kb.traitStrength(t));
+			}
+			for (const auto &t : wa.negativeTraits) {
+				negTraits.push_back(kb.traitStrength(t));
+			}
+			actionPossibilities_.emplace_back(wa.action, (
+				wa.baseWeight +
+				wa.randomWeight * math::random<float>() +
+				wa.traitWeight * traitStrength(posTraits, negTraits)));
+		}
 	}
-	if (canUseAt(kb, ActionType::OBSERVING, lastPlace_)) {
-		actionPossibilities_.emplace_back(ActionType::OBSERVING, (
-				0.25f +
-				0.25f * math::random<float>() +
-				0.5f * traitStrength({kb.alertness()}, {kb.sociability()})));
-	}
-	if (canUseAt(kb, ActionType::CONVERSING, lastPlace_)) {
-		actionPossibilities_.emplace_back(ActionType::CONVERSING, (
-				0.25f +
-				0.25f * math::random<float>() +
-				0.5f * traitStrength({kb.sociability()}, {kb.laziness()})));
-	}
-	if (canUseAt(kb, ActionType::PRAYING, lastPlace_)) {
-		actionPossibilities_.emplace_back(ActionType::PRAYING, (
-				0.25f +
-				0.25f * math::random<float>() +
-				0.5f * traitStrength({kb.spirituality()}, {kb.laziness()})));
-	}
-	if (canUseAt(kb, ActionType::SLEEPING, lastPlace_)) {
-		actionPossibilities_.emplace_back(ActionType::SLEEPING, (
-				0.1f +
-				0.1f * math::random<float>() +
-				0.5f * traitStrength({kb.laziness()}, {kb.alertness(), kb.sociability()})));
-	}
-	if (canUseAt(kb, ActionType::ATTACKING, lastPlace_)) {
-		actionPossibilities_.emplace_back(ActionType::ATTACKING, (
-				0.15f +
-				0.15f * math::random<float>() +
-				0.4f * traitStrength({kb.bravery()}, {kb.laziness(), kb.sociability()})));
-	}
+
 	// Sum and normalize weights.
 	float totalWeight = 0.0f;
 	for (auto &p : actionPossibilities_) {
@@ -279,9 +314,9 @@ BehaviorStatus SelectPlaceActivity::tick(Blackboard& kb, float /*dt_s*/) {
 	}
 	if (!place.get()) {
 		// No place, or time to leave
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_WARN("["<<kb.instanceId()<<"] No current place for activity selection.");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_WARN("["<<kb.instanceId()<<"] No current place for activity selection.");
+		}
 		return BehaviorStatus::FAILURE;
 	}
 	if (kb.activityTime() > 0.0f) {
@@ -312,10 +347,10 @@ BehaviorStatus SelectPlaceActivity::tick(Blackboard& kb, float /*dt_s*/) {
 	if (currentInteraction.affordance.get() && currentInteraction.affordance->type != nextActivity) {
 		kb.unsetInteractionTarget();
 	}
-#ifdef NPC_ACTIONS_DEBUG
-	REGEN_INFO("["<<kb.instanceId()<<"] Selected activity " << nextActivity <<
-		" at place '" << place->name() << "'.");
-#endif
+	if constexpr(NPC_ACTIONS_DEBUG) {
+		REGEN_INFO("["<<kb.instanceId()<<"] Selected activity " << nextActivity <<
+			" at place '" << place->name() << "'.");
+	}
 	return BehaviorStatus::SUCCESS;
 }
 
@@ -328,9 +363,9 @@ BehaviorStatus SetDesiredActivity::tick(Blackboard& kb, float /*dt_s*/) {
 		} else {
 			setActionTime(kb, desiredAction);
 		}
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Setting desired activity " << desiredAction << ".");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_INFO("["<<kb.instanceId()<<"] Setting desired activity " << desiredAction << ".");
+		}
 	}
 	return BehaviorStatus::SUCCESS;
 }
@@ -346,7 +381,9 @@ static BehaviorStatus selectPatient(Blackboard &kb,
 		const ref_ptr<Affordance> &aff,
 		int slotIdx) {
 	kb.setInteractionTarget(obj, aff, slotIdx);
-	setInitialDistance(kb, kb.interactionTarget());
+	if (!setInitialDistance(kb, kb.interactionTarget())) {
+		REGEN_WARN("["<<kb.instanceId()<<"] Unable to set initial distance, no object set.");
+	}
 	kb.setDistanceToTarget(kb.distanceToPatient());
 	//setActionTime(kb, desiredAction);
 	return BehaviorStatus::SUCCESS;
@@ -361,14 +398,16 @@ BehaviorStatus SelectPlacePatient::tick(Blackboard& kb, float /*dt_s*/) {
 	}
 	if (!place.get()) {
 		// No place
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_WARN("["<<kb.instanceId()<<"] No current place for activity selection.");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_WARN("["<<kb.instanceId()<<"] No current place for activity selection.");
+		}
 		return BehaviorStatus::FAILURE;
 	}
-	ActionType desiredAction = kb.desiredAction();
-	bool hasCurrentPatient = kb.hasInteractionTarget();
-	if (hasCurrentPatient && desiredAction == lastDesiredAction_ && place.get() == lastPlace_.get()) {
+	const ActionType desiredAction = kb.desiredAction();
+	const bool hasCurrentPatient = kb.hasInteractionTarget();
+	const bool isContinuingSame = desiredAction == lastDesiredAction_ && place.get() == lastPlace_.get();
+
+	if (hasCurrentPatient && isContinuingSame) {
 		// No change, stick with last selection.
 		return BehaviorStatus::SUCCESS;
 	}
@@ -377,42 +416,52 @@ BehaviorStatus SelectPlacePatient::tick(Blackboard& kb, float /*dt_s*/) {
 	if (hasCurrentPatient) {
 		kb.unsetInteractionTarget();
 	}
-	// TODO: Rather remember last patient, and if action type did not change,
-	//  try to continue using the same object if possible.
-	//  The perform/move-to actions unset interaction target when done, so that information
-	//  is lost currently.
 
-	// Retrieve affordances from place.
-	auto &objects = place->getAffordanceObjects(desiredAction);
-	if (objects.empty()) {
-		// No objects with the desired affordance at this place
-		return BehaviorStatus::FAILURE;
-	}
-	// For now pick a random affordance.
 	ref_ptr<WorldObject> selected;
 	ref_ptr<Affordance> aff;
-	uint32_t startIdx = math::randomInt() % objects.size();
-	for (uint32_t i = 0; i < objects.size(); i++) {
-		auto candidate = objects[(i + startIdx) % objects.size()];
-		auto candidateAff = candidate->getAffordance(desiredAction);
+
+	// First try to continue using the same object if possible.
+	if (isContinuingSame && lastSelected_.get()) {
+		auto candidateAff = lastSelected_->getAffordance(desiredAction);
 		if (candidateAff->hasFreeSlot()) {
-			selected = candidate;
+			selected = lastSelected_;
 			aff = candidateAff;
-			break;
 		}
 	}
+
+	if (!selected) {
+		// Retrieve affordances from place.
+		auto &objects = place->getAffordanceObjects(desiredAction);
+		if (!objects.empty()) {
+			// For now pick a random affordance.
+			uint32_t startIdx = math::randomInt() % objects.size();
+			for (uint32_t i = 0; i < objects.size(); i++) {
+				auto candidate = objects[(i + startIdx) % objects.size()];
+				auto candidateAff = candidate->getAffordance(desiredAction);
+				if (candidateAff->hasFreeSlot()) {
+					selected = candidate;
+					aff = candidateAff;
+					break;
+				}
+			}
+		}
+	}
+
 	if (!selected) {
 		// No available slots on any object.
+		lastSelected_ = {};
 		return BehaviorStatus::FAILURE;
 	}
 	int slotIdx = reserveAffordanceSlot(kb, aff);
 	if (slotIdx == -1) {
+		lastSelected_ = {};
 		return BehaviorStatus::FAILURE;
 	} else {
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Setting patient to '" <<
-			selected->name() << "' for action " << desiredAction);
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_INFO("["<<kb.instanceId()<<"] Setting patient to '" <<
+				selected->name() << "' for action " << desiredAction);
+		}
+		lastSelected_ = selected;
 		return selectPatient(kb, selected, aff, slotIdx);
 	}
 }
@@ -442,19 +491,19 @@ BehaviorStatus SetPatient::tick(Blackboard &kb, float /*dt_s*/) {
 		kb.unsetInteractionTarget();
 	}
 
-#ifdef NPC_ACTIONS_DEBUG
-	REGEN_INFO("["<<kb.instanceId()<<"] Setting patient to '" <<
-		patient->name() << "' for action " << desiredAction);
-#endif
+	if constexpr(NPC_ACTIONS_DEBUG) {
+		REGEN_INFO("["<<kb.instanceId()<<"] Setting patient to '" <<
+			patient->name() << "' for action " << desiredAction);
+	}
 	return selectPatient(kb, patient, aff, affordanceSlot);
 }
 
 BehaviorStatus UnsetPatient::tick(Blackboard &kb, float /*dt_s*/) {
 	if (kb.interactionTarget().object.get()) {
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Unsetting patient '" <<
-			kb.interactionTarget().object->name() << "'.");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_INFO("["<<kb.instanceId()<<"] Unsetting patient '" <<
+				kb.interactionTarget().object->name() << "'.");
+		}
 		kb.unsetInteractionTarget();
 	}
 	return BehaviorStatus::SUCCESS;
@@ -464,9 +513,9 @@ BehaviorStatus MoveToTargetPoint::tick(Blackboard &kb, float /*dt_s*/) {
 	if (kb.distanceToTarget() < reachRadius_) {
 		// Reached target place.
 		kb.unsetNavigationTarget();
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Reached target point.");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_INFO("["<<kb.instanceId()<<"] Reached target point.");
+		}
 		return BehaviorStatus::SUCCESS;
 	} else {
 		kb.setCurrentAction(ActionType::NAVIGATING);
@@ -486,9 +535,9 @@ BehaviorStatus MoveToTargetPlace::tick(Blackboard &kb, float /*dt_s*/) {
 			// Reached target place.
 			kb.unsetNavigationTarget();
 			kb.setCurrentPlace(kb.targetPlace());
-#ifdef NPC_ACTIONS_DEBUG
-			REGEN_INFO("["<<kb.instanceId()<<"] Reached target place '" << kb.targetPlace()->name() << "'.");
-#endif
+			if constexpr(NPC_ACTIONS_DEBUG) {
+				REGEN_INFO("["<<kb.instanceId()<<"] Reached target place '" << kb.targetPlace()->name() << "'.");
+			}
 			return BehaviorStatus::SUCCESS;
 		} else {
 			// Already moving to target place.
@@ -499,10 +548,12 @@ BehaviorStatus MoveToTargetPlace::tick(Blackboard &kb, float /*dt_s*/) {
 	kb.unsetCurrentPlace();
 	kb.setCurrentAction(ActionType::NAVIGATING);
 	kb.setNavigationTarget(kb.targetPlace(), {}, -1);
-	setInitialDistance(kb, kb.navigationTarget());
-#ifdef NPC_ACTIONS_DEBUG
-	REGEN_INFO("["<<kb.instanceId()<<"] Moving to target place '" << kb.targetPlace()->name() << "'.");
-#endif
+	if (!setInitialDistance(kb, kb.navigationTarget())) {
+		REGEN_WARN("["<<kb.instanceId()<<"] Unable to set initial distance, no object set.");
+	}
+	if constexpr(NPC_ACTIONS_DEBUG) {
+		REGEN_INFO("["<<kb.instanceId()<<"] Moving to target place '" << kb.targetPlace()->name() << "'.");
+	}
 	return BehaviorStatus::RUNNING;
 }
 
@@ -530,9 +581,9 @@ BehaviorStatus MoveToLocation::tick(Blackboard& kb, float /*dt_s*/) {
 			// Reached location.
 			kb.unsetNavigationTarget();
 			kb.setCurrentLocation(ref_ptr<Location>::staticCast(location));
-#ifdef NPC_ACTIONS_DEBUG
-			REGEN_INFO("["<<kb.instanceId()<<"] Reached location '" << location->name() << "'.");
-#endif
+			if constexpr(NPC_ACTIONS_DEBUG) {
+				REGEN_INFO("["<<kb.instanceId()<<"] Reached location '" << location->name() << "'.");
+			}
 			return BehaviorStatus::SUCCESS;
 		} else if (kb.navigationTarget().affordance.get() == kb.interactionTarget().affordance.get()
 				&& kb.navigationTarget().affordanceSlot == kb.interactionTarget().affordanceSlot) {
@@ -544,10 +595,12 @@ BehaviorStatus MoveToLocation::tick(Blackboard& kb, float /*dt_s*/) {
 	kb.unsetCurrentLocation();
 	kb.setCurrentAction(ActionType::NAVIGATING);
 	kb.setNavigationTarget(location, {}, -1);
-	setInitialDistance(kb, kb.navigationTarget());
-#ifdef NPC_ACTIONS_DEBUG
-	REGEN_INFO("["<<kb.instanceId()<<"] Moving to location '" << location->name() << "'.");
-#endif
+	if (!setInitialDistance(kb, kb.navigationTarget())) {
+		REGEN_WARN("["<<kb.instanceId()<<"] Unable to set initial distance, no object set.");
+	}
+	if constexpr(NPC_ACTIONS_DEBUG) {
+		REGEN_INFO("["<<kb.instanceId()<<"] Moving to location '" << location->name() << "'.");
+	}
 	return BehaviorStatus::RUNNING;
 }
 
@@ -555,9 +608,9 @@ BehaviorStatus MoveToGroup::tick(Blackboard& kb, float /*dt_s*/) {
 	if (!kb.isPartOfGroup()) {
 		// Not in a group.
 		kb.unsetNavigationTarget();
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_WARN("["<<kb.instanceId()<<"] Not part of a group in MoveToGroup.");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_WARN("["<<kb.instanceId()<<"] Not part of a group in MoveToGroup.");
+		}
 		return BehaviorStatus::FAILURE;
 	}
 	if (kb.lingerTime() <= 0.0f && kb.activityTime() <= 0.0f) {
@@ -568,9 +621,9 @@ BehaviorStatus MoveToGroup::tick(Blackboard& kb, float /*dt_s*/) {
 	if (kb.navigationTarget().object.get() == kb.currentGroup().get()) {
 		if (kb.distanceToTarget() < kb.currentGroup()->radius()) {
 			// Reached group.
-#ifdef NPC_ACTIONS_DEBUG
-			REGEN_INFO("["<<kb.instanceId()<<"] Reached group.");
-#endif
+			if constexpr(NPC_ACTIONS_DEBUG) {
+				REGEN_INFO("["<<kb.instanceId()<<"] Reached group.");
+			}
 			kb.unsetNavigationTarget();
 			return BehaviorStatus::SUCCESS;
 		} else {
@@ -581,11 +634,13 @@ BehaviorStatus MoveToGroup::tick(Blackboard& kb, float /*dt_s*/) {
 	}
 	kb.setCurrentAction(ActionType::NAVIGATING);
 	kb.setNavigationTarget(kb.currentGroup(), {}, -1);
-	setInitialDistance(kb, kb.navigationTarget());
-#ifdef NPC_ACTIONS_DEBUG
-	REGEN_INFO("["<<kb.instanceId()<<"] Moving to group at position " <<
-		kb.currentGroup()->position2D() << ".");
-#endif
+	if (!setInitialDistance(kb, kb.navigationTarget())) {
+		REGEN_WARN("["<<kb.instanceId()<<"] Unable to set initial distance, no object set.");
+	}
+	if constexpr(NPC_ACTIONS_DEBUG) {
+		REGEN_INFO("["<<kb.instanceId()<<"] Moving to group at position " <<
+			kb.currentGroup()->position2D() << ".");
+	}
 	return BehaviorStatus::RUNNING;
 }
 
@@ -612,9 +667,9 @@ BehaviorStatus MoveToPatient::tick(Blackboard& kb, float /*dt_s*/) {
 	auto &it = kb.interactionTarget();
 	if (kb.distanceToPatient() <= getReachRadius(it)) {
 		// Reached patient/affordance
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Reached patient '" << it.object->name() << "'.");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_INFO("["<<kb.instanceId()<<"] Reached patient '" << it.object->name() << "'.");
+		}
 		kb.unsetNavigationTarget();
 		return BehaviorStatus::SUCCESS;
 	}
@@ -629,9 +684,9 @@ BehaviorStatus MoveToPatient::tick(Blackboard& kb, float /*dt_s*/) {
 		// There can only be one navigation target at a time.
 		kb.unsetNavigationTarget();
 	}
-#ifdef NPC_ACTIONS_DEBUG
-	REGEN_INFO("["<<kb.instanceId()<<"] Moving to patient '" << it.object->name() << "'.");
-#endif
+	if constexpr(NPC_ACTIONS_DEBUG) {
+		REGEN_INFO("["<<kb.instanceId()<<"] Moving to patient '" << it.object->name() << "'.");
+	}
 	kb.setCurrentAction(ActionType::NAVIGATING);
 	kb.setNavigationTarget(kb.interactionTarget());
 	return BehaviorStatus::RUNNING;
@@ -699,9 +754,9 @@ BehaviorStatus FormLocationGroup::tick(Blackboard &kb, float /*dt_s*/) {
 	}
 	if (kb.isPartOfGroup()) {
 		// Already in a group, nothing to do.
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Already part of a group.");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_INFO("["<<kb.instanceId()<<"] Already part of a group.");
+		}
 		return BehaviorStatus::SUCCESS;
 	}
 	Vec2f currentPos2D(kb.currentPosition().x, kb.currentPosition().z);
@@ -741,25 +796,25 @@ BehaviorStatus FormLocationGroup::tick(Blackboard &kb, float /*dt_s*/) {
 	if (friendlyCharacter->isPartOfGroup()) {
 		// Join existing group.
 		kb.joinGroup(friendlyCharacter->currentGroup());
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Joining existing group with '" << friendlyCharacter->name() << "'.");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_INFO("["<<kb.instanceId()<<"] Joining existing group with '" << friendlyCharacter->name() << "'.");
+		}
 	} else {
 		// Form new group.
 		kb.formGroup(kb.desiredAction(), friendlyCharacter);
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Forming new group with '" << friendlyCharacter->name() << "'.");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_INFO("["<<kb.instanceId()<<"] Forming new group with '" << friendlyCharacter->name() << "'.");
+		}
 	}
 	return BehaviorStatus::SUCCESS;
 }
 
 BehaviorStatus LeaveGroup::tick(Blackboard &kb, float /*dt_s*/) {
 	if (kb.isPartOfGroup()) {
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Leaving current group, remaining members: " <<
-			kb.currentGroup()->numMembers() - 1 << ".");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_INFO("["<<kb.instanceId()<<"] Leaving current group, remaining members: " <<
+				kb.currentGroup()->numMembers() - 1 << ".");
+		}
 		kb.leaveCurrentGroup();
 	}
 	return BehaviorStatus::SUCCESS;
@@ -767,9 +822,9 @@ BehaviorStatus LeaveGroup::tick(Blackboard &kb, float /*dt_s*/) {
 
 BehaviorStatus LeaveLocation::tick(Blackboard &kb, float /*dt_s*/) {
 	if (kb.currentLocation().get()) {
-#ifdef NPC_ACTIONS_DEBUG
-		REGEN_INFO("["<<kb.instanceId()<<"] Leaving current location '" << kb.currentLocation()->name() << "'.");
-#endif
+		if constexpr(NPC_ACTIONS_DEBUG) {
+			REGEN_INFO("["<<kb.instanceId()<<"] Leaving current location '" << kb.currentLocation()->name() << "'.");
+		}
 		kb.unsetCurrentLocation();
 	}
 	return BehaviorStatus::SUCCESS;

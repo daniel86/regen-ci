@@ -65,6 +65,16 @@ BoneController::BoneController(uint32_t instanceIdx, const ref_ptr<BoneAnimation
 	for (size_t i = 0; i < actionToMotion_.size(); ++i) {
 		actionToMotion_[i] = getMotionTypesForAction(static_cast<ActionType>(i));
 	}
+
+	// Connect to animation stopped event such that we can restart the animation
+	// in case the corresponding motion is still desired.
+	/**
+	const auto eventHandler = ref_ptr<LambdaEventHandler>::alloc(
+		[&](EventObject *, EventData *data) {
+			handleAnimationStopped(*static_cast<BoneTree::BoneEvent *>(data));
+		});
+	animItem_->boneTree->connect(Animation::ANIMATION_STOPPED, eventHandler);
+	**/
 }
 
 BodyPart BoneController::getBodyPartType(const std::string &startNodeName) const {
@@ -73,6 +83,26 @@ BodyPart BoneController::getBodyPartType(const std::string &startNodeName) const
 		return it->second;
 	}
 	return BodyPart::LAST;
+}
+
+void BoneController::handleAnimationStopped(BoneTree::BoneEvent &eventData) {
+	const BoneTree::AnimationHandle animHandle = eventData.animHandle;
+	const MotionData *stoppedMotion = nullptr;
+	// Find which motion this animation handle belongs to.
+	for (uint32_t i=0; i < numActiveMotions_; i++) {
+		auto &motionData = motionToData_[static_cast<int>(activeMotions_[i])];
+		if (motionData.handle == animHandle) {
+			stoppedMotion = &motionData;
+			break;
+		}
+	}
+	if (stoppedMotion == nullptr) {
+		// not found
+		return;
+	}
+	if (stoppedMotion->clipStatus == CLIP_LOOPING) {
+		eventData.range->trackIdx_ = eventData.trackIdx;
+	}
 }
 
 void BoneController::initializeBoneWeights(MotionData &motionData, MotionType motionType) const {
@@ -419,11 +449,12 @@ void BoneController::updateBoneController(float dt_s, const Blackboard &kb) {
 }
 
 void BoneController::updateBoneController(float dt_s, const MotionType *desiredMotions, uint32_t numDesiredMotions) {
-	// TODO: Delay setting IDLE as desired when a motion is active
-	//         to avoid blending before the motion completed.
+	// Note: It is best to use low weights for IDLE state to avoid blending it in too aggressively
+	//       when an active motion is set to undesired (eg. due to key release event).
 	// Unset all desired flags.
 	for (uint32_t activeIdx = 0; activeIdx < numActiveMotions_; ++activeIdx) {
-		auto &motion = motionToData_[static_cast<int>(activeMotions_[activeIdx])];
+		const auto motionType = activeMotions_[activeIdx];
+		auto &motion = motionToData_[static_cast<int>(motionType)];
 		motion.desired = false;
 	}
 	// Mark only the given motions as desired.
