@@ -4,6 +4,10 @@
 
 using namespace regen;
 
+namespace regen {
+	static constexpr float CAMERA_ORIENT_THRESHOLD = 0.1f;
+}
+
 CameraController::CameraController(const ref_ptr<Camera> &cam)
 		: Animation(false, true),
 		  CameraControllerBase(cam),
@@ -16,8 +20,7 @@ CameraController::CameraController(const ref_ptr<Camera> &cam)
 	meshHorizontalOrientation_ = 0.0;
 	moveAmount_ = 1.0;
 	matVal_ = Mat4f::identity();
-	#define REGEN_ORIENT_THRESHOLD_ 0.1
-	orientThreshold_ = 0.5 * M_PI + REGEN_ORIENT_THRESHOLD_;
+	orientThreshold_ = 0.5 * M_PI + CAMERA_ORIENT_THRESHOLD;
 	pos_ = cam->position(0);
 }
 
@@ -58,14 +61,12 @@ void CameraController::step(const Vec3f &v) {
 }
 
 void CameraController::lookLeft(double amount) {
-	horizontalOrientation_ = fmod(horizontalOrientation_ + amount, 2.0 * M_PI);
+	horizontalOrientation_ = fmod(horizontalOrientation_ + amount, math::twoPi<double>());
 }
 
 void CameraController::lookRight(double amount) {
-	horizontalOrientation_ = fmod(horizontalOrientation_ - amount, 2.0 * M_PI);
+	horizontalOrientation_ = fmod(horizontalOrientation_ - amount, math::twoPi<double>());
 }
-
-#define REGEN_ORIENT_THRESHOLD_ 0.1
 
 void CameraController::lookUp(double amount) {
 	verticalOrientation_ = math::clamp<float>(verticalOrientation_ + amount, -orientThreshold_, orientThreshold_);
@@ -95,68 +96,35 @@ void CameraController::setTransform(const Vec3f &pos, const Vec3f &dir) {
     verticalOrientation_ = asin(-normalizedDir.y);
 }
 
-void CameraController::updateCameraPosition() {
-	if (attachedToTransform_.get()) {
-		camPos_ = meshEyeOffset_;
-		if (attachedToMesh_.get()) {
-			camPos_ += attachedToMesh_->centerPosition();
-		}
-		camPos_ = (matVal_ ^ Vec4f::create(camPos_, 1.0)).xyz();
-	} else {
-		camPos_ = pos_;
-	}
-	if (isThirdPerson()) {
-		meshPos_ = camPos_;
-		rot_.setAxisAngle(Vec3f::up(), horizontalOrientation_ + meshHorizontalOrientation_);
-		Vec3f dir = rot_.rotate(Vec3f::front());
-		rot_.setAxisAngle(dir.cross(Vec3f::up()), verticalOrientation_);
-		camPos_ -= rot_.rotate(dir * meshDistance_);
-	}
-}
-
-void CameraController::updateCameraOrientation() {
-	if (isThirdPerson()) {
-		camDir_ = meshPos_ - camPos_;
-		camDir_.normalize();
-	} else {
-		rot_.setAxisAngle(Vec3f::up(), horizontalOrientation_ + meshHorizontalOrientation_);
-		camDir_ = rot_.rotate(Vec3f::front());
-		rot_.setAxisAngle(dirSidestep_, verticalOrientation_);
-		camDir_ = rot_.rotate(camDir_);
-	}
-}
-
-void CameraController::updateModel() {
-	if (attachedToTransform_.get()) {
-		// Simple rotation matrix around up vector (0,1,0)
-		float cy = cos(horizontalOrientation_), sy = sin(horizontalOrientation_);
-		matVal_.x[0] = cy;
-		matVal_.x[2] = sy;
-		matVal_.x[8] = -sy;
-		matVal_.x[10] = cy;
-		// Translate to camera position
-		matVal_.x[12] -= pos_.x;
-		matVal_.x[13] -= pos_.y;
-		matVal_.x[14] -= pos_.z;
-		pos_ = Vec3f::zero();
-	}
-}
-
-void CameraController::applyStep(float dt, const Vec3f &offset) {
-	pos_ += offset;
-}
-
 void CameraController::jump() {
 	// do nothing
 }
 
-void CameraController::cpuUpdate(double dt) {
-	step_ = Vec3f::zero();
-	isMoving_ = moveForward_ || moveBackward_ || moveLeft_ || moveRight_;
-	auto orientation = horizontalOrientation_ + meshHorizontalOrientation_;
-	auto hasOrientationChanged = orientation != lastOrientation_;
+void CameraController::initCameraController() {
+	updateCameraPose();
+	computeMatrices(camPos_, camDir_);
+	updateCamera(camPos_, camDir_, 0.0f);
+}
 
-	if (hasOrientationChanged) {
+void CameraController::cpuUpdate(double dt) {
+	updateStep(dt);
+	if (!isRotating_ && !isMoving_) return;
+
+	pos_ += step_;
+
+	updateCameraPose();
+	computeMatrices(camPos_, camDir_);
+	updateCamera(camPos_, camDir_, dt);
+}
+
+void CameraController::updateStep(double dt) {
+	step_ = Vec3f::zero();
+	isMoving_ = moveForward_ || moveBackward_ || moveLeft_ || moveRight_ || moveUp_ || moveDown_;
+	const auto orientation = horizontalOrientation_ + meshHorizontalOrientation_;
+	isRotating_ = orientation != lastOrientation_;
+	lastOrientation_ = orientation;
+
+	if (isRotating_) {
 		rot_.setAxisAngle(Vec3f::up(), orientation);
 		Vec3f d = rot_.rotate(Vec3f::front());
 
@@ -183,27 +151,51 @@ void CameraController::cpuUpdate(double dt) {
 	else if (moveDown_) {
 		stepDown(moveAmount_ * dt * 0.5);
 	}
+}
 
-	{
-		// TODO: allow setting hasUpdated_ to false to avoid unnecessary culling computations
-		//         but the kinematic controller may change camera position in applyStep below though
-		//         e.g. character stands on a moving platform.
-		//if (hasOrientationChanged || isMoving_)
-		applyStep(dt, step_);
-		updateModel();
-		updateCameraPosition();
-		updateCameraOrientation();
-		computeMatrices(camPos_, camDir_);
-		if (attachedToTransform_.get()) {
-			if(attachedToTransform_->hasModelMat()) {
-				attachedToTransform_->setModelMat(0, matVal_);
-			} else {
-				attachedToTransform_->setModelOffset(0, matVal_.position());
-			}
+void CameraController::updateCameraPose() {
+	if (attachedToTransform_.get()) {
+		// Simple rotation matrix around up vector (0,1,0)
+		float cy = cos(horizontalOrientation_), sy = sin(horizontalOrientation_);
+		matVal_.x[0] = cy;
+		matVal_.x[2] = sy;
+		matVal_.x[8] = -sy;
+		matVal_.x[10] = cy;
+		// Translate to camera position
+		matVal_.x[12] -= pos_.x;
+		matVal_.x[13] -= pos_.y;
+		matVal_.x[14] -= pos_.z;
+		pos_ = Vec3f::zero();
+
+		if(attachedToTransform_->hasModelMat()) {
+			attachedToTransform_->setModelMat(0, matVal_);
+		} else {
+			attachedToTransform_->setModelOffset(0, matVal_.position());
 		}
-		updateCamera(camPos_, camDir_, dt);
+
+		camPos_ = meshEyeOffset_;
+		if (attachedToMesh_.get()) {
+			camPos_ += attachedToMesh_->centerPosition();
+		}
+		camPos_ = (matVal_ ^ Vec4f::create(camPos_, 1.0)).xyz();
+	} else {
+		camPos_ = pos_;
 	}
-	lastOrientation_ = orientation;
+
+	if (isThirdPerson()) {
+		meshPos_ = camPos_;
+		rot_.setAxisAngle(Vec3f::up(), horizontalOrientation_ + meshHorizontalOrientation_);
+		Vec3f dir = rot_.rotate(Vec3f::front());
+		rot_.setAxisAngle(dir.cross(Vec3f::up()), verticalOrientation_);
+		camPos_ -= rot_.rotate(dir * meshDistance_);
+		camDir_ = meshPos_ - camPos_;
+		camDir_.normalize();
+	} else {
+		rot_.setAxisAngle(Vec3f::up(), horizontalOrientation_ + meshHorizontalOrientation_);
+		camDir_ = rot_.rotate(Vec3f::front());
+		rot_.setAxisAngle(dirSidestep_, verticalOrientation_);
+		camDir_ = rot_.rotate(camDir_);
+	}
 }
 
 namespace regen {
