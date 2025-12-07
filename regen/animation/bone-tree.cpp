@@ -376,6 +376,18 @@ double BoneTree::elapsedTime(uint32_t instanceIdx, AnimationHandle animHandle) c
 	}
 }
 
+double BoneTree::remainingTime(uint32_t instanceIdx, AnimationHandle animHandle) const {
+	const auto &instance = instanceData_[instanceIdx];
+	const auto &ar = instance.ranges_[animHandle];
+	if (ar.trackIdx_ == -1) {
+		return 0.0;
+	} else {
+		const Track &anim = animTracks_[ar.trackIdx_];
+		const double totalDuration = (ar.duration_ / anim.ticksPerSecond_) * 1000.0;
+		return totalDuration - ar.elapsedTime_;
+	}
+}
+
 double BoneTree::ticksPerSecond(uint32_t trackIdx) const {
 	if (trackIdx >= animTracks_.size()) {
 		return 0;
