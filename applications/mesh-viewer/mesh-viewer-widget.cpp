@@ -283,7 +283,7 @@ void MeshViewerWidget::loadMeshes_GL(const std::string &assetPath) {
 		for (auto &mesh: meshes_) {
 			auto material = asset_->getMeshMaterial(mesh.get());
 			if (material.get() != nullptr) {
-				mesh->joinStates(material);
+				mesh->setMaterial(material);
 			}
 		}
 		transformMesh(0.0f);
@@ -401,6 +401,7 @@ void MeshViewerWidget::createCameraController() {
 	cameraController_->setHorizontalOrientation(0.0);
 	cameraController_->setVerticalOrientation(0.0);
 	cameraController_->setCameraMode(CameraController::FIRST_PERSON);
+	cameraController_->initCameraController();
 	cameraController_->startAnimation();
 
 	std::vector<CameraCommandMapping> keyMappings;
