@@ -201,6 +201,8 @@ ref_ptr<GrassPatch> GrassPatch::load(
 	}
 	if (!tf.get()) {
 		tf = ref_ptr<ModelTransformation>::alloc();
+		tf->setModelMat(0, Mat4f::identity());
+		tf->tfBuffer()->updateBuffer();
 	}
 
 	MaskMesh::Config maskCfg;

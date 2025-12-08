@@ -449,6 +449,8 @@ void MeshViewerWidget::gl_loadScene() {
 
 	// enable model transformation
 	modelTransform_ = ref_ptr<ModelTransformation>::alloc();
+	modelTransform_->setModelMat(0, Mat4f::identity());
+	modelTransform_->tfBuffer()->updateBuffer();
 	sceneRoot_->state()->joinStates(modelTransform_);
 
 	// enable wireframe mode
