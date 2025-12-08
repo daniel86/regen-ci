@@ -8,7 +8,6 @@
 
 #define QUAD_TREE_DEBUG_TIME
 //#define QUAD_TREE_DISABLE_SIMD
-//#define QUAD_TREE_REINSERT_ON_MOVE
 
 #ifdef QUAD_TREE_DEBUG_TIME
 #include "regen/gl/queries/elapsed-time.h"
@@ -171,47 +170,41 @@ void QuadTree::insert(const ref_ptr<BoundingShape> &shape) {
 	addToIndex(shape);
 }
 
+bool QuadTree::readd(uint32_t itemIdx, bool allowSubdivision) { // NOLINT(misc-no-recursion)
+	const auto &shape = itemBoundingShapes_[itemIdx];
+	const OrthogonalProjection &projection = shape->orthoProjection();
+
+	if (root_->contains(projection)) {
+		// the node fully contains the shape, try to insert it here
+		if (insert1(root_, itemIdx, allowSubdivision)) {
+			return true;
+		} else {
+			itemNodeIdx_[itemIdx] = root_->nodeIdx;
+			return false;
+		}
+	} else {
+		REGEN_WARN("Shape '" << shape->name() << "." << shape->instanceID() << "' is out of bounds!");
+		// the shape is out of bounds, reinsert at root
+		itemNodeIdx_[itemIdx] = root_->nodeIdx;
+		return false;
+	}
+}
+
 bool QuadTree::reinsert(uint32_t itemIdx, bool allowSubdivision) { // NOLINT(misc-no-recursion)
 	const auto &shape = itemBoundingShapes_[itemIdx];
 	const auto nodeIdx = itemNodeIdx_[itemIdx];
 	const auto idxInNode = itemIdxInNode_[itemIdx];
 	const OrthogonalProjection &projection = shape->orthoProjection();
-	Node *m;
-	if (nodeIdx != -1) {
-		m = nodes_[nodeIdx];
-		removeFromNode(m, idxInNode);
-		itemNodeIdx_[itemIdx] = -1;
-	} else {
-		m = root_;
-	}
 
-	if (m->contains(projection)) {
-		// the node fully contains the shape, try to insert it here
-		if (insert1(m, itemIdx, allowSubdivision)) {
-			if (itemNodeIdx_[itemIdx] != static_cast<int>(m->nodeIdx)) collapse(m);
-			return true;
-		} else {
-			itemNodeIdx_[itemIdx] = m->nodeIdx;
-			return false;
-		}
-	}
-	if (m->parentIdx == -1) {
-		REGEN_WARN("Shape '" << shape->name() << "." << shape->instanceID() << "' is out of bounds!");
-		// the shape is out of bounds, reinsert at root
-		itemNodeIdx_[itemIdx] = m->nodeIdx;
-		return false;
-	}
-	Node *n = nodes_[m->parentIdx];
+	Node *m = nodes_[nodeIdx];
+	removeFromNode(m, idxInNode);
+	itemNodeIdx_[itemIdx] = -1;
+
+	Node *n = m;
 	while (n->parentIdx != -1 && !n->contains(projection)) {
 		n = nodes_[n->parentIdx];
 	}
-#ifdef QUAD_TREE_REINSERT_ON_MOVE
 	insert1(n, itemIdx, allowSubdivision);
-#else
-	itemNodeIdx_[itemIdx] = n->nodeIdx;
-	itemIdxInNode_[itemIdx] = n->items.size();
-	n->items.push_back(itemIdx);
-#endif
 	if (n->nodeIdx != m->nodeIdx) collapse(m);
 	return true;
 }
@@ -939,6 +932,7 @@ void QuadTree::update(float dt) {
 #endif
 
 	changedItems_.clear();
+	reAddedItems_.clear();
 	newBounds_.min.x = maxFloat;
 	newBounds_.min.y = maxFloat;
 	newBounds_.max.x = minFloat;
@@ -971,20 +965,14 @@ void QuadTree::update(float dt) {
 		hasChanged = shape->updateTransform(hasChanged) || hasChanged;
 		if (hasChanged) {
 			projection.update(*shape.get());
-#ifdef QUAD_TREE_REINSERT_ON_MOVE
-			// Check if the item still is within its current node
 			if (nodeIdx != -1) {
-				const auto &node = nodes_[nodeIdx];
-				if (!node->contains(projection)) {
+				if (const auto &node = nodes_[nodeIdx]; !node->isLeaf() || !node->contains(projection)) {
 					// item has moved outside its node, so we need to re-insert it
 					changedItems_.push_back(itemIdx);
 				}
 			} else {
-				changedItems_.push_back(itemIdx);
+				reAddedItems_.push_back(itemIdx);
 			}
-#else
-			changedItems_.push_back(itemIdx);
-#endif
 		}
 		newBounds_.extend(projection.bounds);
 	}
@@ -1028,6 +1016,9 @@ void QuadTree::update(float dt) {
 		// else remove/insert the changed items
 		for (uint32_t itemIdx: changedItems_) {
 			reinsert(itemIdx, true);
+		}
+		for (uint32_t itemIdx: reAddedItems_) {
+			readd(itemIdx, true);
 		}
 	}
 #ifdef QUAD_TREE_DEBUG_TIME
