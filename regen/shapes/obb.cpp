@@ -98,10 +98,11 @@ void OBB::updateBaseBounds(const Vec3f &min, const Vec3f &max) {
 
 void OBB::applyTransform(const Mat4f &tf) {
 	REGEN_OBB_BATCH_DATA_AXES_array(g, globalBatchData_);
-	tfOrigin_ = (tf ^ Vec4f::create(Vec3f::right(), 0.0f)).xyz(); _set_axis(0, tfOrigin_);
-	tfOrigin_ = (tf ^ Vec4f::create(Vec3f::up(),    0.0f)).xyz(); _set_axis(1, tfOrigin_);
-	tfOrigin_ = (tf ^ Vec4f::create(Vec3f::front(), 0.0f)).xyz(); _set_axis(2, tfOrigin_);
-	tfOrigin_ = (tf ^ Vec4f::create(basePosition_, 1.0f)).xyz();
+	Vec3f tmp;
+	tmp = tf.mul_t30(Vec3f::right()); _set_axis(0, tmp);
+	tmp = tf.mul_t30(Vec3f::up()); _set_axis(1, tmp);
+	tmp = tf.mul_t30(Vec3f::front()); _set_axis(2, tmp);
+	tfOrigin_ = tf.mul_t31(basePosition_);
 }
 
 void OBB::updateOBB() {
@@ -113,7 +114,7 @@ void OBB::updateOBB() {
 	// compute axes of the OBB based on the model transformation
 	if (transform_.get()) {
 		if (transform_->hasModelMat()) {
-			auto tf = transform_->modelMat()->getVertex(transformIndex_);
+			const auto tf = transform_->modelMat()->getVertex(transformIndex_);
 			applyTransform(tf.r);
 			scaling = tf.r.scaling();
 		} else {
@@ -182,7 +183,7 @@ Vec3f OBB::closestPointOnSurface(const Vec3f &point) const {
 	REGEN_OBB_BATCH_DATA_SIZE_array(g, globalBatchData_);
 	REGEN_OBB_BATCH_DATA_AXES_array(g, globalBatchData_);
 	const Vec3f &obbCenter = tfOrigin();
-	Vec3f d = point - obbCenter;
+	const Vec3f d = point - obbCenter;
 
 	Vec3f tf_closest = obbCenter;
 	for (int i = 0; i < 3; ++i) {
@@ -359,14 +360,14 @@ void OBB::batchTest_Spheres(BatchedIntersectionCase &td) {
 
 	// Scalar fallback for remaining items
 	for (; queuedIdx < numQueued; queuedIdx++) {
-		auto itemIdx = td.queuedIndices[queuedIdx];
+		const auto itemIdx = td.queuedIndices[queuedIdx];
 		const Vec3f p1(
 			d_spherePosX[queuedIdx],
 			d_spherePosY[queuedIdx],
 			d_spherePosZ[queuedIdx]);
-		float radiusSq = d_sphereRadius[queuedIdx] * d_sphereRadius[queuedIdx];
+		const float radiusSq = d_sphereRadius[queuedIdx] * d_sphereRadius[queuedIdx];
 		// compute the closest point on OBB to sphere center
-		Vec3f closest = testShape.closestPointOnSurface(p1);
+		const Vec3f closest = testShape.closestPointOnSurface(p1);
 		if ((closest - p1).lengthSquared() <= radiusSq) {
 			td.hits->push(itemIdx);
 		}

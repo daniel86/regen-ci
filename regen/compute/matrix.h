@@ -306,6 +306,30 @@ namespace regen {
 		}
 
 		/**
+		 * Transposed Matrix-Vec3 multiplication (ignoring translation, w=0).
+		 * @param v the vector.
+		 * @return transformed vector.
+		 */
+		constexpr Vec3f mul_t30(const Vec3f &v) const {
+			return Vec3f{
+				v.x * x[0] + v.y * x[4] + v.z * x[8],
+				v.x * x[1] + v.y * x[5] + v.z * x[9],
+				v.x * x[2] + v.y * x[6] + v.z * x[10]};
+		}
+
+		/**
+		 * Transposed Matrix-Vec3 multiplication (including translation, w=1).
+		 * @param v the vector.
+		 * @return transformed vector.
+		 */
+		constexpr Vec3f mul_t31(const Vec3f &v) const {
+			return Vec3f{
+				v.x * x[0] + v.y * x[4] + v.z * x[8] + x[12],
+				v.x * x[1] + v.y * x[5] + v.z * x[9] + x[13],
+				v.x * x[2] + v.y * x[6] + v.z * x[10] + x[14]};
+		}
+
+		/**
 		 * Matrix-Matrix multiplication.
 		 * @param b another matrix.
 		 * @return the matrix product.

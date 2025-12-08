@@ -35,7 +35,7 @@ Vec3f Affordance::computeSlotPosition(int idx) const {
 		auto tf = owner->shape()->transform();
 		if (tf.get() && tf->hasModelMat()) {
 			auto mat = tf->modelMat()->getVertex(owner->shape()->instanceID());
-			pos = (mat.r ^ baseOffset).xyz();
+			pos = mat.r.mul_t31(baseOffset);
 			center = mat.r.position();
 		} else {
 			pos = center + baseOffset;
