@@ -172,6 +172,7 @@ namespace regen {
 
 		Bounds<Vec2f> newBounds_;
 		std::vector<uint32_t> changedItems_;
+		std::vector<uint32_t> reAddedItems_;
 
 		Node *createNode(const Vec2f &min, const Vec2f &max);
 
@@ -180,6 +181,8 @@ namespace regen {
 		Item *createItem(const ref_ptr<BoundingShape> &shape);
 
 		void freeItem(Item *item);
+
+		bool readd(uint32_t itemIdx, bool allowSubdivision);
 
 		bool reinsert(uint32_t itemIdx, bool allowSubdivision);
 

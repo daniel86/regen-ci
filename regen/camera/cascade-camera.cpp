@@ -193,14 +193,14 @@ bool LightCamera_CSM::updateLightProjection() {
 		bounds.min = Vec3f::posMax();
 		bounds.max = Vec3f::negMax();
 		for (int frustumIndex = 0; frustumIndex < 8; ++frustumIndex) {
-			Vec4f point_ls;
+			Vec3f point_ls;
 			if constexpr (CSM_USE_SINGLE_VIEW) {
-				point_ls = view_[0] ^ Vec4f::create(u_frustum.points[frustumIndex], 1.0f);
+				point_ls = view_[0].mul_t31(u_frustum.points[frustumIndex]);
 			} else {
-				point_ls = view(layerIndex) ^ Vec4f::create(u_frustum.points[frustumIndex], 1.0f);
+				point_ls = view(layerIndex).mul_t31(u_frustum.points[frustumIndex]);
 			}
-			bounds.min.setMin(point_ls.xyz());
-			bounds.max.setMax(point_ls.xyz());
+			bounds.min.setMin(point_ls);
+			bounds.max.setMax(point_ls);
 			zRange.x = std::min(zRange.x, point_ls.z);
 			zRange.y = std::max(zRange.y, point_ls.z);
 		}

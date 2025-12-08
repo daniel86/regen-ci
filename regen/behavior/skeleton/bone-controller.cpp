@@ -4,8 +4,8 @@
 
 using namespace regen;
 
-//#define BONE_CONTROLLER_DEBUG_ACTION ActionType::ATTACKING
 //#define BONE_CONTROLLER_DEBUG_STATE
+//#define BONE_CONTROLLER_DEBUG_ACTION ActionType::ATTACKING
 #if defined(BONE_CONTROLLER_DEBUG_ACTION) && !defined(BONE_CONTROLLER_DEBUG_STATE)
 #define BONE_CONTROLLER_DEBUG_STATE
 #endif
@@ -68,13 +68,11 @@ BoneController::BoneController(uint32_t instanceIdx, const ref_ptr<BoneAnimation
 
 	// Connect to animation stopped event such that we can restart the animation
 	// in case the corresponding motion is still desired.
-	/**
 	const auto eventHandler = ref_ptr<LambdaEventHandler>::alloc(
 		[&](EventObject *, EventData *data) {
 			handleAnimationStopped(*static_cast<BoneTree::BoneEvent *>(data));
 		});
 	animItem_->boneTree->connect(Animation::ANIMATION_STOPPED, eventHandler);
-	**/
 }
 
 BodyPart BoneController::getBodyPartType(const std::string &startNodeName) const {
@@ -100,7 +98,7 @@ void BoneController::handleAnimationStopped(BoneTree::BoneEvent &eventData) {
 		// not found
 		return;
 	}
-	if (stoppedMotion->clipStatus == CLIP_LOOPING) {
+	if (stoppedMotion->clipStatus == CLIP_LOOPING && stoppedMotion->fadeTime > 1e-5f) {
 		eventData.range->trackIdx_ = eventData.trackIdx;
 	}
 }
@@ -323,8 +321,18 @@ void BoneController::updateMotionClip(MotionData &motion, MotionClip &clip) {
 			motion.handle = startBoneAnimation(motion, clip.begin);
 			motion.clipStatus = CLIP_BEGINNING;
 		} else {
-			motion.status = MOTION_INACTIVE;
-			BONE_CTRL_DEBUG(clip.motion, "is now inactive");
+			if (motion.fadeTime > 1e-5f && clip.loop) {
+				// If we are still fading out, activate looping segment such that we
+				// can fade it out properly.
+				motion.handle = startBoneAnimation(motion, clip.loop);
+				motion.clipStatus = CLIP_LOOPING;
+				BONE_CTRL_DEBUG(clip.motion, "starts looping during fade out");
+			} else {
+				// No looping or ending segment, so toggle the motion off.
+				motion.status = MOTION_INACTIVE;
+				motion.fadeTime = 0.0f;
+				BONE_CTRL_DEBUG(clip.motion, "is now inactive");
+			}
 		}
 	}
 	else if (motion.clipStatus == CLIP_LOOPING) {
@@ -347,13 +355,22 @@ void BoneController::updateMotionClip(MotionData &motion, MotionClip &clip) {
 			motion.clipStatus = CLIP_ENDING;
 		} else {
 			// No ending segment, so toggle the motion off.
-			motion.status = MOTION_INACTIVE;
-			BONE_CTRL_DEBUG(clip.motion, "is now inactive");
+			if (motion.fadeTime > 1e-5f) {
+				motion.handle = startBoneAnimation(motion, clip.loop);
+				BONE_CTRL_DEBUG(clip.motion, "is now looping during fade out");
+			} else {
+				motion.status = MOTION_INACTIVE;
+				motion.fadeTime = 0.0f;
+				BONE_CTRL_DEBUG(clip.motion, "is now inactive");
+			}
 		}
 	}
 	else if (motion.clipStatus == CLIP_ENDING) {
 		// Ending segment is done, so toggle the motion off.
+		// Note: even if fading out, we do not restart the ending segment,
+		// hoping that the ending segment brings the mesh into good rest pose.
 		motion.status = MOTION_INACTIVE;
+		motion.fadeTime = 0.0f;
 		BONE_CTRL_DEBUG(clip.motion, "is now inactive");
 	}
 }
@@ -387,6 +404,7 @@ void BoneController::updateMotionClip(MotionData &motion, float dt_s) {
 			} else {
 				// Could not start motion, so set to inactive again.
 				motion.status = MOTION_INACTIVE;
+				motion.fadeTime = 0.0f;
 				BONE_CTRL_DEBUG(motion.action, "could not be started");
 			}
 			break;
@@ -405,7 +423,13 @@ void BoneController::updateMotionClip(MotionData &motion, float dt_s) {
 			if (!isInterruptibleMotion(undesiredMotion)) {
 				// Avoid interrupting some motions in the middle by fading them out
 				// e.g. attack/block animations should play to the end.
-				break;
+				// -> check if the remaining time is less than the fade duration.
+				auto remaining = animItem_->boneTree->remainingTime(instanceIdx_, motion.handle) * 0.001f;
+				// Start fading out a bit earlier to avoid overshooting.
+				remaining -= 0.1f*motionFadeDuration_;
+				if (remaining > motionFadeDuration_) {
+					break;
+				}
 			}
 
 			motion.fadeTime -= dt_s;

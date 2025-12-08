@@ -123,8 +123,9 @@ bool ReflectionCamera::updateReflection() {
 			if (transform_.get() != nullptr) {
 				if (!transform_->hasClientData()) transform_->readServerData();
 				auto transform = transform_->mapClientData<Mat4f>(BUFFER_GPU_READ);
-				posWorld_ = (transform.r[0] ^ Vec4f::create(posWorld_, 1.0)).xyz();
-				norWorld_ = (transform.r[0] ^ Vec4f::create(norWorld_, 0.0)).xyz();
+				const Mat4f &M = transform.r[0];
+				posWorld_ = M.mul_t31(posWorld_);
+				norWorld_ = M.mul_t30(norWorld_);
 				norWorld_.normalize();
 			}
 		}

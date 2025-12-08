@@ -271,6 +271,11 @@ namespace regen {
 		double elapsedTime(uint32_t instanceIdx, AnimationHandle animHandle) const;
 
 		/**
+		 * @return the remaining time of an active animation in milliseconds.
+		 */
+		double remainingTime(uint32_t instanceIdx, AnimationHandle animHandle) const;
+
+		/**
 		 * @param trackIdx the animation track index.
 		 * @return the ticks per second of the given animation track.
 		 */

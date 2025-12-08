@@ -742,7 +742,26 @@ void main() {
 }
 
 -- splat.mouse.vs
-#include fluid.vs
+out vec2 out_texco;
+#ifdef IS_VOLUME
+out vec4 out_pos;
+out int out_instanceID;
+#endif
+flat out mat4 out_invModelMatrix;
+
+in vec3 in_pos;
+
+void main()
+{
+#ifdef IS_VOLUME
+    out_pos = vec4(in_pos.xy, 0.0, 1.0);
+    out_instanceID = gl_InstanceID + gl_BaseInstance;
+#endif
+    out_texco = 0.5*(in_pos.xy+vec2(1.0));
+    out_invModelMatrix = inverse(in_modelMatrix);
+    gl_Position = vec4(in_pos.xy, 0.0, 1.0);
+}
+
 -- splat.mouse.fs
 #include fluid.fs.header
 #include regen.states.camera.defines
@@ -765,6 +784,7 @@ uniform vec2 in_objectSize;
 
 uniform texture2D in_gDepthTexture;
 
+flat in mat4 in_invModelMatrix;
 out vec4 out_color;
 
 #define AA_PIXELS 2.0
@@ -780,8 +800,7 @@ void main() {
     vec3 mouseWS = transformTexcoToWorld(mouseUV, texture(in_gDepthTexture, mouseUV).x, in_layer);
     vec4 mouseWorldSpace = vec4(mouseWS, 1.0);
     // Transform from world space to local space using the inverse model matrix.
-    // TODO: rather compute model inverse on cpu and hand in
-    vec4 mouseLocalSpace = inverse(in_modelMatrix) * mouseWorldSpace;
+    vec4 mouseLocalSpace = in_invModelMatrix * mouseWorldSpace;
     // Normalize the mouse position to the object size
     vec2 normalizedMouseLocalSpace = ((mouseLocalSpace.xz + 0.5*in_objectSize) / in_objectSize);
     normalizedMouseLocalSpace.x = clamp(normalizedMouseLocalSpace.x, 0.0, 1.0);

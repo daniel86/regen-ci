@@ -134,6 +134,34 @@ namespace regen::simd {
 		return _mm_cvtss_f32(sums);
 	}
 
+	/**
+	 * Horizontal min of all elements in an __m256
+	 */
+	inline float hmin_ps(__m256 v) {
+		__m128 vlow  = _mm256_castps256_ps128(v);        // low 128
+		__m128 vhigh = _mm256_extractf128_ps(v, 1);   // high 128
+		__m128 min   = _mm_min_ps(vlow, vhigh);       // min low and high parts
+		__m128 shuf  = _mm_movehdup_ps(min);             // (min.y, min.y, min.w, min.w)
+		__m128 mins  = _mm_min_ps(min, shuf);
+		shuf         = _mm_movehl_ps(shuf, mins);     // high half of mins
+		mins         = _mm_min_ss(mins, shuf);
+		return _mm_cvtss_f32(mins);
+	}
+
+	/**
+	 * Horizontal max of all elements in an __m256
+	 */
+	inline float hmax_ps(__m256 v) {
+		__m128 vlow  = _mm256_castps256_ps128(v);        // low 128
+		__m128 vhigh = _mm256_extractf128_ps(v, 1);   // high 128
+		__m128 max   = _mm_max_ps(vlow, vhigh);       // max low and high parts
+		__m128 shuf  = _mm_movehdup_ps(max);             // (max.y, max.y, max.w, max.w)
+		__m128 maxs  = _mm_max_ps(max, shuf);
+		shuf         = _mm_movehl_ps(shuf, maxs);     // high half of maxs
+		maxs         = _mm_max_ss(maxs, shuf);
+		return _mm_cvtss_f32(maxs);
+	}
+
 	inline __m256 rcp_ps(const __m256 &a) { return _mm256_rcp_ps(a); }
 
 	inline __m256 cmp_lt(const __m256 &a, const __m256 &b) {
@@ -625,6 +653,30 @@ namespace regen {
 		BatchOf_float blend(const BatchOf_float &other, const BatchOf_float &mask) const {
 			// select elements from 'other' where the sign bit of 'mask' is set
 			return BatchOf_float{ simd::blendv_ps(c, other.c, mask.c)};
+		}
+
+		/**
+		 * Compute the horizontal sum of all elements in the batch.
+		 * @return The sum of all elements in the batch.
+		 */
+		float horizontalSum() const {
+			return simd::hsum_ps(c);
+		}
+
+		/**
+		 * Compute the horizontal minimum of all elements in the batch.
+		 * @return The minimum float value among all elements in the batch.
+		 */
+		float horizontalMin() const {
+			return simd::hmin_ps(c);
+		}
+
+		/**
+		 * Compute the horizontal maximum of all elements in the batch.
+		 * @return The maximum float value among all elements in the batch.
+		 */
+		float horizontalMax() const {
+			return simd::hmax_ps(c);
 		}
 	};
 
