@@ -114,6 +114,12 @@ namespace regen {
 		static void batchTest_Frustums(BatchedIntersectionCase&);
 
 	protected:
+		AlignedArray<float> baseCornerX_ = AlignedArray<float>(8);
+		AlignedArray<float> baseCornerY_ = AlignedArray<float>(8);
+		AlignedArray<float> baseCornerZ_ = AlignedArray<float>(8);
+
+		void updateBaseCorners();
+
 		void updateAABB();
 	};
 

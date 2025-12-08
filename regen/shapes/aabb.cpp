@@ -15,11 +15,13 @@ using namespace regen;
 
 AABB::AABB(const ref_ptr<Mesh> &mesh, const std::vector<ref_ptr<Mesh>> &parts)
 		: BoundingBox(BoundingShapeType::AABB, mesh, parts) {
+	updateBaseCorners();
 	updateAABB();
 }
 
 AABB::AABB(const Bounds<Vec3f> &bounds)
 		: BoundingBox(BoundingShapeType::AABB, bounds) {
+	updateBaseCorners();
 	updateAABB();
 }
 
@@ -46,6 +48,37 @@ void AABB::updateBaseBounds(const Vec3f &min, const Vec3f &max) {
 	basePosition_ = (baseBounds_.max + baseBounds_.min) * 0.5f;
 	// reset TF stamp to force update
 	lastTransformStamp_ = 0;
+	// load base corners into aligned arrays
+	updateBaseCorners();
+}
+
+void AABB::updateBaseCorners() {
+	baseCornerX_[0] = baseBounds_.min.x;
+	baseCornerX_[1] = baseBounds_.min.x;
+	baseCornerX_[2] = baseBounds_.min.x;
+	baseCornerX_[3] = baseBounds_.min.x;
+	baseCornerX_[4] = baseBounds_.max.x;
+	baseCornerX_[5] = baseBounds_.max.x;
+	baseCornerX_[6] = baseBounds_.max.x;
+	baseCornerX_[7] = baseBounds_.max.x;
+
+	baseCornerY_[0] = baseBounds_.min.y;
+	baseCornerY_[1] = baseBounds_.min.y;
+	baseCornerY_[2] = baseBounds_.max.y;
+	baseCornerY_[3] = baseBounds_.max.y;
+	baseCornerY_[4] = baseBounds_.min.y;
+	baseCornerY_[5] = baseBounds_.min.y;
+	baseCornerY_[6] = baseBounds_.max.y;
+	baseCornerY_[7] = baseBounds_.max.y;
+
+	baseCornerZ_[0] = baseBounds_.min.z;
+	baseCornerZ_[1] = baseBounds_.max.z;
+	baseCornerZ_[2] = baseBounds_.min.z;
+	baseCornerZ_[3] = baseBounds_.max.z;
+	baseCornerZ_[4] = baseBounds_.min.z;
+	baseCornerZ_[5] = baseBounds_.max.z;
+	baseCornerZ_[6] = baseBounds_.min.z;
+	baseCornerZ_[7] = baseBounds_.max.z;
 }
 
 void AABB::updateAABB() {
@@ -54,33 +87,52 @@ void AABB::updateAABB() {
 
 #define _set_min(v) g_minX[globalIndex_] = v.x; g_minY[globalIndex_] = v.y; g_minZ[globalIndex_] = v.z
 #define _set_max(v) g_maxX[globalIndex_] = v.x; g_maxY[globalIndex_] = v.y; g_maxZ[globalIndex_] = v.z
-#define _set_minmax(v) \
-	transformed = (tf.r ^ v).xyz(); \
-	g_minX[globalIndex_] = std::min(g_minX[globalIndex_], transformed.x); \
-	g_minY[globalIndex_] = std::min(g_minY[globalIndex_], transformed.y); \
-	g_minZ[globalIndex_] = std::min(g_minZ[globalIndex_], transformed.z); \
-	g_maxX[globalIndex_] = std::max(g_maxX[globalIndex_], transformed.x); \
-	g_maxY[globalIndex_] = std::max(g_maxY[globalIndex_], transformed.y); \
-	g_maxZ[globalIndex_] = std::max(g_maxZ[globalIndex_], transformed.z)
-
 	// apply transform
 	if (transform_.get()) {
 		if (transform_->hasModelMat()) {
 			auto tf = transform_->modelMat()->getVertexClamped(transformIndex_);
-			// compute transformed bounds
-			Vec3f transformed;
-			_set_min(Vec3f::posMax());
-			_set_max(Vec3f::negMax());
-			// min = min(all 8 transformed vertices)
-			// max = max(all 8 transformed vertices)
-			_set_minmax(Vec3f(baseBounds_.min.x, baseBounds_.min.y, baseBounds_.min.z));
-			_set_minmax(Vec3f(baseBounds_.min.x, baseBounds_.min.y, baseBounds_.max.z));
-			_set_minmax(Vec3f(baseBounds_.min.x, baseBounds_.max.y, baseBounds_.min.z));
-			_set_minmax(Vec3f(baseBounds_.min.x, baseBounds_.max.y, baseBounds_.max.z));
-			_set_minmax(Vec3f(baseBounds_.max.x, baseBounds_.min.y, baseBounds_.min.z));
-			_set_minmax(Vec3f(baseBounds_.max.x, baseBounds_.min.y, baseBounds_.max.z));
-			_set_minmax(Vec3f(baseBounds_.max.x, baseBounds_.max.y, baseBounds_.min.z));
-			_set_minmax(Vec3f(baseBounds_.max.x, baseBounds_.max.y, baseBounds_.max.z));
+			const Mat4f &M = tf.r;
+
+			// Load base corners
+			const auto* __restrict cx = static_cast<float*>(__builtin_assume_aligned(baseCornerX_.data(), 32));
+			const auto* __restrict cy = static_cast<float*>(__builtin_assume_aligned(baseCornerY_.data(), 32));
+			const auto* __restrict cz = static_cast<float*>(__builtin_assume_aligned(baseCornerZ_.data(), 32));
+			const BatchOf_float xs = BatchOf_float::loadAligned(cx);
+			const BatchOf_float ys = BatchOf_float::loadAligned(cy);
+			const BatchOf_float zs = BatchOf_float::loadAligned(cz);
+
+			// Transform all 8 corners
+			BatchOf_float x_prime, y_prime, z_prime;
+			{
+				const BatchOf_float m00 = BatchOf_float::fromScalar(M.x[0]);
+				const BatchOf_float m01 = BatchOf_float::fromScalar(M.x[4]);
+				const BatchOf_float m02 = BatchOf_float::fromScalar(M.x[8]);
+				const BatchOf_float m03 = BatchOf_float::fromScalar(M.x[12]);
+				x_prime = xs*m00 + ys*m01 + zs*m02 + m03;
+			}
+			{
+				const BatchOf_float m10 = BatchOf_float::fromScalar(M.x[1]);
+				const BatchOf_float m11 = BatchOf_float::fromScalar(M.x[5]);
+				const BatchOf_float m12 = BatchOf_float::fromScalar(M.x[9]);
+				const BatchOf_float m13 = BatchOf_float::fromScalar(M.x[13]);
+				y_prime = xs*m10 + ys*m11 + zs*m12 + m13;
+			}
+			{
+				const BatchOf_float m20 = BatchOf_float::fromScalar(M.x[2]);
+				const BatchOf_float m21 = BatchOf_float::fromScalar(M.x[6]);
+				const BatchOf_float m22 = BatchOf_float::fromScalar(M.x[10]);
+				const BatchOf_float m23 = BatchOf_float::fromScalar(M.x[14]);
+				z_prime = xs*m20 + ys*m21 + zs*m22 + m23;
+			}
+
+			// Extract min/max
+			g_minX[globalIndex_] = x_prime.horizontalMin();
+			g_maxX[globalIndex_] = x_prime.horizontalMax();
+			g_minY[globalIndex_] = y_prime.horizontalMin();
+			g_maxY[globalIndex_] = y_prime.horizontalMax();
+			g_minZ[globalIndex_] = z_prime.horizontalMin();
+			g_maxZ[globalIndex_] = z_prime.horizontalMax();
+
 			// tfOrigin = (tfBounds.min + tfBounds.max) * 0.5f;
 			tfOrigin_.x = (g_minX[globalIndex_] + g_maxX[globalIndex_]) * 0.5f;
 			tfOrigin_.y = (g_minY[globalIndex_] + g_maxY[globalIndex_]) * 0.5f;
@@ -110,7 +162,6 @@ void AABB::updateAABB() {
 		_set_max(baseBounds_.max);
 		tfOrigin_ = basePosition_;
 	}
-#undef _set_minmax
 #undef _set_min
 #undef _set_max
 }
