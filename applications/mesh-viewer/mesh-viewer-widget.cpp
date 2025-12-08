@@ -462,7 +462,7 @@ void MeshViewerWidget::gl_loadScene() {
 
 	// enable light, and use it in direct shading
 	auto shadingState = ref_ptr<DirectShading>::alloc();
-	shadingState->ambientLight()->setVertex(0, Vec3f(0.3f));
+	shadingState->ambientLight()->setVertex(0, Vec3f(0.3f, 0.3f, 0.3f));
 
 	sceneLight_[0] = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
 	sceneLight_[0]->setDirection(0, Vec3f(0.0f, 1.0f, 0.0f).normalize());
@@ -512,7 +512,7 @@ void MeshViewerWidget::transformMesh(double dt) {
 	meshQuaternion_.setAxisAngle(Vec3f::up(), meshOrientation_);
 	auto mat = meshQuaternion_.calculateMatrix();
 	mat.translate(meshOrigin_);
-	mat.scale(Vec3f(meshScale_));
+	mat.scale(Vec3f(meshScale_, meshScale_, meshScale_));
 	modelTransform_->setModelMat(0, mat);
 }
 

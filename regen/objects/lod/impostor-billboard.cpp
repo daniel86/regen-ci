@@ -20,7 +20,7 @@ static ref_ptr<Rectangle> getImpostorQuad() {
 		cfg.levelOfDetails = {0};
 		cfg.posScale = Vec3f::one();
 		cfg.rotation = Vec3f(0.5 * M_PI, 0.0f, 0.0f);
-		cfg.texcoScale = Vec2f(1.0);
+		cfg.texcoScale = Vec2f(1.0, 1.0f);
 		cfg.translation = Vec3f(-0.5f, -0.5f, 0.0f);
 		mesh = ref_ptr<Rectangle>::alloc(cfg);
 		mesh->updateAttributes();
