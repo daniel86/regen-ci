@@ -8,24 +8,10 @@ using namespace regen;
 
 ref_ptr<Mesh> MeshNodeProvider::getMeshCopy(const ref_ptr<Mesh> &originalMesh) {
 	if (originalMesh.get() == nullptr) { return originalMesh; }
-	ref_ptr<Mesh> meshCopy;
-#if 1
 	if (!usedMeshes_.contains(originalMesh.get())) {
-		// mesh not referenced yet. Take the reference we have to keep
-		// reference on special mesh types like Sky.
-		meshCopy = originalMesh;
-		usedMeshes_.insert(originalMesh.get());
-	} else {
-		meshCopy = ref_ptr<Mesh>::alloc(originalMesh);
-	}
-#else
-	// TODO: Problem with impostor if original is not used.
-	if (usedMeshes_.count(originalMesh.get()) == 0) {
 		usedMeshes_.insert(originalMesh.get());
 	}
-	meshCopy = ref_ptr<Mesh>::alloc(originalMesh);
-#endif
-	return meshCopy;
+	return ref_ptr<Mesh>::alloc(originalMesh);
 }
 
 static ref_ptr<LODState> createCullState(

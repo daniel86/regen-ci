@@ -389,27 +389,13 @@ ref_ptr<CompositeMesh> CompositeMesh::load(LoadingContext &ctx, scene::SceneInpu
 		}
 	}
 
-	// attach lod meshes to the base mesh
+	// Remember LOD-meshes, we need to process them after the base mesh is fully configured
+	std::vector<ref_ptr<scene::SceneInputNode> > lodMeshes;
 	auto lodMeshInput = input.getFirstChild("lod-meshes");
 	if (lodMeshInput.get() != nullptr) {
 		visited.push_back(lodMeshInput);
 		for (auto &meshChild: lodMeshInput->getChildren("mesh")) {
-			// First try to find existing CompositeMesh resource
-			ref_ptr<CompositeMesh> lodMeshVec = parser->getResources()->getMesh(parser, meshChild->getValue("id"));
-			if (lodMeshVec.get() == nullptr || lodMeshVec->meshes().empty()) {
-				// Else try to create new one from child node
-				lodMeshVec = parser->getResources()->createMesh(parser, *meshChild.get());
-			}
-			if (lodMeshVec.get() == nullptr || lodMeshVec->meshes().empty()) {
-				REGEN_WARN("Ignoring " << meshChild->getDescription() << ", failed to load lod mesh.");
-				continue;
-			}
-			auto lodMesh = lodMeshVec->meshes()[0];
-			if (lodMeshVec->meshes().size() > 1) {
-				REGEN_WARN("multiple lod mesh indices in '" << meshChild->getDescription() << "'.");
-			}
-			lodMesh->shaderDefine("HAS_LOD", "TRUE");
-			REGEN_DEBUG("Adding LOD mesh '" << meshChild->getName() << "' to base mesh.");
+			lodMeshes.push_back(meshChild);
 		}
 	}
 	// remove visited children
@@ -439,6 +425,59 @@ ref_ptr<CompositeMesh> CompositeMesh::load(LoadingContext &ctx, scene::SceneInpu
 
 	// Mesh resources can have State children
 	if (!out->meshes().empty()) processMeshChildren(ctx, input, *out);
+
+	for (auto &meshChild: lodMeshes) {
+		// First try to find existing CompositeMesh resource
+		ref_ptr<CompositeMesh> lodMeshVec = parser->getResources()->getMesh(parser, meshChild->getValue("id"));
+		if (lodMeshVec.get() == nullptr || lodMeshVec->meshes().empty()) {
+			// Else try to create new one from child node
+			lodMeshVec = parser->getResources()->createMesh(parser, *meshChild.get());
+		}
+		if (lodMeshVec.get() == nullptr || lodMeshVec->meshes().empty()) {
+			REGEN_WARN("Ignoring " << meshChild->getDescription() << ", failed to load lod mesh.");
+			continue;
+		}
+		auto lodMesh = lodMeshVec->meshes()[0];
+		if (lodMeshVec->meshes().size() > 1) {
+			REGEN_WARN("multiple lod mesh indices in '" << meshChild->getDescription() << "'.");
+		}
+		lodMesh->shaderDefine("HAS_LOD", "TRUE");
+		REGEN_DEBUG("Adding LOD mesh '" << meshChild->getName() << "' to base mesh.");
+
+		for (auto &mesh: out->meshes()) {
+			std::stack<ref_ptr<State>> stateStack;
+			for (auto &state: *mesh->joined().get()) {
+				stateStack.push(state);
+			}
+			if (mesh->material().get()) {
+				stateStack.push(mesh->material());
+			}
+			while (!stateStack.empty()) {
+				auto state = stateStack.top();
+				stateStack.pop();
+				if (auto *textureState = dynamic_cast<TextureState*>(state.get())) {
+					if (textureState->texture()->targetType() == GL_TEXTURE_BUFFER) {
+						// TBOs must be joined, they could be used for instancing of uniforms
+						lodMesh->joinStates(state);
+					} else {
+						continue; // skip (material) texture states, we will bake them into the snapshot textures
+					}
+				} else {
+					for (auto &stateInput: state->inputs()) {
+						if (dynamic_cast<Texture*>(stateInput.in_.get()) != nullptr) {
+							continue; // skip texture inputs, we will bake them into the snapshot textures
+						}
+						if (!stateInput.in_->isVertexAttribute()) {
+							lodMesh->setInput(stateInput.in_, stateInput.name_);
+						}
+					}
+				}
+				for (auto &joined: *state->joined().get()) {
+					stateStack.push(joined);
+				}
+			}
+		}
+	}
 
 	return out_;
 }

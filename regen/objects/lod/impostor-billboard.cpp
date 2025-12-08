@@ -4,9 +4,12 @@
 
 using namespace regen;
 
-#undef DEBUG_SNAPSHOT_VIEWS
 #define USE_POINT_EXTRUSION
-#define USE_IMPOSTOR_MIPMAPS
+
+namespace regen {
+	static constexpr bool IMPOSTOR_DEBUG_SNAPSHOT_VIEWS = false;
+	static constexpr bool IMPOSTOR_MIPMAPS = true;
+}
 
 #ifndef USE_POINT_EXTRUSION
 static ref_ptr<Rectangle> getImpostorQuad() {
@@ -63,21 +66,25 @@ void ImpostorBillboard::createShader(const ref_ptr<StateNode> &parentNode) {
 		for (auto &state: *mesh.meshOrig->joined().get()) {
 			stateStack.push(state);
 		}
+		if (mesh.meshOrig->material().get()) {
+			stateStack.push(mesh.meshOrig->material());
+		}
 		while (!stateStack.empty()) {
 			auto state = stateStack.top();
 			stateStack.pop();
-			auto *textureState = dynamic_cast<TextureState*>(state.get());
-			if (textureState) {
+			if (auto *textureState = dynamic_cast<TextureState*>(state.get())) {
 				if (textureState->texture()->targetType() == GL_TEXTURE_BUFFER) {
 					// TBOs must be joined, they could be used for instancing of uniforms
 					joinStates(state);
 				} else {
-					// skip (material) texture states, we will bake them into the snapshot textures
-					continue;
+					continue; // skip (material) texture states, we will bake them into the snapshot textures
 				}
 			}
 			else {
 				for (auto &input: state->inputs()) {
+					if (dynamic_cast<Texture*>(input.in_.get()) != nullptr) {
+						continue; // skip texture inputs, we will bake them into the snapshot textures
+					}
 					if (!input.in_->isVertexAttribute()) {
 						setInput(input.in_, input.name_);
 					}
@@ -108,8 +115,6 @@ void ImpostorBillboard::updateExtrudeAttributes() {
 }
 
 void ImpostorBillboard::addMesh(const ref_ptr<Mesh> &mesh, const ref_ptr<State> &drawState) {
-	// TODO: Consider the case of different materials/textures as we allow an impostor to be composed
-	//       of multiple meshes below. I think we really need a pass in update for each mesh/material combination.
 	auto &imitation = meshes_.emplace_back();
 	imitation.meshOrig = mesh;
 	imitation.meshCopy = ref_ptr<Mesh>::alloc(mesh);
@@ -224,11 +229,11 @@ void ImpostorBillboard::createResources() {
 											   GL_RGBA, GL_RGBA8, GL_UNSIGNED_BYTE);
 		albedo->set_name("diffuse");
 		snapshotAlbedo_ = ref_ptr<Texture2DArray>::dynamicCast(albedo);
-#ifdef USE_IMPOSTOR_MIPMAPS
-		snapshotAlbedo_->set_filter(TextureFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR));
-#else
-		snapshotAlbedo_->set_filter(TextureFilter(GL_LINEAR, GL_LINEAR));
-#endif
+		if constexpr(IMPOSTOR_MIPMAPS) {
+			snapshotAlbedo_->set_filter(TextureFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR));
+		} else {
+			snapshotAlbedo_->set_filter(TextureFilter(GL_LINEAR, GL_LINEAR));
+		}
 		snapshotAlbedo_->set_wrapping(TextureWrapping::create(GL_CLAMP_TO_EDGE));
 		drawAttachments.push_back(GL_COLOR_ATTACHMENT0);
 
@@ -331,14 +336,14 @@ void ImpostorBillboard::addSnapshotView(uint32_t viewIdx, const Vec3f &dir, cons
 	m_viewDir_[viewIdx].w = 0.0f; // no w-component, this is a direction vector
 	m_viewBounds_[viewIdx] = Vec4f(minX, maxX, minY, maxY);
 	m_viewDepth_[viewIdx] = Vec2f(minZ, maxZ);
-#ifdef DEBUG_SNAPSHOT_VIEWS
-	REGEN_INFO("Snapshot view " << viewIdx << ":"
-									<< "\n\tmesh-origin=" << meshCenterPoint_
-									<< "\n\teye=" << eye
-									<< "\n\tdir=" << -dir
-									<< "\n\tbounds=" << viewBounds[viewIdx]
-									<< "\n\tdepth=" << viewDepth[viewIdx]);
-#endif
+	if constexpr(IMPOSTOR_DEBUG_SNAPSHOT_VIEWS) {
+		REGEN_INFO("Snapshot view " << viewIdx << ":"
+										<< "\n\tmesh-origin=" << meshCenterPoint_
+										<< "\n\teye=" << eye
+										<< "\n\tdir=" << -dir
+										<< "\n\tbounds=" << Vec4f(minX, maxX, minY, maxY)
+										<< "\n\tdepth=" << Vec2f(minZ, maxZ));
+	}
 
 	snapshotCamera_->setProjection(viewIdx,
 			Mat4f::orthogonalMatrix(minX, maxX, minY, maxY, minZ, maxZ));
@@ -473,9 +478,9 @@ void ImpostorBillboard::createSnapshot() {
 		view.meshCopy->set_numVisibleInstances(oldNumInstances);
 	}
 	snapshotFBO_->disable(rs);
-#ifdef USE_IMPOSTOR_MIPMAPS
-	snapshotAlbedo_->updateMipmaps();
-#endif
+	if constexpr(IMPOSTOR_MIPMAPS) {
+		snapshotAlbedo_->updateMipmaps();
+	}
 }
 
 ref_ptr<ImpostorBillboard> ImpostorBillboard::load(LoadingContext &ctx, scene::SceneInputNode &input) {

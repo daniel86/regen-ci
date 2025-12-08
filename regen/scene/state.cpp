@@ -18,15 +18,19 @@ State::State()
 
 State::State(const ref_ptr<State> &other)
 	: EventObject(),
-	  joined_(other->joined_),
+	  joined_(ref_ptr<std::vector<ref_ptr<State> > >::alloc()),
 	  attached_(other->attached_),
 	  shaderDefines_(other->shaderDefines_),
 	  shaderIncludes_(other->shaderIncludes_),
 	  shaderFunctions_(other->shaderFunctions_),
 	  shaderVersion_(other->shaderVersion_),
 	  shared_(other->shared_) {
-	inputs_ = other->inputs_;
-	inputMap_ = other->inputMap_;
+	for (const auto &it: *other->joined_.get()) {
+		joinStates(it);
+	}
+	for (const auto &it: other->inputs_) {
+		setInput(it.in_, it.name_, it.memberSuffix_);
+	}
 	if (other->isHidden()) {
 		set_isHidden(true);
 	}
