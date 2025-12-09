@@ -134,10 +134,20 @@ void MeshNodeProvider::processInput(
 		meshCopy->loadShaderConfig(ctx, input);
 		bool hasShader = false;
 		if (!meshCopy->hasShaderKey()) {
-			// try to find a shader in the parent node
-			// TODO: What about the LOD levels? might be better to refer to the shader by ID instead
-			//        of getting it from the parent. there is also the problem with configuration for compilation
-			//        if shader is shared.
+			// Try to find a shader in the parent node.
+			// NOTE: This will only work in a limited fashion, and is at the moment not super useful.
+			// - The shader is once configured in the scope where it appears in the scene graph,
+			//   including all defines etc. Note that eg. if a node is embedded in a sub-graph
+			//   with eg. shadow mapping camera, there will be specific code inserted for that case (eg layer selection)
+			//   So each shader is very specialized and cannot easily be shared in another context at the moment.
+			// - The shader will only have the uniforms which are defined above it in the scene graph.
+			//   So the mesh cannot simply overwrite uniforms etc.
+			// - The shader has a fixed list of uniforms that it enables. A copy would need to be created
+			//   such that the shader can be "re-configured", but this might a bit more bookkeeping.
+			// - Also the active render target in the scene graph has influence on shader code.
+			// In the long term, a proper mechanism for shader sharing and re-use should be implemented,
+			// as a kind of trade-off between re-use and specialization instead of just going for full specialization.
+			//
 			auto meshShader = ShaderState::findShader(parent.get());
 			if (meshShader.get() != nullptr) {
 				StateConfigurer stateConfigurer;
