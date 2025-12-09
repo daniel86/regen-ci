@@ -114,6 +114,8 @@ ref_ptr<MaskMesh> MaskMesh::load(LoadingContext &ctx, scene::SceneInputNode &inp
 	}
 	if (!tf.get()) {
 		tf = ref_ptr<ModelTransformation>::alloc();
+		tf->setModelMat(0, Mat4f::identity());
+		tf->tfBuffer()->updateBuffer();
 	}
 
 	MaskMesh::Config meshCfg;

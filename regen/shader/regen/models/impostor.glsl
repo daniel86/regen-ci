@@ -66,19 +66,19 @@ uint getViewIdx(int layer, vec3 centerWorld) {
 #define2 REGEN_getSpriteSize_defined_
 vec2 getSpriteSize(inout vec4 centerEye, vec3 zAxis, uint viewIdx, float scale) {
     vec4 orthoBounds = in_snapshotOrthoBounds[viewIdx];
-#ifndef DEPTH_CORRECT
-    vec2 depthRange = in_snapshotDepthRanges[viewIdx];
-#endif
     // Compute size of the quad in world space, based on the ortho bounds of the selected view.
     vec2 spriteSize = vec2(orthoBounds.y - orthoBounds.x, orthoBounds.w - orthoBounds.z) * scale;
 #ifndef DEPTH_CORRECT
-    float zCenter = centerEye.z;
-    #if OUTPUT_TYPE == DEPTH && DEPTH_FACE == BACK
+    #if RENDER_TARGET_MODE != CASCADE
+    vec2 depthRange = in_snapshotDepthRanges[viewIdx];
+    float zCenter = max(abs(centerEye.z), 1e-4);
+        #if OUTPUT_TYPE == DEPTH && DEPTH_FACE == BACK
     centerEye.xyz += zAxis * 0.5 * (depthRange.y - depthRange.x) * scale;
-    #else
+        #else
     centerEye.xyz -= zAxis * 0.5 * (depthRange.y - depthRange.x) * scale;
-    #endif
+        #endif
     spriteSize *= abs(centerEye.z / zCenter);
+    #endif
 #endif
     return spriteSize;
 }
@@ -112,89 +112,6 @@ vec2 getSpriteSize(inout vec4 centerEye, vec3 zAxis, uint viewIdx, float scale) 
 -- update.fs
 #include regen.models.impostor.update.defines
 #include regen.models.mesh.fs
-
--- quad.vs
-#include regen.models.mesh.defines
-
-in vec3 in_pos;
-out vec3 out_posWorld;
-out vec3 out_texco0;
-#if OUTPUT_TYPE != DEPTH
-out vec3 out_posEye;
-#endif
-#ifdef HAS_INSTANCES
-flat out int out_instanceID;
-#endif
-#if RENDER_LAYER > 1
-flat out int out_layer;
-#define in_layer regen_RenderLayer()
-#endif
-
-#include regen.states.camera.transformEyeToScreen
-#include regen.states.camera.transformEyeToWorld
-#include regen.states.camera.transformWorldToEye
-#include regen.layered.VS_SelectLayer
-
-#ifdef HAS_windFlow
-#include regen.models.sprite.applyForceBase
-#include regen.weather.wind.windAtPosition
-#endif
-
-#define HANDLE_IO(i)
-
-#include regen.models.impostor.getSpriteSize
-#include regen.models.impostor.getViewIdx
-
-void main() {
-    int layer = regen_RenderLayer();
-#ifdef HAS_modelMatrix
-    float scale = length(in_modelMatrix[0].xyz);
-#else
-    float scale = 1.0;
-#endif
-#ifdef HAS_modelOrigin
-    vec3 centerWorld = (in_modelMatrix * vec4(in_modelOrigin, 1.0)).xyz;
-#else
-    vec3 centerWorld = (in_modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-#endif
-#ifdef HAS_modelOffset
-    centerWorld += in_modelOffset.xyz;
-#endif
-    // Find the best impostor view index based on the view direction.
-    vec4 centerEye = transformWorldToEye(centerWorld, layer);
-
-    // Find the best impostor view index based on the view direction.
-    uint viewIdx = getViewIdx(layer, centerWorld.xyz);
-    float viewCoord = float(viewIdx);
-    // Compute the size of the quad in eye space, based on the ortho bounds of the selected view.
-    vec3 zAxis = normalize(centerEye.xyz);
-    vec2 spriteSize = getSpriteSize(centerEye, zAxis, viewIdx, scale);
-
-    // note: in_pos.xy is one of the four corners of the quad, in range [-0.5, 0.5]
-    vec4 posEye = vec4(
-        centerEye.xy + spriteSize * in_pos.xy,
-        centerEye.z, 1.0);
-
-#ifdef HAS_windFlow && HAS_undefined
-    // TODO: support wind here
-    out_posWorld = transformEyeToWorld(posEye,layer).xyz;
-#else
-    out_posWorld = transformEyeToWorld(posEye,layer).xyz;
-#endif
-#if OUTPUT_TYPE != DEPTH
-    out_posEye = posEye.xyz;
-#endif
-    // move from range [-0.5, 0.5] to [0, 1], add viewCoord for texture array lookup
-    out_texco0 = vec3(in_pos.xy + vec2(0.5), viewCoord);
-#ifdef HAS_INSTANCES
-    out_instanceID = gl_InstanceID + gl_BaseInstance;
-#endif // HAS_INSTANCES
-    gl_Position = transformEyeToScreen(posEye,layer);
-    VS_SelectLayer(layer);
-    HANDLE_IO(gl_VertexID);
-}
--- quad.gs
-#include regen.models.mesh.gs
 
 -- extrude.vs
 #include regen.models.mesh.defines
@@ -233,6 +150,7 @@ void main() {
 #endif
     HANDLE_IO(gl_VertexID);
 }
+
 -- extrude.gs
 #include regen.models.mesh.defines
 
@@ -268,6 +186,18 @@ const float in_depthOffset = 0.5f;
 #include regen.models.impostor.getSpriteSize
 #include regen.models.impostor.getViewIdx
 
+#if RENDER_TARGET_MODE == CASCADE
+void emitVertex(vec3 posWorld, vec3 texco, int layer) {
+    vec4 posEye = transformWorldToEye(vec4(posWorld,1.0),layer);
+    out_texco0 = texco;
+    out_posWorld = posWorld;
+    out_posEye = posEye.xyz;
+    //out_norWorld = vec3(0.0, 1.0, 0.0);
+    gl_Position = transformEyeToScreen(posEye,layer);
+    HANDLE_IO(0);
+    EmitVertex();
+}
+#else
 void emitVertex(vec4 posEye, vec3 texco, int layer) {
     out_texco0 = texco;
     out_posEye = posEye.xyz;
@@ -277,7 +207,52 @@ void emitVertex(vec4 posEye, vec3 texco, int layer) {
     HANDLE_IO(0);
     EmitVertex();
 }
+#endif
 
+#if RENDER_TARGET_MODE == CASCADE
+const float EPS_CROSS = 1e-6;
+void emitLayer(int layer, float scale) {
+    // world-space center
+    vec3 centerWorld = gl_in[0].gl_Position.xyz;
+    // choose snapshot view index
+    uint viewIdx = getViewIdx(layer, centerWorld.xyz);
+    float viewCoord = float(viewIdx);
+    // transform center to light-eye-space for getSpriteSize
+    mat4 V = REGEN_VIEW_(layer);
+    vec4 centerEye = V * vec4(centerWorld, 1.0);
+    // approximate eye-space forward for getSpriteSize
+    vec3 zAxisEye = vec3(0.0, 0.0, -1.0);
+    vec2 spriteSize = getSpriteSize(centerEye, zAxisEye, viewIdx, scale);
+
+    // compute world-space billboard axes from view matrix
+    vec3 lightForward = normalize(-V[2].xyz); // points from sprite -> camera
+    vec3 lightRight   = normalize( V[0].xyz);
+    vec3 lightUp      = normalize( V[1].xyz);
+    // fallback for degenerate forward
+    if(dot(lightForward,lightForward) < EPS_CROSS) lightForward = vec3(0.0,0.0,1.0);
+
+    // compute quad corners in world space
+    vec3 halfX = lightRight * 0.5 * spriteSize.x;
+    vec3 halfY = lightUp    * 0.5 * spriteSize.y;
+    vec3 p0 = centerWorld - halfX - halfY; // bottom-left
+    vec3 p1 = centerWorld - halfX + halfY; // top-left
+    vec3 p2 = centerWorld + halfX - halfY; // bottom-right
+    vec3 p3 = centerWorld + halfX + halfY; // top-right
+
+    // emit two triangles
+    out_impostorIdx = viewIdx;
+    // bottom-left, top-left, bottom-right
+    emitVertex(p2, vec3(1.0, 0.0, viewCoord), layer);
+    emitVertex(p1, vec3(0.0, 1.0, viewCoord), layer);
+    emitVertex(p0, vec3(0.0, 0.0, viewCoord), layer);
+    EndPrimitive();
+    // bottom-right, top-left, top-right
+    emitVertex(p3, vec3(1.0, 1.0, viewCoord), layer);
+    emitVertex(p1, vec3(0.0, 1.0, viewCoord), layer);
+    emitVertex(p2, vec3(1.0, 0.0, viewCoord), layer);
+    EndPrimitive();
+}
+#else
 void emitLayer(int layer, float scale) {
     vec4 centerWorld = gl_in[0].gl_Position;
     vec4 centerEye = transformWorldToEye(centerWorld, layer);
@@ -291,14 +266,14 @@ void emitLayer(int layer, float scale) {
     vec3 up = mix(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), float(abs(zAxis.y) < 0.99));
     vec3 quadPos[4] = computeSpritePoints(centerEye.xyz, spriteSize, zAxis, up);
 
-#ifdef HAS_windFlow
+    #ifdef HAS_windFlow
     vec3 bottomCenter = 0.5*(quadPos[0] + quadPos[2]);
     vec2 wind = windAtPosition(bottomCenter);
     // cancel out wind along zAxis.xz to avoid artifacts.
     wind -= dot(wind, zAxis.xz) * zAxis.xz;
     // apply the wind force to the quad
     applyForce(quadPos, wind);
-#endif
+    #endif
 
     // Emit the quad as two triangles.
     out_impostorIdx = viewIdx;
@@ -313,6 +288,7 @@ void emitLayer(int layer, float scale) {
     emitVertex(vec4(quadPos[2],1.0), vec3(1.0,0.0,viewCoord), layer);
     EndPrimitive();
 }
+#endif
 
 void main() {
 #ifdef HAS_modelMatrix
@@ -335,17 +311,8 @@ void main() {
  * and can be combined with material properties in the fragment shader.
  **/
 -- vs
-#ifdef USE_POINT_EXTRUSION
 #include regen.models.impostor.extrude.vs
-#else
-#include regen.models.impostor.quad.vs
-#endif
 -- gs
-#ifdef USE_POINT_EXTRUSION
 #include regen.models.impostor.extrude.gs
-#else
-#include regen.models.impostor.quad.gs
-#endif
 -- fs
-//#define HAS_nor
 #include regen.models.mesh.fs

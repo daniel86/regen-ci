@@ -190,7 +190,6 @@ void MeshViewerWidget::billboardMeshes_GL() {
 		billboard->setHasTopView(ui_.topViewCheck->isChecked());
 		billboard->setHasBottomView(ui_.bottomViewCheck->isChecked());
 		billboard->setDepthOffset(static_cast<float>(ui_.depthOffsetSpin->value()));
-		billboard->setUseDepthCorrection(ui_.depthCorrectionCheck->isChecked());
 		billboard->setUseNormalCorrection(ui_.normalCorrectionCheck->isChecked());
 		billboard->setSnapshotTextureSize(ui_.impostorSizeSpin->value(), ui_.impostorSizeSpin->value());
 		billboard->setShaderKey("regen.models.impostor");
@@ -283,7 +282,7 @@ void MeshViewerWidget::loadMeshes_GL(const std::string &assetPath) {
 		for (auto &mesh: meshes_) {
 			auto material = asset_->getMeshMaterial(mesh.get());
 			if (material.get() != nullptr) {
-				mesh->joinStates(material);
+				mesh->setMaterial(material);
 			}
 		}
 		transformMesh(0.0f);
@@ -401,6 +400,7 @@ void MeshViewerWidget::createCameraController() {
 	cameraController_->setHorizontalOrientation(0.0);
 	cameraController_->setVerticalOrientation(0.0);
 	cameraController_->setCameraMode(CameraController::FIRST_PERSON);
+	cameraController_->initCameraController();
 	cameraController_->startAnimation();
 
 	std::vector<CameraCommandMapping> keyMappings;
@@ -448,6 +448,8 @@ void MeshViewerWidget::gl_loadScene() {
 
 	// enable model transformation
 	modelTransform_ = ref_ptr<ModelTransformation>::alloc();
+	modelTransform_->setModelMat(0, Mat4f::identity());
+	modelTransform_->tfBuffer()->updateBuffer();
 	sceneRoot_->state()->joinStates(modelTransform_);
 
 	// enable wireframe mode
@@ -461,7 +463,7 @@ void MeshViewerWidget::gl_loadScene() {
 
 	// enable light, and use it in direct shading
 	auto shadingState = ref_ptr<DirectShading>::alloc();
-	shadingState->ambientLight()->setVertex(0, Vec3f(0.3f));
+	shadingState->ambientLight()->setVertex(0, Vec3f(0.3f, 0.3f, 0.3f));
 
 	sceneLight_[0] = ref_ptr<Light>::alloc(Light::DIRECTIONAL);
 	sceneLight_[0]->setDirection(0, Vec3f(0.0f, 1.0f, 0.0f).normalize());
@@ -511,7 +513,7 @@ void MeshViewerWidget::transformMesh(double dt) {
 	meshQuaternion_.setAxisAngle(Vec3f::up(), meshOrientation_);
 	auto mat = meshQuaternion_.calculateMatrix();
 	mat.translate(meshOrigin_);
-	mat.scale(Vec3f(meshScale_));
+	mat.scale(Vec3f(meshScale_, meshScale_, meshScale_));
 	modelTransform_->setModelMat(0, mat);
 }
 

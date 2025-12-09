@@ -145,6 +145,8 @@ ref_ptr<BlanketTrail> BlanketTrail::load(LoadingContext &ctx,
 	}
 	if (!tf.get()) {
 		tf = ref_ptr<ModelTransformation>::alloc();
+		tf->setModelMat(0, Mat4f::identity());
+		tf->tfBuffer()->updateBuffer();
 	}
 	blanket->setModelTransform(tf);
 

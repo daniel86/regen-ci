@@ -361,7 +361,6 @@
                     base-mesh-index="0"
                     depth-offset="0.5"
                     normal-correction="1"
-                    depth-correction="0"
                     hemispherical="1"
                     top-view="0"
                     bottom-view="0"

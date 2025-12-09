@@ -524,9 +524,6 @@ void Mesh::setMeshLODs(const std::vector<MeshLOD> &meshLODs) {
 	numLODs_ = static_cast<uint32_t>(meshLODs_.size());
 	for (auto &lod : meshLODs_) {
 		if (lod.impostorMesh.get()) {
-			if (material_.get()) {
-				lod.impostorMesh->setMaterial(material_);
-			}
 			if(cullShape_.get()) {
 				lod.impostorMesh->setCullShape(cullShape_);
 			}
@@ -548,9 +545,6 @@ void Mesh::addMeshLOD(const MeshLOD &meshLOD) {
 	meshLODs_.push_back(meshLOD);
 	numLODs_ = static_cast<uint32_t>(meshLODs_.size());
 	if (meshLOD.impostorMesh.get()) {
-		if (material_.get()) {
-			meshLOD.impostorMesh->setMaterial(material_);
-		}
 		if(cullShape_.get()) {
 			meshLOD.impostorMesh->setCullShape(cullShape_);
 		}
