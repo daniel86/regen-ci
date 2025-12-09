@@ -593,7 +593,7 @@ static void transformMatrix(
 				}
 				uint32_t numIndices = 0;
 				for (auto &range : indices) {
-					numIndices += (range.to - range.from + range.step - 1) / range.step;
+					numIndices += (range.to - range.from) / range.step + 1;
 				}
 				scene::ValueGenerator<Vec3f> generator(child.get(), numIndices,
 													   child->getValue<Vec3f>("value", Vec3f::zero()));
@@ -601,7 +601,8 @@ static void transformMatrix(
 
 				for (auto &range : indices) {
 					for (unsigned int j = range.from; j <= range.to; j = j + range.step) {
-						transformMatrix(scene, child, target, matrices.w[j], generator.next());
+						auto next = generator.next();
+						transformMatrix(scene, child, target, matrices.w[j], next);
 					}
 				}
 			}
