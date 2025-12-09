@@ -27,7 +27,7 @@ namespace regen {
 			 */
 			ValueGenerator(SceneInputNode *n,
 						   const uint32_t numValues,
-						   const T &defaultValue = T(0))
+						   const T &defaultValue = T::create(0))
 					: n_(n),
 					  numValues_(numValues),
 					  counter_(Vec4ui::zero()),
