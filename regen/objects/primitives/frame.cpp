@@ -4,8 +4,6 @@
 
 using namespace regen;
 
-// TODO: load frame in different levels of detail
-
 namespace regen {
 	std::ostream &operator<<(std::ostream &out, const FrameMesh::TexcoMode &mode) {
 		switch (mode) {
@@ -68,8 +66,7 @@ FrameMesh::FrameMesh(const ref_ptr<FrameMesh> &other)
 }
 
 FrameMesh::Config::Config()
-		: levelOfDetail(0),
-		  posScale(Vec3f::one()),
+		: posScale(Vec3f::one()),
 		  rotation(Vec3f::zero()),
 		  texcoScale(Vec2f::one()),
 		  texcoMode(TEXCO_MODE_UV),
@@ -79,7 +76,7 @@ FrameMesh::Config::Config()
 }
 
 void FrameMesh::updateAttributes(const Config &cfg) {
-	static const Vec3f cubeNormals[] = {
+	static constexpr Vec3f cubeNormals[] = {
 			Vec3f(0.0f, 0.0f, 1.0f), // Front
 			Vec3f(0.0f, 0.0f, -1.0f), // Back
 			Vec3f(0.0f, 1.0f, 0.0f), // Top
@@ -120,17 +117,26 @@ void FrameMesh::updateAttributes(const Config &cfg) {
 			TriangleVertex(Vec3f(-1.0, 1.0, -1.0), 3)
 	};
 
-	const uint32_t numBoxes = 4;
-	const uint32_t numFaces = 6;
-	// -4 because we can skip left/right face of two border boxes
-	uint32_t numVertices = pow(4.0, cfg.levelOfDetail) * (numBoxes * numFaces - 4) * 2 * 3;
+	constexpr uint32_t numBoxes = 4;
+	constexpr uint32_t numFaces = 6;
 
-	pos_->setVertexData(numVertices);
+	uint32_t numTotalVertices = 0;
+	for (auto &lodLevel: cfg.levelOfDetails) {
+		auto &x = meshLODs_.emplace_back();
+		// -4 because we can skip left/right face of two border boxes
+		x.d->numVertices = pow(4.0, lodLevel) * (numBoxes * numFaces - 4) * 2 * 3;
+		x.d->vertexOffset = numTotalVertices;
+		x.d->numIndices = 0;
+		x.d->indexOffset = 0;
+		numTotalVertices += x.d->numVertices;
+	}
+
+	pos_->setVertexData(numTotalVertices);
 	if (cfg.isNormalRequired) {
-		nor_->setVertexData(numVertices);
+		nor_->setVertexData(numTotalVertices);
 	}
 	if (cfg.isTangentRequired) {
-		tan_->setVertexData(numVertices);
+		tan_->setVertexData(numTotalVertices);
 	}
 	TexcoMode texcoMode = cfg.texcoMode;
 	if (cfg.isTangentRequired && cfg.texcoMode == TEXCO_MODE_NONE) {
@@ -138,7 +144,7 @@ void FrameMesh::updateAttributes(const Config &cfg) {
 	}
 	if (texcoMode == TEXCO_MODE_UV) {
 		texco_ = ref_ptr<ShaderInput2f>::alloc("texco0");
-		texco_->setVertexData(numVertices);
+		texco_->setVertexData(numTotalVertices);
 	}
 
 	// map client data for writing
@@ -150,116 +156,114 @@ void FrameMesh::updateAttributes(const Config &cfg) {
 	auto v_texco = (texcoMode == TEXCO_MODE_UV ?
 					(Vec2f*) texco_->clientBuffer()->clientData(0) : nullptr);
 
-	// Define the initial box scale
-	Vec3f initialBoxScale(0.5f * cfg.posScale.x, 0.5f * cfg.posScale.y, 0.5f * cfg.borderSize);
-
-	// Define the transformations for the four boxes
-	std::vector<Mat4f> transformations;
-
-	// Apply user-supplied rotation
-	Mat4f userRotation = Mat4f::rotationMatrix(cfg.rotation.x, cfg.rotation.y, cfg.rotation.z);
-
-	// First box: translate in z direction by 0.5 * cfg.posScale.z
-	transformations.push_back(
-			userRotation *
-			Mat4f::translationMatrix_transposed(Vec3f(0.0f, 0.0f, 0.5f * cfg.posScale.z)));
-
-	// Second box: translate in z direction by -0.5 * cfg.posScale.z
-	transformations.push_back(
-			userRotation *
-			Mat4f::translationMatrix_transposed(Vec3f(0.0f, 0.0f, -0.5f * cfg.posScale.z)));
-
-	// Third box: rotate by 90 degrees around y-axis, scale, and translate in x direction by 0.5 * cfg.posScale.x
-	Mat4f transform3 =
-			userRotation *
-			Mat4f::rotationMatrix(0.0, M_PI_2, 0.0) *
-			Mat4f::scaleMatrix(Vec3f(cfg.posScale.z / (cfg.posScale.x + cfg.borderSize), 1.0f, 1.0f)) *
-			Mat4f::translationMatrix_transposed(Vec3f(0.0, 0.0f, 0.5f * cfg.posScale.x - 0.5f * cfg.borderSize));
-	transformations.push_back(transform3);
-
-	// Fourth box: rotate by 90 degrees around y-axis, scale, and translate in x direction by -0.5 * cfg.posScale.x
-	Mat4f transform4 =
-			userRotation *
-			Mat4f::rotationMatrix(0.0, M_PI_2, 0.0) *
-			Mat4f::scaleMatrix(Vec3f(cfg.posScale.z / (cfg.posScale.x + cfg.borderSize), 1.0f, 1.0f)) *
-			Mat4f::translationMatrix_transposed(Vec3f(0.0f, 0.0f, -0.5f * cfg.posScale.x + 0.5f * cfg.borderSize));
-	transformations.push_back(transform4);
+	uint32_t vertexBase = 0;
 
 	minPosition_ = Vec3f::create(999999.0f);
 	maxPosition_ = Vec3f::create(-999999.0f);
 
-	uint32_t vertexBase = 0;
-	for (uint32_t boxIndex = 0; boxIndex < numBoxes; ++boxIndex) {
-		for (uint32_t sideIndex = 0; sideIndex < numFaces; ++sideIndex) {
-			if (boxIndex == 2 || boxIndex == 3) {
-				if (sideIndex == 4 || sideIndex == 5) {
-					continue;
-				}
-			}
-			const Vec3f &normal = cubeNormals[sideIndex];
-			auto *level0 = (TriangleVertex *) cubeVertices;
-			level0 += sideIndex * 4;
+	for (uint32_t lodIdx = 0; lodIdx < cfg.levelOfDetails.size(); ++lodIdx) {
+		// Define the initial box scale
+		Vec3f initialBoxScale(0.5f * cfg.posScale.x, 0.5f * cfg.posScale.y, 0.5f * cfg.borderSize);
+		// Define the transformations for the four boxes
+		std::vector<Mat4f> transformations;
+		// Apply user-supplied rotation
+		Mat4f userRotation = Mat4f::rotationMatrix(cfg.rotation.x, cfg.rotation.y, cfg.rotation.z);
 
-			// Tessellate cube face
-			std::vector<TriangleFace> facesLevel0(2);
-			facesLevel0[0] = TriangleFace(level0[0], level0[1], level0[3]);
-			facesLevel0[1] = TriangleFace(level0[1], level0[2], level0[3]);
-			auto faces = tessellate(cfg.levelOfDetail, facesLevel0);
+		// First box: translate in z direction by 0.5 * cfg.posScale.z
+		transformations.push_back(
+				userRotation *
+				Mat4f::translationMatrix_transposed(Vec3f(0.0f, 0.0f, 0.5f * cfg.posScale.z)));
+		// Second box: translate in z direction by -0.5 * cfg.posScale.z
+		transformations.push_back(
+				userRotation *
+				Mat4f::translationMatrix_transposed(Vec3f(0.0f, 0.0f, -0.5f * cfg.posScale.z)));
+		// Third box: rotate by 90 degrees around y-axis, scale, and translate in x direction by 0.5 * cfg.posScale.x
+		Mat4f transform3 =
+				userRotation *
+				Mat4f::rotationMatrix(0.0, M_PI_2, 0.0) *
+				Mat4f::scaleMatrix(Vec3f(cfg.posScale.z / (cfg.posScale.x + cfg.borderSize), 1.0f, 1.0f)) *
+				Mat4f::translationMatrix_transposed(Vec3f(0.0, 0.0f, 0.5f * cfg.posScale.x - 0.5f * cfg.borderSize));
+		transformations.push_back(transform3);
+		// Fourth box: rotate by 90 degrees around y-axis, scale, and translate in x direction by -0.5 * cfg.posScale.x
+		Mat4f transform4 =
+				userRotation *
+				Mat4f::rotationMatrix(0.0, M_PI_2, 0.0) *
+				Mat4f::scaleMatrix(Vec3f(cfg.posScale.z / (cfg.posScale.x + cfg.borderSize), 1.0f, 1.0f)) *
+				Mat4f::translationMatrix_transposed(Vec3f(0.0f, 0.0f, -0.5f * cfg.posScale.x + 0.5f * cfg.borderSize));
+		transformations.push_back(transform4);
 
-			for (uint32_t faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
-				uint32_t vertexIndex = faceIndex * 3 + vertexBase;
-				TriangleFace &face = faces[faceIndex];
-				auto *f = (TriangleVertex *) &face;
-
-				for (uint32_t i = 0; i < 3; ++i) {
-					auto transformedVertex = (transformations[boxIndex] * (initialBoxScale * f[i].p));
-					minPosition_.setMin(transformedVertex.xyz());
-					maxPosition_.setMax(transformedVertex.xyz());
-					v_pos[vertexIndex + i] = transformedVertex.xyz();
-				}
-				if (cfg.isNormalRequired) {
-					auto nor = transformations[boxIndex].rotateVector(normal);
-					for (uint32_t i = 0; i < 3; ++i) {
-						v_nor[vertexIndex + i] = nor;
+		for (uint32_t boxIndex = 0; boxIndex < numBoxes; ++boxIndex) {
+			for (uint32_t sideIndex = 0; sideIndex < numFaces; ++sideIndex) {
+				if (boxIndex == 2 || boxIndex == 3) {
+					if (sideIndex == 4 || sideIndex == 5) {
+						continue;
 					}
 				}
+				const Vec3f &normal = cubeNormals[sideIndex];
+				auto *level0 = (TriangleVertex *) cubeVertices;
+				level0 += sideIndex * 4;
 
-				if (texcoMode == TEXCO_MODE_UV) {
+				// Tessellate cube face
+				std::vector<TriangleFace> facesLevel0(2);
+				facesLevel0[0] = TriangleFace(level0[0], level0[1], level0[3]);
+				facesLevel0[1] = TriangleFace(level0[1], level0[2], level0[3]);
+				auto faces = tessellate(cfg.levelOfDetails[lodIdx], facesLevel0);
+
+				for (uint32_t faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
+					uint32_t vertexIndex = faceIndex * 3 + vertexBase;
+					TriangleFace &face = faces[faceIndex];
+					auto *f = (TriangleVertex *) &face;
+
 					for (uint32_t i = 0; i < 3; ++i) {
-						// Directly assign UV coordinates based on vertex positions
-						Vec3f pos = f[i].p;
-						// Normalize the vertex position to [0, 1]
-						Vec2f uv;
-						switch (sideIndex) {
-							case 0: // Front face
-							case 1: // Back face
-								uv = Vec2f((pos.x + 1.0f) * 0.5f, (pos.y + 1.0f) * 0.5f);
-								break;
-							case 2: // Top face
-							case 3: // Bottom face
-								uv = Vec2f((pos.x + 1.0f) * 0.5f, (pos.z + 1.0f) * 0.5f);
-								break;
-							case 4: // Right face
-							case 5: // Left face
-								uv = Vec2f((pos.z + 1.0f) * 0.5f, (pos.y + 1.0f) * 0.5f);
-								break;
-							default:
-								uv = Vec2f::zero();
+						auto transformedVertex = (transformations[boxIndex] * (initialBoxScale * f[i].p));
+						minPosition_.setMin(transformedVertex.xyz());
+						maxPosition_.setMax(transformedVertex.xyz());
+						v_pos[vertexIndex + i] = transformedVertex.xyz();
+					}
+					if (cfg.isNormalRequired) {
+						auto nor = transformations[boxIndex].rotateVector(normal);
+						for (uint32_t i = 0; i < 3; ++i) {
+							v_nor[vertexIndex + i] = nor;
 						}
-						v_texco[vertexIndex + i] = uv * cfg.texcoScale;
 					}
-				}
 
-				if (cfg.isTangentRequired) {
-					Vec3f *vertices = v_pos + vertexIndex;
-					Vec2f *texcos = v_texco + vertexIndex;
-					Vec4f tangent = calculateTangent(vertices, texcos, normal);
-					for (uint32_t i = 0; i < 3; ++i) {
-						v_tan[vertexIndex + i] = tangent;
+					if (texcoMode == TEXCO_MODE_UV) {
+						for (uint32_t i = 0; i < 3; ++i) {
+							// Directly assign UV coordinates based on vertex positions
+							Vec3f pos = f[i].p;
+							// Normalize the vertex position to [0, 1]
+							Vec2f uv;
+							switch (sideIndex) {
+								case 0: // Front face
+								case 1: // Back face
+									uv = Vec2f((pos.x + 1.0f) * 0.5f, (pos.y + 1.0f) * 0.5f);
+									break;
+								case 2: // Top face
+								case 3: // Bottom face
+									uv = Vec2f((pos.x + 1.0f) * 0.5f, (pos.z + 1.0f) * 0.5f);
+									break;
+								case 4: // Right face
+								case 5: // Left face
+									uv = Vec2f((pos.z + 1.0f) * 0.5f, (pos.y + 1.0f) * 0.5f);
+									break;
+								default:
+									uv = Vec2f::zero();
+							}
+							v_texco[vertexIndex + i] = uv * cfg.texcoScale;
+						}
+					}
+
+					if (cfg.isTangentRequired) {
+						Vec3f *vertices = v_pos + vertexIndex;
+						Vec2f *texcos = v_texco + vertexIndex;
+						Vec4f tangent = calculateTangent(vertices, texcos, normal);
+						for (uint32_t i = 0; i < 3; ++i) {
+							v_tan[vertexIndex + i] = tangent;
+						}
 					}
 				}
+				vertexBase += faces.size() * 3;
 			}
-			vertexBase += faces.size() * 3;
 		}
 	}
 

@@ -31,7 +31,7 @@ namespace regen {
 		 */
 		struct Config {
 			/** number of surface divisions. */
-			uint32_t levelOfDetail;
+			std::vector<uint32_t> levelOfDetails = {0};
 			/** scaling for the position attribute. */
 			Vec3f posScale;
 			/** cube xyz rotation. */

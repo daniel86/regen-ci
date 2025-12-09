@@ -154,7 +154,7 @@ ref_ptr<CompositeMesh> CompositeMesh::load(LoadingContext &ctx, scene::SceneInpu
 		meshCfg.updateHint = updateFlags;
 		meshCfg.mapMode = mapMode;
 		meshCfg.accessMode = accessMode;
-		meshCfg.levelOfDetail = lodLevels[0];
+		meshCfg.levelOfDetails = lodLevels;
 
 		(*out) = CompositeMesh();
 		out->addMesh(ref_ptr<FrameMesh>::alloc(meshCfg));
