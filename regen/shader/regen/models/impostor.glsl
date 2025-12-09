@@ -113,89 +113,6 @@ vec2 getSpriteSize(inout vec4 centerEye, vec3 zAxis, uint viewIdx, float scale) 
 #include regen.models.impostor.update.defines
 #include regen.models.mesh.fs
 
--- quad.vs
-#include regen.models.mesh.defines
-
-in vec3 in_pos;
-out vec3 out_posWorld;
-out vec3 out_texco0;
-#if OUTPUT_TYPE != DEPTH
-out vec3 out_posEye;
-#endif
-#ifdef HAS_INSTANCES
-flat out int out_instanceID;
-#endif
-#if RENDER_LAYER > 1
-flat out int out_layer;
-#define in_layer regen_RenderLayer()
-#endif
-
-#include regen.states.camera.transformEyeToScreen
-#include regen.states.camera.transformEyeToWorld
-#include regen.states.camera.transformWorldToEye
-#include regen.layered.VS_SelectLayer
-
-#ifdef HAS_windFlow
-#include regen.models.sprite.applyForceBase
-#include regen.weather.wind.windAtPosition
-#endif
-
-#define HANDLE_IO(i)
-
-#include regen.models.impostor.getSpriteSize
-#include regen.models.impostor.getViewIdx
-
-void main() {
-    int layer = regen_RenderLayer();
-#ifdef HAS_modelMatrix
-    float scale = length(in_modelMatrix[0].xyz);
-#else
-    float scale = 1.0;
-#endif
-#ifdef HAS_modelOrigin
-    vec3 centerWorld = (in_modelMatrix * vec4(in_modelOrigin, 1.0)).xyz;
-#else
-    vec3 centerWorld = (in_modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-#endif
-#ifdef HAS_modelOffset
-    centerWorld += in_modelOffset.xyz;
-#endif
-    // Find the best impostor view index based on the view direction.
-    vec4 centerEye = transformWorldToEye(centerWorld, layer);
-
-    // Find the best impostor view index based on the view direction.
-    uint viewIdx = getViewIdx(layer, centerWorld.xyz);
-    float viewCoord = float(viewIdx);
-    // Compute the size of the quad in eye space, based on the ortho bounds of the selected view.
-    vec3 zAxis = normalize(centerEye.xyz);
-    vec2 spriteSize = getSpriteSize(centerEye, zAxis, viewIdx, scale);
-
-    // note: in_pos.xy is one of the four corners of the quad, in range [-0.5, 0.5]
-    vec4 posEye = vec4(
-        centerEye.xy + spriteSize * in_pos.xy,
-        centerEye.z, 1.0);
-
-#ifdef HAS_windFlow && HAS_undefined
-    // TODO: support wind here
-    out_posWorld = transformEyeToWorld(posEye,layer).xyz;
-#else
-    out_posWorld = transformEyeToWorld(posEye,layer).xyz;
-#endif
-#if OUTPUT_TYPE != DEPTH
-    out_posEye = posEye.xyz;
-#endif
-    // move from range [-0.5, 0.5] to [0, 1], add viewCoord for texture array lookup
-    out_texco0 = vec3(in_pos.xy + vec2(0.5), viewCoord);
-#ifdef HAS_INSTANCES
-    out_instanceID = gl_InstanceID + gl_BaseInstance;
-#endif // HAS_INSTANCES
-    gl_Position = transformEyeToScreen(posEye,layer);
-    VS_SelectLayer(layer);
-    HANDLE_IO(gl_VertexID);
-}
--- quad.gs
-#include regen.models.mesh.gs
-
 -- extrude.vs
 #include regen.models.mesh.defines
 
@@ -233,6 +150,7 @@ void main() {
 #endif
     HANDLE_IO(gl_VertexID);
 }
+
 -- extrude.gs
 #include regen.models.mesh.defines
 
@@ -393,17 +311,8 @@ void main() {
  * and can be combined with material properties in the fragment shader.
  **/
 -- vs
-#ifdef USE_POINT_EXTRUSION
 #include regen.models.impostor.extrude.vs
-#else
-#include regen.models.impostor.quad.vs
-#endif
 -- gs
-#ifdef USE_POINT_EXTRUSION
 #include regen.models.impostor.extrude.gs
-#else
-#include regen.models.impostor.quad.gs
-#endif
 -- fs
-//#define HAS_nor
 #include regen.models.mesh.fs
