@@ -182,10 +182,6 @@ void ImpostorBillboard::createResources() {
 	}
 
 	{ // create the snapshot FBO
-		// TODO: Add support for depth correction?
-		//       - Depth texture is already created when snapshot FBO is created.
-		//       - This should be given to draw shader, there it must be sampled, and gl_FragCoord.z
-		//         must be adjusted accordingly, which is very expensive.
 		auto fbo = ref_ptr<FBO>::alloc(snapshotWidth_, snapshotHeight_, numSnapshotViews_);
 		std::vector<GLenum> drawAttachments;
 
@@ -262,13 +258,6 @@ void ImpostorBillboard::createResources() {
 			normal->set_texelTransfer(TextureState::TEXEL_TRANSFER_WORLD_NORMAL);
 			normal->set_blendMode(BLEND_MODE_SRC);
 			joinStates(normal);
-		}
-
-		if (useDepthCorrection_) {
-			//auto depth = ref_ptr<TextureState>::alloc(snapshotDepth_, "impostorDepth");
-			//depth->set_mapping(TextureState::MAPPING_CUSTOM);
-			//depth->set_mapTo(TextureState::MAP_TO_CUSTOM);
-			//joinStates(depth);
 		}
 	}
 	GL_ERROR_LOG();
@@ -487,9 +476,6 @@ ref_ptr<ImpostorBillboard> ImpostorBillboard::load(LoadingContext &ctx, scene::S
 	}
 	if (input.hasAttribute("normal-correction")) {
 		impostor->useNormalCorrection_ = input.getValue<bool>("normal-correction", true);
-	}
-	if (input.hasAttribute("depth-correction")) {
-		impostor->useDepthCorrection_ = input.getValue<bool>("depth-correction", false);
 	}
 	if (input.hasAttribute("snapshot-shader")) {
 		impostor->snapshotShaderKey_ = input.getValue<std::string>("snapshot-shader", "regen.models.impostor.update");

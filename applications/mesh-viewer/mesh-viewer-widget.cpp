@@ -190,7 +190,6 @@ void MeshViewerWidget::billboardMeshes_GL() {
 		billboard->setHasTopView(ui_.topViewCheck->isChecked());
 		billboard->setHasBottomView(ui_.bottomViewCheck->isChecked());
 		billboard->setDepthOffset(static_cast<float>(ui_.depthOffsetSpin->value()));
-		billboard->setUseDepthCorrection(ui_.depthCorrectionCheck->isChecked());
 		billboard->setUseNormalCorrection(ui_.normalCorrectionCheck->isChecked());
 		billboard->setSnapshotTextureSize(ui_.impostorSizeSpin->value(), ui_.impostorSizeSpin->value());
 		billboard->setShaderKey("regen.models.impostor");
