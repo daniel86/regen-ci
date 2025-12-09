@@ -66,19 +66,19 @@ uint getViewIdx(int layer, vec3 centerWorld) {
 #define2 REGEN_getSpriteSize_defined_
 vec2 getSpriteSize(inout vec4 centerEye, vec3 zAxis, uint viewIdx, float scale) {
     vec4 orthoBounds = in_snapshotOrthoBounds[viewIdx];
-#ifndef DEPTH_CORRECT
-    vec2 depthRange = in_snapshotDepthRanges[viewIdx];
-#endif
     // Compute size of the quad in world space, based on the ortho bounds of the selected view.
     vec2 spriteSize = vec2(orthoBounds.y - orthoBounds.x, orthoBounds.w - orthoBounds.z) * scale;
 #ifndef DEPTH_CORRECT
-    float zCenter = centerEye.z;
-    #if OUTPUT_TYPE == DEPTH && DEPTH_FACE == BACK
+    #if RENDER_TARGET_MODE != CASCADE
+    vec2 depthRange = in_snapshotDepthRanges[viewIdx];
+    float zCenter = max(abs(centerEye.z), 1e-4);
+        #if OUTPUT_TYPE == DEPTH && DEPTH_FACE == BACK
     centerEye.xyz += zAxis * 0.5 * (depthRange.y - depthRange.x) * scale;
-    #else
+        #else
     centerEye.xyz -= zAxis * 0.5 * (depthRange.y - depthRange.x) * scale;
-    #endif
+        #endif
     spriteSize *= abs(centerEye.z / zCenter);
+    #endif
 #endif
     return spriteSize;
 }
@@ -268,6 +268,18 @@ const float in_depthOffset = 0.5f;
 #include regen.models.impostor.getSpriteSize
 #include regen.models.impostor.getViewIdx
 
+#if RENDER_TARGET_MODE == CASCADE
+void emitVertex(vec3 posWorld, vec3 texco, int layer) {
+    vec4 posEye = transformWorldToEye(vec4(posWorld,1.0),layer);
+    out_texco0 = texco;
+    out_posWorld = posWorld;
+    out_posEye = posEye.xyz;
+    //out_norWorld = vec3(0.0, 1.0, 0.0);
+    gl_Position = transformEyeToScreen(posEye,layer);
+    HANDLE_IO(0);
+    EmitVertex();
+}
+#else
 void emitVertex(vec4 posEye, vec3 texco, int layer) {
     out_texco0 = texco;
     out_posEye = posEye.xyz;
@@ -277,7 +289,52 @@ void emitVertex(vec4 posEye, vec3 texco, int layer) {
     HANDLE_IO(0);
     EmitVertex();
 }
+#endif
 
+#if RENDER_TARGET_MODE == CASCADE
+const float EPS_CROSS = 1e-6;
+void emitLayer(int layer, float scale) {
+    // world-space center
+    vec3 centerWorld = gl_in[0].gl_Position.xyz;
+    // choose snapshot view index
+    uint viewIdx = getViewIdx(layer, centerWorld.xyz);
+    float viewCoord = float(viewIdx);
+    // transform center to light-eye-space for getSpriteSize
+    mat4 V = REGEN_VIEW_(layer);
+    vec4 centerEye = V * vec4(centerWorld, 1.0);
+    // approximate eye-space forward for getSpriteSize
+    vec3 zAxisEye = vec3(0.0, 0.0, -1.0);
+    vec2 spriteSize = getSpriteSize(centerEye, zAxisEye, viewIdx, scale);
+
+    // compute world-space billboard axes from view matrix
+    vec3 lightForward = normalize(-V[2].xyz); // points from sprite -> camera
+    vec3 lightRight   = normalize( V[0].xyz);
+    vec3 lightUp      = normalize( V[1].xyz);
+    // fallback for degenerate forward
+    if(dot(lightForward,lightForward) < EPS_CROSS) lightForward = vec3(0.0,0.0,1.0);
+
+    // compute quad corners in world space
+    vec3 halfX = lightRight * 0.5 * spriteSize.x;
+    vec3 halfY = lightUp    * 0.5 * spriteSize.y;
+    vec3 p0 = centerWorld - halfX - halfY; // bottom-left
+    vec3 p1 = centerWorld - halfX + halfY; // top-left
+    vec3 p2 = centerWorld + halfX - halfY; // bottom-right
+    vec3 p3 = centerWorld + halfX + halfY; // top-right
+
+    // emit two triangles
+    out_impostorIdx = viewIdx;
+    // bottom-left, top-left, bottom-right
+    emitVertex(p2, vec3(1.0, 0.0, viewCoord), layer);
+    emitVertex(p1, vec3(0.0, 1.0, viewCoord), layer);
+    emitVertex(p0, vec3(0.0, 0.0, viewCoord), layer);
+    EndPrimitive();
+    // bottom-right, top-left, top-right
+    emitVertex(p3, vec3(1.0, 1.0, viewCoord), layer);
+    emitVertex(p1, vec3(0.0, 1.0, viewCoord), layer);
+    emitVertex(p2, vec3(1.0, 0.0, viewCoord), layer);
+    EndPrimitive();
+}
+#else
 void emitLayer(int layer, float scale) {
     vec4 centerWorld = gl_in[0].gl_Position;
     vec4 centerEye = transformWorldToEye(centerWorld, layer);
@@ -291,14 +348,14 @@ void emitLayer(int layer, float scale) {
     vec3 up = mix(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), float(abs(zAxis.y) < 0.99));
     vec3 quadPos[4] = computeSpritePoints(centerEye.xyz, spriteSize, zAxis, up);
 
-#ifdef HAS_windFlow
+    #ifdef HAS_windFlow
     vec3 bottomCenter = 0.5*(quadPos[0] + quadPos[2]);
     vec2 wind = windAtPosition(bottomCenter);
     // cancel out wind along zAxis.xz to avoid artifacts.
     wind -= dot(wind, zAxis.xz) * zAxis.xz;
     // apply the wind force to the quad
     applyForce(quadPos, wind);
-#endif
+    #endif
 
     // Emit the quad as two triangles.
     out_impostorIdx = viewIdx;
@@ -313,6 +370,7 @@ void emitLayer(int layer, float scale) {
     emitVertex(vec4(quadPos[2],1.0), vec3(1.0,0.0,viewCoord), layer);
     EndPrimitive();
 }
+#endif
 
 void main() {
 #ifdef HAS_modelMatrix
