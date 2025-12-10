@@ -146,8 +146,13 @@ void LightPass::createShader(const StateConfig &cfg) {
 		mesh_->createIndirectDrawBuffer(numRenderLayer);
 	}
 
-	shader_->createShader(_cfg.cfg(), shaderKey_);
+	bool isShaderValid = shader_->createShader(_cfg.cfg(), shaderKey_);
 	mesh_->updateVAO(_cfg.cfg(), shader_->shader());
+	if (!isShaderValid) {
+		REGEN_WARN("LightPass shader creation failed for key '" << shaderKey_ << "'.");
+		set_isHidden(true);
+		return;
+	}
 
 	for (auto &light: lights_) { addLightInput(light); }
 	shadowMapLoc_ = shader_->shader()->uniformLocation("shadowTexture");
@@ -188,7 +193,7 @@ void LightPass::addInputLocation(LightPassLight &l,
 								 const ref_ptr<ShaderInput> &in, const std::string &name) {
 	Shader *s = shader_->shader().get();
 	int loc = s->uniformLocation(name);
-	if (loc > 0) {
+	if (loc >= 0) {
 		l.inputLocations.emplace_back(in, loc);
 	}
 }
