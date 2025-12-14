@@ -119,7 +119,7 @@ ref_ptr<CompositeMesh> CompositeMesh::load(LoadingContext &ctx, scene::SceneInpu
 		meshCfg.mapMode = mapMode;
 		meshCfg.accessMode = accessMode;
 		uint32_t numInstances = input.getValue<uint32_t>("num-instances", 1u);
-		auto blanket = ref_ptr<Blanket>::alloc(meshCfg, numInstances);
+		auto blanket = ref_ptr<Blanket>::alloc(meshCfg, numInstances, parser->systemTime());
 		blanket->updateAttributes();
 		(*out) = CompositeMesh();
 		out->addMesh(blanket);
@@ -359,6 +359,15 @@ ref_ptr<CompositeMesh> CompositeMesh::load(LoadingContext &ctx, scene::SceneInpu
 			auto [mesh,_idx] = meshQueue.front();
 			meshQueue.pop();
 			mesh->loadShaderConfig(ctx, *child.get());
+		}
+	}
+
+	// Set number of instances if requested
+	const uint32_t numInstances = input.getValue<uint32_t>("num-instances", 1u);
+	if (numInstances > 1u) {
+		for (auto &mesh: out->meshes()) {
+			mesh->set_numInstances(numInstances);
+			mesh->set_numVisibleInstances(numInstances);
 		}
 	}
 

@@ -12,8 +12,7 @@ CameraController::CameraController(const ref_ptr<Camera> &cam)
 		: Animation(false, true),
 		  CameraControllerBase(cam),
 		  cameraMode_(FIRST_PERSON),
-		  meshDistance_(10.0f),
-		  lastOrientation_(0.0) {
+		  meshDistance_(10.0f) {
 	setAnimationName("controller");
 	horizontalOrientation_ = 0.0;
 	verticalOrientation_ = 0.0;
@@ -108,12 +107,11 @@ void CameraController::initCameraController() {
 
 void CameraController::cpuUpdate(double dt) {
 	updateStep(dt);
-	if (!isRotating_ && !isMoving_) return;
-
-	pos_ += step_;
-
-	updateCameraPose();
-	computeMatrices(camPos_, camDir_);
+	if (isRotating_ || isMoving_) {
+		pos_ += step_;
+		updateCameraPose();
+		computeMatrices(camPos_, camDir_);
+	}
 	updateCamera(camPos_, camDir_, dt);
 }
 
