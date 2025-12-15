@@ -3,15 +3,19 @@ cmake_minimum_required(VERSION 3.31)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
+# We support sanitizing builds below. By default, we use AddressSanitizer
+# for "Profile" builds.
+# To enable MemorySanitizer, set SANITIZER to "Memory".
 if(NOT SANITIZER)
     set(SANITIZER "Address" CACHE STRING "Enable sanitizers: Address, Memory")
 endif()
+
 message(STATUS "Build type is ${CMAKE_BUILD_TYPE}.")
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 	set(REGEN_DEBUG_BUILD 1)
     add_definitions( -O2 )
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "Profile")
-    # Address and UndefinedBehavior sanitizer
+    # Profiling using sanitizer
 	set(REGEN_DEBUG_BUILD 1)
 	if(${SANITIZER} STREQUAL "Memory")
         set(SANITIZE_FLAGS "-fsanitize=memory -fno-omit-frame-pointer -g -O1")
@@ -27,6 +31,7 @@ elseif(${CMAKE_BUILD_TYPE} STREQUAL "Profile")
     endif()
     set(CMAKE_BUILD_TYPE Debug)
 else()
+    # Non-debug build
 	set(REGEN_DEBUG_BUILD 0)
     add_definitions( -O2 )
 endif()
@@ -77,18 +82,22 @@ endif()
 # perform more aggressive floating-point optimizations
 # add_definitions( -ffast-math )
 
+# enable macros for C++11 standard limits and constants
 add_definitions( -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS )
 
 ############
 #### Search for Dependencies
 ###########
 
-# openGL libraries
+set(REGEN_DISABLE_AV OFF)
+
+# GL libraries
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
+
 # boost template library
 set(Boost_MIN_VERSION "1.5.0")
-set(BOOST_COMPONENTS thread system date_time filesystem regex timer chrono)
+set(BOOST_COMPONENTS thread date_time filesystem regex)
 if(WIN32)
     set(Boost_USE_STATIC_LIBS ON)
 endif()
@@ -96,23 +105,48 @@ find_package(Boost ${Boost_MIN_VERSION}
 	COMPONENTS ${BOOST_COMPONENTS} REQUIRED)
 # threading libs
 find_package(Threads REQUIRED)
-# check for Image loading libraries
+# Font library: text rendering support
+find_package(Freetype REQUIRED)
+
+# Image loading libraries: required for loading textures from files
+find_package(PNG REQUIRED)
 find_package(DevIL REQUIRED)
 if(STB_LIBRARIES)
     set(HAS_STB 1)
+    message(STATUS "STB library found.")
 else()
     message(STATUS "STB library not found.")
 endif()
-# check for Model loader library
+set(IMG_LIBRARIES
+        ${PNG_LIBRARIES}
+        ${DEVIL_LIBRARIES}
+        ${STB_LIBRARIES})
+set(IMG_INCLUDE_DIRS
+        ${PNG_INCLUDE_DIRS}
+        ${DEVIL_INCLUDE_DIRS}
+        ${STB_INCLUDE_DIRS})
+
+# Audio-Video libraries: optional, audio/video playback support
+find_package(OpenAL)
+find_package(ALUT)
+find_package(FFmpeg)
+# Define AV_LIBRARIES + AV_INCLUDE_DIRS macro
+set(AV_LIBRARIES "")
+set(AV_INCLUDE_DIRS "")
+if(FFMPEG_LIBRARIES AND OPENAL_FOUND AND ALUT_FOUND AND NOT REGEN_DISABLE_AV)
+    message(STATUS "FFMPEG, OpenAL and ALUT libraries found.")
+    set(AV_LIBRARIES ${FFMPEG_LIBRARIES} ${OPENAL_LIBRARIES} ${ALUT_LIBRARIES})
+    set(AV_INCLUDE_DIRS ${FFMPEG_INCLUDE_DIRS} ${OPENAL_INCLUDE_DIRS} ${ALUT_INCLUDE_DIRS})
+    set(HAS_AV_LIBS 1)
+else()
+    message(STATUS "AV support disabled.")
+    set(HAS_AV_LIBS 0)
+endif()
+
+# Model loader library: 3D model loading support
 find_package(ASSIMP REQUIRED)
-# check for Font lib
-find_package(Freetype REQUIRED)
-# check for Audio-Video libs
-find_package(OpenAL REQUIRED)
-find_package(ALUT REQUIRED)
-find_package(FFmpeg REQUIRED)
+# Physics library: physics simulation support
 find_package(Bullet REQUIRED)
-find_package(PNG REQUIRED)
 
 if(UNIX)
   find_library_path(LIBZ NAMES libz.a libz z)
@@ -121,18 +155,14 @@ endif()
 
 message(STATUS "")
 message(STATUS "regen will link against following libraries:")
-message(STATUS "  OpenGL:${OPENGL_LIBRARIES};")
-message(STATUS "  glew:${GLEW_LIBRARIES};")
-message(STATUS "  Boost:${Boost_LIBRARIES};")
-message(STATUS "  DevIL:${DEVIL_LIBRARIES};")
-message(STATUS "  assimp:${ASSIMP_LIBRARIES};")
-message(STATUS "  Freetype:${FREETYPE_LIBRARIES};")
-message(STATUS "  OpenAL:${OPENAL_LIBRARIES};")
-message(STATUS "  alut:${ALUT_LIBRARIES};")
-message(STATUS "  FFmpeg:${FFMPEG_LIBRARIES};")
-message(STATUS "  Bullet:${BULLET_LIBRARIES};")
-message(STATUS "  PNG:${PNG_LIBRARIES};")
-message(STATUS "  STB:${STB_LIBRARIES};")
+message(STATUS "  OpenGL: ${OPENGL_LIBRARIES};")
+message(STATUS "  glew: ${GLEW_LIBRARIES};")
+message(STATUS "  Boost: ${Boost_LIBRARIES};")
+message(STATUS "  Fonts: ${FREETYPE_LIBRARIES};")
+message(STATUS "  Images: ${IMG_LIBRARIES};")
+message(STATUS "  Audio+Video: ${AV_LIBRARIES};")
+message(STATUS "  Models: ${ASSIMP_LIBRARIES};")
+message(STATUS "  Physics: ${BULLET_LIBRARIES};")
 if(UNIX)
   message(STATUS "  libz:${LIBZ_LIBRARIES};")
   message(STATUS "  libbz2:${LIBBZ2_LIBRARIES};")
@@ -144,37 +174,31 @@ if (${OPENGL_INCLUDE_DIR})
 endif ()
 message(STATUS "  glew:${GLEW_INCLUDE_DIRS};")
 message(STATUS "  Boost:${Boost_INCLUDE_DIRS};")
-message(STATUS "  DevIL:${DEVIL_INCLUDE_DIRS};")
-message(STATUS "  assimp:${ASSIMP_INCLUDE_DIRS};")
-message(STATUS "  Freetype:${FREETYPE_INCLUDE_DIRS};")
-message(STATUS "  OpenAL:${OPENAL_INCLUDE_DIRS};")
-message(STATUS "  alut:${ALUT_INCLUDE_DIRS};")
-message(STATUS "  FFmpeg:${FFMPEG_INCLUDE_DIRS};")
-message(STATUS "  Bullet:${BULLET_INCLUDE_DIRS};")
+message(STATUS "  Images:${IMG_INCLUDE_DIRS};")
+message(STATUS "  Audio+Video:${AV_INCLUDE_DIRS};")
+message(STATUS "  Models:${ASSIMP_INCLUDE_DIRS};")
+message(STATUS "  Fonts:${FREETYPE_INCLUDE_DIRS};")
+message(STATUS "  Physics:${BULLET_INCLUDE_DIRS};")
 
 enable_testing()
 find_package(GTest REQUIRED)
 
-# allow includes without AL/ prefix. Some openAL versions require this.
-include_directories(
-    ${OPENAL_INCLUDE_DIRS}/AL
-    ${BULLET_INCLUDE_DIRS}
-)
+if (HAS_AV_LIBS)
+    # allow includes without AL/ prefix. Some openAL versions require this.
+    include_directories(${OPENAL_INCLUDE_DIRS}/AL)
+endif()
+include_directories(${BULLET_INCLUDE_DIRS})
 
 set(REGEN_LIBRARIES
     ${OPENGL_LIBRARIES}
     ${GLEW_LIBRARIES}
     ${Boost_LIBRARIES}
-    ${DEVIL_LIBRARIES}
-    ${STB_LIBRARIES}
     ${ASSIMP_LIBRARIES}
     ${FREETYPE_LIBRARIES} -lbrotlidec
-    ${OPENAL_LIBRARIES}
-    ${ALUT_LIBRARIES}
-    ${FFMPEG_LIBRARIES}
+    ${IMG_LIBRARIES}
+    ${AV_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
     ${BULLET_LIBRARIES}
-    ${PNG_LIBRARIES}
 )
 if(UNIX)
   set(REGEN_LIBRARIES
@@ -256,11 +280,15 @@ if(UNIX)
     set(CPACK_DEBIAN_PACKAGE_SECTION "devel")
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
     set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
-    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libgl-dev, libboost-thread-dev, libboost-system-dev, libboost-timer-dev, \
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libgl-dev, libboost-thread-dev, libboost-system-dev, \
                 libboost-date-time-dev, libboost-filesystem-dev, libboost-regex-dev, libassimp-dev, \
                 libopenal-dev, libdevil-dev, libfreetype-dev, libbullet-dev, libglew-dev, \
-                libglu1-mesa-dev, libgl1-mesa-dev, libavcodec-dev, libavformat-dev, libavutil-dev \
-                libswscale-dev, libpng-dev, libalut-dev")
+                libglu1-mesa-dev, libgl1-mesa-dev, libpng-dev")
+    if (NOT REGEN_DISABLE_AV)
+        set(CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
+            libopenal-dev, libalut-dev, libavcodec-dev, libavformat-dev, \
+            libavutil-dev, libswscale-dev")
+    endif()
 endif()
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
@@ -273,7 +301,7 @@ set(CPACK_PACKAGE_VERSION_MINOR "${REGEN_MINOR_VERSION}")
 set(CPACK_PACKAGE_VERSION_PATCH "${REGEN_MICRO_VERSION}")
 if(WIN32)
     # There is a bug in NSI that does not handle full unix paths properly. Make
-    # sure there is at least one set of four (4) backlasshes.
+    # sure there is at least one set of four (4) backlashes.
     set(CPACK_PACKAGE_ICON "${CMake_SOURCE_DIR}/regen/res\\\\icon-small.png")
     set(CPACK_NSIS_DISPLAY_NAME "${CPACK_PACKAGE_INSTALL_DIRECTORY} ${PROJECT_NAME}")
     set(CPACK_NSIS_HELP_LINK "http:\\\\\\\\daniel86.github.io/regen/")

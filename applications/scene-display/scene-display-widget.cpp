@@ -31,8 +31,10 @@ using namespace std;
 #include "interactions/node-activation.h"
 #include "regen/simulation/impulse-controller.h"
 #include "regen/behavior/animal-controller.h"
-#include "regen/av/video-recorder.h"
 #include "regen/gl/states/blit-state.h"
+#ifdef HAS_AV_LIBS
+#include "regen/av/video-recorder.h"
+#endif
 
 #define CONFIG_FILE_NAME ".regen-scene-display.cfg"
 
@@ -158,7 +160,7 @@ SceneDisplayWidget::SceneDisplayWidget(QtApplication *app)
 
 void SceneDisplayWidget::init() {
 	if (activeFile_.empty()) {
-		openFile();
+		openFile0();
 	} else {
 		loadScene(activeFile_);
 	}
@@ -214,6 +216,7 @@ void SceneDisplayWidget::nextView() {
 	active1.node->set_isHidden(false);
 	app_->toplevelWidget()->setWindowTitle(QString(active1.name.c_str()));
 
+#ifdef HAS_AV_LIBS
 	if (videoRecorder_.get()) {
 		auto blitState = active1.node->findStateWithType<BlitToScreen>();
 		if (blitState) {
@@ -222,6 +225,7 @@ void SceneDisplayWidget::nextView() {
 			});
 		}
 	}
+#endif
 }
 
 void SceneDisplayWidget::previousView() {
@@ -238,6 +242,7 @@ void SceneDisplayWidget::previousView() {
 	active1.node->set_isHidden(false);
 	app_->toplevelWidget()->setWindowTitle(QString(active1.name.c_str()));
 
+#ifdef HAS_AV_LIBS
 	if (videoRecorder_.get()) {
 		auto blitState = active1.node->findStateWithType<BlitToScreen>();
 		if (blitState) {
@@ -246,6 +251,7 @@ void SceneDisplayWidget::previousView() {
 			});
 		}
 	}
+#endif
 }
 
 void SceneDisplayWidget::toggleOffCameraTransform() {
@@ -335,6 +341,7 @@ void SceneDisplayWidget::playAnchor() {
 	anchorAnim_->startAnimation();
 }
 
+#ifdef HAS_AV_LIBS
 void SceneDisplayWidget::makeVideo(bool isClicked) {
 	if (isClicked) {
 		auto &view = *activeView_;
@@ -380,6 +387,11 @@ void SceneDisplayWidget::makeVideo(bool isClicked) {
 		videoRecorder_->stopAnimation();
 	}
 }
+#else
+void SceneDisplayWidget::makeVideo(bool /** isClicked **/) {
+	REGEN_WARN("Video recording not supported, FFmpeg libraries not available.");
+}
+#endif
 
 void SceneDisplayWidget::toggleInputsDialog() {
 	if (inputDialog_ == nullptr) {
@@ -515,7 +527,7 @@ void SceneDisplayWidget::onWorldTimeFactorChanged(double value) {
 	app_->setWorldTimeScale(value);
 }
 
-void SceneDisplayWidget::openFile() {
+void SceneDisplayWidget::openFile0() {
 	QFileDialog dialog(this);
 	dialog.setFileMode(QFileDialog::AnyFile);
 	dialog.setNameFilters({"XML Files (*.xml)", "All files (*.*)"});
@@ -535,6 +547,14 @@ void SceneDisplayWidget::openFile() {
 	writeConfig();
 
 	loadScene(activeFile_);
+}
+
+void SceneDisplayWidget::openFile() {
+	openFile0();
+	// Block the GUI thread until loading is done.
+	// This is necessary to avoid user interaction during loading that
+	// could interfere with the loading process.
+	waitOnFlag<false>(loadAnim_->runningFlag());
 }
 
 void SceneDisplayWidget::updateSize() {
@@ -900,30 +920,46 @@ static void handleMouseConfiguration(
 /////////////////////////////
 /////////////////////////////
 
-void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
-	REGEN_INFO("Loading XML scene at " << sceneFile << ".");
-
-	AnimationManager::get().pause(true);
-	// Ensure all GL operations are finished before deleting GL resources.
-	glFinish();
-
+void SceneDisplayWidget::resetState() {
+	// Clear all existing animations
 	AnimationManager::get().clear();
 	AnimationManager::get().setRootState(app_->renderTree()->state());
-	TextureBinder::reset();
-
 	animations_.clear();
-	viewNodes_.clear();
-	anchors_.clear();
+	timeWidgetAnimation_ = {};
+
+	// Clear physics simulation
 	if (physics_.get()) {
 		physics_->clear();
 		physics_ = {};
 	}
+
+	viewNodes_.clear();
+	anchors_.clear();
 	userCamera_ = {};
 	anchorAnim_ = {};
-	timeWidgetAnimation_ = {};
 	anchorIndex_ = 0;
-	app_->clear();
 	eventHandler_.clear();
+
+	// Reset application state including GL state, staging system etc.
+	app_->clear();
+}
+
+void SceneDisplayWidget::loadSceneGraphicsThread(const string &sceneFile) {
+	REGEN_INFO("Loading XML scene at " << sceneFile << ".");
+
+	// Pause all animations during scene loading, block until done.
+	// This will prevent any thread in AnimationManager from accessing
+	// resources that are being deleted or re-created during scene loading.
+	// NOTE: It should be ensured elsewhere that the GUI thread is not interfering
+	// with the loading process.
+	AnimationManager::get().pause(true);
+	// Ensure all GL operations are finished before deleting GL resources.
+	// This should make sure that all the GL* commands issued up to this point
+	// are finished before we start deleting resources.
+	glFinish();
+
+	// Reset the application state, deleting existing resources.
+	resetState();
 
 	ref_ptr<RootNode> tree = app_->renderTree();
 
