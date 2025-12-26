@@ -56,9 +56,9 @@ ShaderInput::ShaderInput(const ShaderInput &o)
 		  valsPerElement_(o.valsPerElement_),
 		  baseAlignment_(o.baseAlignment_),
 		  alignmentCount_(o.alignmentCount_),
-		  alignedBaseSize_(o.alignedBaseSize_),
+		  alignedElementSize_(o.alignedElementSize_),
 		  unalignedSize_(o.unalignedSize_),
-		  stride_(o.stride_),
+		  vertexStride_(o.vertexStride_),
 		  offset_(o.offset_),
 		  inputSize_(o.inputSize_),
 		  elementSize_(o.elementSize_),
@@ -77,6 +77,7 @@ ShaderInput::ShaderInput(const ShaderInput &o)
 		  transpose_(o.transpose_),
 		  isConstant_(o.isConstant_),
 		  isBufferBlock_(o.isBufferBlock_),
+		  isStagedBuffer_(o.isStagedBuffer_),
 		  forceArray_(o.forceArray_),
 		  active_(o.active_),
 		  schema_(o.schema_) {
@@ -84,17 +85,20 @@ ShaderInput::ShaderInput(const ShaderInput &o)
 	enableInput_ = o.enableInput_;
 	// copy client data, if any
 	if (o.hasClientData()) {
-		auto mapped = o.clientBuffer_->mapRange(BUFFER_GPU_READ, 0, o.inputSize_);
-		clientBuffer_->resize(inputSize_, mapped.r);
-		o.clientBuffer_->unmapRange(BUFFER_GPU_READ, 0, inputSize_, mapped.r_index);
+		auto mapped = o.mapClientDataRaw(BUFFER_GPU_READ);
+		if (o.isVertexAttribute()) {
+			setVertexData(o.numVertices_, mapped.r);
+		} else {
+			setInstanceData(o.numInstances_, o.divisor_, mapped.r);
+		}
 	}
 }
 
 ShaderInput::~ShaderInput() {
-	if (bufferIterator_.get()) {
-		BufferObject::orphanBufferRange(bufferIterator_.get());
+	if (bufferRef_.get()) {
+		BufferObject::orphanBufferRange(bufferRef_.get());
 	}
-	bufferIterator_ = {};
+	bufferRef_ = {};
 	if (clientBuffer_->isDataOwner()) {
 		clientBuffer_->deallocateClientData();
 	}
@@ -102,34 +106,33 @@ ShaderInput::~ShaderInput() {
 }
 
 void ShaderInput::updateAlignment() {
-	baseAlignment_ = baseSize_;
-	alignedBaseSize_ = baseSize_;
-	alignmentCount_ = 1u;
-	if (baseSize_ == 12u) { // vec3
-		baseAlignment_ = 16u;
-	} else if (baseSize_ == 48u) { // mat3
-		baseAlignment_ = 16u;
-		alignmentCount_ = 3u;
-	} else if (baseSize_ == 64u) { // mat4
-		baseAlignment_ = 16u;
-		alignmentCount_ = 4u;
-	} else if (numElements() > 1u) {
-		if (memoryLayout_ == BUFFER_MEMORY_STD140) {
+	if (memoryLayout_ == BUFFER_MEMORY_PACKED) {
+		baseAlignment_ = PACKED_BASE_ALIGNMENT;
+		alignedElementSize_ = baseSize_;
+		alignmentCount_ = 1u;
+		alignedInputSize_ = alignedElementSize_ * numElements_ui_;
+	} else {
+		baseAlignment_ = baseSize_;
+		alignedElementSize_ = baseSize_;
+		alignmentCount_ = 1u;
+		if (baseSize_ == 12u) { // vec3
+			baseAlignment_ = 16u;
+		} else if (baseSize_ == 48u) { // mat3
+			baseAlignment_ = 16u;
+			alignmentCount_ = 3u;
+		} else if (baseSize_ == 64u) { // mat4
+			baseAlignment_ = 16u;
+			alignmentCount_ = 4u;
+		} else if (numElements() > 1u && memoryLayout_ == BUFFER_MEMORY_STD140) {
 			// with STD140, each array element must be padded to a multiple of 16 bytes
 			baseAlignment_ = 16u;
 		}
-		// only vec3 and mat3 array types need to be aligned to 16 bytes with STD430.
-		// note: covered above already.
-		//else if (memoryLayout_ == BUFFER_MEMORY_STD430) {
-		//	if (baseSize_ == 12u || baseSize_ == 48u) {
-		//		baseAlignment_ = 16u;
-		//	}
-		//}
+		if (numElements() > 1u) {
+			alignedElementSize_ = baseAlignment_ * alignmentCount_;
+		}
+		alignedInputSize_ = alignedElementSize_ * numElements_ui_;
 	}
-	if (numElements() > 1u) {
-		alignedBaseSize_ = baseAlignment_ * alignmentCount_;
-	}
-	alignedInputSize_ = alignedBaseSize_ * numElements_ui_;
+	vertexStride_ = alignedElementSize_ * numArrayElements_;
 	clientBuffer_->setBaseAlignment(baseAlignment_);
 }
 
@@ -162,10 +165,15 @@ void ShaderInput::set_isVertexAttribute(bool isVertexAttribute) {
 	}
 }
 
-void ShaderInput::set_buffer(uint32_t buffer, const ref_ptr<BufferReference> &it) {
-	buffer_ = buffer;
-	bufferIterator_ = it;
+void ShaderInput::setMainBuffer(const ref_ptr<BufferReference> &ref, uint32_t offset) {
+	buffer_ = ref->bufferID();
+	bufferRef_ = ref;
+	offset_ = offset;
 	bufferStamp_ = stampOfReadData();
+}
+
+void ShaderInput::setMainBufferOffset(uint32_t offset) {
+	offset_ = offset;
 }
 
 void ShaderInput::enableAttribute(int loc) const {
@@ -204,12 +212,13 @@ void ShaderInput::setUniformUntyped(const byte *data) {
 }
 
 void ShaderInput::updateAlignedSize() {
-	inputSize_ = unalignedSize_;
 	// Check if we need to apply padding per element.
 	// e.g. in case of STD140, each array element must be padded to a multiple of 16 bytes,
 	// so if we have an array of 3 vec3f, the size will be 3 * 16 = 48 bytes,
 	// but the unaligned size will be 3 * 12 = 36 bytes.
-	if (numElements() > 1 && !isVertexAttribute_ && alignedInputSize_ != unalignedSize_) {
+	if (memoryLayout_ != BUFFER_MEMORY_PACKED &&
+			numElements() > 1 &&
+			alignedInputSize_ != unalignedSize_) {
 		// allocate space in client buffer for aligned data.
 		// note: this will make it more difficult to update the data on the client side,
 		// but it enables us to form contiguous buffers for the GPU.
@@ -217,7 +226,11 @@ void ShaderInput::updateAlignedSize() {
 			<< "(" << unalignedSize_ << " to " << alignedInputSize_ << ")");
 		inputSize_ = alignedInputSize_;
 		// use strided data access in mapClient* functions
-		mapClientStride_ = alignedBaseSize_;
+		mapClientStride_ = alignedElementSize_;
+	}
+	else {
+		// no re-alignment needed
+		inputSize_ = unalignedSize_;
 	}
 }
 
@@ -241,7 +254,10 @@ void ShaderInput::setInstanceData(uint32_t numInstances, uint32_t divisor, const
 		updateAlignment();
 		updateAlignedSize();
 
-		clientBuffer_->resize(inputSize_, data);
+		if (!clientBuffer_->resize(alignedInputSize_, data)) {
+			REGEN_ERROR("Failed to resize client buffer for " << name()
+				<< " to " << alignedInputSize_ << " bytes.");
+		}
 		clientBuffer_->writeUnlockAll(0u, 0u);
 	} else if (data) {
 		auto mapped = mapClientDataRaw(BUFFER_GPU_WRITE);
@@ -265,7 +281,10 @@ void ShaderInput::setVertexData(uint32_t numVertices, const byte *data) {
 		updateAlignment();
 		updateAlignedSize();
 
-		clientBuffer_->resize(inputSize_, data);
+		if (!clientBuffer_->resize(alignedInputSize_, data)) {
+			REGEN_ERROR("Failed to resize client buffer for " << name()
+				<< " to " << alignedInputSize_ << " bytes.");
+		}
 		clientBuffer_->writeUnlockAll(0u, 0u);
 	} else if (data) {
 		auto mapped = mapClientDataRaw(BUFFER_GPU_WRITE);
@@ -280,13 +299,13 @@ void ShaderInput::writeServerData() const {
 	auto clientData = mappedClientData.r;
 	auto count = std::max(numVertices_, numInstances_);
 
-	if (static_cast<uint32_t>(stride_) == elementSize_) {
+	if (static_cast<uint32_t>(vertexStride_) == elementSize_) {
 		glNamedBufferSubData(buffer_, offset_, inputSize_, clientData);
 	} else {
 		uint32_t offset = offset_;
 		for (uint32_t i = 0; i < count; ++i) {
 			glNamedBufferSubData(buffer_, offset, elementSize_, clientData);
-			offset += stride_;
+			offset += vertexStride_;
 			clientData += elementSize_;
 		}
 	}
@@ -301,22 +320,22 @@ void ShaderInput::readServerData() {
 	auto clientData = mappedClientData.w;
 
 	byte *serverData = (byte *) glMapNamedBufferRange(
-			buffer(),
+			mainBufferName(),
 			offset_,
-			numVertices_ * stride_ + elementSize_,
+			numVertices_ * vertexStride_ + elementSize_,
 			GL_MAP_READ_BIT);
 
-	if (static_cast<uint32_t>(stride_) == elementSize_) {
+	if (static_cast<uint32_t>(vertexStride_) == elementSize_) {
 		std::memcpy(clientData, serverData, inputSize_);
 	} else {
 		for (uint32_t i = 0; i < numVertices_; ++i) {
 			std::memcpy(clientData, serverData, elementSize_);
-			serverData += stride_;
+			serverData += vertexStride_;
 			clientData += elementSize_;
 		}
 	}
 
-	glUnmapNamedBuffer(buffer());
+	glUnmapNamedBuffer(mainBufferName());
 	clientBuffer_->unmapRange(BUFFER_GPU_WRITE, 0, inputSize_, mappedClientData.w_index);
 }
 
@@ -326,21 +345,24 @@ void ShaderInput::readServerData() {
 
 ref_ptr<ShaderInput> ShaderInput::create(const ref_ptr<ShaderInput> &in) {
 	if (in->isBufferBlock()) {
-		auto oldBlock = dynamic_cast<BufferBlock *>(in.get());
-		if (oldBlock->isUBO()) {
-			auto newBlock = ref_ptr<UBO>::alloc(in->name(), oldBlock->bufferUpdateHints());
-			for (auto &namedInput: oldBlock->stagedInputs()) {
-				newBlock->addStagedInput(create(namedInput.in_), namedInput.name_);
+		if (auto oldBlock = dynamic_cast<BufferBlock *>(in.get())) {
+			if (oldBlock->isUBO()) {
+				auto newBlock = ref_ptr<UBO>::alloc(in->name(), oldBlock->bufferUpdateHints());
+				for (auto &namedInput: oldBlock->stagedInputs()) {
+					newBlock->addStagedInput(create(namedInput.in_), namedInput.name_);
+				}
+				return newBlock;
 			}
-			return newBlock;
-		}
-		if (oldBlock->isSSBO()) {
-			auto newBlock = ref_ptr<SSBO>::alloc(in->name(), oldBlock->bufferUpdateHints());
-			for (auto &namedInput: oldBlock->stagedInputs()) {
-				newBlock->addStagedInput(create(namedInput.in_), namedInput.name_);
+			if (oldBlock->isSSBO()) {
+				auto newBlock = ref_ptr<SSBO>::alloc(in->name(), oldBlock->bufferUpdateHints());
+				for (auto &namedInput: oldBlock->stagedInputs()) {
+					newBlock->addStagedInput(create(namedInput.in_), namedInput.name_);
+				}
+				return newBlock;
 			}
-			return newBlock;
 		}
+		REGEN_WARN("Unknown BufferBlock type for ShaderInput::create: " << in->name());
+		return {};
 	}
 
 	const std::string &name = in->name();
@@ -405,7 +427,7 @@ ref_ptr<ShaderInput> ShaderInput::create(const ref_ptr<ShaderInput> &in) {
 
 ref_ptr<ShaderInput> ShaderInput::copy(const ref_ptr<ShaderInput> &in, bool copyData) {
 	ref_ptr<ShaderInput> cp = create(in);
-	cp->stride_ = in->stride_;
+	cp->vertexStride_ = in->vertexStride_;
 	cp->offset_ = in->offset_;
 	cp->inputSize_ = in->inputSize_;
 	cp->elementSize_ = in->elementSize_;
@@ -418,6 +440,7 @@ ref_ptr<ShaderInput> ShaderInput::copy(const ref_ptr<ShaderInput> &in, bool copy
 	cp->normalize_ = in->normalize_;
 	cp->isVertexAttribute_ = in->isVertexAttribute_;
 	cp->isBufferBlock_ = in->isBufferBlock_;
+	cp->isStagedBuffer_ = in->isStagedBuffer_;
 	cp->isConstant_ = in->isConstant_;
 	cp->transpose_ = in->transpose_;
 	cp->forceArray_ = in->forceArray_;
@@ -426,11 +449,16 @@ ref_ptr<ShaderInput> ShaderInput::copy(const ref_ptr<ShaderInput> &in, bool copy
 	if (in->hasClientData()) {
 		// allocate memory for one slot, copy most recent data
 		if (copyData) {
-			auto mapped = in->clientBuffer_->mapRange(BUFFER_GPU_READ, 0, in->inputSize_);
-			cp->clientBuffer_->resize(in->inputSize_, mapped.r);
-			in->clientBuffer_->unmapRange(BUFFER_GPU_READ, 0, in->inputSize_, mapped.r_index);
+			auto mapped = in->mapClientDataRaw(BUFFER_GPU_READ);
+			if (in->isVertexAttribute()) {
+				cp->setVertexData(in->numVertices_, mapped.r);
+			} else {
+				cp->setInstanceData(in->numInstances_, in->divisor_, mapped.r);
+			}
 		} else {
-			cp->clientBuffer_->resize(in->inputSize_);
+			if (!cp->clientBuffer_->resize(in->alignedInputSize_)) {
+				REGEN_ERROR("Failed to allocate client data for " << in->name());
+			}
 		}
 	}
 	return cp;
@@ -450,7 +478,7 @@ void ShaderInput::enableAttribute_f(int location) const {
 				valsPerElement_,
 				baseType_,
 				normalize_,
-				stride_,
+				vertexStride_,
 				REGEN_BUFFER_OFFSET(offset_));
 		if (divisor_ != 0) {
 			glVertexAttribDivisor(loc, divisor_);
@@ -468,7 +496,7 @@ void ShaderInput::enableAttribute_i(int location) const {
 				loc,
 				valsPerElement_,
 				baseType_,
-				stride_,
+				vertexStride_,
 				REGEN_BUFFER_OFFSET(offset_));
 		if (divisor_ != 0) {
 			glVertexAttribDivisor(loc, divisor_);
@@ -489,16 +517,16 @@ void ShaderInput::enableAttributeMat4(int location) const {
 		glEnableVertexAttribArray(loc3);
 
 		glVertexAttribPointer(loc0,
-							  4, baseType_, normalize_, stride_,
+							  4, baseType_, normalize_, vertexStride_,
 							  REGEN_BUFFER_OFFSET(offset_));
 		glVertexAttribPointer(loc1,
-							  4, baseType_, normalize_, stride_,
+							  4, baseType_, normalize_, vertexStride_,
 							  REGEN_BUFFER_OFFSET(offset_ + sizeof(float) * 4));
 		glVertexAttribPointer(loc2,
-							  4, baseType_, normalize_, stride_,
+							  4, baseType_, normalize_, vertexStride_,
 							  REGEN_BUFFER_OFFSET(offset_ + sizeof(float) * 8));
 		glVertexAttribPointer(loc3,
-							  4, baseType_, normalize_, stride_,
+							  4, baseType_, normalize_, vertexStride_,
 							  REGEN_BUFFER_OFFSET(offset_ + sizeof(float) * 12));
 
 		if (divisor_ != 0) {
@@ -521,13 +549,13 @@ void ShaderInput::enableAttributeMat3(int location) const {
 		glEnableVertexAttribArray(loc2);
 
 		glVertexAttribPointer(loc0,
-							  4, baseType_, normalize_, stride_,
+							  4, baseType_, normalize_, vertexStride_,
 							  REGEN_BUFFER_OFFSET(offset_));
 		glVertexAttribPointer(loc1,
-							  4, baseType_, normalize_, stride_,
+							  4, baseType_, normalize_, vertexStride_,
 							  REGEN_BUFFER_OFFSET(offset_ + sizeof(float) * 4));
 		glVertexAttribPointer(loc2,
-							  4, baseType_, normalize_, stride_,
+							  4, baseType_, normalize_, vertexStride_,
 							  REGEN_BUFFER_OFFSET(offset_ + sizeof(float) * 8));
 
 		if (divisor_ != 0) {
@@ -547,10 +575,10 @@ void ShaderInput::enableAttributeMat2(int location) const {
 		glEnableVertexAttribArray(loc1);
 
 		glVertexAttribPointer(loc0,
-							  4, baseType_, normalize_, stride_,
+							  4, baseType_, normalize_, vertexStride_,
 							  REGEN_BUFFER_OFFSET(offset_));
 		glVertexAttribPointer(loc1,
-							  4, baseType_, normalize_, stride_,
+							  4, baseType_, normalize_, vertexStride_,
 							  REGEN_BUFFER_OFFSET(offset_ + sizeof(float) * 4));
 
 		if (divisor_ != 0) {

@@ -24,7 +24,7 @@ struct Mesh::SharedData {
 	ref_ptr<ShaderInput> indices_;
 };
 
-Mesh::Mesh(GLenum primitive, const BufferUpdateFlags &hints, VertexLayout vertexLayout)
+Mesh::Mesh(GLenum primitive, const BufferUpdateFlags &hints)
 		: State(),
 		  primitive_(primitive),
 		  vao_(ref_ptr<VAO>::alloc()),
@@ -37,7 +37,7 @@ Mesh::Mesh(GLenum primitive, const BufferUpdateFlags &hints, VertexLayout vertex
 	lodThresholds_ = ref_ptr<ShaderInput3f>::alloc("lodThresholds");
 	lodThresholds_->setUniformData(Vec3f::zero());
 	sharedState_ = ref_ptr<State>::alloc();
-	vertexBuffer_ = ref_ptr<VBO>::alloc(ARRAY_BUFFER, hints, vertexLayout);
+	vertexBuffer_ = ref_ptr<VBO>::alloc(ARRAY_BUFFER, hints);
 }
 
 Mesh::Mesh(const ref_ptr<Mesh> &sourceMesh)
@@ -102,7 +102,7 @@ void Mesh::setMaterial(const ref_ptr<Material> &material) {
 
 ref_ptr<BufferReference> Mesh::updateVertexData() {
 	ref_ptr<BufferReference> ref;
-	std::list<ref_ptr<ShaderInput>> attributes;
+	std::vector<ref_ptr<ShaderInput>> attributes;
 
 	// collect all attribute inputs that are not already uploaded
 	for (auto &in : inputs()) {
@@ -124,7 +124,9 @@ ref_ptr<BufferReference> Mesh::setIndices(const ref_ptr<ShaderInput> &indices, u
 	shared_->numIndices_ = static_cast<int32_t>(shared_->indices_->numVertices());
 	shared_->maxIndex_ = maxIndex;
 	elementBuffer_ = ref_ptr<ElementBuffer>::alloc(BufferUpdateFlags::NEVER);
-	return elementBuffer_->alloc(shared_->indices_);
+	ref_ptr<BufferReference> ref = elementBuffer_->alloc(shared_->indices_);
+	indices->setMainBuffer(ref, ref->address());
+	return ref;
 }
 
 void Mesh::set_vertexOffset(int32_t v) {
@@ -164,7 +166,7 @@ uint32_t Mesh::maxIndex() const {
 }
 
 uint32_t Mesh::indexOffset() const {
-	return shared_->indices_.get() ? shared_->indices_->offset() : 0u;
+	return shared_->indices_.get() ? shared_->indices_->mainBufferOffset() : 0u;
 }
 
 const ref_ptr<ShaderInput> &Mesh::indices() const {
@@ -172,7 +174,9 @@ const ref_ptr<ShaderInput> &Mesh::indices() const {
 }
 
 void Mesh::set_indexOffset(uint32_t v) {
-	if (shared_->indices_.get()) { shared_->indices_->set_offset(v); }
+	if (shared_->indices_.get()) {
+		shared_->indices_->setMainBufferOffset(v);
+	}
 }
 
 uint32_t Mesh::indexBuffer() const {
@@ -182,13 +186,13 @@ uint32_t Mesh::indexBuffer() const {
 void Mesh::addShaderInput(const std::string &name, const ref_ptr<ShaderInput> &in) {
 	if (!meshShader_.get()) return;
 
-	if (in->isBufferBlock()) {
-		auto *block = dynamic_cast<BufferBlock*>(in.get());
-		if (!block) {
-			REGEN_ERROR("Shader input '" << name << "' is not a BufferBlock.");
+	if (in->isStagedBuffer()) {
+		auto *bo = dynamic_cast<StagedBuffer*>(in.get());
+		if (!bo) {
+			REGEN_ERROR("Shader input '" << name << "' is not a StagedBuffer.");
 			return;
 		}
-		for (auto &blockUniform: block->stagedInputs()) {
+		for (auto &blockUniform: bo->stagedInputs()) {
 			if (blockUniform.in_->numInstances() > 1) {
 				set_numInstances(blockUniform.in_->numInstances());
 				set_numVisibleInstances(blockUniform.in_->numInstances());
@@ -208,19 +212,14 @@ void Mesh::addShaderInput(const std::string &name, const ref_ptr<ShaderInput> &i
 			// not used in shader
 			return;
 		}
-		if (!in->bufferIterator().get()) {
-			// allocate VBO memory if not already allocated
-			vertexBuffer_->alloc(in);
-		}
 
 		auto needle = vaoLocations_.find(loc);
 		if (needle == vaoLocations_.end()) {
 			vaoAttributes_.emplace_back(in, loc);
-			auto it = vaoAttributes_.end();
-			--it;
-			vaoLocations_[loc] = it;
+			vaoLocations_[loc] = static_cast<uint32_t>(vaoAttributes_.size() - 1);
 		} else {
-			*needle->second = InputLocation(in, loc);
+			const auto attIdx = needle->second;
+			vaoAttributes_[attIdx].input = in;
 		}
 	}
 }
@@ -336,6 +335,35 @@ void Mesh::updateVAO(const StateConfig &cfg, const ref_ptr<Shader> &meshShader) 
 		addShaderInput(texture.first, texture.second.first);
 	}
 
+	// In most cases the VBO is already allocated in updateVertexData(),
+	// but in case some attributes were not used in the shader,
+	// we need to ensure the VBO is allocated here.
+	bool allAttributesAllocated = true;
+	ref_ptr<BufferReference> vertexBufferRef;
+	for (const auto &vaoAttribute : vaoAttributes_) {
+		auto &attributeRef = vaoAttribute.input->mainBufferRef();
+		if (!attributeRef) {
+			allAttributesAllocated = false;
+			break;
+		} else {
+			if (!vertexBufferRef) {
+				vertexBufferRef = attributeRef;
+			} else if (vertexBufferRef->bufferID() != attributeRef->bufferID()) {
+				// different buffer IDs, cannot handle this case here
+				allAttributesAllocated = false;
+				break;
+			}
+		}
+	}
+	if (!allAttributesAllocated) {
+		REGEN_WARN("Not all mesh attributes were allocated in VBO, reallocating VBO.");
+		std::vector<ref_ptr<ShaderInput>> attributes(vaoAttributes_.size());
+		for (size_t i = 0; i < vaoAttributes_.size(); ++i) {
+			attributes[i] = vaoAttributes_[i].input;
+		}
+		vertexBuffer_->alloc(attributes);
+	}
+
 	updateVAO();
 	updateDrawFunction();
 }
@@ -367,7 +395,7 @@ void Mesh::updateVAO() {
 
 void Mesh::updateVAO_() {
 	if (vaoAttributes_.empty()) return;
-	updateVAO(vaoAttributes_.front().input->buffer());
+	updateVAO(vaoAttributes_.front().input->mainBufferName());
 
 	// group together LODs that can be drawn with multi draw calls,
 	// i.e. those that do not have impostor meshes.
@@ -646,7 +674,7 @@ void Mesh::setIndirectDrawBuffer(
 	if (indirectDrawBuffer_.get()) {
 		const uint32_t numDrawCommands = indirectDrawBuffer->inputSize() / sizeof(DrawCommand);
 		numDrawLODs_ = numDrawCommands / numDrawLayers;
-		indirectOffset_ = indirectDrawBuffer_->offset() + baseDrawIdx_ * sizeof(DrawCommand);
+		indirectOffset_ = indirectDrawBuffer_->mainBufferOffset() + baseDrawIdx_ * sizeof(DrawCommand);
 	} else {
 		indirectOffset_ = 0u;
 	}
@@ -917,7 +945,7 @@ void Mesh::drawIndexed(GLenum primitive) const {
 			primitive,
 			shared_->numIndices_,
 			shared_->indices_->baseType(),
-			REGEN_BUFFER_OFFSET(shared_->indices_->offset()));
+			REGEN_BUFFER_OFFSET(shared_->indices_->mainBufferOffset()));
 }
 
 void Mesh::drawInstances(GLenum primitive) const {
@@ -933,7 +961,7 @@ void Mesh::drawInstancesIndexed(GLenum primitive) const {
 			primitive,
 			shared_->numIndices_,
 			shared_->indices_->baseType(),
-			REGEN_BUFFER_OFFSET(shared_->indices_->offset()),
+			REGEN_BUFFER_OFFSET(shared_->indices_->mainBufferOffset()),
 			shared_->numVisibleInstances_);
 }
 
@@ -951,7 +979,7 @@ void Mesh::drawBaseInstancesIndexed(GLenum primitive) const {
 			primitive,
 			shared_->numIndices_,
 			shared_->indices_->baseType(),
-			REGEN_BUFFER_OFFSET(shared_->indices_->offset()),
+			REGEN_BUFFER_OFFSET(shared_->indices_->mainBufferOffset()),
 			shared_->numVisibleInstances_,
 			shared_->baseInstance_);
 }

@@ -3,8 +3,10 @@
 
 #include <regen/objects/mesh.h>
 
+#include "regen/compute/compute-pass.h"
 #include "regen/shader/shader-state.h"
 #include "regen/gl/atomic-counter.h"
+#include "regen/memory/bbox-buffer.h"
 
 namespace regen {
 	/**
@@ -63,7 +65,7 @@ namespace regen {
 		 * @param updateShaderKey shader for updating particles.
 		 */
 		explicit Particles(uint32_t numParticles,
-			const std::string &updateShaderKey="regen.particles.emitter");
+			const std::string &updateShaderKey="regen.particles.emitter.compute");
 
 		/**
 		 * Set the maximum number of particles to emit per frame.
@@ -73,6 +75,14 @@ namespace regen {
 		void setMaxEmits(uint32_t maxEmits) { maxEmits_ = maxEmits; }
 
 		/**
+		 * Enable or disable GPU bounding box computation.
+		 * If enabled, the bounding box will be computed on the GPU
+		 * during the particle update pass.
+		 * @param enable true to enable GPU bounding box computation.
+		 */
+		void setUseGPUBoundingBox(bool enable) { useGPUBoundingBox_ = enable; }
+
+		/**
 		 * Set the default value for a particle attribute when it is emitted.
 		 * @param attributeName name of the attribute.
 		 * @param value default value.
@@ -80,6 +90,7 @@ namespace regen {
 		template <class InputType, class ValueType>
 		void setDefault(std::string_view attributeName, const ValueType &value) {
 			auto x = ref_ptr<InputType>::alloc(REGEN_STRING(attributeName << "Default"));
+			x->setMemoryLayout(BUFFER_MEMORY_STD430);
 			x->setUniformData(value);
 			setInput(x);
 		}
@@ -92,6 +103,7 @@ namespace regen {
 		template <class InputType, class ValueType>
 		void setVariance(std::string_view attributeName, const ValueType &value) {
 			auto x = ref_ptr<InputType>::alloc(REGEN_STRING(attributeName << "Variance"));
+			x->setMemoryLayout(BUFFER_MEMORY_STD430);
 			x->setUniformData(value);
 			setInput(x);
 		}
@@ -107,6 +119,7 @@ namespace regen {
 		template <class InputType, class ValueType>
 		void setAdvanceConstant(std::string_view attributeName, const ValueType &value) {
 			auto x = ref_ptr<InputType>::alloc(REGEN_STRING(attributeName << "AdvanceConstant"));
+			x->setMemoryLayout(BUFFER_MEMORY_STD430);
 			x->setUniformData(value);
 			setInput(x);
 		}
@@ -159,13 +172,11 @@ namespace regen {
 
 	protected:
 		const std::string updateShaderKey_;
-		ref_ptr<VBO> feedbackBuffer_;
-		ref_ptr<BufferReference> vboRef_[2];
-		uint32_t updateIdx_ = 0;
+		ref_ptr<BufferReference> vboRef_;
 		BufferRange bufferRange_;
-		std::list<InputLocation> particleAttributes_;
-		ref_ptr<ShaderState> updateState_;
-		VAO particleVAO_;
+		ref_ptr<State> updateState_;
+
+		bool useGPUBoundingBox_ = false;
 
 		uint32_t numParticles_;
 		uint32_t maxEmits_;
@@ -181,9 +192,9 @@ namespace regen {
 		std::map<std::string, std::string> rampFunctions_;
 
 		// Optional: bounding box computation on GPU.
-		//ref_ptr<BBoxBuffer> bboxBuffer_;
-		//ref_ptr<ComputePass> bboxPass_;
-		//double bbox_time_ = 0.0;
+		ref_ptr<BBoxBuffer> bboxBuffer_;
+		ref_ptr<ComputePass> bboxPass_;
+		double bbox_time_ = 0.0;
 
 		void createUpdateShader();
 

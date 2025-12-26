@@ -1,116 +1,65 @@
 #include "vbo.h"
 
+#include "staging-system.h"
+
 using namespace regen;
 
-VBO::VBO(BufferTarget target, const BufferUpdateFlags &hints, VertexLayout vertexLayout)
-		: BufferObject(target, hints),
-		  vertexLayout_(vertexLayout) {
+static std::string getVBO_Name() {
+	static uint32_t vboCounter = 0;
+	return REGEN_STRING("VBO_" << vboCounter++);
+}
+
+static BufferMemoryLayout getVBO_Layout(const BufferUpdateFlags &hints) {
+	return hints.compute == BUFFER_NO_COMPUTE ? BUFFER_MEMORY_PACKED : BUFFER_MEMORY_STD430;
+}
+
+VBO::VBO(BufferTarget target, const BufferUpdateFlags &hints)
+		: StagedBuffer(getVBO_Name(), target, hints, getVBO_Layout(hints)) {
 	// set default storage flags
-	flags_.mapMode = BUFFER_MAP_DISABLED;
+	//flags_.mapMode = BUFFER_MAP_DISABLED;
 	// default case: mesh data is loaded from CPU and written to GPU
-	flags_.accessMode = BUFFER_CPU_WRITE;
+	//flags_.accessMode = BUFFER_CPU_WRITE;
+	// No-op for VBOs
+	enableInput_ = [](int /*loc*/) {};
 }
 
-ref_ptr<BufferReference> &VBO::alloc(const ref_ptr<ShaderInput> &att) {
-	std::list<ref_ptr<ShaderInput> > atts;
-	atts.push_back(att);
-	return allocSequential(atts);
-}
-
-ref_ptr<BufferReference> &VBO::alloc(const std::list<ref_ptr<ShaderInput>> &attributes) {
-	if (vertexLayout_ == VERTEX_LAYOUT_INTERLEAVED) {
-		return allocInterleaved(attributes);
-	} else {
-		return allocSequential(attributes);
+ref_ptr<BufferReference> &VBO::alloc(const std::vector<ref_ptr<ShaderInput>> &attributes) {
+	// Clean up last allocation
+	if (shared_->isGloballyStaged_) {
+		StagingSystem::instance().removeBufferBlock(this);
+		for (const auto &att: stagedInputs_) {
+			clientBuffer_->removeSegment(att.input->clientBuffer());
+		}
 	}
-}
+	estimatedSize_ = 0;
+	hasClientData_ = true;
+	inputs_.clear();
+	stagedInputs_.clear();
+	allocations_.clear();
 
-ref_ptr<BufferReference> &VBO::allocSequential(
-		const std::list<ref_ptr<ShaderInput> > &attributes) {
-	const uint32_t numBytes = attributeSize(attributes);
-	ref_ptr<BufferReference> &ref = adoptBufferRange(numBytes);
-	if (ref->allocatedSize() < numBytes) return ref;
-	const uint32_t startByte = ref->address();
-	uint32_t currOffset = 0;
-
+	// Populate the VBO with the given attributes.
 	for (const auto &att: attributes) {
-		att->set_offset(currOffset + startByte);
-		att->set_stride(att->elementSize());
-		att->set_buffer(ref->bufferID(), ref);
-		// copy data
-		if (att->hasClientData()) {
-			auto mapped = att->mapClientDataRaw(BUFFER_GPU_READ);
-			glNamedBufferSubData(
-					ref->bufferID(),
-					currOffset + startByte,
-					att->inputSize(),
-					mapped.r);
-		}
-		currOffset += att->inputSize();
+		addStagedInput(att);
 	}
+	updateStagedInputs();
 
-	return ref;
+	// Add the VBO to the staging system, create a StagingBuffer instance.
+	createStagingBuffer();
+
+	// Create or adopt a buffer range for the total size of all attributes
+	// used as a buffer sourced in draw calls.
+	updateDrawBuffer();
+
+	REGEN_INFO("Allocated VBO with "
+		<< drawBufferRef_->allocatedSize() / 1024.0 << " KiB at buffer "
+		<< drawBufferRef_->bufferID() << " offset " << drawBufferRef_->address() <<
+		" num vertices: " << numVertices());
+
+	return drawBufferRef_;
 }
 
-ref_ptr<BufferReference> &VBO::allocInterleaved(
-		const std::list<ref_ptr<ShaderInput> > &attributes) {
-	const uint32_t numBytes = attributeSize(attributes);
-	ref_ptr<BufferReference> &ref = adoptBufferRange(numBytes);
-	if (ref->allocatedSize() < numBytes) return ref;
-	const uint32_t startByte = ref->address();
-	// get the attribute struct size
-	uint32_t attributeVertexSize = 0;
-	uint32_t numVertices = attributes.front()->numVertices();
-	byte *data = new byte[numBytes];
-
-	uint32_t currOffset = startByte;
-	for (const auto &attribute: attributes) {
-		ShaderInput *att = attribute.get();
-
-		att->set_buffer(ref->bufferID(), ref);
-		if (att->divisor() == 0) {
-			attributeVertexSize += att->elementSize();
-
-			att->set_offset(currOffset);
-			currOffset += att->elementSize();
-		}
-	}
-
-	currOffset = (currOffset - startByte) * numVertices;
-	for (const auto &attribute: attributes) {
-		ShaderInput *att = attribute.get();
-		if (att->divisor() == 0) {
-			att->set_stride(static_cast<int>(attributeVertexSize));
-		} else {
-			// add instanced attributes to the end of the buffer
-			att->set_stride(static_cast<int>(att->elementSize()));
-			att->set_offset(currOffset + startByte);
-			if (att->hasClientData()) {
-				auto m = att->mapClientDataRaw(BUFFER_GPU_READ);
-				std::memcpy(data + currOffset, m.r, att->inputSize());
-			}
-			currOffset += att->inputSize();
-		}
-	}
-
-	uint32_t count = 0;
-	for (uint32_t i = 0; i < numVertices; ++i) {
-		for (const auto &attribute: attributes) {
-			ShaderInput *att = attribute.get();
-			if (att->divisor() != 0) { continue; }
-
-			// size of a value for a single vertex in bytes
-			uint32_t valueSize = att->valsPerElement() * att->dataTypeBytes() * att->numArrayElements();
-			// copy data
-			if (att->hasClientData()) {
-				auto m = att->mapClientDataRaw(BUFFER_GPU_READ);
-				std::memcpy(data + count, m.r + i * valueSize, valueSize);
-			}
-			count += valueSize;
-		}
-	}
-
-	glNamedBufferSubData(ref->bufferID(), startByte, numBytes, data);
-	delete[]data;
-	return ref;
+void VBO::write(std::ostream &out) const {
+	out << "VBO \"" << name() << "\" {\n";
+	out << "  Size: " << adoptedSize_ << " bytes\n";
+	out << "}\n";
 }

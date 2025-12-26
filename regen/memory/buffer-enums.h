@@ -38,18 +38,16 @@ namespace regen {
 	enum BufferMemoryLayout {
 		BUFFER_MEMORY_STD140 = 0,
 		BUFFER_MEMORY_STD430,
-		BUFFER_MEMORY_PACKED,
-		BUFFER_MEMORY_SHARED,
-		BUFFER_MEMORY_INTERLEAVED
+		BUFFER_MEMORY_PACKED
 	};
 
-	/**
-	 * The vertex layout, i.e. how vertex attributes are arranged in the buffer.
-	 */
-	enum VertexLayout {
-		VERTEX_LAYOUT_INTERLEAVED = 0,
-		VERTEX_LAYOUT_SEQUENTIAL = 1
-	};
+	// We use 16-byte base alignment for packed data, i.e. every
+	// block starts at a multiple of 16 bytes.
+	// This is not required with OpenGL, Vulkan requires at least 4 bytes.
+	// This does not mean that every element is aligned to 16 bytes,
+	// but that the start of the block is aligned to 16 bytes.
+	// IMPORTANT: Must be a power of two.
+	static constexpr uint32_t PACKED_BASE_ALIGNMENT = 16;
 
 	/**
 	  * The buffering mode, i.e. how many buffers are used
@@ -105,6 +103,16 @@ namespace regen {
 	};
 
 	/**
+	 * \brief Buffer compute modes.
+	 *
+	 * Defines how the buffer is used in compute shaders.
+	 */
+	enum BufferComputeMode {
+		BUFFER_NO_COMPUTE = 0,
+		BUFFER_COMPUTABLE
+	};
+
+	/**
 	 * \brief Buffer update hints.
 	 *
 	 * Defines how the buffer is updated.
@@ -122,6 +130,44 @@ namespace regen {
 		BufferUpdateFrequency frequency = BUFFER_UPDATE_NEVER;
 		// how much of the buffer is updated each time it is updated
 		BufferUpdateScope scope = BUFFER_UPDATE_FULLY;
+		// Whether the buffer is used in compute shaders
+		// this will only have an effect for certain buffer types, e.g. VBO
+		// which would use a packed format otherwise, but switches to a std430 format
+		// when used in compute shaders.
+		BufferComputeMode compute = BUFFER_NO_COMPUTE;
+
+		/**
+		 * Combine update flags using bitwise OR operator.
+		 * @param freq the buffer update frequency.
+		 * @return the combined buffer update flags.
+		 */
+		BufferUpdateFlags operator|(BufferUpdateFrequency freq) const {
+			BufferUpdateFlags newFlags = *this;
+			newFlags.frequency = freq;
+			return newFlags;
+		}
+
+		/**
+		 * Combine update flags using bitwise OR operator.
+		 * @param scp the buffer update scope.
+		 * @return the combined buffer update flags.
+		 */
+		BufferUpdateFlags operator|(BufferUpdateScope scp) const {
+			BufferUpdateFlags newFlags = *this;
+			newFlags.scope = scp;
+			return newFlags;
+		}
+
+		/**
+		 * Combine update flags using bitwise OR operator.
+		 * @param cmode the buffer compute mode.
+		 * @return the combined buffer update flags.
+		 */
+		BufferUpdateFlags operator|(BufferComputeMode cmode) const {
+			BufferUpdateFlags newFlags = *this;
+			newFlags.compute = cmode;
+			return newFlags;
+		}
 	};
 
 	/**
@@ -387,6 +433,10 @@ namespace regen {
 	std::ostream &operator<<(std::ostream &out, const BufferTarget &v);
 
 	std::istream &operator>>(std::istream &in, BufferTarget &v);
+
+	std::ostream &operator<<(std::ostream &out, const BufferComputeMode &v);
+
+	std::istream &operator>>(std::istream &in, BufferComputeMode &v);
 } // namespace
 
 #endif /* REGEN_BUFFER_ENUMS_H_ */

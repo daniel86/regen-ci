@@ -55,6 +55,10 @@ ClientBufferPool::Node* ClientBuffer::getMemoryAllocator(uint32_t dataSize) {
 	return n;
 }
 
+void ClientBuffer::setMemoryLayout(BufferMemoryLayout layout) {
+	memoryLayout_ = layout;
+}
+
 void ClientBuffer::setFrameLocked(bool frameLocked) {
 	isFrameLocked_ = frameLocked;
 	for (auto &segment: bufferSegments_) {
@@ -79,7 +83,9 @@ void ClientBuffer::setSegments(const std::vector<ref_ptr<ClientBuffer>> &segment
 	dataSize_ = 0u;
 	allocatedSize_ = 0u;
 	// do the re-allocation of data slots.
-	dataOwner_->ownerResize();
+	if (!dataOwner_->ownerResize()) {
+		REGEN_WARN("failed to resize after setting segments.");
+	}
 	nextStamp();
 	writeUnlockAll(0u, 0);
 }
@@ -97,7 +103,9 @@ void ClientBuffer::addSegment(const ref_ptr<ClientBuffer> &segment) {
 	segment->setFrameLocked(isFrameLocked_);
 
 	// do the re-allocation of data slots.
-	dataOwner_->ownerResize();
+	if (!dataOwner_->ownerResize()) {
+		REGEN_WARN("failed to resize after adding segment.");
+	}
 	nextStamp();
 	writeUnlockAll(0u, 0u);
 }
@@ -111,7 +119,9 @@ void ClientBuffer::removeSegment(const ref_ptr<ClientBuffer> &segment) {
 		// clear the parent buffer for the segment.
 		segment->parentBuffer_ = nullptr;
 		// do the re-allocation of data slots.
-		dataOwner_->ownerResize();
+		if (!dataOwner_->ownerResize()) {
+			REGEN_WARN("failed to resize after removing segment.");
+		}
 		nextStamp();
 		writeUnlockAll(0u, 0u);
 	} else {
@@ -473,11 +483,14 @@ void ClientBuffer::deallocateClientData() {
 	allocatedSize_ = 0u;
 }
 
-void ClientBuffer::resize(size_t dataSize, const byte *initialData) {
+bool ClientBuffer::resize(size_t dataSize, const byte *initialData) {
 	// adjust the data size
 	dataSize_ = static_cast<uint32_t>(dataSize);
 	// do the re-allocation of data slots.
-	dataOwner_->ownerResize();
+	if (!dataOwner_->ownerResize()) {
+		REGEN_WARN("Failed to resize buffer to " << dataSize << " bytes.");
+		return false;
+	}
 
 	// copy over initial data if any
 	if (initialData) {
@@ -488,6 +501,7 @@ void ClientBuffer::resize(size_t dataSize, const byte *initialData) {
 	}
 
 	nextStamp();
+	return true;
 }
 
 void ClientBuffer::updateBufferSize() {
@@ -506,13 +520,13 @@ void ClientBuffer::updateBufferSize() {
 		dataSize_ = offset + bufferSegments_.back()->dataSize_;
 		// Round total size up to next multiple of 16 (vec4 alignment for std140)
 		if (memoryLayout_ == BUFFER_MEMORY_STD140) {
-			static constexpr size_t std140Alignment = 16;
-			dataSize_ = (dataSize_ + std140Alignment - 1) & ~(std140Alignment - 1);
+			static constexpr size_t std140Alignment = (16 - 1);
+			dataSize_ = (dataSize_ + std140Alignment) & ~std140Alignment;
 		}
 	}
 }
 
-void ClientBuffer::ownerResize() {
+bool ClientBuffer::ownerResize() {
 	// keep a reference to the old data slots, for copying data over.
 	byte *oldData0 = dataSlots_[0];
 	byte *oldData1 = dataSlots_[1];
@@ -522,9 +536,7 @@ void ClientBuffer::ownerResize() {
 	updateBufferSize();
 	if (dataSize_==0u) {
 		// no data to allocate.
-		REGEN_WARN("data size is zero, no data allocated." <<
-			" Number of segments is: " << bufferSegments_.size());
-		return;
+		return false;
 	}
 
 	// allocate new data slots.
@@ -596,6 +608,8 @@ void ClientBuffer::ownerResize() {
 		delete[] oldData0;
 		delete[] oldData1;
 	}
+
+	return true;
 }
 
 void ClientBuffer::resize_SingleBuffer(ClientBuffer *owner, const byte *oldDataPtr, byte *newDataPtr) {
@@ -620,10 +634,19 @@ void ClientBuffer::resize_SingleBuffer(ClientBuffer *owner, const byte *oldDataP
 			dataSlots_[0] = newDataPtr;
 		} else {
 			for (auto &segment: bufferSegments_) {
-				segment->resize_SingleBuffer(
-						owner,
-						oldDataPtr ? oldDataPtr + segment->lastOffset_ : oldDataPtr,
-						newDataPtr + segment->dataOffset_);
+				if (oldDataPtr) {
+					segment->resize_SingleBuffer(
+							owner, oldDataPtr + segment->lastOffset_,
+							newDataPtr + segment->dataOffset_);
+				} else if (segment->hasClientData()) {
+					segment->resize_SingleBuffer(
+							owner, segment->dataSlots_[0],
+							newDataPtr + segment->dataOffset_);
+				} else {
+					segment->resize_SingleBuffer(
+							owner, nullptr,
+							newDataPtr + segment->dataOffset_);
+				}
 			}
 		}
 		allocatedSize_ = dataSize_;
@@ -682,12 +705,28 @@ void ClientBuffer::resize_DoubleBuffer(
 			markWrittenTo(currentWriteSlot(), 0, dataSize_);
 		} else {
 			for (auto &segment: bufferSegments_) {
-				segment->resize_DoubleBuffer(
-						owner,
-						oldDataPtr0 ? oldDataPtr0 + segment->lastOffset_ : oldDataPtr0,
-						oldDataPtr1 ? oldDataPtr1 + segment->lastOffset_ : oldDataPtr1,
-						newDataPtr0 + segment->dataOffset_,
-						newDataPtr1 + segment->dataOffset_);
+				if (oldDataPtr0) {
+					segment->resize_DoubleBuffer(
+							owner,
+							oldDataPtr0 + segment->lastOffset_,
+							(oldDataPtr1 ? oldDataPtr1 : oldDataPtr0) + segment->lastOffset_,
+							newDataPtr0 + segment->dataOffset_,
+							newDataPtr1 + segment->dataOffset_);
+				} else if (segment->hasClientData()) {
+					segment->resize_DoubleBuffer(
+							owner,
+							segment->dataSlots_[0],
+							segment->hasTwoSlots() ? segment->dataSlots_[1] : segment->dataSlots_[0],
+							newDataPtr0 + segment->dataOffset_,
+							newDataPtr1 + segment->dataOffset_);
+				} else {
+					segment->resize_DoubleBuffer(
+							owner,
+							nullptr,
+							nullptr,
+							newDataPtr0 + segment->dataOffset_,
+							newDataPtr1 + segment->dataOffset_);
+				}
 			}
 		}
 		allocatedSize_ = dataSize_;
@@ -802,6 +841,7 @@ void ClientBuffer::writeUnlockAll(uint32_t writeOffset, uint32_t writeSize) cons
 }
 
 int ClientBuffer::readLock() const {
+	auto thisThreadId = std::this_thread::get_id();
 	while (true) {
 		// Note: ownership may change while waiting for the lock.
 		auto *currentOwner = dataOwner_;
@@ -820,7 +860,7 @@ int ClientBuffer::readLock() const {
 		// However, if this thread is the owner of the write lock on this slot, then
 		// we must ignore the intent as otherwise we definitely would deadlock in this situation!
 		if (currentOwner->writeAllPending_.load(std::memory_order_acquire) &&
-				currentOwner->writerThreads_[dataSlot] != std::this_thread::get_id()) {
+				currentOwner->writerThreads_[dataSlot] != thisThreadId) {
 			// there is a pending writer, we need to wait for them to finish.
 			waitOnAtomic<bool,false>(currentOwner->writeAllPending_);
 			continue; // try again
@@ -830,7 +870,8 @@ int ClientBuffer::readLock() const {
 		readerCount.fetch_add(1, std::memory_order_relaxed);
 
 		// However, maybe there is an active writer on this slot already, we need to check that.
-		if (dataOwner_->writerFlags_[dataSlot].value.test(std::memory_order_acquire) != 0) {
+		if (dataOwner_->writerFlags_[dataSlot].value.test(std::memory_order_acquire) != 0 &&
+				dataOwner_->writerThreads_[dataSlot] != thisThreadId) {
 			// Seems there is an active writer on this slot, we need to wait for them to finish.
 			// first decrement the reader count, so that we do not block writer in the meanwhile.
 			readerCount.fetch_sub(1, std::memory_order_relaxed);
@@ -855,6 +896,7 @@ int ClientBuffer::readLock() const {
 }
 
 int ClientBuffer::writeLock_DoubleBuffer() const {
+	auto thisThreadId = std::this_thread::get_id();
 	while (true) {
 		// Note: ownership may change while waiting for the lock.
 		auto *currentOwner = dataOwner_;
@@ -875,7 +917,8 @@ int ClientBuffer::writeLock_DoubleBuffer() const {
 			continue; // try again
 		}
 
-		if (writeFlag.test_and_set(std::memory_order_acquire)) {
+		if (writeFlag.test_and_set(std::memory_order_acquire) &&
+				currentOwner->writerThreads_[currentWriteSlot] != thisThreadId) {
 			// seems someone else is writing to this slot, we need to wait for them to finish.
 			waitOnFlag<false>(writeFlag);
 			continue; // try again

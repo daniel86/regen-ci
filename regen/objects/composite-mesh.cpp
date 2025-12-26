@@ -65,6 +65,7 @@ ref_ptr<CompositeMesh> CompositeMesh::load(LoadingContext &ctx, scene::SceneInpu
 	BufferUpdateFlags updateFlags;
 	updateFlags.frequency = input.getValue<BufferUpdateFrequency>("update-frequency", BUFFER_UPDATE_NEVER);
 	updateFlags.scope = input.getValue<BufferUpdateScope>("update-scope", BUFFER_UPDATE_FULLY);
+	updateFlags.compute = input.getValue<BufferComputeMode>("compute-mode", BUFFER_NO_COMPUTE);
 
 	ref_ptr<CompositeMesh> out_ = ref_ptr<CompositeMesh>::alloc();
 	CompositeMesh *out = out_.get();
@@ -488,6 +489,13 @@ ref_ptr<CompositeMesh> CompositeMesh::load(LoadingContext &ctx, scene::SceneInpu
 		}
 	}
 
+	// update vertex data of untyped meshes
+	if (meshType == "mesh") {
+		for (auto &mesh: out->meshes()) {
+			mesh->updateVertexData();
+		}
+	}
+
 	return out_;
 }
 
@@ -503,6 +511,7 @@ ref_ptr<CompositeMesh> CompositeMesh::createCompositeMesh(
 	BufferUpdateFlags updateFlags;
 	updateFlags.frequency = input.getValue<BufferUpdateFrequency>("update-frequency", BUFFER_UPDATE_NEVER);
 	updateFlags.scope = input.getValue<BufferUpdateScope>("update-scope", BUFFER_UPDATE_FULLY);
+	updateFlags.compute = input.getValue<BufferComputeMode>("compute-mode", BUFFER_NO_COMPUTE);
 
 	BufferFlags bufferConfig(ARRAY_BUFFER, updateFlags);
 	if (input.hasAttribute("access-mode")) {

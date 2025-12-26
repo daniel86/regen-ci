@@ -105,11 +105,8 @@ namespace regen {
 		 * Constructor.
 		 * @param primitive the GL primitive type.
 		 * @param hints buffer update hints for the vertex buffer.
-		 * @param vertexLayout layout of the vertex buffer.
 		 */
-		Mesh(GLenum primitive,
-				const BufferUpdateFlags &hints,
-				VertexLayout vertexLayout = VERTEX_LAYOUT_INTERLEAVED);
+		Mesh(GLenum primitive, const BufferUpdateFlags &hints);
 
 		~Mesh() override;
 
@@ -664,12 +661,13 @@ namespace regen {
 	protected:
 		GLenum primitive_;
 		ref_ptr<VBO> vertexBuffer_;
+		ref_ptr<SSBO> particleBuffer_;
 		ref_ptr<ElementBuffer> elementBuffer_;
 		ref_ptr<Material> material_;
 
 		ref_ptr<VAO> vao_;
-		std::list<InputLocation> vaoAttributes_;
-		std::map<int32_t, std::list<InputLocation>::iterator> vaoLocations_;
+		std::vector<InputLocation> vaoAttributes_;
+		std::map<int32_t, uint32_t> vaoLocations_;
 
 		ref_ptr<SSBO> instanceBuffer_;
 		std::vector<MeshLOD> meshLODs_;

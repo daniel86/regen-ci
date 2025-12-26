@@ -4,24 +4,20 @@
 #include <random>
 #include "particles.h"
 
+#include "regen/compute/compute-pass.h"
+
 using namespace regen;
 
 ///////////
 
 Particles::Particles(uint32_t numParticles, const std::string &updateShaderKey)
-		: Mesh(GL_POINTS, BufferUpdateFlags::NEVER, VERTEX_LAYOUT_INTERLEAVED),
+		: Mesh(GL_POINTS, BufferUpdateFlags::NEVER | BUFFER_COMPUTABLE),
 		  Animation(true, false),
 		  updateShaderKey_(updateShaderKey),
 		  maxEmits_(100u) {
 	setAnimationName("particles");
-	setClientAccessMode(BUFFER_CPU_WRITE);
-	feedbackBuffer_ = ref_ptr<VBO>::alloc(
-			TRANSFORM_FEEDBACK_BUFFER,
-			BufferUpdateFlags::FULL_PER_FRAME,
-			VERTEX_LAYOUT_INTERLEAVED);
-	feedbackBuffer_->setClientAccessMode(BUFFER_GPU_ONLY);
 	set_numVertices(numParticles);
-	updateState_ = ref_ptr<ShaderState>::alloc();
+	updateState_ = ref_ptr<State>::alloc();
 	numParticles_ = numParticles;
 }
 
@@ -52,13 +48,9 @@ void Particles::begin() {
 }
 
 ref_ptr<BufferReference> Particles::end() {
-	vboRef_[0] = Mesh::updateVertexData();
-	vboRef_[1] = feedbackBuffer_->adoptBufferRange(vboRef_[0]->allocatedSize());
-	if (vboRef_[1].get() == nullptr) {
-		REGEN_WARN("Unable to allocate VBO for particles. Particles will not work.");
-		return vboRef_[0];
-	}
-	bufferRange_.size_ = vboRef_[0]->allocatedSize();
+	vboRef_ = Mesh::updateVertexData();
+	particleBuffer_ = ref_ptr<SSBO>::alloc(*vertexBuffer_.get(), "ParticleBlock");
+	bufferRange_.size_ = vboRef_->allocatedSize();
 
 	// Create shader defines.
 	uint32_t counter = 0;
@@ -77,33 +69,25 @@ ref_ptr<BufferReference> Particles::end() {
 		REGEN_DEBUG("Particle attribute '" << it->in_->name() << "' added.");
 	}
 	shaderDefine("NUM_PARTICLE_ATTRIBUTES", REGEN_STRING(counter));
+	shaderDefine("NUM_PARTICLES", REGEN_STRING(numParticles_));
 	createUpdateShader();
 
-	for (auto &particleInput: inputs()) {
-		const ref_ptr<ShaderInput> in = particleInput.in_;
-		if (!in->isVertexAttribute()) continue;
-		int loc = updateState_->shader()->attributeLocation(particleInput.in_->name());
-		if (loc == -1) continue;
-		particleAttributes_.emplace_back(in, loc);
-	}
 	// start with zero emitted particles
 	//set_numVertices(0);
 
-	// create an atomic counter for computing the bounding box
-	/**
+	// create bounding box compute pass
 	bboxBuffer_ = ref_ptr<BBoxBuffer>::alloc(Bounds<Vec3f>());
 	bboxPass_ = ref_ptr<ComputePass>::alloc("regen.compute.bbox");
 	bboxPass_->computeState()->setNumWorkUnits(numParticles_, 1, 1);
 	bboxPass_->computeState()->setGroupSize(256, 1, 1);
-	bboxPass_->setInput(ref_ptr<SSBO>::alloc(feedbackBuffer_, vboRef_));
+	bboxPass_->setInput(particleBuffer_);
 	bboxPass_->setInput(bboxBuffer_);
 	StateConfigurer shaderConfigurer;
 	shaderConfigurer.define("NUM_ELEMENTS", REGEN_STRING(numParticles_));
 	shaderConfigurer.addState(bboxPass_.get());
 	bboxPass_->createShader(shaderConfigurer.cfg());
-	**/
 
-	return vboRef_[0];
+	return vboRef_;
 }
 
 void Particles::setAdvanceFunction(const std::string &attributeName, const std::string &shaderFunction) {
@@ -248,94 +232,42 @@ void Particles::configureAdvancing(
 
 void Particles::createUpdateShader() {
 	StateConfigurer shaderConfigurer;
+	auto particleCompute = ref_ptr<ComputePass>::alloc(updateShaderKey_);
+	particleCompute->computeState()->setNumWorkUnits(numParticles_, 1, 1);
+	particleCompute->computeState()->setGroupSize(256, 1, 1);
+
+	updateState_->setInput(particleBuffer_);
+	updateState_->joinStates(particleCompute);
+
+	shaderConfigurer.define("NUM_PARTICLES", REGEN_STRING(numParticles_));
 	shaderConfigurer.addState(animationState_.get());
 	shaderConfigurer.addState(this);
+	shaderConfigurer.addState(updateState_.get());
 
-	StateConfig &shaderCfg = shaderConfigurer.cfg();
-	shaderCfg.feedbackAttributes_.clear();
-	for (const auto &input: inputs()) {
-		if (!input.in_->isVertexAttribute()) continue;
-		shaderCfg.feedbackAttributes_.push_back(input.in_->name());
-	}
-	shaderCfg.feedbackMode_ = GL_INTERLEAVED_ATTRIBS;
-	shaderCfg.feedbackStage_ = GL_VERTEX_SHADER;
-	updateState_->createShader(shaderCfg, updateShaderKey_);
-	shaderCfg.feedbackAttributes_.clear();
+	particleCompute->createShader(shaderConfigurer.cfg());
 }
 
 void Particles::gpuUpdate(RenderState *rs, double dt) {
-	const uint32_t nextIdx = (updateIdx_ == 0) ? 1 : 0;
-
-	rs->toggles().push(RenderState::RASTERIZER_DISCARD, true);
 	updateState_->enable(rs);
-
-	rs->vao().apply(particleVAO_.id());
-	rs->arrayBuffer().apply(vboRef_[updateIdx_]->bufferID());
-	for (auto &particleAttribute: particleAttributes_) {
-		particleAttribute.input->enableAttribute(particleAttribute.location);
-	}
-
-	bufferRange_.buffer_ = vboRef_[nextIdx]->bufferID();
-	bufferRange_.offset_ = vboRef_[nextIdx]->address();
-	rs->feedbackBufferRange().push(0, bufferRange_);
-	rs->beginTransformFeedback(GL_POINTS);
-	// bind the atomic counter for computing the bounding box to fixed location 0
-	//boundingBoxCounter_->bindBufferBase(0);
-
-	/*
-	// only emit a limited number of particles per frame
-	if (numVertices_ < numParticles_) {
-		uint32_t nextNumParticles = numVertices_ + maxEmits_;
-		if (nextNumParticles > numParticles_) {
-			set_numVertices(numParticles_);
-		} else {
-			set_numVertices(nextNumParticles);
-		}
-	}
-	*/
-	glDrawArrays(primitive_, 0, numVertices());
-
-	rs->endTransformFeedback();
-	rs->feedbackBufferRange().pop(0);
-
 	updateState_->disable(rs);
-	rs->toggles().pop(RenderState::RASTERIZER_DISCARD);
 
-	// Update particle attribute layout.
-	uint32_t currOffset = bufferRange_.offset_;
-	for (auto &particleAttribute: particleAttributes_) {
-		particleAttribute.input->set_buffer(bufferRange_.buffer_, vboRef_[nextIdx]);
-		particleAttribute.input->set_offset(currOffset);
-		currOffset += particleAttribute.input->elementSize();
-	}
-	// And update the VAO so that next drawing uses last feedback result.
-	updateVAO(bufferRange_.buffer_);
-	for (auto particleMesh: meshViews_) {
-		particleMesh->updateVAO(bufferRange_.buffer_);
-	}
-
-	// Ping-Pong VBO references so that next feedback goes to other buffer.
-	updateIdx_ = nextIdx;
-
-	// TODO: Update bounding box every ~166 ms.
-	//      Problem: No support yet for binding VBO as SSBO.
-	//      The current interface requires StagedBuffer.
-	/**
-	bbox_time_ += dt;
-	if (bbox_time_ > 166.0) {
-		bboxBuffer_->clear();
-		bboxPass_->enable(rs);
-		bboxPass_->disable(rs);
-		// update the grid in case the bounding box around the boids changed.
-		if(bboxBuffer_->updateBoundingBox()) {
-			auto &newBounds = bboxBuffer_->bbox();
-			if (newBounds.max != newBounds.min) {
-				set_bounds(newBounds.min, newBounds.max);
+	if (useGPUBoundingBox_) {
+		// Update bounding box every ~166 ms.
+		bbox_time_ += dt;
+		if (bbox_time_ > 166.0) {
+			bboxBuffer_->clear();
+			bboxPass_->enable(rs);
+			bboxPass_->disable(rs);
+			// update the grid in case the bounding box around the boids changed.
+			if(bboxBuffer_->updateBoundingBox()) {
+				auto &newBounds = bboxBuffer_->bbox();
+				if (newBounds.max != newBounds.min) {
+					set_bounds(newBounds.min, newBounds.max);
+				}
 			}
+			bbox_time_ = 0.0;
 		}
-		bbox_time_ = 0.0;
 	}
-	**/
 }
 
 namespace regen {

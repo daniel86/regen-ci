@@ -25,6 +25,7 @@ StagedBuffer::StagedBuffer(
 		  ShaderInput(name, GL_INVALID_ENUM, 0, 0, 0, false),
 		  stagingFlags_(target, hints) {
 	memoryLayout_ = memoryLayout;
+	isStagedBuffer_ = true;
 	clientBuffer_->setMemoryLayout(memoryLayout_);
 
 	shared_ = ref_ptr<Shared>::alloc();
@@ -77,7 +78,7 @@ StagedBuffer::StagedBuffer(const StagedBuffer &other, std::string_view name)
 	shared_->copyCount_.fetch_add(1, std::memory_order_relaxed);
 	clientBuffer_ = other.clientBuffer_;
 	adoptBufferRange_ = other.adoptBufferRange_;
-	isBufferBlock_ = true;
+	isStagedBuffer_ = true;
 	isVertexAttribute_ = false;
 	isVertexAttribute_ = false;
 }
@@ -495,12 +496,26 @@ void StagedBuffer::updateDrawBuffer() {
 	drawBufferRange_->offset_ = drawBufferRef_->address();
 	queueStagingUpdate();
 
-	if (flags_.useExplicitStaging() && hasClientData()) {
+	if (hasClientData()) {
 		// Copy over client data initially into the main buffer.
 		// This is done to ensure that the draw buffer has some initial data
 		// that can be drawn before the staging buffer is filled.
 		auto mapped = mapClientDataRaw(BUFFER_GPU_READ);
 		setBufferData(mapped.r);
+	}
+
+	// set up the inputs to point to the correct offsets in the draw buffer
+	const uint32_t drawBufferOffset = drawBufferRef_->address();
+	uint32_t bufferByteOffset = 0u;
+	for (auto &staged: stagedInputs_) {
+		ShaderInput &att = *staged.input;
+		// Fulfill requirement for alignment of starting offset of attribute data,
+		// i.e. the start byte of the data must be a multiple of the base alignment.
+		const uint32_t nextAlignment = att.baseAlignment() - 1;
+		bufferByteOffset = (bufferByteOffset + nextAlignment) & ~nextAlignment;
+		// set the main buffer reference for the input
+		att.setMainBuffer(drawBufferRef_, drawBufferOffset + bufferByteOffset);
+		bufferByteOffset += att.alignedInputSize();
 	}
 
 	REGEN_DEBUG("Created "

@@ -366,12 +366,6 @@ std::ostream &regen::operator<<(std::ostream &out, const BufferMemoryLayout &v) 
 		case BUFFER_MEMORY_PACKED:
 			out << "packed";
 			break;
-		case BUFFER_MEMORY_SHARED:
-			out << "shared";
-			break;
-		case BUFFER_MEMORY_INTERLEAVED:
-			out << "interleaved";
-			break;
 	}
 	return out;
 }
@@ -383,7 +377,6 @@ std::istream &regen::operator>>(std::istream &in, BufferMemoryLayout &v) {
 	if (val == "std140") v = BUFFER_MEMORY_STD140;
 	else if (val == "std430") v = BUFFER_MEMORY_STD430;
 	else if (val == "packed") v = BUFFER_MEMORY_PACKED;
-	else if (val == "shared") v = BUFFER_MEMORY_SHARED;
 	else {
 		REGEN_WARN("Unknown memory layout '" << val << "'. Using STD140.");
 		v = BUFFER_MEMORY_STD140;
@@ -445,6 +438,29 @@ std::istream &regen::operator>>(std::istream &in, BufferSizeClass &v) {
 	else {
 		REGEN_WARN("Unknown buffer size class '" << val << "'. Using SMALL.");
 		v = BUFFER_SIZE_SMALL;
+	}
+	return in;
+}
+
+std::ostream &regen::operator<<(std::ostream &out, const BufferComputeMode &v) {
+	switch (v) {
+		case BUFFER_NO_COMPUTE:
+			return out << "NO_COMPUTE";
+		case BUFFER_COMPUTABLE:
+			return out << "COMPUTABLE";
+	}
+	return out;
+}
+
+std::istream &regen::operator>>(std::istream &in, BufferComputeMode &v) {
+	std::string val;
+	in >> val;
+	boost::to_upper(val);
+	if (val == "NO_COMPUTE") v = BUFFER_NO_COMPUTE;
+	else if (val == "COMPUTABLE") v = BUFFER_COMPUTABLE;
+	else {
+		REGEN_WARN("Unknown buffer compute mode '" << val << "'. Using NO_COMPUTE.");
+		v = BUFFER_NO_COMPUTE;
 	}
 	return in;
 }
