@@ -114,7 +114,7 @@ MeshAnimation::MeshAnimation(
 	auto meshBuffer = ref_ptr<SSBO>::alloc(*mesh_->vertexBuffer().get(), "VertexData");
 	interpolationState_->setInput(meshBuffer);
 
-	const std::string updateShaderKey = "regen.animation.morph.interpolate";;
+	const std::string updateShaderKey = "regen.animation.mesh-animation.interpolate";
 	auto cs = ref_ptr<ComputePass>::alloc(updateShaderKey);
 	cs->computeState()->setNumWorkUnits(numVertices, 1, 1);
 	cs->computeState()->setGroupSize(256, 1, 1);

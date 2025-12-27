@@ -21,7 +21,7 @@
             <texture name="inputTexture2" fbo="fluid-smoke-velocity" attachment="1"/>
             <texture name="inputTexture3" fbo="fluid-smoke-density" attachment="0"/>
             <texture name="inputTexture4" fbo="fluid-smoke-density" attachment="1"/>
-            <fullscreen-pass shader="regen.filter.sampling.x4"/>
+            <fullscreen-pass shader="regen.textures.sampling.x4"/>
         </view>
         <node>
             <blit src-fbo="fluid-smoke-output" src-attachment="0"

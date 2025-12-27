@@ -92,7 +92,7 @@
         <texture name="skyReflection" id="sky-texture" map-to="COLOR"
                  blend-mode="MIX" blend-factor="0.35"
                  mapping="CUBE_REFLECTION"/>
-        <mesh id="sprite-sphere" shader="regen.models.sprite-sphere"/>
+        <mesh id="sprite-sphere" shader="regen.objects.primitives.sprite-sphere"/>
     </node>
 
     <node id="Background">
@@ -101,7 +101,7 @@
         <cull mode="front"/>
         <depth function="LEQUAL"/>
         <texture id="sky-texture" map-to="COLOR"/>
-        <mesh id="sky-box" shader="regen.models.sky-box"/>
+        <mesh id="sky-box" shader="regen.objects.sky-box"/>
     </node>
 
     <node id="Scene-Blur">
@@ -109,9 +109,9 @@
         <input type="float" name="blurSigma" value="5.0"/>
 
         <filter-sequence id="blurred-scene" fbo="buffer-float" attachment="0">
-            <filter shader="regen.filter.sampling" scale="0.5"/>
-            <filter shader="regen.filter.blur.horizontal"/>
-            <filter shader="regen.filter.blur.vertical"/>
+            <filter shader="regen.textures.sampling" scale="0.5"/>
+            <filter shader="regen.passes.blur.horizontal"/>
+            <filter shader="regen.passes.blur.vertical"/>
         </filter-sequence>
     </node>
 
@@ -132,7 +132,7 @@
         <input type="float" name="vignetteInner" value="0.7"/>
         <input type="float" name="vignetteOuter" value="1.5"/>
 
-        <fullscreen-pass shader="regen.filter.tonemap"/>
+        <fullscreen-pass shader="regen.passes.tonemap"/>
     </node>
 
     <!--**************************-->
@@ -156,7 +156,7 @@
         <view id="Blurred">
             <fbo id="SCREEN"/>
             <texture name="inputTexture" id="blurred-scene"/>
-            <fullscreen-pass shader="regen.filter.sampling"/>
+            <fullscreen-pass shader="regen.textures.sampling"/>
         </view>
         <node import="Tonemapping"/>
         <view id="Tonemapping">

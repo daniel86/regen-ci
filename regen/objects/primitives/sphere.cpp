@@ -225,7 +225,7 @@ SphereSprite::Config::Config()
 
 SphereSprite::SphereSprite(const Config &cfg)
 		: Mesh(GL_POINTS, cfg.updateHint),
-		  HasShader("regen.models.sprite-sphere") {
+		  HasShader("regen.objects.primitives.sprite-sphere") {
 	setBufferMapMode(cfg.mapMode);
 	setClientAccessMode(cfg.accessMode);
 	updateAttributes(cfg);

@@ -252,9 +252,9 @@
             coverage-threshold="0.01"
             silhouette-padding="1"
             preset="fir">
-        <shader mesh-index="0" key="regen.models.mesh"/>
-        <shader mesh-index="1" key="regen.models.mesh">
-            <define key="POS_WORLD_TRANSFER_KEY" value="regen.weather.wind.wavingBaseTransfer"/>
+        <shader mesh-index="0" key="regen.objects.mesh"/>
+        <shader mesh-index="1" key="regen.objects.mesh">
+            <define key="POS_WORLD_TRANSFER_KEY" value="regen.objects.sky.wind.wavingBaseTransfer"/>
         </shader>
         <transform id="tree-tf">
             <scale value="4.0, 4.0, 4.0"/>
@@ -305,7 +305,7 @@
             <node id="tree1-twig">
                 <alpha discard-threshold="0.25" />
                 <input name="matEmission" type="vec3" value="0.0,0.02,0.0"/>
-                <define key="POS_WORLD_TRANSFER_KEY" value="regen.weather.wind.wavingBaseTransfer"/>
+                <define key="POS_WORLD_TRANSFER_KEY" value="regen.objects.sky.wind.wavingBaseTransfer"/>
                 <texture name="windFlow" id="wind-flowmap"/>
                 <input name="stiffness" type="float" value="0.5"/>
                 <!-- draw the mesh -->
@@ -314,12 +314,12 @@
         </node>
         <node id="tree1-pot">
             <node id="tree1-pot">
-                <mesh id="tree-pot" shader="regen.models.mesh"/>
+                <mesh id="tree-pot" shader="regen.objects.mesh"/>
             </node>
             <node id="tree1-pot-disc">
                 <texture id="sand" map-to="color" blend-mode="SRC"/>
                 <material specular="0.0, 0.0, 0.0" update-frequency="NEVER"/>
-                <mesh id="tree-disc" shader="regen.models.mesh" update-visibility="0" />
+                <mesh id="tree-disc" shader="regen.objects.mesh" update-visibility="0" />
             </node>
         </node>
     </node>
@@ -350,7 +350,7 @@
     <node id="Garden-Items">
         <node import="Trees"/>
         <node id="Stone0">
-            <mesh id="stone0" shader="regen.models.mesh"/>
+            <mesh id="stone0" shader="regen.objects.mesh"/>
         </node>
     </node>
 
@@ -398,13 +398,13 @@
         <material preset="steel" variant="0" update-frequency="NEVER"/>
         <!-- <material preset="stone" height-map-mode="parallax_occlusion" max-offset="0.2"/> -->
         <node id="stairs0">
-            <mesh id="stairs0-mesh" shader="regen.models.mesh"/>
+            <mesh id="stairs0-mesh" shader="regen.objects.mesh"/>
         </node>
         <node id="stairs1">
-            <mesh id="stairs1-mesh" shader="regen.models.mesh"/>
+            <mesh id="stairs1-mesh" shader="regen.objects.mesh"/>
         </node>
         <node id="stairs2">
-            <mesh id="stairs2-mesh" shader="regen.models.mesh"/>
+            <mesh id="stairs2-mesh" shader="regen.objects.mesh"/>
         </node>
     </node>
 
@@ -451,10 +451,10 @@
     <node id="Platforms">
         <material preset="iron" variant="0" emission="0.015,0.017,0.017" update-frequency="NEVER"/>
         <node id="platform0">
-            <mesh id="platform0-mesh" shader="regen.models.mesh"/>
+            <mesh id="platform0-mesh" shader="regen.objects.mesh"/>
         </node>
         <node id="platform1">
-            <mesh id="platform1-mesh" shader="regen.models.mesh"/>
+            <mesh id="platform1-mesh" shader="regen.objects.mesh"/>
         </node>
     </node>
 
@@ -496,10 +496,10 @@
 
     <node id="Pedestal">
         <node id="pedestal">
-            <mesh id="pedestal-mesh" shader="regen.models.mesh"/>
+            <mesh id="pedestal-mesh" shader="regen.objects.mesh"/>
         </node>
         <node id="statue-slope">
-            <mesh id="slope-mesh" shader="regen.models.mesh"/>
+            <mesh id="slope-mesh" shader="regen.objects.mesh"/>
         </node>
     </node>
 
@@ -566,10 +566,10 @@
             <input type="vec3" name="fogColor" value="0.2,0.33,0.3" schema="color"/>
             <input type="vec2" name="farDistance" value="75.0,{{far-plane}}"/>
             <node id="Particle-Density0">
-                <mesh id="test-particles0" shader="regen.particles.sprite.density"/>
+                <mesh id="test-particles0" shader="regen.objects.particles.sprite.density"/>
             </node>
             <node id="Particle-Density1">
-                <mesh id="test-particles1" shader="regen.particles.sprite.density"/>
+                <mesh id="test-particles1" shader="regen.objects.particles.sprite.density"/>
             </node>
         </node>
 
@@ -586,7 +586,7 @@
             <input type="float" name="exposure" value="0.62"/>
             <input type="float" name="brightness" value="0.66"/>
             <input type="vec4" name="color" value="0.53, 0.53, 0.78, 0.8"/>
-            <fullscreen-pass shader="regen.particles.sprite.densityColor"/>
+            <fullscreen-pass shader="regen.objects.particles.sprite.densityColor"/>
         </node>
         <view id="Particle-Density">
             <blit src-fbo="particle-fbo" src-attachment="0" dst-fbo="SCREEN"/>
@@ -600,14 +600,14 @@
             <input type="int" name="numBlurPixels" value="9"/>
             <input type="float" name="blurSigma" value="2.3"/>
             <filter-sequence id="particle-color" fbo="particle-fbo" attachment="1">
-                <filter shader="regen.filter.blur.horizontal"/>
-                <filter shader="regen.filter.blur.vertical"/>
+                <filter shader="regen.passes.blur.horizontal"/>
+                <filter shader="regen.passes.blur.vertical"/>
             </filter-sequence>
         </node>
         <view id="Particle-Blur">
             <fbo id="SCREEN"/>
             <texture name="inputTexture" id="particle-color"/>
-            <fullscreen-pass shader="regen.filter.sampling"/>
+            <fullscreen-pass shader="regen.textures.sampling"/>
         </view>
     </node>
 
@@ -698,10 +698,10 @@
     <node id="Dynamic-Ground-Items">
         <node id="Dwarf">
             <node id="dwarf-body">
-                <mesh id="dwarf-mesh" mesh-index-range="1-" shader="regen.models.mesh"/>
+                <mesh id="dwarf-mesh" mesh-index-range="1-" shader="regen.objects.mesh"/>
             </node>
             <node id="dwarf-axe">
-                <mesh id="dwarf-mesh" mesh-index="0" shader="regen.models.mesh"/>
+                <mesh id="dwarf-mesh" mesh-index="0" shader="regen.objects.mesh"/>
             </node>
         </node>
     </node>
@@ -714,7 +714,7 @@
 
     <node id="Non-Shadow-Caster">
         <node id="Ground">
-            <mesh id="ground-mesh" primitive="triangles" shader="regen.models.mesh"/>
+            <mesh id="ground-mesh" primitive="triangles" shader="regen.objects.mesh"/>
         </node>
     </node>
 
@@ -735,7 +735,7 @@
             <texture name="gDepthTexture" fbo="g-buffer" attachment="depth" />
             <texture name="gColorTexture" fbo="g-buffer" attachment="1"/>
             <texture name="skyColorTexture" id="sky" />
-            <fullscreen-pass shader="regen.weather.fog.distance"/>
+            <fullscreen-pass shader="regen.objects.sky.fog.distance"/>
         </node>
         <view id="Albedo-Fog">
             <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
@@ -776,7 +776,7 @@
                 <depth test="0" write="0"/>
                 <texture name="inputTexture" id="particle-color"/>
                 <define key="IS_2D_TEXTURE" value="TRUE"/>
-                <fullscreen-pass shader="regen.filter.sampling"/>
+                <fullscreen-pass shader="regen.textures.sampling"/>
             </node>
             <!-- <node import="Fire" /> -->
             <view id="Transparent Objects">
@@ -811,7 +811,7 @@
                 <fbo id="SCREEN"/>
                 <texture name="inputTexture" fbo="room-light-shadow0" attachment="depth"/>
                 <input type="int" name="arrayTextureSize" value="1"/>
-                <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
+                <fullscreen-pass shader="regen.textures.sampling.array.shadow"/>
             </view>
 
             <node import="Collision-Update" />
@@ -819,7 +819,7 @@
                 <fbo id="SCREEN"/>
                 <texture name="inputTexture1" fbo="collision-fbo" attachment="0"/>
                 <texture name="inputTexture2" fbo="collision-fbo" attachment="1"/>
-                <fullscreen-pass shader="regen.filter.sampling.x2"/>
+                <fullscreen-pass shader="regen.textures.sampling.x2"/>
             </view>
         </node>
 
@@ -848,7 +848,7 @@
                     <input type="vec2" name="farDistance" value="75.0,{{far-plane}}"/>
                     <texture name="gDepthTexture" fbo="g-buffer" attachment="depth" />
                     <texture name="gColorTexture" fbo="g-buffer" attachment="4"/>
-                    <fullscreen-pass shader="regen.weather.fog.distance"/>
+                    <fullscreen-pass shader="regen.objects.sky.fog.distance"/>
                 </node>
                 <node id="Emission-Update">
                     <input type="float" name="filterRadius" value="0.01"/>
@@ -867,16 +867,16 @@
                     <texture name="inputTexture2" id="emission-map-bloom" mip-level="1"/>
                     <texture name="inputTexture3" id="emission-map-bloom" mip-level="2"/>
                     <texture name="inputTexture4" id="emission-map-bloom" mip-level="3"/>
-                    <fullscreen-pass shader="regen.filter.sampling.x4"/>
+                    <fullscreen-pass shader="regen.textures.sampling.x4"/>
                 </view>
                 <!--
                 <node id="Emission-Blur">
                     <input type="int" name="numBlurPixels" value="4" />
                     <input type="float" name="blurSigma" value="2.0" />
                     <filter-sequence id="emission-map-blur" fbo="g-buffer" attachment="4" >
-                        <filter shader="regen.filter.sampling" scale="0.5" />
-                        <filter shader="regen.filter.blur.horizontal" />
-                        <filter shader="regen.filter.blur.vertical" />
+                        <filter shader="regen.textures.sampling" scale="0.5" />
+                        <filter shader="regen.passes.blur.horizontal" />
+                        <filter shader="regen.passes.blur.vertical" />
                     </filter-sequence>
                 </node>
                 -->

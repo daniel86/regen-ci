@@ -94,7 +94,7 @@ namespace regen {
 							texture->samplerType() == "sampler2DShadow" ||
 							texture->samplerType() == "samplerCubeShadow");
 			std::stringstream ss;
-			ss << "regen.filter.sampling";
+			ss << "regen.textures.sampling";
 			switch (texture->textureBind().target_) {
 				case GL_TEXTURE_CUBE_MAP:
 					ss << ".cube";

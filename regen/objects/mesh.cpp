@@ -269,7 +269,7 @@ void Mesh::createShader(const ref_ptr<StateNode> &parentNode, StateConfig &shade
 	joinStates(shaderState);
 
 	if(shaderKey_.empty()) {
-		shaderKey_ = "regen.models.mesh";
+		shaderKey_ = "regen.objects.mesh";
 	}
 	bool hasValidShader = false;
 	if(shaderStageKeys_.empty()) {

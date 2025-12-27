@@ -302,7 +302,7 @@ void TextureState::set_blendMode(BlendMode blendMode) {
 	blendMode_ = blendMode;
 	set_blendMode(ShaderFunction::createImport(
 		REGEN_STRING("blend_" << blendMode_),
-		REGEN_STRING("regen.states.blending." << blendMode_)));
+		REGEN_STRING("regen.colors." << blendMode_)));
 }
 
 void TextureState::set_blendMode(const ref_ptr<ShaderFunction> &function) {
@@ -321,7 +321,7 @@ void TextureState::set_mapping(TextureState::Mapping mapping) {
 	mapping_ = mapping;
 	set_mapping(ShaderFunction::createImport(
 		REGEN_STRING("texco_" << mapping),
-		REGEN_STRING("regen.states.textures.texco_" << mapping)));
+		REGEN_STRING("regen.textures.textures.texco_" << mapping)));
 }
 
 void TextureState::set_mapping(const ref_ptr<ShaderFunction> &function) {
@@ -344,7 +344,7 @@ void TextureState::set_texelTransfer(TextureState::TexelTransfer transfer) {
 	}
 	else {
 		set_texelTransfer(ShaderFunction::createImport(
-			REGEN_STRING("regen.states.textures.transfer.texel_" << transfer)));
+			REGEN_STRING("regen.textures.textures.transfer.texel_" << transfer)));
 	}
 }
 
@@ -365,7 +365,7 @@ void TextureState::set_texelTransfer(const ref_ptr<ShaderFunction> &function) {
 
 void TextureState::set_texcoTransfer(TransferTexco mode) {
 	set_texcoTransfer(ShaderFunction::createImport(
-		REGEN_STRING("regen.states.textures.transfer.texco_" << mode)));
+		REGEN_STRING("regen.textures.textures.transfer.texco_" << mode)));
 }
 
 void TextureState::set_texcoScale(float scale) {

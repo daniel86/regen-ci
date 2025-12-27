@@ -6,5 +6,3 @@ install(
     FILES ${HEADER_FILES}
     DESTINATION ${HEADER_INSTALL_PATH}/shader
 )
-
-add_subdirectory(regen)

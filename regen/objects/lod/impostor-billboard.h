@@ -189,7 +189,7 @@ namespace regen {
 		bool hasInitializedResources_ = false;
 		bool hasAttributes_ = false;
 		bool useNormalCorrection_ = true;
-		std::string snapshotShaderKey_ = "regen.models.impostor.update";
+		std::string snapshotShaderKey_ = "regen.objects.lod.impostor.update";
 
 		// container for billboard uniforms
 		ref_ptr<ShaderInput1f> depthOffset_;

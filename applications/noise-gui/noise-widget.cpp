@@ -80,7 +80,7 @@ void NoiseWidget::gl_loadScene() {
 	// add the video widget to the root node
 	texture_ = ref_ptr<NoiseTexture2D>::alloc(4096, 4096);
 
-	auto pass = ref_ptr<FullscreenPass>::alloc("regen.filter.sampling");
+	auto pass = ref_ptr<FullscreenPass>::alloc("regen.textures.sampling");
 	sceneRoot->state()->joinStates(
 		ref_ptr<TextureState>::alloc(texture_, "inputTexture"));
 	StateConfigurer shaderConfigurer;

@@ -10,7 +10,7 @@
 #include "assimp-importer.h"
 #include "mask-mesh.h"
 #include "terrain/proc-tree.h"
-#include "particles.h"
+#include "particles/particles.h"
 #include "regen/scene/state-node.h"
 #include "regen/scene/loading-context.h"
 #include "regen/scene/resource-manager.h"

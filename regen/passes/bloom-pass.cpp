@@ -41,12 +41,12 @@ BloomPass::BloomPass(
 }
 
 void BloomPass::createShader(const StateConfig &cfg) {
-	upsampleShader_->createShader(cfg, "regen.filter.bloom.upsample");
+	upsampleShader_->createShader(cfg, "regen.passes.bloom.upsample");
 	fullscreenMesh_u_->updateVAO(cfg, upsampleShader_->shader());
 	inverseViewportLocUS_ = upsampleShader_->shader()->uniformLocation("inverseViewport");
 	inputTextureLocUS_ = upsampleShader_->shader()->uniformLocation("inputTexture");
 
-	downsampleShader_->createShader(cfg, "regen.filter.bloom.downsample");
+	downsampleShader_->createShader(cfg, "regen.passes.bloom.downsample");
 	fullscreenMesh_d_->updateVAO(cfg, downsampleShader_->shader());
 	inverseViewportLocDS_ = downsampleShader_->shader()->uniformLocation("inverseViewport");
 	inverseInputSizeLocDS_ = downsampleShader_->shader()->uniformLocation("inverseInputSize");

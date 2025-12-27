@@ -764,9 +764,9 @@ void main()
 
 -- splat.mouse.fs
 #include fluid.fs.header
-#include regen.states.camera.defines
-#include regen.states.camera.transformTexcoToWorld
-#include regen.filter.sampling.computeTexco
+#include regen.camera.camera.defines
+#include regen.camera.camera.transformTexcoToWorld
+#include regen.textures.sampling.computeTexco
 
 #ifndef IGNORE_OBSTACLES
 uniform samplerTex in_obstaclesBuffer;

@@ -5,7 +5,7 @@
 #include <queue>
 #include <regen/objects/mesh.h>
 #include "regen/objects/text/texture-mapped-text.h"
-#include "particles.h"
+#include "particles/particles.h"
 #include "assimp-importer.h"
 
 namespace regen {

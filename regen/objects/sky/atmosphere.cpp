@@ -88,7 +88,7 @@ Atmosphere::Atmosphere(
 
 void Atmosphere::createUpdateShader() {
 	StateConfig shaderConfig = StateConfigurer::configure(updateState_.get());
-	updateShader_->createShader(shaderConfig, "regen.weather.atmosphere");
+	updateShader_->createShader(shaderConfig, "regen.objects.sky.atmosphere");
 	updateMesh_->updateVAO(shaderConfig, updateShader_->shader());
 }
 

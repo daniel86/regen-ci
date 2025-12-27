@@ -61,7 +61,7 @@
         <view id="Texture">
             <fbo id="SCREEN"/>
             <texture name="inputTexture" id="splat"/>
-            <fullscreen-pass shader="regen.filter.sampling"/>
+            <fullscreen-pass shader="regen.textures.sampling"/>
         </view>
         <texture name="obstaclesBuffer" fbo="obstacles" attachment="0"/>
 
@@ -107,7 +107,7 @@
             <texture name="inputTexture2" fbo="velocity" attachment="1"/>
             <texture name="inputTexture3" fbo="density" attachment="0"/>
             <texture name="inputTexture4" fbo="density" attachment="1"/>
-            <fullscreen-pass shader="regen.filter.sampling.x4"/>
+            <fullscreen-pass shader="regen.textures.sampling.x4"/>
         </view>
 
         <!-- Swirl -->
@@ -153,7 +153,7 @@
             <texture name="inputTexture2" fbo="temperature" attachment="1"/>
             <texture name="inputTexture3" fbo="density" attachment="0"/>
             <texture name="inputTexture4" fbo="density" attachment="1"/>
-            <fullscreen-pass shader="regen.filter.sampling.x4"/>
+            <fullscreen-pass shader="regen.textures.sampling.x4"/>
         </view>
 
         <!-- Update Texture indices. -->

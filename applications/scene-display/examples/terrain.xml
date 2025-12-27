@@ -138,8 +138,8 @@
           height-map="ground-height"
           normal-map="ground-normal"
           tf="ground-tf">
-        <shader mesh-index="0" key="regen.terrain.ground"/>
-        <shader mesh-index="1" key="regen.terrain.ground.skirt"/>
+        <shader mesh-index="0" key="regen.objects.terrain.ground"/>
+        <shader mesh-index="1" key="regen.objects.terrain.ground.skirt"/>
         <transform id="ground-tf" update-frequency="NEVER" />
         <materials>
             <material type="grass" name="ground/grass" variant="1" uv-scale="0.25"
@@ -204,9 +204,9 @@
             <input type="float" name="blurSigma" value="1.5"/>
 
             <filter-sequence id="blurred-reflection" fbo="reflection-buffer" attachment="1">
-                <filter shader="regen.filter.sampling" scale="0.5"/>
-                <filter shader="regen.filter.blur.horizontal"/>
-                <filter shader="regen.filter.blur.vertical"/>
+                <filter shader="regen.textures.sampling" scale="0.5"/>
+                <filter shader="regen.passes.blur.horizontal"/>
+                <filter shader="regen.passes.blur.vertical"/>
             </filter-sequence>
         </node>
 
@@ -216,7 +216,7 @@
         <view id="Blurred Reflection">
             <fbo id="SCREEN"/>
             <texture name="inputTexture" id="blurred-reflection" />
-            <fullscreen-pass shader="regen.filter.sampling"/>
+            <fullscreen-pass shader="regen.textures.sampling"/>
         </view>
     </node>
 
@@ -284,7 +284,7 @@
             <below>
                 <depth test="0" write="0"/>
                 <define key="IS_UNDER_WATER" value="TRUE"/>
-                <fullscreen-pass shader="regen.terrain.water.fullscreen"/>
+                <fullscreen-pass shader="regen.objects.terrain.water.fullscreen"/>
             </below>
             <above>
                 <depth test="1" write="0"/>
@@ -293,7 +293,7 @@
                 <toggle key="CLIP_DISTANCE1" value="1"/>
                 <toggle key="CLIP_DISTANCE2" value="1"/>
                 <toggle key="CLIP_DISTANCE3" value="1"/>
-                <mesh id="water-mesh" shader="regen.terrain.water.plane" />
+                <mesh id="water-mesh" shader="regen.objects.terrain.water.plane" />
             </above>
         </horizon>
     </node>
@@ -304,7 +304,7 @@
         <depth test="1" write="1"/>
         <define key="IS_VIEW_ALIGNED_GROUND_QUAD" value="TRUE"/>
         <define key="OUTPUT_TYPE" value="DEPTH"/>
-        <mesh id="water-mesh" shader="regen.models.mesh" />
+        <mesh id="water-mesh" shader="regen.objects.mesh" />
     </node>
 
     <!--**************************-->
@@ -327,7 +327,7 @@
             <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
             <texture name="gColorTexture" fbo="g-buffer" attachment="0"/>
             <texture name="skyColorTexture" id="sky"/>
-            <fullscreen-pass shader="regen.weather.fog.distance"/>
+            <fullscreen-pass shader="regen.objects.sky.fog.distance"/>
         </node>
         <view id="Fog">
             <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
@@ -454,15 +454,15 @@
         <input type="float" name="blurSigma" value="2.5"/>
 
         <filter-sequence id="blurred-scene" fbo="g-buffer" attachment="1">
-            <filter shader="regen.filter.sampling" scale="0.5"/>
-            <filter shader="regen.filter.blur.horizontal"/>
-            <filter shader="regen.filter.blur.vertical"/>
+            <filter shader="regen.textures.sampling" scale="0.5"/>
+            <filter shader="regen.passes.blur.horizontal"/>
+            <filter shader="regen.passes.blur.vertical"/>
         </filter-sequence>
 
         <view id="Blurred Scene">
             <fbo id="SCREEN"/>
             <texture name="inputTexture" id="blurred-scene" />
-            <fullscreen-pass shader="regen.filter.sampling"/>
+            <fullscreen-pass shader="regen.textures.sampling"/>
         </view>
     </node>
 
@@ -484,7 +484,7 @@
         <texture name="inputTexture" fbo="g-buffer" attachment="1"/>
         <texture name="blurTexture" id="blurred-scene"/>
         <input name="ToneMapping" ubo="ToneMapping"/>
-        <fullscreen-pass shader="regen.filter.tonemap"/>
+        <fullscreen-pass shader="regen.passes.tonemap"/>
     </node>
 
     <!--**************************-->
@@ -518,7 +518,7 @@
         <view id="noise texture">
             <fbo id="SCREEN"/>
             <texture name="inputTexture" id="ground-noise" />
-            <fullscreen-pass shader="regen.filter.sampling"/>
+            <fullscreen-pass shader="regen.textures.sampling"/>
         </view>
 
         <node id="Pre-Render">
@@ -553,7 +553,7 @@
                     <texture name="inputTexture2" id="emission-map-bloom" mip-level="1"/>
                     <texture name="inputTexture3" id="emission-map-bloom" mip-level="2"/>
                     <texture name="inputTexture4" id="emission-map-bloom" mip-level="3"/>
-                    <fullscreen-pass shader="regen.filter.sampling.x4"/>
+                    <fullscreen-pass shader="regen.textures.sampling.x4"/>
                 </view>
             </node>
 

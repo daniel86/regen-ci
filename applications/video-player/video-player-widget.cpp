@@ -183,7 +183,7 @@ ref_ptr<Mesh> createVideoWidget(
 	StateConfigurer shaderConfigurer;
 	shaderConfigurer.addNode(meshNode.get());
 	shaderConfigurer.define("USE_NORMALIZED_COORDINATES", "TRUE");
-	shaderState->createShader(shaderConfigurer.cfg(), "regen.gui.widget");
+	shaderState->createShader(shaderConfigurer.cfg(), "regen.objects.gui.widget");
 	mesh->updateVAO(shaderConfigurer.cfg(), shaderState->shader());
 
 	return mesh;

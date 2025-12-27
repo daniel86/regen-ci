@@ -1,0 +1,371 @@
+
+-- defines
+#define M_PI 3.1415926535897932384626433832795
+const float in_timeDeltaMS = 0.1;
+// limit for born particles per frame
+const int in_maxNumEmits = 20;
+// emitter position
+const vec3 in_emitterPosition = vec3(0.0, 10.0, 0.0);
+// the size of the emitter shape
+const float in_emitterSize = 20.0;
+// the opening of the cone in which particles are emitted relative
+// to their starting position on the emitter shape
+const float in_emitterOpening = 1.0;
+// damping reduces velocity each frame
+const float in_dampingFactor = 0.1;
+// xy-velocity noise for emitting
+const float in_noiseFactor = 0.1;
+// planet gravity
+const vec3 in_gravity = vec3(0.0, -9.81, 0.0);
+// base mass + mass variance for each particle
+const vec2 in_massVariance = vec2(0.75, 0.25);
+// base size + size variance for each particle
+const vec2 in_sizeVariance = vec2(0.1, 0.05);
+// particles with y pos below die
+const float in_surfaceHeight = 0.0;
+
+-- inputs
+#for INDEX to NUM_PARTICLE_ATTRIBUTES
+#define2 _TYPE ${PARTICLE_ATTRIBUTE${INDEX}_TYPE}
+#define2 _NAME ${PARTICLE_ATTRIBUTE${INDEX}_NAME}
+buffer ${_TYPE} in_${_NAME}[NUM_PARTICLES];
+#endfor
+
+-- particleUpdate
+#ifndef REGEN_particleUpdate_defined_
+#define2 REGEN_particleUpdate_defined_
+
+#for INDEX to NUM_PARTICLE_ATTRIBUTES
+    #ifdef PARTICLE_ATTRIBUTE${INDEX}_ADVANCE_KEY
+#include ${PARTICLE_ATTRIBUTE${INDEX}_ADVANCE_KEY}
+    #endif
+    #ifdef PARTICLE_ATTRIBUTE${INDEX}_RAMP_KEY
+#include ${PARTICLE_ATTRIBUTE${INDEX}_RAMP_KEY}
+    #endif
+#endfor
+#ifdef HAS_wind || HAS_windFlow
+    #include regen.objects.sky.wind.windAtPosition
+const float in_windStrength = 1.0;
+#endif
+
+void particleUpdateVelocity(uint idx, float dt)
+{
+    vec3 velocityChange = vec3(0.0);
+#ifdef HAS_mass
+    velocityChange += in_gravity * in_mass[idx];
+#else
+    #ifdef HAS_gravity
+    velocityChange += in_gravity;
+    #endif
+#endif
+#ifdef HAS_wind || HAS_windFlow
+    velocityChange.xz += windAtPosition(in_pos[idx]) * in_windStrength;
+#endif
+#ifdef HAS_dampingFactor
+    vec3 currentVelocity = in_velocity[idx];
+    velocityChange -= currentVelocity * in_dampingFactor;
+#endif
+    in_velocity[idx] += velocityChange * dt;
+}
+
+void particleUpdate(uint idx, float dt, inout uint seed) {
+    float dt_ms = dt*0.001;
+
+    in_lifetime[idx] -= dt_ms;
+    particleUpdateVelocity(idx, dt_ms);
+    // allow attributes to configure their advance function
+#for INDEX to NUM_PARTICLE_ATTRIBUTES
+    #ifdef PARTICLE_ATTRIBUTE${INDEX}_ADVANCE_FUNCTION
+    #define2 _ADVANCE ${PARTICLE_ATTRIBUTE${INDEX}_ADVANCE_FUNCTION}
+    #define2 _FACTOR ${PARTICLE_ATTRIBUTE${INDEX}_ADVANCE_FACTOR}
+    #define2 _NAME ${PARTICLE_ATTRIBUTE${INDEX}_NAME}
+    #define2 _TYPE ${PARTICLE_ATTRIBUTE${INDEX}_TYPE}
+    #ifdef HAS_${_NAME}Ramp
+        #define2 _RAMP ${PARTICLE_ATTRIBUTE${INDEX}_RAMP_FUNCTION}
+        #define2 _TEXEL_SIZE ${PARTICLE_ATTRIBUTE${INDEX}_TEXEL_SIZE}
+        #ifdef HAS_${_NAME}RampMax
+        vec2 rampUV${INDEX} = ${_RAMP}(in_${_NAME}RampMax, ${_TEXEL_SIZE});
+        #else
+        vec2 rampUV${INDEX} = ${_RAMP}(1.0, 0.015625);
+        #endif
+        #if ${_TYPE} == float
+    ${_TYPE} C${INDEX} = texture(in_${_NAME}AdvanceRamp, rampUV${INDEX}).r;
+        #elif ${_TYPE} == vec2
+    ${_TYPE} C${INDEX} = texture(in_${_NAME}AdvanceRamp, rampUV${INDEX}).rg;
+        #elif ${_TYPE} == vec3
+    ${_TYPE} C${INDEX} = texture(in_${_NAME}AdvanceRamp, rampUV${INDEX}).rgb;
+        #elif ${_TYPE} == vec4
+    ${_TYPE} C${INDEX} = texture(in_${_NAME}AdvanceRamp, rampUV${INDEX});
+        #elif ${_TYPE} == int
+    ${_TYPE} C${INDEX} = int(texture(in_${_NAME}AdvanceRamp, rampUV${INDEX}).r);
+        #elif ${_TYPE} == ivec2
+    ${_TYPE} C${INDEX} = ivec2(texture(in_${_NAME}AdvanceRamp, rampUV${INDEX}).rg);
+        #elif ${_TYPE} == ivec3
+    ${_TYPE} C${INDEX} = ivec3(texture(in_${_NAME}AdvanceRamp, rampUV${INDEX}).rgb);
+        #elif ${_TYPE} == ivec4
+    ${_TYPE} C${INDEX} = ivec4(texture(in_${_NAME}AdvanceRamp, rampUV${INDEX}));
+        #endif
+    #else
+        #ifdef HAS_${_NAME}AdvanceConstant
+    ${_TYPE} C${INDEX} = in_${_NAME}AdvanceConstant*dt_ms;
+        #else
+    ${_TYPE} C${INDEX} = ${_TYPE}(1);
+        #endif
+    #endif
+    ${_ADVANCE}( C${INDEX}, in_${_NAME}[idx], ${_FACTOR} );
+    #endif
+#endfor
+    in_pos[idx] += in_velocity[idx] * dt_ms;
+}
+#endif
+
+-- ramp.time
+#ifndef REGEN_ramp_time_defined_
+#define2 REGEN_ramp_time_defined_
+#include regen.textures.textures.rampCoordinate
+vec2 ramp_lifetime(float max)
+{
+    return rampCoordinate(in_time / max);
+}
+#endif
+
+-- ramp.lifetime
+#ifndef REGEN_ramp_lifetime_defined_
+#define2 REGEN_ramp_lifetime_defined_
+#include regen.textures.textures.rampCoordinate
+vec2 ramp_lifetime(float max)
+{
+    return rampCoordinate(1.0 - out_lifetime / max);
+}
+#endif
+
+-- ramp.velocity
+#ifndef REGEN_ramp_velocity_defined_
+#define2 REGEN_ramp_velocity_defined_
+#include regen.textures.textures.rampCoordinate
+float ramp_velocity(float max)
+{
+    return rampCoordinate(length(out_velocity) / max);
+}
+#endif
+
+-- ramp.emitterDistance
+#ifndef REGEN_ramp_emitterDistance_defined_
+#define2 REGEN_ramp_emitterDistance_defined_
+#include regen.textures.textures.rampCoordinate
+float ramp_emitterDistance(float max)
+{
+    return rampCoordinate(length(out_pos - in_emitterPosition) / max);
+}
+#endif
+
+-- ramp.cameraDistance
+#ifndef REGEN_ramp_cameraDistance_defined_
+#define2 REGEN_ramp_cameraDistance_defined_
+#include regen.textures.textures.rampCoordinate
+float ramp_cameraDistance(float max)
+{
+    return rampCoordinate(length(out_pos - in_cameraPosition.xyz) / max);
+}
+#endif
+
+-- particleOffset
+#ifndef REGEN_particleOffset_defined_
+#define2 REGEN_particleOffset_defined_
+void particleOffset(inout uint seed, out vec3 pos, out vec3 dir)
+{
+#if ${PARTICLE_EMITTER_SHAPE} == DISC
+    pos = (0.5*in_emitterSize*random(seed))*normalize(vec3(
+                random(seed)-0.5,
+                0.0,
+                random(seed)-0.5));
+    dir = vec3(0.0,1.0,0.0);
+#else
+#if ${PARTICLE_EMITTER_SHAPE} == CUBE
+    // first choose a random face
+    float face = random(seed)*6.0;
+    // then choose a random position on that face
+    vec3 randomPos = vec3(
+                0.5*in_emitterSize*(random(seed)-0.5),
+                0.5*in_emitterSize*(random(seed)-0.5),
+                0.5*in_emitterSize);
+    if(face<1.0) {
+        pos = vec3(randomPos.x,randomPos.y,randomPos.z);
+        dir = vec3(0.0,0.0,1.0);
+    } else if(face<2.0) {
+        pos = vec3(randomPos.x,randomPos.y,-randomPos.z);
+        dir = vec3(0.0,0.0,-1.0);
+    } else if(face<3.0) {
+        pos = vec3(randomPos.x,randomPos.z,randomPos.y);
+        dir = vec3(0.0,1.0,0.0);
+    } else if(face<4.0) {
+        pos = vec3(randomPos.x,-randomPos.z,randomPos.y);
+        dir = vec3(0.0,-1.0,0.0);
+    } else if(face<5.0) {
+        pos = vec3(randomPos.z,randomPos.x,randomPos.y);
+        dir = vec3(1.0,0.0,0.0);
+    } else {
+        pos = vec3(-randomPos.z,randomPos.x,randomPos.y);
+        dir = vec3(-1.0,0.0,0.0);
+    }
+#else
+#if ${PARTICLE_EMITTER_SHAPE} == SPHERE
+    dir = normalize(vec3(random(seed)-0.5,random(seed)-0.5,random(seed)-0.5));
+    pos = 0.5*in_emitterSize*dir;
+#endif
+#endif
+#endif
+
+#if ${PARTICLE_EMITTER_MODE} == INOUT
+    dir = dir * (random(seed)>0.5 ? 1.0 : -1.0);
+#endif
+#if ${PARTICLE_EMITTER_MODE} == IN
+    dir = -dir;
+#endif
+}
+#endif
+
+-- particlePosition
+#ifndef REGEN_particlePosition_defined_
+#define2 REGEN_particlePosition_defined_
+void particlePosition(inout uint seed, inout vec3 pos)
+{
+    // apply the position of the emitter.
+    // Note that this is done here rather in the draw function such that particles
+    // cannot be dragged away in case emitter moves.
+#if ${EMITTER_POSITION_MODE} == CAMERA_RELATIVE
+    pos += in_cameraPosition.xyz;
+#endif
+#ifdef HAS_emitterPosition
+    // the position is given in form of a uniform vec3 in world space.
+    pos += in_emitterPosition;
+#endif
+#ifdef HAS_modelMatrix
+    // the position is given in form of a uniform mat4 in model transformation.
+    pos = (in_modelMatrix * vec4(pos,1.0)).xyz;
+#endif
+}
+#endif
+
+-- particleVelocity
+#ifndef REGEN_particleVelocity_defined_
+#define2 REGEN_particleVelocity_defined_
+vec3 particleVelocity(inout uint seed, in vec3 dir)
+{
+    // Generate a random point within a circle in the XY plane
+    float angle = 2.0 * M_PI * random(seed);
+    float radius = in_emitterOpening * sqrt(random(seed));
+    float x = radius * cos(angle);
+    float y = radius * sin(angle);
+    // Create a random offset vector in the XY plane
+    vec3 offset = vec3(x, y, 0.0);
+    // Find a vector perpendicular to dir
+    vec3 perpDir = cross(dir, vec3(0.0, 0.0, 1.0));
+    float perpLen = length(perpDir);
+    if (perpLen < 0.001) {
+        perpDir = normalize(cross(dir, vec3(0.0, 1.0, 0.0)));
+    } else {
+        perpDir /= perpLen;
+    }
+    // Rotate the offset vector to be perpendicular to dir
+    vec3 randomOffset = perpDir * offset.x + cross(perpDir, dir) * offset.y;
+    // Add the random offset to the direction vector
+#ifdef HAS_velocityFactorMinMax
+    float velocityFactor = in_velocityFactorMinMax.x + random(seed) * (in_velocityFactorMinMax.y - in_velocityFactorMinMax.x);
+#else
+    #ifdef HAS_velocityFactor
+    float velocityFactor = in_velocityFactor;
+    #else
+    float velocityFactor = 1.0;
+    #endif
+#endif
+    return velocityFactor * normalize(dir + 2.0*randomOffset);
+}
+#endif
+
+-- particleValue
+#ifndef REGEN_particleValue_defined_
+#define2 REGEN_particleValue_defined_
+#include regen.textures.noise.variance
+float particleValue(float value, float maxVariance, inout uint seed)
+{
+    return value + variance(maxVariance, seed);
+}
+vec2 particleValue(vec2 value, vec2 maxVariance, inout uint seed)
+{
+    return value + variance(maxVariance, seed);
+}
+vec3 particleValue(vec3 value, vec3 maxVariance, inout uint seed)
+{
+    return value + variance(maxVariance, seed);
+}
+vec4 particleValue(vec4 value, vec4 maxVariance, inout uint seed)
+{
+    return value + variance(maxVariance, seed);
+}
+#endif
+
+-- particleEmit
+#ifndef REGEN_particleEmit_defined_
+#define2 REGEN_particleEmit_defined_
+#include regen.objects.particles.emitter.particleValue
+#include regen.objects.particles.emitter.particleOffset
+#include regen.objects.particles.emitter.particlePosition
+#include regen.objects.particles.emitter.particleVelocity
+
+const float lifetimeFallback = 20;
+
+void particleEmit(uint particleIdx, inout uint seed) {
+    vec3 pos, dir;
+    particleOffset(seed, pos, dir);
+    in_velocity[particleIdx] = particleVelocity(seed, dir);
+    particlePosition(seed, pos);
+    in_pos[particleIdx] = pos;
+    // set lifetime to default value, but can be randomized below!
+    in_lifetime[particleIdx] = lifetimeFallback;
+
+#for INDEX to NUM_PARTICLE_ATTRIBUTES
+#define2 _NAME ${PARTICLE_ATTRIBUTE${INDEX}_NAME}
+#define2 _TYPE ${PARTICLE_ATTRIBUTE${INDEX}_TYPE}
+#ifdef HAS_${_NAME}Variance
+    in_${_NAME}[particleIdx] = particleValue(in_${_NAME}Default, in_${_NAME}Variance, seed);
+#elif HAS_${_NAME}Default
+    in_${_NAME}[particleIdx] = in_${_NAME}Default;
+#elif HAS_${_NAME}Value
+    in_${_NAME}[particleIdx] = in_${_NAME}Value;
+#endif
+#endfor
+}
+#endif
+
+-- compute.cs
+#include regen.compute.compute.defines
+#include regen.objects.particles.emitter.inputs
+#include regen.pobjects.articles.emitter.defines
+uniform vec4 in_cameraPosition;
+
+#include regen.objects.particles.emitter.particleUpdate
+#include regen.objects.particles.emitter.particleEmit
+
+bool isParticleDead(uint gid) {
+    if(in_lifetime[gid]<=0.0) return true; // not born yet
+#ifdef HAS_surfaceHeight
+    if(in_pos[gid].y<in_surfaceHeight) return true; // below surface
+#endif
+    return false;
+}
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid >= NUM_PARTICLES) return;
+
+    uint seed = in_randomSeed[gid];
+
+    if (isParticleDead(gid)) {
+        particleEmit(gid, seed);
+    } else {
+        particleUpdate(gid, in_timeDeltaMS, seed);
+    }
+
+    in_randomSeed[gid] = seed;
+}

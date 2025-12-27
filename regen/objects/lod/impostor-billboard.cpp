@@ -20,7 +20,7 @@ ImpostorBillboard::ImpostorBillboard()
 	//       as they only have a two front face.
 	//       this is also important for the billboards to be rendered into shadow maps.
 	joinStates(ref_ptr<ToggleState>::alloc(RenderState::CULL_FACE, false));
-	setShaderKey("regen.models.impostor");
+	setShaderKey("regen.objects.lod.impostor");
 }
 
 void ImpostorBillboard::createShader(const ref_ptr<StateNode> &parentNode) {
@@ -478,7 +478,7 @@ ref_ptr<ImpostorBillboard> ImpostorBillboard::load(LoadingContext &ctx, scene::S
 		impostor->useNormalCorrection_ = input.getValue<bool>("normal-correction", true);
 	}
 	if (input.hasAttribute("snapshot-shader")) {
-		impostor->snapshotShaderKey_ = input.getValue<std::string>("snapshot-shader", "regen.models.impostor.update");
+		impostor->snapshotShaderKey_ = input.getValue<std::string>("snapshot-shader", "regen.objects.lod.impostor.update");
 	}
 
 	// load update state

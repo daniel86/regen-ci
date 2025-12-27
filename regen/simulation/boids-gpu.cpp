@@ -179,7 +179,7 @@ void BoidsGPU::createResource() {
 		updateState->setInput(((RadixSort_GPU*)radixSort_.get())->valueBuffer());
 		updateState->setInput(gridOffsetBuffer_);
 		updateState->setInput(u_numCells_);
-		gridResetPass_ = ref_ptr<ComputePass>::alloc("regen.animation.boid.grid.reset");
+		gridResetPass_ = ref_ptr<ComputePass>::alloc("regen.simulation.boids.grid.reset");
 		gridResetPass_->computeState()->setNumWorkUnits(std::max(numBoids_, numCells_+1), 1, 1);
 		gridResetPass_->computeState()->setGroupSize(simulationGroupSize_, 1, 1);
 		updateState->joinStates(gridResetPass_);
@@ -209,7 +209,7 @@ void BoidsGPU::createResource() {
 		#ifdef BOID_USE_HALF_VELOCITY
 		updateState->shaderDefine("USE_HALF_VELOCITY", "TRUE");
 		#endif
-		auto computeNode = ref_ptr<ComputePass>::alloc("regen.animation.boid.grid.offsets");
+		auto computeNode = ref_ptr<ComputePass>::alloc("regen.simulation.boids.grid.offsets");
 		computeNode->computeState()->setNumWorkUnits(numBoids_, 1, 1);
 		computeNode->computeState()->setGroupSize(simulationGroupSize_, 1, 1);
 		updateState->joinStates(computeNode);
@@ -272,7 +272,7 @@ void BoidsGPU::createResource() {
 					homePoints_[i].z << ")"));
 		}
 	}
-	auto simulationCompute = ref_ptr<ComputePass>::alloc("regen.animation.boid.simulate");
+	auto simulationCompute = ref_ptr<ComputePass>::alloc("regen.simulation.boids.simulate");
 	simulationCompute->computeState()->setNumWorkUnits(numBoids_, 1, 1);
 	simulationCompute->computeState()->setGroupSize(simulationGroupSize_, 1, 1);
 	simulationState_->joinStates(simulationCompute);

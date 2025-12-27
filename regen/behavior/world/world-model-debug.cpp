@@ -6,7 +6,7 @@ using namespace regen;
 
 WorldModelDebug::WorldModelDebug(const ref_ptr<WorldModel> &world)
 		: StateNode(),
-		  HasShader("regen.models.lines"),
+		  HasShader("regen.objects.lines"),
 		  world_(world),
 		  lineLocation_(-1),
 		  vbo_(0) {
