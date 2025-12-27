@@ -288,8 +288,8 @@
           height-map="ground-height"
           normal-map="ground-normal"
           tf="ground-tf">
-        <shader mesh-index="0" key="regen.terrain.ground"/>
-        <shader mesh-index="1" key="regen.terrain.ground.skirt"/>
+        <shader mesh-index="0" key="regen.objects.terrain.ground"/>
+        <shader mesh-index="1" key="regen.objects.terrain.ground.skirt"/>
         <transform id="ground-tf" update-frequency="NEVER"/>
         <materials>
             <material type="grass" name="ground/grass" variant="1" uv-scale="0.25"
@@ -347,7 +347,7 @@
           scaling="2.0,1.0,2.0"
           ground-size="{{map-size}},{{map-size}}"
           update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.terrain.grass"/>
+        <shader mesh-index="0" key="regen.objects.terrain.grass"/>
         <transform id="grass-tf" mode="offset" update-frequency="NEVER">
             <translate value="0.0,{{map-y-min}},0.0"/>
         </transform>
@@ -404,7 +404,7 @@
           lod-thresholds="20.0, 50.0, 80.0"
           scaling="0.7,0.3,0.7"
           update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.models.mesh"/>
+        <shader mesh-index="0" key="regen.objects.mesh"/>
         <!--
         <transform id="big-stones-tf" num-instances="20" is-instanced="1">
             <rotate value="0.0, 1.57079632, 0.0"/>
@@ -450,9 +450,9 @@
           coverage-threshold="0.01"
           silhouette-padding="1"
           preset="fir">
-        <shader mesh-index="0" key="regen.models.mesh"/>
-        <shader mesh-index="1" key="regen.models.mesh">
-            <define key="POS_WORLD_TRANSFER_KEY" value="regen.weather.wind.wavingBaseTransfer"/>
+        <shader mesh-index="0" key="regen.objects.mesh"/>
+        <shader mesh-index="1" key="regen.objects.mesh">
+            <define key="POS_WORLD_TRANSFER_KEY" value="regen.objects.sky.wind.wavingBaseTransfer"/>
         </shader>
         <transform id="tree-tf" update-frequency="NEVER">
             <set mode="plane"
@@ -494,7 +494,7 @@
                   latitude-steps="0"
                   texture-size="256,256"
                   update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.models.impostor"/>
+        <shader mesh-index="0" key="regen.objects.lod.impostor"/>
         <update-state>
             <alpha discard-threshold="0.25"/>
             <depth test="1" write="1"/>
@@ -573,9 +573,9 @@
             <input type="float" name="blurSigma" value="1.5"/>
 
             <filter-sequence id="blurred-reflection" fbo="reflection-buffer" attachment="1">
-                <filter shader="regen.filter.sampling" scale="0.5"/>
-                <filter shader="regen.filter.blur.horizontal"/>
-                <filter shader="regen.filter.blur.vertical"/>
+                <filter shader="regen.textures.sampling" scale="0.5"/>
+                <filter shader="regen.passes.blur.horizontal"/>
+                <filter shader="regen.passes.blur.vertical"/>
             </filter-sequence>
         </node>
 
@@ -585,7 +585,7 @@
         <view id="Blurred Reflection">
             <fbo id="SCREEN"/>
             <texture name="inputTexture" id="blurred-reflection"/>
-            <fullscreen-pass shader="regen.filter.sampling"/>
+            <fullscreen-pass shader="regen.textures.sampling"/>
         </view>
     </node>
 
@@ -651,7 +651,7 @@
             <below>
                 <depth test="0" write="0"/>
                 <define key="IS_UNDER_WATER" value="TRUE"/>
-                <fullscreen-pass shader="regen.terrain.water.fullscreen"/>
+                <fullscreen-pass shader="regen.objects.terrain.water.fullscreen"/>
             </below>
             <above>
                 <depth test="1" write="0"/>
@@ -660,7 +660,7 @@
                 <toggle key="CLIP_DISTANCE1" value="1"/>
                 <toggle key="CLIP_DISTANCE2" value="1"/>
                 <toggle key="CLIP_DISTANCE3" value="1"/>
-                <mesh id="water-mesh" shader="regen.terrain.water.plane" />
+                <mesh id="water-mesh" shader="regen.objects.terrain.water.plane" />
             </above>
         </horizon>
     </node>
@@ -672,7 +672,7 @@
         <depth test="1" write="1"/>
         <define key="IS_VIEW_ALIGNED_GROUND_QUAD" value="TRUE"/>
         <define key="OUTPUT_TYPE" value="DEPTH"/>
-        <mesh id="water-mesh" shader="regen.models.mesh"/>
+        <mesh id="water-mesh" shader="regen.objects.mesh"/>
     </node>
 
     <!--**************************-->
@@ -685,7 +685,7 @@
           lod-thresholds="5.0, 15.0, 40.0"
           num-instances="{{num-fish}}"
           update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.models.mesh"/>
+        <shader mesh-index="0" key="regen.objects.mesh"/>
         <transform id="fish-tf" num-instances="{{num-fish}}" is-instanced="1"
                    update-frequency="PER_FRAME" gpu-usage="BUFFER_GPU_WRITE">
             <scale value="0.001, 0.001, 0.001"/>
@@ -731,7 +731,7 @@
                   latitude-steps="2"
                   texture-size="64,64"
                   update-frequency="NEVER">
-                <shader mesh-index="0" key="regen.models.impostor">
+                <shader mesh-index="0" key="regen.objects.lod.impostor">
                     <alpha discard-threshold="0.5"/>
                 </shader>
                 <update-state>
@@ -747,7 +747,7 @@
           asset-indices="*"
           asset-animation="1"
           update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.models.mesh"/>
+        <shader mesh-index="0" key="regen.objects.mesh"/>
         <transform id="hyena-tf" update-frequency="PER_FRAME">
             <!-- rotate to pointing forward and upright -->
             <rotate value="0.0, 3.141593, 1.57079"/>
@@ -797,7 +797,7 @@
             <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
             <texture name="gColorTexture" fbo="g-buffer" attachment="0"/>
             <texture name="skyColorTexture" id="sky"/>
-            <fullscreen-pass shader="regen.weather.fog.distance"/>
+            <fullscreen-pass shader="regen.objects.sky.fog.distance"/>
         </node>
         <view id="Distance Fog">
             <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
@@ -918,15 +918,15 @@
         <input type="float" name="blurSigma" value="2.5"/>
 
         <filter-sequence id="blurred-scene" fbo="g-buffer" attachment="1">
-            <filter shader="regen.filter.sampling" scale="0.5"/>
-            <filter shader="regen.filter.blur.horizontal"/>
-            <filter shader="regen.filter.blur.vertical"/>
+            <filter shader="regen.textures.sampling" scale="0.5"/>
+            <filter shader="regen.passes.blur.horizontal"/>
+            <filter shader="regen.passes.blur.vertical"/>
         </filter-sequence>
 
         <view id="Blurred Scene">
             <fbo id="SCREEN"/>
             <texture name="inputTexture" id="blurred-scene"/>
-            <fullscreen-pass shader="regen.filter.sampling"/>
+            <fullscreen-pass shader="regen.textures.sampling"/>
         </view>
     </node>
 
@@ -944,7 +944,7 @@
         <input type="float" name="radialBlurScaleMul" value="0.9555"/>
         <input type="float" name="vignetteInner" value="0.9"/>
         <input type="float" name="vignetteOuter" value="1.75"/>
-        <fullscreen-pass shader="regen.filter.tonemap"/>
+        <fullscreen-pass shader="regen.passes.tonemap"/>
     </node>
 
     <!--**************************-->
@@ -955,7 +955,7 @@
             <fbo id="SCREEN"/>
             <texture name="inputTexture" fbo="sun-shadow" attachment="depth"/>
             <input type="int" name="arrayTextureSize" value="{{num-cascades}}"/>
-            <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
+            <fullscreen-pass shader="regen.textures.sampling.array.shadow"/>
         </view>
         <view id="World Model">
             <node import="world-debug">
@@ -1028,12 +1028,12 @@
             <view id="Material Weights">
                 <fbo id="SCREEN"/>
                 <texture name="inputTexture" id="ground-mesh-weight-map-0"/>
-                <fullscreen-pass shader="regen.filter.sampling"/>
+                <fullscreen-pass shader="regen.textures.sampling"/>
             </view>
             <view id="Biomes">
                 <fbo id="SCREEN"/>
                 <texture name="inputTexture" id="ground-mesh-biome-map-0"/>
-                <fullscreen-pass shader="regen.filter.sampling"/>
+                <fullscreen-pass shader="regen.textures.sampling"/>
             </view>
 
             <node id="Shading">

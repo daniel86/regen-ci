@@ -93,6 +93,8 @@ void Scene::addShaderPath(const std::string &path) {
 void Scene::setupShaderLoading() {
 	// try src directory first, might be more up to date then installation
 	boost::filesystem::path srcPath(REGEN_SOURCE_DIR);
+	addShaderPath(srcPath.string());
+
 	srcPath /= REGEN_PROJECT_NAME;
 	srcPath /= "shader";
 	addShaderPath(srcPath.string());
@@ -100,6 +102,8 @@ void Scene::setupShaderLoading() {
 	// if nothing found in src dir, try install directory
 	boost::filesystem::path installPath(REGEN_INSTALL_PREFIX);
 	installPath /= "share";
+	addShaderPath(installPath.string());
+
 	installPath /= REGEN_PROJECT_NAME;
 	installPath /= "shader";
 	addShaderPath(installPath.string());

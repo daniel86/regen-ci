@@ -98,7 +98,7 @@
         <depth test="1" write="1"/>
         <cull mode="FRONT"/>
         <node id="bg-box">
-            <mesh id="bg-box" shader="regen.models.mesh"/>
+            <mesh id="bg-box" shader="regen.objects.mesh"/>
         </node>
     </node>
 
@@ -176,38 +176,38 @@
                     <rotate value="0.0,0.0,0.0"/>
                     <translate value="0.0,-60.6,2.5"/>
                 </transform>
-                <mesh id="platform" shader="regen.models.mesh"/>
+                <mesh id="platform" shader="regen.objects.mesh"/>
             </node>
             <node id="platform1">
                 <transform update-frequency="NEVER">
                     <rotate value="1.0,0.0,0.0"/>
                     <translate value="1.5,-60.6,0.0"/>
                 </transform>
-                <mesh id="platform" shader="regen.models.mesh"/>
+                <mesh id="platform" shader="regen.objects.mesh"/>
             </node>
             <node id="platform2">
                 <transform update-frequency="NEVER">
                     <rotate value="-1.0,0.0,0.0"/>
                     <translate value="-1.5,-60.6,0.0"/>
                 </transform>
-                <mesh id="platform" shader="regen.models.mesh"/>
+                <mesh id="platform" shader="regen.objects.mesh"/>
             </node>
         </node>
 
         <node id="teapot">
-            <mesh id="mesh-teapot" shader="regen.models.mesh"/>
+            <mesh id="mesh-teapot" shader="regen.objects.mesh"/>
         </node>
         <node id="dragon">
-            <mesh id="mesh-dragon" shader="regen.models.mesh"/>
+            <mesh id="mesh-dragon" shader="regen.objects.mesh"/>
         </node>
         <node id="venus">
-            <define key="POS_MODEL_TRANSFER_KEY" value="regen.animation.morph.twist"/>
+            <define key="POS_MODEL_TRANSFER_KEY" value="regen.animation.mesh-animation.twist"/>
             <define key="POS_MODEL_TRANSFER_NAME" value="twist"/>
             <input type="float" name="twistSpeed" value="2.0"/>
             <input type="float" name="twistStrength" value="1.0"/>
             <input type="float" name="twistHeight" value="0.5"/>
             <input type="float" name="twistAngle" value="3.1415"/>
-            <mesh id="mesh-venus" shader="regen.models.mesh"/>
+            <mesh id="mesh-venus" shader="regen.objects.mesh"/>
         </node>
     </node>
 
@@ -250,7 +250,7 @@
         <input type="vec2" name="fogDistance" value="0.0,100.0"/>
         <node>
             <light-pass type="SPOT" ambient="0"
-                        shader="regen.weather.fog.volumetric.spot"
+                        shader="regen.objects.sky.fog.volumetric.spot"
                         use-shadows="1"
                         shadow-filter="NONE">
                 <light id="spot-light"
@@ -274,7 +274,7 @@
         <input type="vec2" name="fogDistance" value="0.0,100.0"/>
         <node>
             <light-pass type="SPOT" ambient="0"
-                        shader="regen.weather.fog.volumetric.spot"
+                        shader="regen.objects.sky.fog.volumetric.spot"
                         use-shadows="1"
                         shadow-filter="NONE">
                 <light id="spot-light"
@@ -303,7 +303,7 @@
             <input type="vec3" name="outlineColor" value="0.0, 0.0, 0.0"/>
             <input type="float" name="outlineThresholdNor" value="1.0"/>
             <input type="float" name="outlineThresholdDepth" value="1.6"/>
-            <fullscreen-pass shader="regen.filter.outlines"/>
+            <fullscreen-pass shader="regen.passes.outlines"/>
         </node>
         <view id="Outlines">
             <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>
@@ -314,7 +314,7 @@
             <fbo id="g-buffer" draw-buffers="1"/>
             <blend mode="add"/>
             <texture name="inputTexture" fbo="fog-buffer" attachment="0"/>
-            <fullscreen-pass shader="regen.filter.sampling"/>
+            <fullscreen-pass shader="regen.textures.sampling"/>
         </node>
         <view id="Volumetric Fog Buffer">
             <blit src-fbo="fog-buffer" src-attachment="0" dst-fbo="SCREEN"/>
@@ -365,7 +365,7 @@
             <view id="Spot Shadow">
                 <fbo id="SCREEN"/>
                 <texture name="inputTexture" fbo="spot-shadow" attachment="depth"/>
-                <fullscreen-pass shader="regen.filter.sampling.shadow"/>
+                <fullscreen-pass shader="regen.textures.sampling.shadow"/>
             </view>
         </node>
 

@@ -102,8 +102,8 @@
                          pixel-type="BYTE"
                          bind-input="0">
             <filter shader="regen.shading.ssao" scale="0.5"/>
-            <filter shader="regen.filter.blur.horizontal"/>
-            <filter shader="regen.filter.blur.vertical"/>
+            <filter shader="regen.passes.blur.horizontal"/>
+            <filter shader="regen.passes.blur.vertical"/>
         </filter-sequence>
     </node>
 
@@ -120,18 +120,18 @@
         <input type="int" name="numBlurPixels" value="4"/>
         <input type="float" name="blurSigma" value="2.0"/>
         <filter-sequence id="blurred-scene" fbo="g-buffer" attachment="1">
-            <filter shader="regen.filter.sampling" scale="0.5"/>
-            <filter shader="regen.filter.blur.horizontal"/>
-            <filter shader="regen.filter.blur.vertical"/>
+            <filter shader="regen.textures.sampling" scale="0.5"/>
+            <filter shader="regen.passes.blur.horizontal"/>
+            <filter shader="regen.passes.blur.vertical"/>
         </filter-sequence>
     </node>
     <node id="G-Buffer-Blur0">
         <input type="int" name="numBlurPixels" value="4"/>
         <input type="float" name="blurSigma" value="2.0"/>
         <filter-sequence id="blurred-scene" fbo="g-buffer" attachment="0">
-            <filter shader="regen.filter.sampling" scale="0.5"/>
-            <filter shader="regen.filter.blur.horizontal"/>
-            <filter shader="regen.filter.blur.vertical"/>
+            <filter shader="regen.textures.sampling" scale="0.5"/>
+            <filter shader="regen.passes.blur.horizontal"/>
+            <filter shader="regen.passes.blur.vertical"/>
         </filter-sequence>
     </node>
 
@@ -139,7 +139,7 @@
         <texture name="depthTexture" fbo="g-buffer" attachment="depth"/>
         <texture name="blurTexture" id="blurred-scene"/>
         <input type="float" name="focalDistance" value="0.0"/>
-        <fullscreen-pass shader="regen.filter.dof"/>
+        <fullscreen-pass shader="regen.passes.dof"/>
     </node>
 
     <node id="Distance-Fog">
@@ -150,7 +150,7 @@
         <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
         <texture name="skyColorTexture" id="earth-sky"/>
         <define key="USE_SKY_COLOR" value="TRUE"/>
-        <fullscreen-pass shader="regen.weather.fog.distance"/>
+        <fullscreen-pass shader="regen.objects.sky.fog.distance"/>
     </node>
 
     <node id="FXAA">
@@ -158,7 +158,7 @@
         <input type="float" name="reduceMul" value="0.125"/>
         <input type="float" name="reduceMin" value="0.0078125"/>
         <input type="vec3" name="luma" value="0.299,0.587,0.114"/>
-        <fullscreen-pass shader="regen.filter.fxaa"/>
+        <fullscreen-pass shader="regen.passes.fxaa"/>
     </node>
 
     <node id="MotionBlur-Screen">
@@ -273,10 +273,10 @@
         <node id="logo-widget">
             <material alpha="0.7" update-frequency="NEVER"/>
             <texture id="regen-logo" map-to="COLOR" blend="SRC"/>
-            <mesh id="logo-widget" shader="regen.gui.widget"/>
+            <mesh id="logo-widget" shader="regen.objects.gui.widget"/>
         </node>
         <node id="fps-widget">
-            <mesh id="fps-widget" shader="regen.gui.text"/>
+            <mesh id="fps-widget" shader="regen.objects.gui.text"/>
         </node>
     </node>
 

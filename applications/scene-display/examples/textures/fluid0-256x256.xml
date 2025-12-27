@@ -78,7 +78,7 @@
             <texture name="inputTexture2" fbo="velocity" attachment="1"/>
             <texture name="inputTexture3" fbo="velocity" attachment="0"/>
             <texture name="inputTexture4" fbo="velocity" attachment="1"/>
-            <fullscreen-pass shader="regen.filter.sampling.x4"/>
+            <fullscreen-pass shader="regen.textures.sampling.x4"/>
         </view>
 
         <!-- Splat velocity -->
@@ -96,7 +96,7 @@
             <texture name="inputTexture2" fbo="velocity" attachment="1"/>
             <texture name="inputTexture3" fbo="velocity" attachment="0"/>
             <texture name="inputTexture4" fbo="velocity" attachment="1"/>
-            <fullscreen-pass shader="regen.filter.sampling.x4"/>
+            <fullscreen-pass shader="regen.textures.sampling.x4"/>
         </view>
 
         <!-- The pressure solve -->
@@ -138,7 +138,7 @@
             <texture name="inputTexture2" fbo="velocity" attachment="1"/>
             <texture name="inputTexture3" fbo="velocity" attachment="0"/>
             <texture name="inputTexture4" fbo="velocity" attachment="1"/>
-            <fullscreen-pass shader="regen.filter.sampling.x4"/>
+            <fullscreen-pass shader="regen.textures.sampling.x4"/>
         </view>
 
         <!-- draw velocity -->

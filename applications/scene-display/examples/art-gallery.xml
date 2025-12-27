@@ -257,7 +257,7 @@
             <input name="ReflectionCamera" state="reflection-camera" component="Camera" member-suffix="_Reflection"/>
             <texture name="colorTexture" fbo="reflection-buffer" attachment="1"
                      map-to="COLOR" mapping="PLANAR_REFLECTION" blend-mode="SRC" ignore-alpha="1"/>
-            <mesh id="reflector-mesh" shader="regen.models.mesh"/>
+            <mesh id="reflector-mesh" shader="regen.objects.mesh"/>
         </node>
     </node>
 
@@ -355,22 +355,22 @@
                 <define key="TEXCO_FLIP_X" value="1"/>
                 <texture name="colorTexture" id="video-texture" map-to="DIFFUSE" texco-flipping="x"/>
                 <transform id="video-picture-tf"/>
-                <mesh id="picture-canvas" shader="regen.models.mesh"/>
+                <mesh id="picture-canvas" shader="regen.objects.mesh"/>
             </node>
             <node id="smoke-picture-canvas">
                 <texture name="colorTexture" fbo="fluid-smoke-output" attachment="0" map-to="DIFFUSE"/>
                 <transform id="smoke-picture-tf"/>
-                <mesh id="picture-canvas" shader="regen.models.mesh"/>
+                <mesh id="picture-canvas" shader="regen.objects.mesh"/>
             </node>
             <node id="velocity-picture-canvas">
                 <texture name="colorTexture" fbo="fluid-vel-output" attachment="0" map-to="DIFFUSE"/>
                 <transform id="velocity-picture-tf"/>
-                <mesh id="picture-canvas" shader="regen.models.mesh"/>
+                <mesh id="picture-canvas" shader="regen.objects.mesh"/>
             </node>
             <node id="mandelbrot-picture-canvas">
                 <texture name="colorTexture" fbo="mandelbrot-buffer" attachment="0" map-to="DIFFUSE"/>
                 <transform id="mandelbrot-picture-tf"/>
-                <mesh id="picture-canvas" shader="regen.models.mesh"/>
+                <mesh id="picture-canvas" shader="regen.objects.mesh"/>
             </node>
         </node>
 
@@ -378,7 +378,7 @@
             <material preset="wood" variant="0" color-blend-mode="MUL"
                       diffuse="0.45, 0.45, 0.45"
                       update-frequency="NEVER"/>
-            <mesh id="picture-frame" shader="regen.models.mesh"/>
+            <mesh id="picture-frame" shader="regen.objects.mesh"/>
         </node>
 
         <node id="Picture-Titles">
@@ -391,28 +391,28 @@
                     <rotate value="3.14159265359, 0.0, 0.0"/>
                     <translate value="-4.0, 5.75, 19.99"/>
                 </transform>
-                <mesh id="video-text" shader="regen.models.mesh"/>
+                <mesh id="video-text" shader="regen.objects.mesh"/>
             </node>
             <node id="smoke-picture-text">
                 <transform update-frequency="NEVER">
                     <rotate value="3.14159265359, 0.0, 0.0"/>
                     <translate value="5.0, 5.75, 19.99"/>
                 </transform>
-                <mesh id="smoke-text" shader="regen.models.mesh"/>
+                <mesh id="smoke-text" shader="regen.objects.mesh"/>
             </node>
             <node id="velocity-picture-text">
                 <transform update-frequency="NEVER">
                     <rotate value="3.14159265359, 0.0, 0.0"/>
                     <translate value="14.0, 5.75, 19.99"/>
                 </transform>
-                <mesh id="velocity-text" shader="regen.models.mesh"/>
+                <mesh id="velocity-text" shader="regen.objects.mesh"/>
             </node>
             <node id="mandelbrot-picture-text">
                 <transform update-frequency="NEVER">
                     <rotate value="3.14159265359, 0.0, 0.0"/>
                     <translate value="-13.0, 5.75, 19.99"/>
                 </transform>
-                <mesh id="mandelbrot-text" shader="regen.models.mesh"/>
+                <mesh id="mandelbrot-text" shader="regen.objects.mesh"/>
             </node>
         </node>
     </node>
@@ -512,7 +512,7 @@
     <node id="Statues">
         <node id="Venus-Statue">
             <transform id="venus-tf"/>
-            <mesh id="venus-mesh" shader="regen.models.mesh"/>
+            <mesh id="venus-mesh" shader="regen.objects.mesh"/>
         </node>
         <node id="Venus-Platform">
             <node>
@@ -520,20 +520,20 @@
                     <rotate value="1.57079632,0.0,0.0"/>
                     <translate value="-6.0, -0.5, -13.0"/>
                 </transform>
-                <mesh id="statue-platform" shader="regen.models.mesh"/>
+                <mesh id="statue-platform" shader="regen.objects.mesh"/>
             </node>
             <node>
                 <transform update-frequency="NEVER">
                     <rotate value="1.57079632,0.0,0.0"/>
                     <translate value="-6.0, 0.901, -13.0"/>
                 </transform>
-                <mesh id="statue-platform-head" shader="regen.models.mesh"/>
+                <mesh id="statue-platform-head" shader="regen.objects.mesh"/>
             </node>
         </node>
 
         <node id="Dragon-Statue">
             <transform id="dragon-tf"/>
-            <mesh id="dragon-mesh" shader="regen.models.mesh"/>
+            <mesh id="dragon-mesh" shader="regen.objects.mesh"/>
         </node>
         <node id="Dragon-Platform">
             <node>
@@ -541,20 +541,20 @@
                     <rotate value="1.57079632,0.0,0.0"/>
                     <translate value="-0.0, -0.5, -13.0"/>
                 </transform>
-                <mesh id="statue-platform" shader="regen.models.mesh"/>
+                <mesh id="statue-platform" shader="regen.objects.mesh"/>
             </node>
             <node>
                 <transform update-frequency="NEVER">
                     <rotate value="1.57079632,0.0,0.0"/>
                     <translate value="-0.0, 0.901, -13.0"/>
                 </transform>
-                <mesh id="statue-platform-head" shader="regen.models.mesh"/>
+                <mesh id="statue-platform-head" shader="regen.objects.mesh"/>
             </node>
         </node>
 
         <node id="Bunny">
             <transform id="bunny-tf"/>
-            <mesh id="bunny-mesh" shader="regen.models.mesh"/>
+            <mesh id="bunny-mesh" shader="regen.objects.mesh"/>
         </node>
         <node id="Bunny-Statue">
             <node>
@@ -562,14 +562,14 @@
                     <rotate value="0.75, 0.0, 0.0"/>
                     <translate value="-12.0,-0.5,-11.0"/>
                 </transform>
-                <mesh id="statue-platform" shader="regen.models.mesh"/>
+                <mesh id="statue-platform" shader="regen.objects.mesh"/>
             </node>
             <node>
                 <transform update-frequency="NEVER">
                     <rotate value="0.75, 0.0, 0.0"/>
                     <translate value="-12.0, 0.901, -11.0"/>
                 </transform>
-                <mesh id="statue-platform-head" shader="regen.models.mesh"/>
+                <mesh id="statue-platform-head" shader="regen.objects.mesh"/>
             </node>
         </node>
 
@@ -589,7 +589,7 @@
             <input type="vec3" name="halfVolumeSize" value="0.8, 0.8, 0.8"/>
             <texture name="transferTexture" id="bonsai-transfer"/>
             <texture name="volumeTexture" id="bonsai-volume"/>
-            <mesh id="bonsai-mesh" shader="regen.models.volume"/>
+            <mesh id="bonsai-mesh" shader="regen.objects.volume"/>
         </node>
         <node id="Bonsai-Statue">
             <node>
@@ -597,14 +597,14 @@
                     <rotate value="0.75, 0.0, 0.0"/>
                     <translate value="6.0,-0.5,-11.0"/>
                 </transform>
-                <mesh id="statue-platform" shader="regen.models.mesh"/>
+                <mesh id="statue-platform" shader="regen.objects.mesh"/>
             </node>
             <node>
                 <transform update-frequency="NEVER">
                     <rotate value="0.75, 0.0, 0.0"/>
                     <translate value="6.0, 0.901, -11.0"/>
                 </transform>
-                <mesh id="statue-platform-head" shader="regen.models.mesh"/>
+                <mesh id="statue-platform-head" shader="regen.objects.mesh"/>
             </node>
         </node>
     </node>
@@ -656,12 +656,12 @@
             <node name="video-picture">
                 <texture name="colorTexture" id="video-texture" map-to="COLOR"/>
                 <transform id="video-picture-tf"/>
-                <mesh id="picture-canvas" shader="regen.models.mesh" gs="regen.states.picking.geom" fs="NONE"/>
+                <mesh id="picture-canvas" shader="regen.objects.mesh" gs="regen.passes.picking.geom" fs="NONE"/>
             </node>
             <node name="smoke-picture">
                 <texture name="colorTexture" fbo="fluid-smoke-output" attachment="0" map-to="COLOR"/>
                 <transform id="smoke-picture-tf"/>
-                <mesh id="picture-canvas" shader="regen.models.mesh" gs="regen.states.picking.geom" fs="NONE"/>
+                <mesh id="picture-canvas" shader="regen.objects.mesh" gs="regen.passes.picking.geom" fs="NONE"/>
             </node>
         </picking>
     </node>
@@ -679,7 +679,7 @@
                       color-blend-mode="MUL"
                       diffuse="0.7,0.7,0.7"
                       update-frequency="NEVER"/>
-            <mesh id="ground-mesh" shader="regen.models.mesh"/>
+            <mesh id="ground-mesh" shader="regen.objects.mesh"/>
         </node>
         <node import="Pictures"/>
 
@@ -694,14 +694,14 @@
                     <rotate value="0.0,0.0,1.5707963"/>
                     <translate value="0.0,3.0,20.5"/>
                 </transform>
-                <mesh id="wall" shader="regen.models.mesh"/>
+                <mesh id="wall" shader="regen.objects.mesh"/>
             </node>
             <node id="Wall-West">
                 <transform update-frequency="NEVER">
                     <rotate value="0.0,3.14,1.5707963"/>
                     <translate value="0.0,3.0,-20.5"/>
                 </transform>
-                <mesh id="wall" shader="regen.models.mesh"/>
+                <mesh id="wall" shader="regen.objects.mesh"/>
             </node>
             <node id="Wall-North">
                 <transform update-frequency="NEVER">
@@ -710,7 +710,7 @@
                     <rotate value="0.0,1.5707963,0.0"/>
                     <translate value="20.5,3.0,0.0"/>
                 </transform>
-                <mesh id="wall" shader="regen.models.mesh"/>
+                <mesh id="wall" shader="regen.objects.mesh"/>
             </node>
         </node>
 
@@ -724,27 +724,27 @@
                 <transform update-frequency="NEVER">
                     <translate value="0.5,-2.0,20.5"/>
                 </transform>
-                <mesh id="box-wall" shader="regen.models.mesh"/>
+                <mesh id="box-wall" shader="regen.objects.mesh"/>
             </node>
             <node id="box-wall1">
                 <transform update-frequency="NEVER">
                     <translate value="0.5,-2.0,-20.5"/>
                 </transform>
-                <mesh id="box-wall" shader="regen.models.mesh"/>
+                <mesh id="box-wall" shader="regen.objects.mesh"/>
             </node>
             <node id="box-wall2">
                 <transform update-frequency="NEVER">
                     <rotate value="1.57079632,0.0,0.0"/>
                     <translate value="20.0,-2.0,0.0"/>
                 </transform>
-                <mesh id="box-wall" shader="regen.models.mesh"/>
+                <mesh id="box-wall" shader="regen.objects.mesh"/>
             </node>
             <node>
                 <transform update-frequency="NEVER">
                     <rotate value="1.57079632,0.0,0.0"/>
                     <translate value="-21.0,-2.0,0.0"/>
                 </transform>
-                <mesh id="box-wall" shader="regen.models.mesh"/>
+                <mesh id="box-wall" shader="regen.objects.mesh"/>
             </node>
             <node id="box-wall3">
                 <transform update-frequency="NEVER">
@@ -752,7 +752,7 @@
                     <rotate value="0.0,1.57079632,0.0"/>
                     <translate value="-20.5,8.5,00.0"/>
                 </transform>
-                <mesh id="box-wall" shader="regen.models.mesh"/>
+                <mesh id="box-wall" shader="regen.objects.mesh"/>
             </node>
             <node id="box-wall3.1">
                 <transform update-frequency="NEVER">
@@ -760,7 +760,7 @@
                     <rotate value="0.0,1.57079632,0.0"/>
                     <translate value="20.5,8.5,0.0"/>
                 </transform>
-                <mesh id="box-wall" shader="regen.models.mesh"/>
+                <mesh id="box-wall" shader="regen.objects.mesh"/>
             </node>
             <node id="box-wall3.2">
                 <transform update-frequency="NEVER">
@@ -768,7 +768,7 @@
                     <rotate value="0.0,1.57079632,0.0"/>
                     <translate value="0.0,8.5,20.0"/>
                 </transform>
-                <mesh id="box-wall" shader="regen.models.mesh"/>
+                <mesh id="box-wall" shader="regen.objects.mesh"/>
             </node>
             <node id="box-wall3.3">
                 <transform update-frequency="NEVER">
@@ -776,35 +776,35 @@
                     <rotate value="0.0,1.57079632,0.0"/>
                     <translate value="0.0,8.5,-20.0"/>
                 </transform>
-                <mesh id="box-wall" shader="regen.models.mesh"/>
+                <mesh id="box-wall" shader="regen.objects.mesh"/>
             </node>
             <node id="box-wall5">
                 <transform update-frequency="NEVER">
                     <rotate value="0.0,1.57079632,0.0"/>
                     <translate value="-20.5,3.0,20.5"/>
                 </transform>
-                <mesh id="box-wall-1" shader="regen.models.mesh"/>
+                <mesh id="box-wall-1" shader="regen.objects.mesh"/>
             </node>
             <node id="box-wall6">
                 <transform update-frequency="NEVER">
                     <rotate value="0.0,1.57079632,0.0"/>
                     <translate value="-20.5,3.0,-20.5"/>
                 </transform>
-                <mesh id="box-wall-1" shader="regen.models.mesh"/>
+                <mesh id="box-wall-1" shader="regen.objects.mesh"/>
             </node>
             <node id="box-wall7">
                 <transform update-frequency="NEVER">
                     <rotate value="0.0,1.57079632,0.0"/>
                     <translate value="20.5,3.0,20.5"/>
                 </transform>
-                <mesh id="box-wall-1" shader="regen.models.mesh"/>
+                <mesh id="box-wall-1" shader="regen.objects.mesh"/>
             </node>
             <node id="box-wall7">
                 <transform update-frequency="NEVER">
                     <rotate value="0.0,1.57079632,0.0"/>
                     <translate value="20.5,3.0,-20.5"/>
                 </transform>
-                <mesh id="box-wall-1" shader="regen.models.mesh"/>
+                <mesh id="box-wall-1" shader="regen.objects.mesh"/>
             </node>
         </node>
     </node>
@@ -863,7 +863,7 @@
             <texture name="inputTexture2" id="bloom-texture" mip-level="1"/>
             <texture name="inputTexture3" id="bloom-texture" mip-level="2"/>
             <texture name="inputTexture4" id="bloom-texture" mip-level="3"/>
-            <fullscreen-pass shader="regen.filter.sampling.x4"/>
+            <fullscreen-pass shader="regen.textures.sampling.x4"/>
         </view>
     </node>
 
@@ -877,7 +877,7 @@
             <input type="vec2" name="fogRadiusScale" value="0.44,0.76"/>
             <input type="vec2" name="fogConeScale" value="1.0,1.0"/>
             <node>
-                <light-pass type="SPOT" ambient="0" shader="regen.weather.fog.volumetric.spot">
+                <light-pass type="SPOT" ambient="0" shader="regen.objects.sky.fog.volumetric.spot">
                     <light id="picture-spot-center"/>
                     <light id="picture-spot-center-n"/>
                     <light id="picture-spot-right"/>
@@ -922,7 +922,7 @@
             <define key="USE_VIGNETTE" value="TRUE"/>
             <input type="float" name="vignetteInner" value="0.9"/>
             <input type="float" name="vignetteOuter" value="1.75"/>
-            <fullscreen-pass shader="regen.filter.tonemap"/>
+            <fullscreen-pass shader="regen.passes.tonemap"/>
         </node>
         <view id="Tonemapping">
             <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
@@ -953,7 +953,7 @@
             <view id="Shadow-Map">
                 <fbo id="SCREEN"/>
                 <texture name="inputTexture" fbo="room-light-shadow0" attachment="depth"/>
-                <fullscreen-pass shader="regen.filter.sampling.cube.shadow"/>
+                <fullscreen-pass shader="regen.textures.sampling.cube.shadow"/>
             </view>
         </node>
 

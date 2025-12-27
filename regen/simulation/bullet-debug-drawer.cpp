@@ -5,7 +5,7 @@ using namespace regen;
 BulletDebugDrawer::BulletDebugDrawer(const ref_ptr<BulletPhysics> &physics)
 		: btIDebugDraw(),
 		  StateNode(),
-		  HasShader("regen.models.lines"),
+		  HasShader("regen.objects.lines"),
 		  physics_(physics),
 		  vbo_(0),
 		  m_debugMode(DBG_DrawContactPoints | DBG_DrawWireframe){

@@ -7,7 +7,7 @@
 using namespace regen;
 
 MotionBlur::MotionBlur(const ref_ptr<Camera> &camera)
-		: FullscreenPass("regen.filter.motion-blur"),
+		: FullscreenPass("regen.passes.motion-blur"),
 		  camera_(camera) {
 	ref_ptr<DepthState> depthState = ref_ptr<DepthState>::alloc();
 	depthState->set_useDepthTest(false);

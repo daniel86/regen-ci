@@ -541,8 +541,8 @@
           height-map="ground-height"
           normal-map="ground-normal"
           tf="ground-tf">
-        <shader mesh-index="0" key="regen.terrain.ground"/>
-        <shader mesh-index="1" key="regen.terrain.ground.skirt"/>
+        <shader mesh-index="0" key="regen.objects.terrain.ground"/>
+        <shader mesh-index="1" key="regen.objects.terrain.ground.skirt"/>
         <transform id="ground-tf" update-frequency="NEVER"/>
         <materials>
             <!--
@@ -589,7 +589,7 @@
             height-map="ground-height"
             path-width="18.0"
             base-height="-{{map-height-half}}">
-        <shader mesh-index="0" key="regen.models.mesh"/>
+        <shader mesh-index="0" key="regen.objects.mesh"/>
         <transform id="ground-path-tf" update-frequency="NEVER"/>
     </mesh>
 
@@ -598,7 +598,7 @@
           lod-thresholds="40.0, 80.0, 120.0"
           blanket-size="20.0,20.0"
           texco-scaling="1.0,1.0">
-        <shader mesh-index="0" key="regen.models.mesh"/>
+        <shader mesh-index="0" key="regen.objects.mesh"/>
         <material preset="stone" variant="0"/>
         <transform id="ground-blanket-tf" update-frequency="NEVER">
             <translate value="20.0,-32.0,15.0"/>
@@ -648,7 +648,7 @@
           blanket-trails="{{num-dwarves}}"
           blanket-frequency="0.5"
           initially-dead="1">
-        <shader mesh-index="0" key="regen.terrain.ground.blanket1"/>
+        <shader mesh-index="0" key="regen.objects.terrain.ground.blanket1"/>
         <transform id="dwarf-foot-tf" update-frequency="RARE"/>
         <blanket-mask fbo="footsteps-fbo1" attachment="0"/>
         <shape id="dwarf-foot-shape" cull="1" index="1" type="aabb"
@@ -668,7 +668,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="72">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="apple-tf" update-frequency="NEVER" is-instanced="1">
             <set mode="random" target="rotate" min="-3.14,0.0,0.0" max="3.14,0.0,0.0"/>
@@ -702,7 +702,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="36">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="pear-tf" update-frequency="NEVER" is-instanced="1">
             <rotate value="0.0, 0.0, 1.57"/>
@@ -735,7 +735,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="4">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="pumpkin-tf" update-frequency="NEVER" is-instanced="1">
             <set mode="random" target="rotate" min="-3.14,0.0,0.0" max="3.14,0.0,0.0"/>
@@ -772,9 +772,9 @@
                              format="RED"
                              internal-format="R16"
                              pixel-type="BYTE">
-                <filter shader="regen.filter.sampling" scale="1.0"/>
-                <filter shader="regen.filter.blur.horizontal"/>
-                <filter shader="regen.filter.blur.vertical"/>
+                <filter shader="regen.textures.sampling" scale="1.0"/>
+                <filter shader="regen.passes.blur.horizontal"/>
+                <filter shader="regen.passes.blur.vertical"/>
             </filter-sequence>
         </node>
         <node id="Footsteps-Array">
@@ -784,12 +784,12 @@
             <node id="Left-Foot">
                 <input name="layer" type="int" value="0"/>
                 <input name="uRange" type="vec2" value="0.0,0.5"/>
-                <fullscreen-pass shader="regen.filter.sampling"/>
+                <fullscreen-pass shader="regen.textures.sampling"/>
             </node>
             <node id="Right-Foot">
                 <input name="layer" type="int" value="1"/>
                 <input name="uRange" type="vec2" value="0.5,1.0"/>
-                <fullscreen-pass shader="regen.filter.sampling"/>
+                <fullscreen-pass shader="regen.textures.sampling"/>
             </node>
         </node>
     </node>
@@ -814,15 +814,15 @@
                 <input type="float" name="blurSigma" value="5.0"/>
                 <filter-sequence id="blurred-path" fbo="screen-density" attachment="1"
                                  format="RED" internal-format="R16" pixel-type="BYTE">
-                    <filter shader="regen.filter.sampling" scale="1.0"/>
-                    <filter shader="regen.filter.blur.horizontal"/>
-                    <filter shader="regen.filter.blur.vertical"/>
+                    <filter shader="regen.textures.sampling" scale="1.0"/>
+                    <filter shader="regen.passes.blur.horizontal"/>
+                    <filter shader="regen.passes.blur.vertical"/>
                 </filter-sequence>
             </node>
             <node id="Copy-to-FBO">
                 <fbo id="screen-density" draw-buffers="1"/>
                 <texture name="inputTexture" id="blurred-path"/>
-                <fullscreen-pass shader="regen.filter.sampling"/>
+                <fullscreen-pass shader="regen.textures.sampling"/>
             </node>
         </node>
         <!--
@@ -853,8 +853,8 @@
           lod-strict-boundary="1"
           num-instances="{{num-dwarves}}"
           update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.models.mesh"/>
-        <shader mesh-index="1" key="regen.models.mesh"/>
+        <shader mesh-index="0" key="regen.objects.mesh"/>
+        <shader mesh-index="1" key="regen.objects.mesh"/>
         <transform id="dwarf-tf" is-instanced="1">
             <!--
             <set mode="fade" target="scale"
@@ -892,7 +892,7 @@
           asset-animation="0"
           num-instances="1"
           update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.models.mesh"/>
+        <shader mesh-index="0" key="regen.objects.mesh"/>
         <transform id="dwarf-base-tf" is-instanced="1"/>
     </mesh>
 
@@ -903,7 +903,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="4">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <material preset="iron" variant="0"/>
         <transform id="mesh-cauldron-tf" update-frequency="NEVER" is-instanced="1">
@@ -942,7 +942,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="2">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="cart-tf" update-frequency="NEVER" is-instanced="1">
             <rotate instance="0" value="1.57, 0.0, 0.0"/>
@@ -965,7 +965,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="1">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="stable-tf" update-frequency="NEVER" is-instanced="1">
             <rotate instance="0" value="-1.67, 0.0, 0.0"/>
@@ -990,7 +990,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="3">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="trade-tent-tf" update-frequency="NEVER" is-instanced="1">
             <rotate instance="1" value="0.4, 0.0, 0.0"/>
@@ -1020,7 +1020,7 @@
           center="1" scaling="10.0, 1.0, 10.0"
           texco-scaling="0.2, 0.2" disc-radius="1.0"
           update-frequency="NEVER">
-        <shader mesh-index="0" key="regen.models.mesh"/>
+        <shader mesh-index="0" key="regen.objects.mesh"/>
         <material preset="ground/stone" variant="3"/>
         <transform id="market-place-tf" update-frequency="NEVER">
             <translate instance="0" value="{{market-x}}, 0.0, {{market-z}}"/>
@@ -1035,7 +1035,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="1">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="well-tf" update-frequency="NEVER" is-instanced="1">
             <translate instance="0" value="{{market-x}}, 0.0, {{market-z}}"/>
@@ -1058,7 +1058,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="2">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="campfire-tf" update-frequency="NEVER" is-instanced="1">
             <translate instance="0" value="{{village-center-a-x}}, 0.0, {{village-center-a-z}}"/>
@@ -1083,7 +1083,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="6">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="woodpile-tf" update-frequency="NEVER" is-instanced="1">
             <!-- wood piles in village a -->
@@ -1114,7 +1114,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="9">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="crate-tf" update-frequency="NEVER" is-instanced="1">
             <!-- crates in village b -->
@@ -1150,7 +1150,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="2">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <material preset="iron" variant="0"/>
         <transform id="old-bench-tf" update-frequency="NEVER" is-instanced="1">
@@ -1178,7 +1178,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="1">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <transform id="altar-tf" update-frequency="NEVER" is-instanced="1">
             <rotate value="0.0, 0.0, 1.57"/>
             <translate instance="0" value="{{shrine-center-x}}, 0.0, {{shrine-center-z}}"/>
@@ -1222,7 +1222,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="1">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <transform id="statue-tf" update-frequency="NEVER" is-instanced="1">
             <rotate value="0.0, 0.0, 1.57"/>
             <rotate value="3.14, 0.0, 0.0"/>
@@ -1242,7 +1242,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="1">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <transform id="rack-tf" update-frequency="NEVER" is-instanced="1">
             <rotate value="1.57, 0.0, 0.0"/>
             <translate instance="0" value="-22.0, 0.0, 45.0"/>
@@ -1262,7 +1262,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="6">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <transform id="manikin-tf" update-frequency="NEVER" is-instanced="1">
             <translate value="-12.0, 0.0, -8.0"/>
             <set mode="row" target="translate"
@@ -1294,7 +1294,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="1">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <transform id="barrel-tf" update-frequency="NEVER" is-instanced="1">
             <rotate value="0.0, 0.0, 1.57"/>
             <translate instance="0" value="40.0, 0.0, -15.0"/>
@@ -1315,7 +1315,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="1">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <material preset="wood" variant="0" />
         <transform id="stool-tf" update-frequency="NEVER" is-instanced="1">
@@ -1334,7 +1334,7 @@
           translation="0.0,0.0,0.0"
           update-frequency="NEVER"
           num-instances="6">
-        <shader key="regen.models.mesh"/>
+        <shader key="regen.objects.mesh"/>
         <input name="matEmission" type="vec3" value="0.0,0.0,0.0"/>
         <transform id="house-tf" update-frequency="NEVER" is-instanced="1">
             <!-- small village at home place a -->
@@ -1392,7 +1392,7 @@
         <node id="Well">
             <texture name="snowTexture" id="snow" map-to="DIFFUSE"
                      mapping="TRIPLANAR" texco-scale="0.1" blend-factor="0.9"
-                     blend-function-key="regen.terrain.ground.blend_ground"/>
+                     blend-function-key="regen.objects.terrain.ground.blend_ground"/>
             <mesh id="well"/>
         </node>
         <node id="Altar-Statue">
@@ -1411,13 +1411,13 @@
         <node id="Statue">
             <texture name="snowTexture" id="snow" map-to="DIFFUSE"
                      mapping="TRIPLANAR" texco-scale="0.1" blend-factor="0.8"
-                     blend-function-key="regen.terrain.ground.blend_ground"/>
+                     blend-function-key="regen.objects.terrain.ground.blend_ground"/>
             <mesh id="statue"/>
         </node>
         <node id="Stable">
             <texture name="snowTexture" id="snow" map-to="DIFFUSE"
                      mapping="TRIPLANAR" texco-scale="0.1" blend-factor="0.8"
-                     blend-function-key="regen.terrain.ground.blend_ground"/>
+                     blend-function-key="regen.objects.terrain.ground.blend_ground"/>
             <mesh id="stable"/>
         </node>
         <node id="Trade-Tent">
@@ -1476,7 +1476,7 @@
     <mesh id="snow-particles"
           type="particles"
           num-vertices="50000"
-          update-shader="regen.weather.precipitation.update"
+          update-shader="regen.objects.sky.precipitation.update"
           animation-state="Snow-Config">
         <input type="vec3" name="pos" is-attribute="1"/>
         <input type="vec3" name="velocity" is-attribute="1"/>
@@ -1498,7 +1498,7 @@
                     <texture name="snowTexture" id="snow-flake"/>
                     <input type="vec2" name="particleSize" value="0.08,0.08"/>
                     <input type="float" name="softParticleScale" value="30.0"/>
-                    <mesh id="snow-particles" shader="regen.weather.snow.draw"/>
+                    <mesh id="snow-particles" shader="regen.objects.sky.snow.draw"/>
                 </node>
             </direct-pass>
         </direct-shading>
@@ -1509,8 +1509,8 @@
         <input type="vec2" name="spriteSize" value="3.25, 3.25"/>
         <texture id="fire-noise" name="fireNoiseTexture"/>
         <texture id="fire-color" map-to="COLOR" blend="SRC"
-                 texco-transfer-key="regen.models.sprite.fireTransfer1"/>
-        <mesh id="fire-sprite" shader="regen.models.sprite"/>
+                 texco-transfer-key="regen.objects.sprite.fireTransfer1"/>
+        <mesh id="fire-sprite" shader="regen.objects.sprite"/>
     </node>
 
     <!--**************************-->
@@ -1519,7 +1519,7 @@
 
     <mesh id="lightning-mesh" type="lightning"
           update-frequency="PER_FRAME" update-scope="FULL">
-        <shader mesh-index="0" key="regen.weather.lightning"/>
+        <shader mesh-index="0" key="regen.objects.sky.lightning"/>
         <strike num-subdivisions="7" jitter-offset="24.0"
                 max-branches="12" branch-probability="0.9" branch-offset="32.0"
                 frequency="1.1f, 1.0f" lifetime="0.35f, 0.15f"
@@ -1613,7 +1613,7 @@
             <texture name="inputTexture2" id="emission-map-bloom" mip-level="1"/>
             <texture name="inputTexture3" id="emission-map-bloom" mip-level="2"/>
             <texture name="inputTexture4" id="emission-map-bloom" mip-level="3"/>
-            <fullscreen-pass shader="regen.filter.sampling.x4"/>
+            <fullscreen-pass shader="regen.textures.sampling.x4"/>
         </view>
     </node>
 
@@ -1633,7 +1633,7 @@
             <texture name="gDepthTexture" fbo="g-buffer" attachment="depth"/>
             <texture name="gColorTexture" fbo="g-buffer" attachment="1"/>
             <texture name="skyColorTexture" id="sky"/>
-            <fullscreen-pass shader="regen.weather.fog.distance"/>
+            <fullscreen-pass shader="regen.objects.sky.fog.distance"/>
         </node>
         <view id="Albedo-Fog">
             <blit src-fbo="g-buffer" src-attachment="0" dst-fbo="SCREEN"/>
@@ -1668,7 +1668,7 @@
                 <blend mode="alpha"/>
                 <depth test="0" write="0"/>
                 <texture name="inputTexture" fbo="g-buffer" attachment="4"/>
-                <fullscreen-pass shader="regen.filter.sampling"/>
+                <fullscreen-pass shader="regen.textures.sampling"/>
                 -->
             </node>
             <node id="Alpha-Blending-Pass">
@@ -1717,7 +1717,7 @@
             <fbo id="SCREEN"/>
             <texture name="inputTexture" fbo="sun-shadow" attachment="depth"/>
             <input type="int" name="arrayTextureSize" value="{{num-cascades}}"/>
-            <fullscreen-pass shader="regen.filter.sampling.array.shadow"/>
+            <fullscreen-pass shader="regen.textures.sampling.array.shadow"/>
         </view>
         <view id="Screen Paths">
             <blit src-fbo="screen-density" src-attachment="1" dst-fbo="SCREEN"/>
@@ -1728,7 +1728,7 @@
         <view id="Blurred Footsteps">
             <fbo id="SCREEN"/>
             <texture name="inputTexture" id="blurred-footsteps"/>
-            <fullscreen-pass shader="regen.filter.sampling"/>
+            <fullscreen-pass shader="regen.textures.sampling"/>
         </view>
         <view id="World Model">
             <node import="world-debug">
@@ -1817,7 +1817,7 @@
                 <view id="Ambient Occlusion">
                     <fbo id="SCREEN"/>
                     <texture name="inputTexture" id="ambient-occlusion"/>
-                    <fullscreen-pass shader="regen.filter.sampling"/>
+                    <fullscreen-pass shader="regen.textures.sampling"/>
                 </view>
                 <view id="Shading">
                     <blit src-fbo="g-buffer" src-attachment="1" dst-fbo="SCREEN"/>

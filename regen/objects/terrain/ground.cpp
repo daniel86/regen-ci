@@ -78,7 +78,7 @@ void Ground::setMapTextures(
 	// as the skirt area then doesn't cover a large area in horizontal direction.
 	auto heightMapState = groundMaterial_->set_texture(
 			heightMap_, TextureState::MAP_TO_HEIGHT, "heightMap");
-	heightMapState->set_mapping(ShaderFunction::createImport("regen.terrain.ground.groundUV"));
+	heightMapState->set_mapping(ShaderFunction::createImport("regen.objects.terrain.ground.groundUV"));
 	groundMaterial_->set_texture(normalMap_, TextureState::MAP_TO_CUSTOM, "normalMap");
 }
 
@@ -642,7 +642,7 @@ void Ground::createWeightPass() {
 		weightUpdateState_->joinStates(depth);
 	}
 	// run weight pass
-	weightUpdatePass_ = ref_ptr<FullscreenPass>::alloc("regen.terrain.ground.weights");
+	weightUpdatePass_ = ref_ptr<FullscreenPass>::alloc("regen.objects.terrain.ground.weights");
 	weightUpdateState_->joinStates(weightUpdatePass_);
 
 	StateConfigurer shaderConfigurer;

@@ -43,7 +43,7 @@ Moon::Moon(const ref_ptr<Sky> &sky, std::string_view moonMapFile)
 	scattering_->setUniformData(defaultScattering());
 	state()->setInput(scattering_);
 
-	shaderState_ = ref_ptr<HasShader>::alloc("regen.weather.moon");
+	shaderState_ = ref_ptr<HasShader>::alloc("regen.objects.sky.moon");
 	meshState_ = ref_ptr<Rectangle>::alloc(sky->skyQuad());
 }
 

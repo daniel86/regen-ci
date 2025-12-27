@@ -192,8 +192,8 @@ void MeshViewerWidget::billboardMeshes_GL() {
 		billboard->setDepthOffset(static_cast<float>(ui_.depthOffsetSpin->value()));
 		billboard->setUseNormalCorrection(ui_.normalCorrectionCheck->isChecked());
 		billboard->setSnapshotTextureSize(ui_.impostorSizeSpin->value(), ui_.impostorSizeSpin->value());
-		billboard->setShaderKey("regen.models.impostor");
-		billboard->setSnapshotShaderKey("regen.models.impostor.update");
+		billboard->setShaderKey("regen.objects.lod.impostor");
+		billboard->setSnapshotShaderKey("regen.objects.lod.impostor.update");
 		billboard->updateSnapshotViews();
 		billboard->createSnapshot();
 
