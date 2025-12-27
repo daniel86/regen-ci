@@ -129,7 +129,7 @@ void LightPass::createShader(const StateConfig &cfg) {
 		if (firstLight.camera.get()) {
 			auto &shadowBuffer = firstLight.camera->shadowBuffer();
 			_cfg.addInput(shadowBuffer->name(), shadowBuffer);
-			_cfg.addBufferContainer(
+			_cfg.addBufferContainer("LightCamera",
 				firstLight.camera->lightCamera()->cameraBuffer(), "_Light");
 		}
 	}

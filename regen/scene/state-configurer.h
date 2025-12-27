@@ -63,7 +63,7 @@ namespace regen {
 		/**
 		 * Adds BufferContainer instance to StateConfig.
 		 */
-		void addBufferContainer(
+		void addBufferContainer(const std::string &name,
 			const ref_ptr<BufferContainer> &boContainer,
 			const std::string &memberSuffix = "");
 
