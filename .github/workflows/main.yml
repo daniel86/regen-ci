@@ -126,5 +126,3 @@ jobs:
           make
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
-          title: 'Results of CppCheck'
-          input: 'annotations.json'
