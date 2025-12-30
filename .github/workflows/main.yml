@@ -124,5 +124,3 @@ jobs:
           cd build
           cmake ../ -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DBUILD_VIDEO_PLAYER=ON
           make
-        with:
-          repo-token: "${{ secrets.GITHUB_TOKEN }}"
