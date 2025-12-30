@@ -29,7 +29,9 @@ jobs:
             nlohmann-json3-dev
         mkdir build
         cd build
-        cmake ../ -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DBUILD_VIDEO_PLAYER=ON
+        cmake ../ -DCMAKE_BUILD_TYPE=Release \
+          -DQt5_DIR=$(brew --prefix qt5)/lib/cmake/Qt5 \
+          -DBUILD_TESTS=ON -DBUILD_VIDEO_PLAYER=ON
         make 2> >(tee "make-output.txt")
     ## COMPILER OUTPUT
     - name: Annotate compilation warnings/errors
