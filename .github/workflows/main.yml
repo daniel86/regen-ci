@@ -71,8 +71,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          ls /opt/homebrew/include/AL
-          ls /opt/homebrew/include/
+          ls opt/homebrew/opt/openal-soft/include/
           export CMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@5"
           # export CXXFLAGS=-isystem\ /opt/homebrew/include/
           cmake \
