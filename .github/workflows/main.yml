@@ -72,7 +72,7 @@ jobs:
           mkdir build
           cd build
           export CMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@5"
-          cmake ../ -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
+          cmake ../ -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
           make
   ##############################
   debian:
