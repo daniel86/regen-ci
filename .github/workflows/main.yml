@@ -71,9 +71,9 @@ jobs:
         run: |
           mkdir build
           cd build
-          ls /opt/homebrew/include/
+          ls /opt/homebrew/include/AL
           export CMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@5"
-          export CXXFLAGS=-isystem\ /opt/homebrew/include/OpenAL
+          export CXXFLAGS=-isystem\ /opt/homebrew/include/
           cmake \
             -DCMAKE_C_COMPILER=/opt/homebrew/bin/gcc-14 -DCMAKE_CXX_COMPILER=/opt/homebrew/bin/g++-14 \
             -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON \
