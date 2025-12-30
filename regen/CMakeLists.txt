@@ -41,6 +41,11 @@ set(SOURCES ${SOURCES} ${SOURCES_CWD})
 include_directories(external/libnoise/src/noise)
 
 add_library(${PROJECT_NAME} STATIC ${SOURCES})
+if(HAS_AVX2)
+    target_compile_options(${PROJECT_NAME} PRIVATE -mavx2)
+elseif(HAS_AVX)
+    target_compile_options(${PROJECT_NAME} PRIVATE -mavx)
+endif()
 target_link_libraries(${PROJECT_NAME} ${REGEN_LIBRARIES})
 target_include_directories(${PROJECT_NAME} PRIVATE ${REGEN_EXTRA_INCLUDE_DIRS})
 
