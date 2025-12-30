@@ -121,8 +121,19 @@ jobs:
       shell: bash
       run: |
         sudo apt-get update -y -qq
+        sudo apt-get install libgl-dev \
+            libboost-thread-dev libboost-system-dev libboost-date-time-dev libboost-filesystem-dev \
+            libboost-regex-dev libboost-timer-dev \
+            libassimp-dev libopenal-dev libdevil-dev libfreetype-dev libbullet-dev \
+            libglew-dev libglu1-mesa-dev libgl1-mesa-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
+            libpng-dev libalut-dev \
+            qtbase5-dev libgtest-dev \
+            doxygen graphviz \
+            nlohmann-json3-dev
         mkdir build
         cd build
+        cmake ../ -DCMAKE_BUILD_TYPE=Release
         cmake --build . --target doc
         cp -r ../img regen/doc/html/
     - name: Extract version tag
