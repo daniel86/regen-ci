@@ -112,7 +112,6 @@ jobs:
         name: test results
         path: ./gtest-regen.xml
   ##############################
-  ##############################
   static-analysis:
     runs-on: ubuntu-24.04
     steps:
