@@ -73,7 +73,8 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake ../ -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DBUILD_VIDEO_PLAYER=ON
+          export CMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@5"
+          cmake ../ -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
           make
   ##############################
   debian:
