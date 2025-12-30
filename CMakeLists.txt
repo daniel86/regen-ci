@@ -75,6 +75,10 @@ endif()
 # given in the books "Effective C++" and "More Effective C++"
 # add_definitions( -Weffc++ )
 
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-mavx" HAS_AVX)
+check_cxx_compiler_flag("-mavx2" HAS_AVX2)
+
 add_definitions( -march=native )
 if(UNIX AND NOT APPLE) # gcc options
     add_definitions( -mfpmath=sse )
