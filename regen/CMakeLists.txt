@@ -42,6 +42,7 @@ include_directories(external/libnoise/src/noise)
 
 add_library(${PROJECT_NAME} STATIC ${SOURCES})
 target_link_libraries(${PROJECT_NAME} ${REGEN_LIBRARIES})
+target_include_directories(${PROJECT_NAME} PRIVATE ${REGEN_EXTRA_INCLUDE_DIRS})
 
 add_custom_target(gen_h
     DEPENDS ${CMAKE_BINARY_DIR}/regen/config.h)
