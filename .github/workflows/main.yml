@@ -111,7 +111,7 @@ jobs:
       with:
         name: test results
         path: ./gtest-regen.xml
-  ##############################
+  ############################
   static-analysis:
     name: cppcheck-test
     runs-on: ubuntu-latest
