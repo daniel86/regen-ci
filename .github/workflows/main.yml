@@ -71,12 +71,9 @@ jobs:
         run: |
           mkdir build
           cd build
-          ls /opt/homebrew/opt/openal-soft/
-          ls /opt/homebrew/opt/openal-soft/include/
-          export CMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@5"
-          # export CXXFLAGS=-isystem\ /opt/homebrew/include/
           cmake \
             -DCMAKE_C_COMPILER=/opt/homebrew/bin/gcc-14 -DCMAKE_CXX_COMPILER=/opt/homebrew/bin/g++-14 \
+            -DCMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@5" \
             -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON \
             -DREGEN_EXTRA_INCLUDE_DIRS="/opt/homebrew/opt/openal-soft/include/" \
             ../
