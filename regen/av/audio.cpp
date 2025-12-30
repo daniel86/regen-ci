@@ -1,4 +1,4 @@
-#include <AL/alut.h>
+#include <alut.h>
 #include <regen/utility/strings.h>
 #include <regen/utility/logging.h>
 #include "audio.h"
