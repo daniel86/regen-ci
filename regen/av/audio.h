@@ -19,8 +19,8 @@ extern "C" {
 #endif
 }
 
-#include <AL/al.h>
-#include <AL/alc.h>
+#include <al.h>
+#include <alc.h>
 
 #include <regen/av/av-stream.h>
 #include <regen/compute/vector.h>
