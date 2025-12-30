@@ -75,8 +75,9 @@ endif()
 # given in the books "Effective C++" and "More Effective C++"
 # add_definitions( -Weffc++ )
 
+add_definitions( -march=native )
 if(UNIX AND NOT APPLE) # gcc options
-    add_definitions( -mfpmath=sse -march=native )
+    add_definitions( -mfpmath=sse )
 endif()
 
 # perform more aggressive floating-point optimizations
