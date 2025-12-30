@@ -8,10 +8,10 @@ on:
   release:
     types: [published]
 jobs:
-  build:
+  ##############################
+  build-linux:
     runs-on: ubuntu-24.04
     steps:
-    # Note: some steps require the checkout in the root directory
     - uses: actions/checkout@v3
     - name: Build REGEN workspace
       shell: bash
@@ -31,6 +31,7 @@ jobs:
         cd build
         cmake ../ -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DBUILD_VIDEO_PLAYER=ON
         make 2> >(tee "make-output.txt")
+    ## COMPILER OUTPUT
     - name: Annotate compilation warnings/errors
       if: ${{github.event_name == 'pull_request'}}
       uses: JacobDomagala/CompileResult@master
@@ -40,12 +41,7 @@ jobs:
       with:
         comment_title: Compilation
         compile_result_file: build/make-output.txt
-    - name: Create debian package
-      if: ${{github.event_name == 'push' || github.event_name == 'release'}}
-      shell: bash
-      run: |
-        cd build
-        cpack
+    ## UNIT TESTING
     - name: Run unit tests
       if: ${{github.event_name == 'push' || github.event_name == 'pull_request'}}
       shell: bash
@@ -59,7 +55,53 @@ jobs:
         junit_files: "gtest-regen.xml"
         action_fail: true
         action_fail_on_inconclusive: true
-    #####
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: test results
+        path: ./gtest-regen.xml
+  ##############################
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: brew install cmake boost assimp openal freetype bullet glew qt5 doxygen graphviz
+      - name: Build REGEN workspace
+        run: |
+          mkdir build
+          cd build
+          cmake ../ -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DBUILD_VIDEO_PLAYER=ON
+          make
+  ##############################
+  debian:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v3
+    - name: Create debian package
+      if: ${{github.event_name == 'push' || github.event_name == 'release'}}
+      shell: bash
+      run: |
+        cd build
+        cpack
+    - name: Release debian package
+      if: github.event_name == 'release'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.TOKEN }}
+      run: |
+        gh release upload ${{github.event.release.tag_name}} ./build/regen-*.deb
+    - name: Upload debian package
+      if: github.event_name == 'push'
+      uses: actions/upload-artifact@v4
+      with:
+        name: debian package
+        path: ./build/regen-*.deb
+  ##############################
+  doxygen:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v3
     - name: Run doxygen
       if: ${{github.event_name == 'push' || github.event_name == 'release'}}
       shell: bash
@@ -92,35 +134,3 @@ jobs:
         TARGET_FOLDER: ${{ env.REGEN_DOCU_VERSION }}
         CLEAN: true
         SINGLE_COMMIT: true
-    #####
-    - name: Release debian package
-      if: github.event_name == 'release'
-      shell: bash
-      env:
-        GITHUB_TOKEN: ${{ github.TOKEN }}
-      run: |
-        gh release upload ${{github.event.release.tag_name}} ./build/regen-*.deb
-    - name: Upload debian package
-      if: github.event_name == 'push'
-      uses: actions/upload-artifact@v4
-      with:
-        name: debian package
-        path: ./build/regen-*.deb
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
-      with:
-        name: test results
-        path: ./gtest-regen.xml
-  ##############################
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install dependencies
-        run: brew install cmake boost assimp openal freetype bullet glew qt5 doxygen graphviz
-      - name: Build REGEN workspace
-        run: |
-          mkdir build
-          cd build
-          cmake ../ -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DBUILD_VIDEO_PLAYER=ON
-          make
