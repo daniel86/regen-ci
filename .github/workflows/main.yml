@@ -23,7 +23,7 @@ jobs:
             libassimp-dev libopenal-dev libdevil-dev libfreetype-dev libbullet-dev \
             libglew-dev libglu1-mesa-dev libgl1-mesa-dev \
             libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
-            libpng-dev libalut-dev \
+            libpng-dev libalut-dev libsimde-dev \
             qtbase5-dev libgtest-dev \
             doxygen graphviz \
             nlohmann-json3-dev
@@ -104,7 +104,7 @@ jobs:
             libassimp-dev libopenal-dev libdevil-dev libfreetype-dev libbullet-dev \
             libglew-dev libglu1-mesa-dev libgl1-mesa-dev \
             libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
-            libpng-dev libalut-dev \
+            libpng-dev libalut-dev libsimde-dev \
             qtbase5-dev libgtest-dev \
             doxygen graphviz \
             nlohmann-json3-dev
@@ -141,7 +141,7 @@ jobs:
             libassimp-dev libopenal-dev libdevil-dev libfreetype-dev libbullet-dev \
             libglew-dev libglu1-mesa-dev libgl1-mesa-dev \
             libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
-            libpng-dev libalut-dev \
+            libpng-dev libalut-dev libsimde-dev \
             qtbase5-dev libgtest-dev \
             doxygen graphviz \
             nlohmann-json3-dev
