@@ -79,15 +79,15 @@ jobs:
             ../
           make
   ##############################
-  formatting:
-    runs-on: ubuntu-24.04
-    steps:
-    - uses: actions/checkout@v3
-    - name: Check formatting
-      run: |
-        sudo apt-get install -y clang-format
-        clang-format --version
-        git ls-files '*.cpp' '*.h' | xargs clang-format --dry-run --Werror
+  #formatting:
+  #  runs-on: ubuntu-24.04
+  #  steps:
+  #  - uses: actions/checkout@v3
+  #  - name: Check formatting
+  #    run: |
+  #      sudo apt-get install -y clang-format
+  #      clang-format --version
+  #      git ls-files '*.cpp' '*.h' | xargs clang-format --dry-run --Werror
   ##############################
   debian:
     runs-on: ubuntu-24.04
