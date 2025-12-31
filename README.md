@@ -13,7 +13,7 @@
 ![CI](https://github.com/daniel86/regen/workflows/CI/badge.svg)
 ![Warnings](https://img.shields.io/badge/compiler%20warnings-clean-brightgreen)
 [![Docs](https://img.shields.io/badge/docs-online-blue)](https://daniel86.github.io/regen/)
-![GitHub release](https://img.shields.io/github/v/release/daniel86/regen)
+![GitHub release](https://img.shields.io/github/v/release/daniel86/regen?include_prereleases)
 ![Debian package](https://img.shields.io/badge/debian-package-success-green)
 ![License](https://img.shields.io/github/license/daniel86/regen)
 
