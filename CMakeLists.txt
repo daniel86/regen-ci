@@ -289,6 +289,8 @@ install(FILES img/icon-small.png DESTINATION ${SHARE_INSTALL_PATH}/img)
 add_executable(all_gtests
         tests/gtests.cpp
         tests/shapes/quad-tree-test.cpp)
+target_include_directories(all_gtests
+        PRIVATE ${REGEN_EXTRA_INCLUDE_DIRS})
 target_link_libraries(all_gtests
         -Wl,--whole-archive,--no-as-needed
         regen
