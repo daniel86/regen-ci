@@ -261,6 +261,10 @@ endif()
 ###########
 ###########
 
+if(REGEN_EXTRA_INCLUDE_DIRS)
+    include_directories(${REGEN_EXTRA_INCLUDE_DIRS})
+endif()
+
 # allow includes like <regen/xxx.h> even if the engine is not installed
 include_directories(.)
 # allow include of generated files
@@ -289,8 +293,6 @@ install(FILES img/icon-small.png DESTINATION ${SHARE_INSTALL_PATH}/img)
 add_executable(all_gtests
         tests/gtests.cpp
         tests/shapes/quad-tree-test.cpp)
-target_include_directories(all_gtests
-        PRIVATE ${REGEN_EXTRA_INCLUDE_DIRS})
 target_link_libraries(all_gtests
         -Wl,--whole-archive,--no-as-needed
         regen
