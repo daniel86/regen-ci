@@ -206,8 +206,10 @@ message(STATUS "  Models:${ASSIMP_INCLUDE_DIRS};")
 message(STATUS "  Fonts:${FREETYPE_INCLUDE_DIRS};")
 message(STATUS "  Physics:${BULLET_INCLUDE_DIRS};")
 
-enable_testing()
-find_package(GTest REQUIRED)
+if (BUILD_UNIT_TESTS)
+    enable_testing()
+    find_package(GTest REQUIRED)
+endif ()
 
 if (HAS_AV_LIBS)
     # allow includes without AL/ prefix. Some openAL versions require this.
@@ -286,19 +288,21 @@ install(FILES img/icon-small.png DESTINATION ${SHARE_INSTALL_PATH}/img)
 ########## Unit Testings
 ##############
 
-# add an executable target for GTest.
-# but the testing code is partly in the *knowrob* library
-# where gtest won't find them without using the "--no-as-needed"
-# flag for the linker.
-add_executable(all_gtests
-        tests/gtests.cpp
-        tests/shapes/quad-tree-test.cpp)
-target_link_libraries(all_gtests
-        -Wl,--whole-archive,--no-as-needed
-        regen
-        -Wl,--no-whole-archive
-        ${Boost_Python_COMPONENT}
-        ${GTEST_MAIN_LIBRARIES})
+if (BUILD_UNIT_TESTS)
+    # add an executable target for GTest.
+    # but the testing code is partly in the *knowrob* library
+    # where gtest won't find them without using the "--no-as-needed"
+    # flag for the linker.
+    add_executable(all_gtests
+            tests/gtests.cpp
+            tests/shapes/quad-tree-test.cpp)
+    target_link_libraries(all_gtests
+            -Wl,--whole-archive,--no-as-needed
+            regen
+            -Wl,--no-whole-archive
+            ${Boost_Python_COMPONENT}
+            ${GTEST_MAIN_LIBRARIES})
+endif ()
 
 ##############
 ########## packaging
