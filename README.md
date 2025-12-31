@@ -11,6 +11,7 @@
 </p>
 
 ![CI](https://github.com/daniel86/regen/workflows/CI/badge.svg)
+![GitHub release](https://img.shields.io/github/v/release/daniel86/regen)
 
 `regen` -- **Real-time Graphics Engine** -- is a modular OpenGL-based C++ engine designed for research and experimentation in real-time rendering, GPU compute, and virtual world simulation.
 
