@@ -3,6 +3,7 @@
 
 #include <boost/filesystem/path.hpp>
 
+#include <list>
 #include <string>
 #include <map>
 #include <set>

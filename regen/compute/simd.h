@@ -7,23 +7,27 @@
 // NOTE: Check for REGEN_HAS_SIMD, if it is not defined, the SIMD operations will be disabled
 //       and the code here will fall back to scalar operations.
 // NOLINTBEGIN(portability-simd-intrinsics)
+
+
 #if defined(__AVX__)
-	//#include <immintrin.h> // AVX
-#define SIMDE_ENABLE_NATIVE_ALIASES
-#include <simde/x86/avx.h>
-#include <simde/x86/avx2.h>
-#include <simde/x86/fma.h>
-	#define REGEN_SIMD_MODE AVX
+	#include <immintrin.h> // AVX
+	#define REGEN_SIMD_MODE 10
 	#define REGEN_SIMD_WIDTH 8
 	#define REGEN_HAS_SIMD
 #elif defined(__SSE__)
 	#include <xmmintrin.h> // SSE
-	#define REGEN_SIMD_MODE SSE
+	#define REGEN_SIMD_MODE 20
 	#define REGEN_SIMD_WIDTH 4
 	#define REGEN_HAS_SIMD
 #else
-	#define REGEN_SIMD_MODE NONE
-	#define REGEN_SIMD_WIDTH 1
+	#define SIMDE_ENABLE_NATIVE_ALIASES
+	#include <simde/x86/avx.h>
+	#include <simde/x86/avx2.h>
+	#include <simde/x86/fma.h>
+
+	#define REGEN_SIMD_MODE 10
+	#define REGEN_SIMD_WIDTH 8
+	#define REGEN_HAS_SIMD
 #endif
 
 namespace regen::simd {
@@ -36,7 +40,7 @@ namespace regen::simd {
 		return bitIndex;
 	}
 
-#if REGEN_SIMD_MODE == AVX
+#if REGEN_SIMD_MODE == 10
 	static constexpr int8_t RegisterMask = 0xFF; // 8 bits for AVX
 	using Register = simde__m256; // 8 floats
 	using Register_i = simde__m256i; // 8 integers
@@ -198,7 +202,7 @@ namespace regen::simd {
 		return simde_mm256_blendv_ps(a, b, mask);
 	}
 
-#elif REGEN_SIMD_MODE == SSE
+#elif REGEN_SIMD_MODE == 20
 	static constexpr int8_t RegisterMask = 0x0F; // 4 bits for SSE
 	using Register = __m128; // 4 floats
 	using Register_i = __m128i; // 4 integers
