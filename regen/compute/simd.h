@@ -5,7 +5,6 @@
 #include <regen/memory/aligned-allocator.h>
 
 #define SIMDE_ENABLE_NATIVE_ALIASES
-#include <simde/simde-common.h>
 #include <simde/x86/avx.h>
 #include <simde/x86/avx2.h>
 #include <simde/x86/fma.h>
